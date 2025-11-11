@@ -11,7 +11,7 @@ import {
   NetworkError,
 } from '@/services/authService';
 
-export default function LoginPage(): JSX.Element {
+export default function LoginPage() {
   const [formData, setFormData] = useState<LoginData>({
     email: '',
     password: '',
