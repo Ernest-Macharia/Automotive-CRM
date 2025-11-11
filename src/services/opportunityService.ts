@@ -31,15 +31,11 @@ export const opportunityService = {
 
   // Get opportunities overview
   async getOverview(): Promise<OpportunityOverview> {
-    return await apiClient.patch<{ status: string }, Opportunity>(API_ENDPOINTS.OPPORTUNITY_BY_ID(id), { status });
+    return await apiClient.get<OpportunityOverview>(API_ENDPOINTS.OPPORTUNITIES_OVERVIEW);
   },
 
   // Update opportunity status
   async updateStatus(id: string, status: string): Promise<Opportunity> {
-    return await apiClient.patch<Opportunity>(API_ENDPOINTS.OPPORTUNITY_BY_ID(id), { status });
+    return await apiClient.patch<{ status: string }, Opportunity>(API_ENDPOINTS.OPPORTUNITY_BY_ID(id), { status });
   }
 };
-
-function id(id: any): any {
-throw new Error('Function not implemented.');
-}
