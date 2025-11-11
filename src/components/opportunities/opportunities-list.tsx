@@ -3,6 +3,17 @@
 
 import { useOpportunities } from '@/hooks/useOpportunities';
 import { OpportunityCard } from './opportunity-card';
+import { Opportunity } from '@/types/opportunity';
+
+interface ApiOpportunity extends Omit<Opportunity, 'title'> {
+  subject?: string; 
+  customer?: {
+    name: string;
+    email?: string;
+    phone?: string;
+    companyName?: string;
+  };
+}
 
 export function OpportunitiesList() {
   const { data: opportunities, isLoading, error } = useOpportunities();
@@ -76,13 +87,13 @@ export function OpportunitiesList() {
       
       {/* List */}
       <div className="divide-y divide-gray-200">
-        {opportunities.map((opportunity) => (
+        {(opportunities as ApiOpportunity[]).map((opportunity) => (
           <OpportunityCard 
             key={opportunity.id} 
             opportunity={{
               id: opportunity.id,
-              subject: opportunity.title || 'Untitled Opportunity', // Use subject from API
-              customerName: opportunity.customer?.name || opportunity.customer?.companyName || 'Unknown Customer',
+              subject: opportunity.subject || opportunity.title || 'Untitled Opportunity',
+              customerName: opportunity.customer?.name || (opportunity.customer as any)?.companyName || 'Unknown Customer',
               contactEmail: opportunity.customer?.email || '',
               status: opportunity.status || 'new',
               value: opportunity.value || 0,
