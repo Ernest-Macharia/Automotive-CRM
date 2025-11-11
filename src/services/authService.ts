@@ -20,16 +20,18 @@ export interface AuthResponse {
   user: User;
 }
 
+/** Typed Errors **/
 export class AuthenticationError extends Error {
-  constructor(message: string) {
-    super(message);
+  status = 401;
+  constructor(message?: string) {
+    super(message ?? 'Invalid credentials');
     this.name = 'AuthenticationError';
   }
 }
 
 export class NetworkError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message?: string) {
+    super(message ?? 'Network error occurred');
     this.name = 'NetworkError';
   }
 }
@@ -37,46 +39,62 @@ export class NetworkError extends Error {
 export const authService = {
   async login(credentials: LoginData): Promise<AuthResponse> {
     try {
-      const response = await apiClient.post<AuthResponse>(
+      const res = await apiClient.post<LoginData, AuthResponse>(
         API_ENDPOINTS.LOGIN,
         credentials
       );
-      
-      if (response.accessToken && response.refreshToken) {
-        apiClient.setTokens(response.accessToken, response.refreshToken);
+
+      // Validate response shape defensively
+      if (!res || !res.accessToken || !res.refreshToken || !res.user) {
+        throw new Error('Malformed auth response from server');
       }
-      
-      return response;
-    } catch (error: any) {
-      // Handle 401 as expected application state, not an error
-      if (error.message.includes('401') || error.message.includes('Invalid credentials')) {
-        throw new AuthenticationError('Invalid email or password. Please check your credentials and try again.');
+
+      // Persist tokens in client layer
+      apiClient.setTokens(res.accessToken, res.refreshToken);
+
+      return res;
+    } catch (err: unknown) {
+      // Normalize known ApiError shape thrown by ApiClient
+      if (err instanceof Error) {
+        // ApiClient attaches status on Error when HTTP error occurred
+        const maybeStatus = (err as any).status as number | undefined;
+
+        if (maybeStatus === 401) {
+          throw new AuthenticationError(err.message ?? 'Invalid credentials');
+        }
+
+        // Detect network errors (ApiClient returns Error with message including 'Network')
+        if (err.message?.toString().toLowerCase().includes('network')) {
+          throw new NetworkError(err.message);
+        }
+
+        // rethrow other errors
+        throw err;
       }
-      
-      // Handle network errors
-      if (error.message.includes('Network error') || error.message.includes('Failed to fetch')) {
-        throw new NetworkError('Unable to connect to the server. Please check your internet connection.');
-      }
-      
-      // Handle server errors
-      if (error.message.includes('500')) {
-        throw new Error('Server temporarily unavailable. Please try again later.');
-      }
-      
-      // Re-throw other errors
-      throw error;
+      // unknown non-Error
+      throw new Error('An unexpected error occurred during login');
     }
   },
 
   async getCurrentUser(): Promise<User> {
-    return await apiClient.post<User>(API_ENDPOINTS.GET_ME);
+    // Backend may use GET or POST for this route; adjust accordingly.
+    // Based on your swagger earlier, this endpoint exists; ensure API_ENDPOINTS.GET_ME is correct.
+    return apiClient.get<User>(API_ENDPOINTS.GET_ME);
   },
 
-  async logout(): Promise<void> {
+  logout(): void {
     apiClient.clearTokens();
   },
 
   isAuthenticated(): boolean {
     return !!apiClient.getAccessToken();
+  },
+
+  // convenience: demo login (only for development)
+  async demoLogin(): Promise<AuthResponse> {
+    return this.login({
+      email: 'superadmin@crm.local',
+      password: 'ChangeMe123!',
+    });
   },
 };

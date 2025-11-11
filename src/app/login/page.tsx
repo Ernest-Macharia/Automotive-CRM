@@ -1,38 +1,50 @@
-// src/app/login/page.tsx
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mail, Lock, Eye, EyeOff, Car, Shield, AlertCircle } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Car, Shield } from 'lucide-react';
 import Link from 'next/link';
-import { authService, LoginData, AuthenticationError, NetworkError } from '@/services/authService';
+import {
+  authService,
+  LoginData,
+  AuthenticationError,
+  NetworkError,
+} from '@/services/authService';
 
-export default function LoginPage() {
+export default function LoginPage(): JSX.Element {
   const [formData, setFormData] = useState<LoginData>({
     email: '',
     password: '',
   });
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
 
   const router = useRouter();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-    
+
     try {
       await authService.login(formData);
+      // On success navigate to dashboard/home
       router.push('/');
-    } catch (error: any) {
-      // Only log actual errors to console, not expected states like invalid credentials
-      if (!(error instanceof AuthenticationError)) {
-        console.error('Login error:', error);
+    } catch (err: unknown) {
+      console.error('Login failed:', err);
+
+      if (err instanceof AuthenticationError) {
+        setError('Invalid email or password. Please check your credentials and try again.');
+      } else if (err instanceof NetworkError) {
+        setError('Network connection error. Please check your internet connection.');
+      } else if (err instanceof Error && (err as Error).message.includes('Internal server error')) {
+        setError('Server temporarily unavailable. Please try again in a few moments.');
+      } else if (err instanceof Error) {
+        setError((err as Error).message || 'Login failed. Please try again.');
+      } else {
+        setError('Login failed. Please try again.');
       }
-      
-      setError(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -41,18 +53,21 @@ export default function LoginPage() {
   const handleDemoLogin = async () => {
     setIsLoading(true);
     setError('');
-    
+
     try {
-      await authService.login({
-        email: "superadmin@crm.local",
-        password: "ChangeMe123!"
-      });
-      router.push('/');
-    } catch (error: any) {
-      if (!(error instanceof AuthenticationError)) {
-        console.error('Demo login error:', error);
+      // use demoLogin helper from authService if available
+      if (typeof authService.demoLogin === 'function') {
+        await authService.demoLogin();
+      } else {
+        await authService.login({
+          email: 'superadmin@crm.local',
+          password: 'ChangeMe123!',
+        });
       }
-      setError(error.message);
+      router.push('/');
+    } catch (err: unknown) {
+      console.error('Demo login failed:', err);
+      setError('Demo login failed. Please try manual login.');
     } finally {
       setIsLoading(false);
     }
@@ -75,10 +90,8 @@ export default function LoginPage() {
                   <p className="text-sm text-gray-500">Automotive Excellence</p>
                 </div>
               </div>
-              
-              <h2 className="text-3xl font-bold text-gray-900">
-                Welcome back
-              </h2>
+
+              <h2 className="text-3xl font-bold text-gray-900">Welcome back</h2>
               <p className="mt-2 text-sm text-gray-600">
                 Don't have an account?{' '}
                 <Link href="/register" className="font-semibold text-orange-600 hover:text-orange-500 transition-colors">
@@ -89,25 +102,14 @@ export default function LoginPage() {
 
             {/* Error Message */}
             {error && (
-              <div className={`mt-4 p-4 border rounded-xl flex items-start space-x-3 ${
-                error.includes('Invalid credentials') 
-                  ? 'bg-yellow-50 border-yellow-200' 
-                  : 'bg-red-50 border-red-200'
-              }`}>
-                <AlertCircle className={`h-5 w-5 mt-0.5 flex-shrink-0 ${
-                  error.includes('Invalid credentials') ? 'text-yellow-600' : 'text-red-500'
-                }`} />
+              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center space-x-2">
+                <div className="flex-shrink-0">
+                  <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-sm font-bold">!</span>
+                  </div>
+                </div>
                 <div>
-                  <span className={`text-sm block ${
-                    error.includes('Invalid credentials') ? 'text-yellow-700' : 'text-red-700'
-                  }`}>
-                    {error}
-                  </span>
-                  {error.includes('Invalid credentials') && (
-                    <p className="text-yellow-600 text-xs mt-1">
-                      Try the demo account or check your credentials
-                    </p>
-                  )}
+                  <span className="text-red-700 text-sm block">{error}</span>
                 </div>
               </div>
             )}
@@ -131,7 +133,7 @@ export default function LoginPage() {
                         type="email"
                         required
                         value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
                         className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all bg-white/50"
                         placeholder="Enter your email"
                       />
@@ -158,14 +160,15 @@ export default function LoginPage() {
                         type={showPassword ? 'text' : 'password'}
                         required
                         value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
                         className="block w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all bg-white/50"
                         placeholder="Enter your password"
                       />
                       <button
                         type="button"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
                         className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                        onClick={() => setShowPassword(!showPassword)}
+                        onClick={() => setShowPassword((s) => !s)}
                       >
                         {showPassword ? (
                           <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
@@ -174,6 +177,19 @@ export default function LoginPage() {
                         )}
                       </button>
                     </div>
+                  </div>
+
+                  {/* Remember Me */}
+                  <div className="flex items-center">
+                    <input
+                      id="remember-me"
+                      name="remember-me"
+                      type="checkbox"
+                      className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
+                      Remember me for 30 days
+                    </label>
                   </div>
 
                   {/* Submit Button */}
@@ -185,7 +201,7 @@ export default function LoginPage() {
                     >
                       {isLoading ? (
                         <>
-                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
                           Signing in...
                         </>
                       ) : (
@@ -204,9 +220,7 @@ export default function LoginPage() {
                     >
                       Try Demo Account
                     </button>
-                    <p className="text-xs text-gray-500 text-center mt-2">
-                      Use: superadmin@crm.local / ChangeMe123!
-                    </p>
+                    <p className="text-xs text-gray-500 text-center mt-2">Use: superadmin@crm.local / ChangeMe123!</p>
                   </div>
                 </form>
               </div>
@@ -214,9 +228,7 @@ export default function LoginPage() {
               {/* Security Notice */}
               <div className="mt-6 flex items-center justify-center text-center">
                 <Shield className="h-4 w-4 text-green-500 mr-2" />
-                <p className="text-xs text-gray-500">
-                  Your data is securely encrypted and protected
-                </p>
+                <p className="text-xs text-gray-500">Your data is securely encrypted and protected</p>
               </div>
             </div>
           </div>
@@ -224,17 +236,15 @@ export default function LoginPage() {
 
         {/* Right side - Hero Section */}
         <div className="hidden lg:block relative flex-1">
-          <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-amber-500/10"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-amber-500/10" />
           <div className="relative h-full flex items-center justify-center p-12">
             <div className="max-w-lg text-center">
               <div className="w-24 h-24 bg-gradient-to-r from-orange-500 to-amber-500 rounded-3xl flex items-center justify-center shadow-2xl mx-auto mb-8">
                 <Car className="h-12 w-12 text-white" />
               </div>
-              
-              <h3 className="text-4xl font-bold text-gray-900 mb-4">
-                Drive Your Business Forward
-              </h3>
-              
+
+              <h3 className="text-4xl font-bold text-gray-900 mb-4">Drive Your Business Forward</h3>
+
               <p className="text-lg text-gray-600 mb-8">
                 Join thousands of automotive professionals using MAG CRM to streamline their operations, boost sales, and deliver exceptional customer experiences.
               </p>
@@ -246,7 +256,7 @@ export default function LoginPage() {
                   'Manage customers & vehicles effortlessly',
                   'Track service history & appointments',
                   'Generate estimates & invoices quickly',
-                  'Boost customer satisfaction & retention'
+                  'Boost customer satisfaction & retention',
                 ].map((feature, index) => (
                   <div key={index} className="flex items-center">
                     <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
