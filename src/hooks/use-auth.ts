@@ -17,11 +17,11 @@ interface AuthResponse {
 
 export function useAuth() {
   const login = useMutation({
-    mutationFn: async (credentials: LoginData) => {
-      const response = await apiClient.post<AuthResponse>('/auth/login', credentials);
-      return response.data;
-    },
-  });
+  mutationFn: async (credentials: LoginData) => {
+    const response = await apiClient.post<AuthResponse, LoginData>('/auth/login', credentials);
+    return response.data;
+  },
+});
 
   const logout = async () => {
     await apiClient.post('/auth/logout');
