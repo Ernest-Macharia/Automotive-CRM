@@ -1,3 +1,4 @@
+// src/components/opportunities/opportunities-list.tsx
 'use client';
 
 import { useOpportunities } from '@/hooks/useOpportunities';
@@ -80,9 +81,9 @@ export function OpportunitiesList() {
             key={opportunity.id} 
             opportunity={{
               id: opportunity.id,
-              subject: opportunity.title || 'Untitled Opportunity',
-              customerName: opportunity.customerName || 'Unknown Customer',
-              contactEmail: opportunity.customerEmail || '',
+              subject: opportunity.subject || 'Untitled Opportunity', // Use subject from API
+              customerName: opportunity.customer?.name || opportunity.customer?.companyName || 'Unknown Customer',
+              contactEmail: opportunity.customer?.email || '',
               status: opportunity.status || 'new',
               value: opportunity.value || 0,
             }} 
