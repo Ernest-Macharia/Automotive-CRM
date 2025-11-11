@@ -16,12 +16,12 @@ export const opportunityService = {
 
   // Create new opportunity
   async createOpportunity(data: CreateOpportunityData): Promise<Opportunity> {
-    return await apiClient.post<Opportunity>(API_ENDPOINTS.OPPORTUNITIES, data);
+    return await apiClient.post<CreateOpportunityData, Opportunity>(API_ENDPOINTS.OPPORTUNITIES, data);
   },
 
   // Update opportunity
   async updateOpportunity(id: string, data: Partial<CreateOpportunityData>): Promise<Opportunity> {
-    return await apiClient.patch<Opportunity>(API_ENDPOINTS.OPPORTUNITY_BY_ID(id), data);
+    return await apiClient.patch<Partial<CreateOpportunityData>, Opportunity>(API_ENDPOINTS.OPPORTUNITY_BY_ID(id), data);
   },
 
   // Delete opportunity
@@ -31,7 +31,7 @@ export const opportunityService = {
 
   // Get opportunities overview
   async getOverview(): Promise<OpportunityOverview> {
-    return await apiClient.get<OpportunityOverview>(API_ENDPOINTS.OPPORTUNITIES_OVERVIEW);
+    return await apiClient.patch<{ status: string }, Opportunity>(API_ENDPOINTS.OPPORTUNITY_BY_ID(id), { status });
   },
 
   // Update opportunity status
@@ -39,3 +39,7 @@ export const opportunityService = {
     return await apiClient.patch<Opportunity>(API_ENDPOINTS.OPPORTUNITY_BY_ID(id), { status });
   }
 };
+
+function id(id: any): any {
+throw new Error('Function not implemented.');
+}
