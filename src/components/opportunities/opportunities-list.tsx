@@ -85,7 +85,6 @@ export function OpportunitiesList() {
               customerName: opportunity.customer?.name || opportunity.customer?.companyName || 'Unknown Customer',
               contactEmail: opportunity.customer?.email || '',
               status: opportunity.status || 'new',
-              value: opportunity.value || 0,
             }} 
           />
         ))}
