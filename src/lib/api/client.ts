@@ -44,9 +44,9 @@ export class ApiClient {
     return this.accessToken;
   }
 
-  private async request<TResponse = unknown, TRequest = unknown>(
+  private async request<TResponse = unknown>(
     endpoint: string,
-    options: RequestInit & { body?: TRequest } = {}
+    options: RequestInit = {}
   ): Promise<TResponse> {
     if (!endpoint) throw new Error('API endpoint is undefined');
 
@@ -62,14 +62,9 @@ export class ApiClient {
       headers['Authorization'] = `Bearer ${this.accessToken}`;
     }
 
-    // Convert the generic request body to a string for fetch
-    const body: BodyInit | undefined = options.body !== undefined ? JSON.stringify(options.body) : undefined;
-
     const config: RequestInit = {
       ...options,
       headers,
-      // ensure we pass the stringified body to fetch
-      body,
     };
 
     try {
@@ -144,15 +139,18 @@ export class ApiClient {
   }
 
   async post<TRequest = unknown, TResponse = unknown>(endpoint: string, data?: TRequest): Promise<TResponse> {
-    return this.request<TResponse, TRequest>(endpoint, { method: 'POST', body: data });
+    const body = data !== undefined ? JSON.stringify(data) : undefined;
+    return this.request<TResponse>(endpoint, { method: 'POST', body });
   }
 
   async put<TRequest = unknown, TResponse = unknown>(endpoint: string, data?: TRequest): Promise<TResponse> {
-    return this.request<TResponse, TRequest>(endpoint, { method: 'PUT', body: data });
+    const body = data !== undefined ? JSON.stringify(data) : undefined;
+    return this.request<TResponse>(endpoint, { method: 'PUT', body });
   }
 
   async patch<TRequest = unknown, TResponse = unknown>(endpoint: string, data?: TRequest): Promise<TResponse> {
-    return this.request<TResponse, TRequest>(endpoint, { method: 'PATCH', body: data });
+    const body = data !== undefined ? JSON.stringify(data) : undefined;
+    return this.request<TResponse>(endpoint, { method: 'PATCH', body });
   }
 
   async delete<TResponse = unknown>(endpoint: string): Promise<TResponse> {
