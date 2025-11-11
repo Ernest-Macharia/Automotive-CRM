@@ -80,7 +80,7 @@ export function OpportunitiesList() {
             key={opportunity.id} 
             opportunity={{
               id: opportunity.id,
-              subject: opportunity.title || 'Untitled Opportunity',,
+              subject: opportunity.title || 'Untitled Opportunity',
               customerName: opportunity.customerName || 'Unknown Customer',
               contactEmail: opportunity.customerEmail || '',
               status: opportunity.status || 'new',
