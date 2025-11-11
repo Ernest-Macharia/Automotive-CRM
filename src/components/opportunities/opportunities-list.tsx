@@ -4,7 +4,7 @@ import { useOpportunities } from '@/hooks/useOpportunities';
 import { OpportunityCard } from './opportunity-card';
 
 export function OpportunitiesList() {
-  const { opportunities, isLoading, error } = useOpportunities();
+const { data: opportunities, isLoading, error } = useOpportunities();
 
   // Handle loading state
   if (isLoading) {
