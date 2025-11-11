@@ -4,7 +4,7 @@ import { useOpportunities } from '@/hooks/useOpportunities';
 import { OpportunityCard } from './opportunity-card';
 
 export function OpportunitiesList() {
-const { data: opportunities, isLoading, error } = useOpportunities();
+  const { data: opportunities, isLoading, error } = useOpportunities();
 
   // Handle loading state
   if (isLoading) {
@@ -76,7 +76,17 @@ const { data: opportunities, isLoading, error } = useOpportunities();
       {/* List */}
       <div className="divide-y divide-gray-200">
         {opportunities.map((opportunity) => (
-          <OpportunityCard key={opportunity.id} opportunity={opportunity} />
+          <OpportunityCard 
+            key={opportunity.id} 
+            opportunity={{
+              id: opportunity.id,
+              subject: opportunity.title,
+              customerName: opportunity.customerName,
+              contactEmail: opportunity.customerEmail || '',
+              status: opportunity.status,
+              value: opportunity.value || 0,
+            }} 
+          />
         ))}
       </div>
     </div>
