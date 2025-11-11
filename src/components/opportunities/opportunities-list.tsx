@@ -1,6 +1,6 @@
 'use client';
 
-import { useOpportunities } from '@/hooks/use-opportunities';
+import { useOpportunities } from '@/hooks/useOpportunities';
 import { OpportunityCard } from './opportunity-card';
 
 export function OpportunitiesList() {
