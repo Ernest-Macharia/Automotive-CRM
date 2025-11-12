@@ -1,93 +1,78 @@
 // src/components/layout/sidebar.tsx
 'use client';
 
+import { X, Home, Users, Car, FileText, Settings, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Target, Users, Wrench, FileText, BarChart3, Settings, ChevronRight } from 'lucide-react';
-import { useUser } from '@/hooks/useUser';
+import { Dispatch, SetStateAction } from 'react';
 
-const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Opportunities', href: '/opportunities', icon: Target },
-  { name: 'Work Orders', href: '/work-orders', icon: Wrench },
-  { name: 'Contacts', href: '/contacts', icon: Users },
-  { name: 'Quotes', href: '/quotes', icon: FileText },
-  { name: 'Reports', href: '/reports', icon: BarChart3 },
-  { name: 'Settings', href: '/settings', icon: Settings },
-];
+interface SidebarProps {
+  sidebarOpen: boolean;
+  setSidebarOpen: Dispatch<SetStateAction<boolean>>;
+}
 
-export function Sidebar() {
+export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const pathname = usePathname();
-  const { data: user, isLoading } = useUser();
 
-  // SAFE: Only access firstName/lastName if user exists
-  const getInitials = () => {
-    if (!user?.firstName || !user?.lastName) return 'U';
-    return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
-  };
-
-  const getFullName = () => {
-    if (isLoading) return 'Loading...';
-    if (!user) return 'Guest User';
-    return `${user.firstName} ${user.lastName}`;
-  };
+  const navItems = [
+    { href: '/', label: 'Dashboard', icon: Home },
+    { href: '/opportunities', label: 'Opportunities', icon: Users },
+    { href: '/vehicles', label: 'Vehicles', icon: Car },
+    { href: '/work-orders', label: 'Work Orders', icon: FileText },
+    { href: '/settings', label: 'Settings', icon: Settings },
+  ];
 
   return (
-    <div className="flex h-full w-64 flex-col bg-sidebar border-r border-gray-700">
-      {/* Logo */}
-      <div className="flex h-20 items-center justify-center border-b border-gray-600 px-4">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
-            <Target className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-sidebar-text">MAG CRM</h1>
-            <p className="text-xs text-gray-400">Automotive Solutions</p>
-          </div>
+    <>
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-gray-900 bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <div
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
+          <h2 className="text-xl font-bold text-gray-900">MAG CRM</h2>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden text-gray-500 hover:text-gray-700"
+          >
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        <nav className="mt-6">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center px-6 py-3 text-sm font-medium transition-colors ${
+                  isActive ? 'bg-primary text-white' : 'text-gray-700 hover:bg-gray-100'
+                }`}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <Icon className="h-5 w-5 mr-3" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="absolute bottom-0 w-full p-6 border-t border-gray-200">
+          <button className="flex items-center text-sm font-medium text-red-600 hover:text-red-700">
+            <LogOut className="h-5 w-5 mr-3" />
+            Logout
+          </button>
         </div>
       </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-3 py-6">
-        {navigation.map((item) => {
-          const Icon = item.icon;
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium transition-all group ${
-                isActive
-                  ? 'bg-primary text-white shadow-lg'
-                  : 'text-sidebar-text hover:bg-sidebar-hover hover:text-white'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <Icon className={`h-5 w-5 ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-white'}`} />
-                <span>{item.name}</span>
-              </div>
-              <ChevronRight className={`h-4 w-4 transition-transform ${isActive ? 'rotate-90' : ''}`} />
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* User Profile Footer */}
-      <div className="border-t border-gray-600 p-4">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg">
-            {getInitials()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-sidebar-text truncate">
-              {getFullName()}
-            </p>
-            <p className="text-xs text-gray-400 capitalize truncate">
-              {user?.role || 'user'}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+    </>
   );
 }

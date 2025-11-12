@@ -1,3 +1,4 @@
+// src/components/layout/dashboard-layout.tsx
 'use client';
 
 import { useState } from 'react';
@@ -9,10 +10,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <Sidebar />
+      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header setSidebarOpen={setSidebarOpen} />
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-6 bg-white">
           {children}
         </main>
       </div>

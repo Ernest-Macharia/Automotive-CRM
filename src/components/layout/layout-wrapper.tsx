@@ -6,15 +6,14 @@ import { DashboardLayout } from './dashboard-layout';
 
 const publicRoutes = ['/login', '/register', '/forgot-password'];
 
-export function LayoutWrapper({ 
-  children 
-}: { 
-  children: React.ReactNode 
-}) {
+export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isPublicRoute = publicRoutes.includes(pathname || '');
+  
+  // Remove trailing slash and normalize
+  const cleanPath = pathname?.replace(/\/$/, '') || '';
+  const isPublicRoute = publicRoutes.includes(cleanPath);
 
-  console.log('LayoutWrapper - pathname:', pathname, 'isPublicRoute:', isPublicRoute);
+  console.log('LayoutWrapper - pathname:', pathname, 'cleanPath:', cleanPath, 'isPublicRoute:', isPublicRoute);
 
   if (isPublicRoute) {
     return <>{children}</>;
