@@ -1,63 +1,119 @@
 // src/hooks/useOpportunities.ts
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  UseQueryResult,
+  UseMutationResult,
+} from '@tanstack/react-query';
 import { opportunityService } from '@/services/opportunityService';
-import { Opportunity, CreateOpportunityData } from '@/types/opportunity';
+import {
+  Opportunity,
+  CreateOpportunityData,
+  OpportunityOverview, // NOW EXISTS
+} from '@/types/opportunity';
 
-export function useOpportunities() {
-  return useQuery({
+type ApiError = {
+  message: string;
+  status?: number;
+};
+
+type QueryError = Error | ApiError;
+
+// GET ALL
+export function useOpportunities(): UseQueryResult<Opportunity[], QueryError> {
+  return useQuery<Opportunity[], QueryError>({
     queryKey: ['opportunities'],
-    queryFn: () => opportunityService.getOpportunities(),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryFn: opportunityService.getOpportunities,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
-export function useOpportunity(id: string) {
-  return useQuery({
+// GET ONE
+export function useOpportunity(
+  id: string | undefined
+): UseQueryResult<Opportunity | null, QueryError> {
+  return useQuery<Opportunity | null, QueryError>({
     queryKey: ['opportunities', id],
-    queryFn: () => opportunityService.getOpportunity(id),
+    queryFn: () => {
+      if (!id) throw new Error('Opportunity ID is required');
+      return opportunityService.getOpportunity(id);
+    },
     enabled: !!id,
+    placeholderData: null,
   });
 }
 
-export function useOpportunityOverview() {
-  return useQuery({
+// GET OVERVIEW
+export function useOpportunityOverview(): UseQueryResult<OpportunityOverview, QueryError> {
+  return useQuery<OpportunityOverview, QueryError>({
     queryKey: ['opportunities', 'overview'],
-    queryFn: () => opportunityService.getOverview(),
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    queryFn: opportunityService.getOverview,
+    staleTime: 2 * 60 * 1000,
   });
 }
 
-export function useCreateOpportunity() {
+// CREATE
+export function useCreateOpportunity(): UseMutationResult<
+  Opportunity,
+  QueryError,
+  CreateOpportunityData
+> {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: (data: CreateOpportunityData) => opportunityService.createOpportunity(data),
-    onSuccess: () => {
+  return useMutation<Opportunity, QueryError, CreateOpportunityData>({
+    mutationFn: opportunityService.createOpportunity,
+    onSuccess: (newOpportunity) => {
+      queryClient.setQueryData<Opportunity[]>(['opportunities'], (old = []) => [
+        ...old,
+        newOpportunity,
+      ]);
       queryClient.invalidateQueries({ queryKey: ['opportunities'] });
+      queryClient.invalidateQueries({ queryKey: ['opportunities', 'overview'] });
     },
   });
 }
 
-export function useUpdateOpportunity() {
+// UPDATE
+export function useUpdateOpportunity(): UseMutationResult<
+  Opportunity,
+  QueryError,
+  { id: string; data: Partial<CreateOpportunityData> }
+> {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<CreateOpportunityData> }) =>
-      opportunityService.updateOpportunity(id, data),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['opportunities'] });
-      queryClient.invalidateQueries({ queryKey: ['opportunities', variables.id] });
+  return useMutation<
+    Opportunity,
+    QueryError,
+    { id: string; data: Partial<CreateOpportunityData> }
+  >({
+    mutationFn: ({ id, data }) => opportunityService.updateOpportunity(id, data),
+    onSuccess: (updatedOpportunity, { id }) => {
+      queryClient.setQueryData<Opportunity | null>(['opportunities', id], updatedOpportunity);
+      queryClient.setQueryData<Opportunity[]>(['opportunities'], (old = []) =>
+        old.map((opp) => (opp.id === id ? updatedOpportunity : opp))
+      );
+      queryClient.invalidateQueries({ queryKey: ['opportunities', 'overview'] });
     },
   });
 }
 
-export function useDeleteOpportunity() {
+// DELETE
+export function useDeleteOpportunity(): UseMutationResult<
+  void,
+  QueryError,
+  string
+> {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: (id: string) => opportunityService.deleteOpportunity(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['opportunities'] });
+  return useMutation<void, QueryError, string>({
+    mutationFn: opportunityService.deleteOpportunity,
+    onSuccess: (_, deletedId) => {
+      queryClient.setQueryData<Opportunity[]>(['opportunities'], (old = []) =>
+        old.filter((opp) => opp.id !== deletedId)
+      );
+      queryClient.removeQueries({ queryKey: ['opportunities', deletedId] });
+      queryClient.invalidateQueries({ queryKey: ['opportunities', 'overview'] });
     },
   });
 }

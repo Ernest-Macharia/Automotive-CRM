@@ -1,24 +1,76 @@
-// src/app/opportunities/page.tsx
 'use client';
 
-import { useState } from 'react';
-import { Plus, Search, Filter, MoreVertical, Eye, Edit, Trash2 } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { Plus, Search, Filter, MoreVertical, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { useOpportunities, useDeleteOpportunity } from '@/hooks/useOpportunities';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { useOpportunities, useUpdateOpportunity } from '@/hooks/useOpportunities';
 import { Opportunity } from '@/types/opportunity';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
-export default function OpportunitiesPage() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const { data: opportunities, isLoading, error } = useOpportunities();
-  const deleteMutation = useDeleteOpportunity();
+interface KanbanColumnProps {
+  id: string;
+  title: string;
+  opportunities: Opportunity[];
+  onDragEnd: (id: string) => void;
+}
 
-  const filteredOpportunities = opportunities?.filter(opportunity => {
-    const matchesSearch = opportunity.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         opportunity.customer?.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || opportunity.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+function KanbanColumn({ id, title, opportunities, onDragEnd }: KanbanColumnProps) {
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: any) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      onDragEnd(over.id); // Update status to this column
+    }
+  };
+
+  return (
+    <Card className="w-80 flex-shrink-0">
+      <CardContent className="p-4">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-semibold text-gray-900">{title}</h3>
+          <Badge variant="secondary">{opportunities.length}</Badge>
+        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={opportunities.map((opp) => opp.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-3 min-h-[200px]">
+              {opportunities.map((opportunity) => (
+                <KanbanCard key={opportunity.id} opportunity={opportunity} />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      </CardContent>
+    </Card>
+  );
+}
+
+function KanbanCard({ opportunity }: { opportunity: Opportunity }) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: opportunity.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const updateMutation = useUpdateOpportunity();
+
+  const handleDelete = async () => {
+    if (confirm('Delete this opportunity?')) {
+      await updateMutation.mutateAsync({ id: opportunity.id, data: { status: 'deleted' } }); // Or use delete hook
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -26,25 +78,73 @@ export default function OpportunitiesPage() {
       case 'in_progress': return 'bg-yellow-100 text-yellow-800';
       case 'won': return 'bg-green-100 text-green-800';
       case 'lost': return 'bg-red-100 text-red-800';
-      case 'cancelled': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'text-red-600';
-      case 'medium': return 'text-yellow-600';
-      case 'low': return 'text-green-600';
-      default: return 'text-gray-600';
-    }
-  };
+  return (
+    <Card ref={setNodeRef} style={style} {...attributes} {...listeners} className="p-4 cursor-grab active:cursor-grabbing">
+      <CardContent className="space-y-2">
+        <div className="flex justify-between items-start">
+          <h4 className="font-medium text-gray-900 line-clamp-1">{opportunity.subject}</h4>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                <MoreVertical className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href={`/opportunities/${opportunity.id}`}>View</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/opportunities/${opportunity.id}/edit`}>Edit</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDelete} className="text-red-600">
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <p className="text-sm text-gray-600 line-clamp-2">{opportunity.customerName}</p>
+        <div className="flex justify-between items-center text-xs text-gray-500">
+          <span>{new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(opportunity.value || 0)}</span>
+          <span>{new Date(opportunity.createdAt).toLocaleDateString('en-KE')}</span>
+        </div>
+        <Badge className={getStatusColor(opportunity.status)} variant="secondary">
+          {opportunity.status}
+        </Badge>
+      </CardContent>
+    </Card>
+  );
+}
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this opportunity?')) {
-      await deleteMutation.mutateAsync(id);
-    }
-  };
+export default function OpportunitiesPage() {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const { data: opportunities = [], isLoading, error } = useOpportunities();
+  const updateMutation = useUpdateOpportunity();
+
+  const filteredOpportunities = opportunities.filter((opp) => {
+    const matchesSearch = opp.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          opp.customerName?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesFilter = statusFilter === 'all' || opp.status === statusFilter;
+    return matchesSearch && matchesFilter;
+  });
+
+  // Group by status (like Zoho stages)
+  const columns = filteredOpportunities.reduce((acc, opp) => {
+    const columnId = opp.status || 'open';
+    if (!acc[columnId]) acc[columnId] = { title: columnId.toUpperCase(), opportunities: [] };
+    acc[columnId].opportunities.push(opp);
+    return acc;
+  }, {} as Record<string, { title: string; opportunities: Opportunity[] }>);
+
+  const statusOptions = ['all', 'open', 'in_progress', 'won', 'lost'];
+
+  const handleDragEnd = useCallback((newStatus: string, opportunityId: string) => {
+    updateMutation.mutateAsync({ id: opportunityId, data: { status: newStatus as Opportunity['status'] } });
+  }, [updateMutation]);
 
   if (error) {
     return (
@@ -62,22 +162,21 @@ export default function OpportunitiesPage() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Opportunities</h1>
-          <p className="text-gray-600">Manage your sales opportunities and leads</p>
+          <h1 className="text-2xl font-bold text-gray-900">Opportunities Pipeline</h1>
+          <p className="text-gray-600">Drag cards to update stages</p>
         </div>
         <Link
           href="/opportunities/new"
-          className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
         >
           <Plus className="h-4 w-4" />
           New Opportunity
         </Link>
       </div>
 
-      {/* Stats and Filters */}
+      {/* Search & Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-          {/* Search */}
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
@@ -85,139 +184,53 @@ export default function OpportunitiesPage() {
               placeholder="Search opportunities..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
             />
           </div>
-
-          {/* Filters */}
           <div className="flex gap-3">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
             >
-              <option value="all">All Status</option>
-              <option value="open">Open</option>
-              <option value="in_progress">In Progress</option>
-              <option value="won">Won</option>
-              <option value="lost">Lost</option>
-              <option value="cancelled">Cancelled</option>
+              {statusOptions.map((status) => (
+                <option key={status} value={status}>
+                  {status === 'all' ? 'All Stages' : status.replace('_', ' ')}
+                </option>
+              ))}
             </select>
-
-            <button className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
-              <Filter className="h-4 w-4" />
+            <Button variant="outline" size="sm">
+              <Filter className="h-4 w-4 mr-2" />
               More Filters
-            </button>
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Opportunities List */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      {/* Kanban Board */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         {isLoading ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto"></div>
-            <p className="text-gray-600 mt-2">Loading opportunities...</p>
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
-        ) : filteredOpportunities?.length === 0 ? (
-          <div className="p-8 text-center">
-            <div className="text-gray-400 mb-2">No opportunities found</div>
-            <p className="text-gray-600">Create your first opportunity to get started</p>
+        ) : Object.keys(columns).length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-gray-400 mb-4">No opportunities</div>
+            <Button asChild>
+              <Link href="/opportunities/new">Create your first opportunity</Link>
+            </Button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Opportunity
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Customer
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Value
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Priority
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Created
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredOpportunities?.map((opportunity) => (
-                  <tr key={opportunity.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="font-medium text-gray-900">
-                          {opportunity.title || 'Untitled Opportunity'}
-                        </div>
-                        <div className="text-sm text-gray-500 truncate max-w-xs">
-                          {opportunity.description}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {opportunity.customer?.name || 'No customer'}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {opportunity.vehicles?.length || 0} vehicles
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {opportunity.value ? `$${opportunity.value.toLocaleString()}` : '-'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(opportunity.status)}`}>
-                        {opportunity.status.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`text-sm font-medium capitalize ${getPriorityColor(opportunity.priority)}`}>
-                        {opportunity.priority}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(opportunity.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end gap-2">
-                        <Link
-                          href={`/opportunities/${opportunity.id}`}
-                          className="text-blue-600 hover:text-blue-900 p-1"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Link>
-                        <Link
-                          href={`/opportunities/${opportunity.id}/edit`}
-                          className="text-gray-600 hover:text-gray-900 p-1"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Link>
-                        <button
-                          onClick={() => handleDelete(opportunity.id)}
-                          className="text-red-600 hover:text-red-900 p-1"
-                          disabled={deleteMutation.isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="flex gap-6 overflow-x-auto pb-4">
+            {Object.entries(columns).map(([status, column]) => (
+              <KanbanColumn
+                key={status}
+                id={status}
+                title={column.title}
+                opportunities={column.opportunities}
+                onDragEnd={handleDragEnd}
+              />
+            ))}
           </div>
         )}
       </div>

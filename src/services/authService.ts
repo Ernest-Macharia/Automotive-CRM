@@ -1,6 +1,6 @@
 // src/services/authService.ts
 import { apiClient } from '@/lib/api/client';
-import { API_ENDPOINTS } from '@/lib/api/config';
+import { API_ENDPOINTS, API_BASE_URL } from '@/lib/api/config';
 
 export interface LoginData {
   email: string;
@@ -9,9 +9,15 @@ export interface LoginData {
 
 export interface User {
   id: string;
+  firstName: string;
+  lastName: string;
   email: string;
-  role: string;
+  role: 'admin' | 'sales' | 'technician' | 'manager' | 'user';
+  phone?: string;
+  avatar?: string;
   permissions: string[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AuthResponse {
@@ -20,77 +26,101 @@ export interface AuthResponse {
   user: User;
 }
 
-/** Typed Errors **/
 export class AuthenticationError extends Error {
   status = 401;
-  constructor(message?: string) {
-    super(message ?? 'Invalid credentials');
+  constructor(message = 'Invalid email or password') {
+    super(message);
     this.name = 'AuthenticationError';
   }
 }
 
 export class NetworkError extends Error {
-  constructor(message?: string) {
-    super(message ?? 'Network error occurred');
+  constructor(message = 'No internet connection. Please check your network.') {
+    super(message);
     this.name = 'NetworkError';
+  }
+}
+
+export class SessionExpiredError extends Error {
+  status = 401;
+  constructor() {
+    super('Your session has expired. Please log in again.');
+    this.name = 'SessionExpiredError';
   }
 }
 
 export const authService = {
   async login(credentials: LoginData): Promise<AuthResponse> {
     try {
-      const res = await apiClient.post<LoginData, AuthResponse>(
+      const response = await apiClient.post<LoginData, AuthResponse>(
         API_ENDPOINTS.LOGIN,
         credentials
       );
 
-      // Validate response shape defensively
-      if (!res || !res.accessToken || !res.refreshToken || !res.user) {
-        throw new Error('Malformed auth response from server');
+      if (!response?.accessToken || !response?.refreshToken || !response?.user) {
+        throw new Error('Invalid response from server');
       }
 
-      // Persist tokens in client layer
-      apiClient.setTokens(res.accessToken, res.refreshToken);
-
-      return res;
-    } catch (err: unknown) {
-      // Normalize known ApiError shape thrown by ApiClient
-      if (err instanceof Error) {
-        // ApiClient attaches status on Error when HTTP error occurred
-        const maybeStatus = (err as any).status as number | undefined;
-
-        if (maybeStatus === 401) {
-          throw new AuthenticationError(err.message ?? 'Invalid credentials');
+      apiClient.setTokens(response.accessToken, response.refreshToken);
+      return response;
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        const apiError = error as { status?: number };
+        if (apiError.status === 401) {
+          throw new AuthenticationError();
         }
-
-        // Detect network errors (ApiClient returns Error with message including 'Network')
-        if (err.message?.toString().toLowerCase().includes('network')) {
-          throw new NetworkError(err.message);
+        if (error.message.toLowerCase().includes('network') || error.name === 'TypeError') {
+          throw new NetworkError();
         }
-
-        // rethrow other errors
-        throw err;
       }
-      // unknown non-Error
-      throw new Error('An unexpected error occurred during login');
+      throw new Error('Login failed. Please try again.');
     }
   },
 
   async getCurrentUser(): Promise<User> {
-    // Backend may use GET or POST for this route; adjust accordingly.
-    // Based on your swagger earlier, this endpoint exists; ensure API_ENDPOINTS.GET_ME is correct.
-    return apiClient.get<User>(API_ENDPOINTS.GET_ME);
+    try {
+      return await apiClient.get<User>(API_ENDPOINTS.GET_ME);
+    } catch (error: unknown) {
+      if (error instanceof Error && (error as { status?: number }).status === 401) {
+        throw new SessionExpiredError();
+      }
+      throw error;
+    }
+  },
+
+  async refreshToken(): Promise<string> {
+    const refreshToken = apiClient.getRefreshToken();
+    if (!refreshToken) throw new SessionExpiredError();
+
+    try {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REFRESH_TOKEN}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (!response.ok) throw new Error('Refresh failed');
+
+      const data = await response.json();
+      const newAccessToken = data.accessToken;
+
+      apiClient.setTokens(newAccessToken, refreshToken);
+      return newAccessToken;
+    } catch {
+      apiClient.clearTokens();
+      throw new SessionExpiredError();
+    }
   },
 
   logout(): void {
     apiClient.clearTokens();
+    window.location.href = '/login';
   },
 
   isAuthenticated(): boolean {
     return !!apiClient.getAccessToken();
   },
 
-  // convenience: demo login (only for development)
   async demoLogin(): Promise<AuthResponse> {
     return this.login({
       email: 'superadmin@crm.local',
@@ -98,3 +128,4 @@ export const authService = {
     });
   },
 };
+
