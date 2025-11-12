@@ -2,6 +2,8 @@
 
 A modern, production-ready CRM frontend built with Next.js 14, TypeScript, and Tailwind CSS.
 
+**Live Demo:** [https://mag-frontend-cokx.onrender.com/](https://mag-frontend-cokx.onrender.com/)
+
 ## Features
 
 - 🚀 Next.js 14 with App Router
