@@ -1,8 +1,7 @@
 // src/hooks/useNotifications.ts
-'use client';
-
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
+import { API_ENDPOINTS } from '@/lib/api/config';
 
 export interface Notification {
   id: string;
@@ -12,16 +11,11 @@ export interface Notification {
   createdAt: string;
 }
 
-export function useNotifications() {
-  return useQuery<Notification[]>({
-    queryKey: ['notifications'],
-    queryFn: () => apiClient.get('/notifications'),
+export const useNotificationsMe = () => {
+  return useQuery<Notification[], Error>({
+    queryKey: ['notifications', 'me'],
+    queryFn: () => apiClient.get<Notification[]>(API_ENDPOINTS.NOTIFICATIONS_ME),
+    staleTime: 60 * 1000,
   });
-}
+};
 
-export function useUnreadCount() {
-  return useQuery<number>({
-    queryKey: ['notifications', 'unread'],
-    queryFn: () => apiClient.get('/notifications/unread-count'),
-  });
-}
