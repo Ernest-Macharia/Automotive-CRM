@@ -1,41 +1,55 @@
 // src/services/opportunityService.ts
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS } from '@/lib/api/config';
-import { Opportunity, CreateOpportunityData, OpportunityOverview } from '@/types/opportunity';
+import {
+  Opportunity,
+  CreateOpportunityData,
+  OpportunityOverview,
+  OpportunityStatus, // ← IMPORT THIS
+} from '@/types/opportunity';
 
 export const opportunityService = {
-  // Get all opportunities
+  // GET ALL
   async getOpportunities(): Promise<Opportunity[]> {
-    return await apiClient.get<Opportunity[]>(API_ENDPOINTS.OPPORTUNITIES);
+    return apiClient.get<Opportunity[]>(API_ENDPOINTS.OPPORTUNITIES);
   },
 
-  // Get opportunity by ID
+  // GET ONE
   async getOpportunity(id: string): Promise<Opportunity> {
-    return await apiClient.get<Opportunity>(API_ENDPOINTS.OPPORTUNITY_BY_ID(id));
+    return apiClient.get<Opportunity>(API_ENDPOINTS.OPPORTUNITY_BY_ID(id));
   },
 
-  // Create new opportunity
+  // CREATE
   async createOpportunity(data: CreateOpportunityData): Promise<Opportunity> {
-    return await apiClient.post<CreateOpportunityData, Opportunity>(API_ENDPOINTS.OPPORTUNITIES, data);
+    return apiClient.post<CreateOpportunityData, Opportunity>(API_ENDPOINTS.OPPORTUNITIES, data);
   },
 
-  // Update opportunity
-  async updateOpportunity(id: string, data: Partial<CreateOpportunityData>): Promise<Opportunity> {
-    return await apiClient.patch<Partial<CreateOpportunityData>, Opportunity>(API_ENDPOINTS.OPPORTUNITY_BY_ID(id), data);
+  // UPDATE
+  async updateOpportunity(
+    id: string,
+    data: Partial<CreateOpportunityData>
+  ): Promise<Opportunity> {
+    return apiClient.patch<Partial<CreateOpportunityData>, Opportunity>(
+      API_ENDPOINTS.OPPORTUNITY_BY_ID(id),
+      data
+    );
   },
 
-  // Delete opportunity
+  // DELETE
   async deleteOpportunity(id: string): Promise<void> {
-    return await apiClient.delete(API_ENDPOINTS.OPPORTUNITY_BY_ID(id));
+    return apiClient.delete(API_ENDPOINTS.OPPORTUNITY_BY_ID(id));
   },
 
-  // Get opportunities overview
+  // OVERVIEW
   async getOverview(): Promise<OpportunityOverview> {
-    return await apiClient.get<OpportunityOverview>(API_ENDPOINTS.OPPORTUNITIES_OVERVIEW);
+    return apiClient.get<OpportunityOverview>(API_ENDPOINTS.OPPORTUNITIES_OVERVIEW);
   },
 
-  // Update opportunity status
-  async updateStatus(id: string, status: string): Promise<Opportunity> {
-    return await apiClient.patch<{ status: string }, Opportunity>(API_ENDPOINTS.OPPORTUNITY_BY_ID(id), { status });
-  }
+  // UPDATE STATUS — **TYPE-SAFE**
+  async updateStatus(id: string, status: OpportunityStatus): Promise<Opportunity> {
+    return apiClient.patch<{ status: OpportunityStatus }, Opportunity>(
+      API_ENDPOINTS.OPPORTUNITY_BY_ID(id),
+      { status }
+    );
+  },
 };
