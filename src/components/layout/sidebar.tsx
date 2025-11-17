@@ -1,7 +1,7 @@
 // src/components/layout/Sidebar.tsx
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -14,75 +14,82 @@ interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
-  permission: string;
 }
 
 export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isClient, setIsClient] = useState(false);
 
-  // GET USER FROM LOCAL STORAGE
-  const user = useMemo(() => {
-    try {
-      const stored = localStorage.getItem('user');
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
+  // ✅ FIX: Use useEffect to detect client-side only
+  useEffect(() => {
+    setIsClient(true);
   }, []);
 
-  const userRoles = user?.roles || [];
-  const isAdmin = userRoles.includes('admin');
+  // ✅ FIX: Only access sessionStorage on client side
+  const user = useMemo(() => {
+    if (!isClient) return null; // Return null during SSR
+    
+    try {
+      const stored = sessionStorage.getItem('user');
+      if (!stored) {
+        console.log('No user found in sessionStorage');
+        return null;
+      }
+      const parsed = JSON.parse(stored);
+      console.log('User from sessionStorage:', parsed);
+      return parsed;
+    } catch (err) {
+      console.error('Failed to parse user from sessionStorage:', err);
+      return null;
+    }
+  }, [isClient]);
+
+  const userRoles = user?.role ? [user.role] : [];
+  const isAdmin = user?.role === 'admin';
+  const displayName = user?.name || user?.email?.split('@')[0] || 'User';
+  const displayEmail = user?.email || '—';
 
   const closeMobile = useCallback(() => setMobileOpen(false), []);
 
   const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('user');
-    window.location.href = '/login';
+    sessionStorage.removeItem('accessToken');
+    sessionStorage.removeItem('refreshToken');
+    sessionStorage.removeItem('user');
+    window.location.href = '/auth/login';
   };
 
-  // ALL MENU ITEMS WITH REQUIRED PERMISSION
+  // ALL NAV ITEMS - Show everything to logged-in users
   const allNavItems: NavItem[] = [
-    { href: '/dashboard',     label: 'Dashboard',     icon: LayoutDashboard, permission: 'dashboard.view' },
-    { href: '/opportunities', label: 'Opportunities', icon: Users,          permission: 'opportunities.read' },
-    { href: '/clients',       label: 'Clients',       icon: Building,       permission: 'clients.read' },
-    { href: '/quotes',        label: 'Quotes',        icon: FileText,       permission: 'quotes.read' },
-    { href: '/invoices',      label: 'Invoices',      icon: Receipt,        permission: 'invoices.read' },
-    { href: '/payments',      label: 'Payments',      icon: Wallet,         permission: 'invoices.pay' },
-    { href: '/vehicles',      label: 'Vehicles',      icon: Truck,          permission: 'vehicles.manage' },
-    { href: '/jobcards',      label: 'Job Cards',     icon: ClipboardList,  permission: 'jobcards.read' },
-    { href: '/tickets',       label: 'Tickets',       icon: MessageSquare,  permission: 'tickets.read' },
-    { href: '/waivers',       label: 'Waivers',       icon: FileCheck,      permission: 'waivers.read' },
-    { href: '/partners',      label: 'Partners',      icon: Handshake,      permission: 'partner.clients.read' },
-    { href: '/users',         label: 'Users',         icon: Users,          permission: 'users.read' },
-    { href: '/roles',         label: 'Roles',         icon: Shield,         permission: 'roles.manage' },
-    { href: '/reports',       label: 'Reports',       icon: FileText,       permission: 'reports.generate' },
-    { href: '/notifications', label: 'Notifications', icon: Bell,           permission: 'notifications.read' },
-    { href: '/settings',      label: 'Settings',      icon: Settings,       permission: 'settings.manage' },
+    { href: '/',               label: 'Dashboard',     icon: LayoutDashboard },
+    { href: '/opportunities',  label: 'Opportunities', icon: Users },
+    { href: '/clients',        label: 'Clients',       icon: Building },
+    { href: '/quotes',         label: 'Quotes',        icon: FileText },
+    { href: '/invoices',       label: 'Invoices',      icon: Receipt },
+    { href: '/payments',       label: 'Payments',      icon: Wallet },
+    { href: '/vehicles',       label: 'Vehicles',      icon: Truck },
+    { href: '/jobcards',       label: 'Job Cards',     icon: ClipboardList },
+    { href: '/tickets',        label: 'Tickets',       icon: MessageSquare },
+    { href: '/waivers',        label: 'Waivers',       icon: FileCheck },
+    { href: '/partners',       label: 'Partners',      icon: Handshake },
+    { href: '/users',          label: 'Users',         icon: Users },
+    { href: '/roles',          label: 'Roles',         icon: Shield },
+    { href: '/reports',        label: 'Reports',       icon: FileText },
+    { href: '/notifications',  label: 'Notifications', icon: Bell },
+    { href: '/settings',       label: 'Settings',      icon: Settings },
   ];
 
-  // FILTER BY USER ROLES
-  const navItems = useMemo(() => {
-    return allNavItems.filter(item => {
-      if (item.permission === 'notifications.read') return true;
-      if (isAdmin) return true;
-      return userRoles.some(role => {
-        const allowed = PERMISSIONS[item.permission];
-        return allowed?.includes(role);
-      });
-    });
-  }, [userRoles, isAdmin]);
+  // ✅ FIX: Show all items during development (remove user check)
+  // const navItems = user ? allNavItems : [];
+  const navItems = allNavItems; // Show all items always for development
 
   return (
     <>
-      {/* Mobile Overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden" onClick={closeMobile} />
       )}
 
-      {/* Sidebar */}
       <aside
         className={`
           ${mobileOpen ? 'fixed' : 'sticky'} 
@@ -95,7 +102,7 @@ export function Sidebar() {
         {/* Header */}
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-700">
           <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">M</span>
             </div>
             {!collapsed && <h1 className="text-xl font-bold text-white">MAG CRM</h1>}
@@ -110,7 +117,11 @@ export function Sidebar() {
           <ul className="space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const active = pathname.startsWith(item.href);
+              // ✅ FIX: Dashboard should only be active on exact home path
+              const active = item.href === '/' 
+                ? pathname === '/'  // Dashboard: exact match
+                : pathname.startsWith(item.href); // Others: starts with
+              
               return (
                 <li key={item.href}>
                   <Link
@@ -119,7 +130,7 @@ export function Sidebar() {
                     className={`
                       flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
                       ${active 
-                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                        ? 'bg-orange-500 text-white shadow-lg' 
                         : 'text-gray-300 hover:bg-gray-800 hover:text-white'
                       }
                     `}
@@ -134,31 +145,52 @@ export function Sidebar() {
           </ul>
         </nav>
 
-        {/* Collapse + Logout */}
-        <div className="p-4 border-t border-gray-700 space-y-2">
+        {/* User Info */}
+        <div className="p-4 border-t border-gray-700 space-y-3">
+          {!collapsed && isClient && user && (
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center text-white font-semibold">
+                {displayName.charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">{displayName}</p>
+                <p className="text-xs text-gray-400 truncate">{displayEmail}</p>
+                <p className="text-xs text-orange-400">
+                  {isAdmin ? 'Admin' : user.role || 'User'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {!collapsed && isClient && !user && (
+            <div className="text-center p-2 bg-yellow-900 text-yellow-200 rounded text-sm">
+              Not logged in
+            </div>
+          )}
+
           <button
             onClick={() => setCollapsed(c => !c)}
             className="hidden lg:flex w-full items-center justify-center p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800"
-            title={collapsed ? 'Expand' : 'Collapse'}
           >
             {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
           </button>
 
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-800 hover:text-white transition-all"
-            title={collapsed ? 'Logout' : ''}
-          >
-            <LogOut className="w-5 h-5 flex-shrink-0" />
-            {!collapsed && <span>Logout</span>}
-          </button>
+          {isClient && user && (
+            <button
+              onClick={handleLogout}
+              className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-800 hover:text-white"
+            >
+              <LogOut className="w-5 h-5" />
+              {!collapsed && <span>Logout</span>}
+            </button>
+          )}
         </div>
       </aside>
 
       {/* Mobile Toggle */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="fixed bottom-6 left-6 z-30 lg:hidden w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-lg flex items-center justify-center hover:opacity-90"
+        className="fixed bottom-6 left-6 z-30 lg:hidden w-12 h-12 bg-orange-500 text-white rounded-full shadow-lg flex items-center justify-center hover:opacity-90"
       >
         <LayoutDashboard className="w-6 h-6" />
       </button>
