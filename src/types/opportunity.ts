@@ -55,6 +55,14 @@ export interface Payment {
   balanceRemaining: number;
 }
 
+export interface User {
+  id: string;
+  email: string;
+  role: string;
+  active: boolean;
+  name: string;
+}
+
 export interface Opportunity {
   id: string;
   type: 'individual' | 'organization';
@@ -62,12 +70,7 @@ export interface Opportunity {
   source: string;
   status: OpportunityStatus;
   customer: Customer;
-  assignedTo: {
-    id: string;
-    email: string;
-    role: string;
-    active: boolean;
-  };
+  assignedTo: User; 
   vehicles: Vehicle[];
   waivers: Waiver[];
   jobCards: JobCard[];
@@ -104,8 +107,18 @@ export interface OpportunityOverview {
   won: number;
   lost: number;
   conversion_rate: number;
-   totalValue?: number;
+  totalValue?: number;
   currency?: string;
   byType?: {
     deal?: number;
+  };
+}
+
+export interface PipelineStats {
+  total: number;
+  open: number;
+  in_progress: number;
+  won: number;
+  lost: number;
+  conversion_rate: number;
 }
