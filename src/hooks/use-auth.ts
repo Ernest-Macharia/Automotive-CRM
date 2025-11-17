@@ -27,18 +27,24 @@ interface AuthResponse {
   refreshToken?: string;
 }
 
+interface ApiResponse<T> {
+  data: T;
+  message?: string;
+  success: boolean;
+}
+
 export function useAuth() {
   const login = useMutation<AuthResponse, Error, LoginData>({
     mutationFn: async (credentials: LoginData) => {
-      const response = await apiClient.post('/auth/login', credentials);
-      return (response as any).data;
+      const response = await apiClient.post<ApiResponse<AuthResponse>>('/auth/login', credentials);
+      return response.data.data;
     },
   });
 
   const register = useMutation<AuthResponse, Error, RegisterData>({
     mutationFn: async (userData: RegisterData) => {
-      const response = await apiClient.post('/auth/register', userData);
-      return (response as any).data;
+      const response = await apiClient.post<ApiResponse<AuthResponse>>('/auth/register', userData);
+      return response.data.data;
     },
   });
 

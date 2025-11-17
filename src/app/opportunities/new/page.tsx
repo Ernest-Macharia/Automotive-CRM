@@ -1,22 +1,49 @@
 // app/opportunities/new/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { CreateOpportunityModal } from '@/components/opportunities/CreateOpportunityModal';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Target } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
+interface PipelineStats {
+  totalDeals: number;
+  myDeals: number;
+  pipelineValue: number;
+  winRate: number;
+}
+
+interface StageCount {
+  name: string;
+  count: number;
+  percentage: string;
+}
+
+interface Blueprint {
+  module: string;
+  active: boolean;
+  stages?: Array<{ name: string }>;
+}
+
+interface Opportunity {
+  assignedTo?: { name: string } | null;
+  status?: string;
+  quotes?: Array<{ totalAmount: number }>;
+  amount?: number;
+}
+
 export default function NewOpportunityPage() {
-  const [open, setOpen] = useState(false);
+  // ✅ FIX: Initialize open state directly instead of using useEffect
+  const [open, setOpen] = useState(true);
 
   // Fetch real pipeline stats from your API
   const { data: pipelineStats, isLoading: statsLoading } = useQuery({
     queryKey: ['opportunities-stats'],
-    queryFn: async () => {
+    queryFn: async (): Promise<PipelineStats> => {
       try {
-        const opportunities = await api.opportunities.list();
+        const opportunities = await api.opportunities.list() as Opportunity[];
         const opportunitiesArray = Array.isArray(opportunities) ? opportunities : [];
         
         // Calculate real stats from your data
@@ -45,10 +72,6 @@ export default function NewOpportunityPage() {
       }
     },
   });
-
-  useEffect(() => {
-    setOpen(true);
-  }, []);
 
   const handleClose = () => {
     setOpen(false);
@@ -225,13 +248,13 @@ function PipelineStages() {
   }
 
   // Get the active opportunities blueprint
-  const opportunityBlueprint = blueprints?.find((bp: any) => 
+  const opportunityBlueprint = (blueprints as Blueprint[])?.find((bp: Blueprint) => 
     bp.module === 'opportunities' && bp.active
   );
 
   // Calculate stage counts from real opportunities
-  const stageCounts = opportunityBlueprint?.stages?.map((stage: any) => {
-    const stageOpportunities = opportunities?.filter((opp: any) => 
+  const stageCounts: StageCount[] = opportunityBlueprint?.stages?.map((stage: { name: string }) => {
+    const stageOpportunities = (opportunities as Opportunity[])?.filter((opp: Opportunity) => 
       opp.status === stage.name
     ) || [];
     
@@ -247,7 +270,7 @@ function PipelineStages() {
     <div className="rounded-lg bg-white p-6 shadow-sm border border-gray-200">
       <h3 className="mb-4 text-sm font-semibold text-gray-900">Pipeline Stages</h3>
       <div className="space-y-3">
-        {stageCounts.map((stage: any, index: number) => (
+        {stageCounts.map((stage: StageCount, index: number) => (
           <div key={stage.name} className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className={`h-2 w-2 rounded-full ${

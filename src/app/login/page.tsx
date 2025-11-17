@@ -117,7 +117,7 @@ export default function LoginPage() {
 
               <h2 className="text-3xl font-bold text-gray-900">Welcome back</h2>
               <p className="mt-2 text-sm text-gray-600">
-                Don't have an account?{' '}
+                Don&apos;t have an account?{' '}
                 <Link href="/register" className="font-semibold text-orange-600 hover:text-orange-500 transition-colors">
                   Start your free trial
                 </Link>

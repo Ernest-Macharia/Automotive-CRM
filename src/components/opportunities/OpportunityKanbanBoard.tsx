@@ -23,7 +23,7 @@ import { toast } from 'react-hot-toast';
 import { format } from 'date-fns';
 import { 
   Building, Calendar, User, Mail, Phone, 
-  Eye, Edit, Trash2, Download, Mail as MailIcon,
+  Eye, Edit, Trash2, Download,
   Target, Check
 } from 'lucide-react';
 
@@ -301,10 +301,7 @@ export function OpportunityKanbanBoard({
   sortOrder = 'desc' 
 }: OpportunityKanbanBoardProps) {
   const queryClient = useQueryClient();
-  const [stages, setStages] = useState<Record<string, ApiOpportunity[]>>({});
-  const [blueprint, setBlueprint] = useState<ApiBlueprint | null>(null);
   const [selectedOpportunities, setSelectedOpportunities] = useState<string[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
 
   // Fetch data
   const { data: opportunities = [], isLoading: oppLoading } = useQuery({
@@ -329,11 +326,7 @@ export function OpportunityKanbanBoard({
 
   // Enhanced sorting and filtering
   const sortedAndFilteredOpportunities = useMemo(() => {
-    let sorted = [...opportunities].filter(opp => 
-      searchTerm === '' || 
-      opp.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      opp.customer.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const sorted = [...opportunities];
     
     // Apply sorting
     switch (sortBy) {
@@ -376,19 +369,20 @@ export function OpportunityKanbanBoard({
     }
     
     return sorted;
-  }, [opportunities, searchTerm, sortBy, sortOrder]);
+  }, [opportunities, sortBy, sortOrder]);
 
   // Blueprint and stage logic
-  useEffect(() => {
+  const blueprint = useMemo(() => {
     if (blueprints.length > 0) {
       const activeBlueprint = blueprints.find((bp: ApiBlueprint) => 
         bp.module === 'opportunities' && bp.active
       );
-      setBlueprint(activeBlueprint || null);
+      return activeBlueprint || null;
     }
+    return null;
   }, [blueprints]);
 
-  useEffect(() => {
+  const stages = useMemo(() => {
     if (sortedAndFilteredOpportunities.length > 0 && blueprint) {
       const newStages: Record<string, ApiOpportunity[]> = {};
       blueprint.stages.forEach((stage: BlueprintStage) => {
@@ -397,10 +391,9 @@ export function OpportunityKanbanBoard({
           opportunity.status.toLowerCase() === stageKey
         );
       });
-      setStages(newStages);
-    } else {
-      setStages({});
+      return newStages;
     }
+    return {};
   }, [sortedAndFilteredOpportunities, blueprint]);
 
   // Selection handlers
@@ -408,10 +401,6 @@ export function OpportunityKanbanBoard({
     setSelectedOpportunities(prev => 
       selected ? [...prev, opportunityId] : prev.filter(id => id !== opportunityId)
     );
-  };
-
-  const handleSelectAll = (selected: boolean) => {
-    setSelectedOpportunities(selected ? sortedAndFilteredOpportunities.map(opp => opp._id) : []);
   };
 
   // Bulk actions
@@ -485,7 +474,6 @@ export function OpportunityKanbanBoard({
     return map[name.toLowerCase()] || 'bg-gray-100 border-l-gray-500 text-gray-900';
   };
 
-  const totalValue = Object.keys(stages).reduce((sum, stage) => sum + getTotal(stage), 0);
   const totalOpportunities = Object.values(stages).reduce((sum, stage) => sum + stage.length, 0);
 
   if (oppLoading || bpLoading) {

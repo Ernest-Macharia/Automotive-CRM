@@ -1,7 +1,7 @@
 // src/components/layout/Sidebar.tsx
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -20,16 +20,13 @@ export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [isClient, setIsClient] = useState(false);
 
-  // ✅ FIX: Use useEffect to detect client-side only
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
+  // ✅ FIX: Remove useEffect and initialize client state properly
+  const [isClient] = useState(true); // Since this is a client component
 
   // ✅ FIX: Only access sessionStorage on client side
   const user = useMemo(() => {
-    if (!isClient) return null; // Return null during SSR
+    if (typeof window === 'undefined') return null; // Return null during SSR
     
     try {
       const stored = sessionStorage.getItem('user');
@@ -44,9 +41,10 @@ export function Sidebar() {
       console.error('Failed to parse user from sessionStorage:', err);
       return null;
     }
-  }, [isClient]);
+  }, []); // Remove isClient dependency
 
-  const userRoles = user?.role ? [user.role] : [];
+  // ✅ FIX: Remove unused variable
+  // const userRoles = user?.role ? [user.role] : [];
   const isAdmin = user?.role === 'admin';
   const displayName = user?.name || user?.email?.split('@')[0] || 'User';
   const displayEmail = user?.email || '—';
@@ -81,7 +79,6 @@ export function Sidebar() {
   ];
 
   // ✅ FIX: Show all items during development (remove user check)
-  // const navItems = user ? allNavItems : [];
   const navItems = allNavItems; // Show all items always for development
 
   return (
@@ -147,22 +144,24 @@ export function Sidebar() {
 
         {/* User Info */}
         <div className="p-4 border-t border-gray-700 space-y-3">
-          {!collapsed && isClient && user && (
+          {user && (
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center text-white font-semibold">
                 {displayName.charAt(0).toUpperCase()}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{displayName}</p>
-                <p className="text-xs text-gray-400 truncate">{displayEmail}</p>
-                <p className="text-xs text-orange-400">
-                  {isAdmin ? 'Admin' : user.role || 'User'}
-                </p>
-              </div>
+              {!collapsed && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{displayName}</p>
+                  <p className="text-xs text-gray-400 truncate">{displayEmail}</p>
+                  <p className="text-xs text-orange-400">
+                    {isAdmin ? 'Admin' : user.role || 'User'}
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
-          {!collapsed && isClient && !user && (
+          {!user && !collapsed && (
             <div className="text-center p-2 bg-yellow-900 text-yellow-200 rounded text-sm">
               Not logged in
             </div>
@@ -175,7 +174,7 @@ export function Sidebar() {
             {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
           </button>
 
-          {isClient && user && (
+          {user && (
             <button
               onClick={handleLogout}
               className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-800 hover:text-white"

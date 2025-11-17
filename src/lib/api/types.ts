@@ -231,10 +231,10 @@ export interface JobCard {
   updatedAt: string;
 }
 
-// BLUEPRINTS
+// BLUEPRINTS - FIXED: Remove any types
 export interface BlueprintStageAction {
   actionType: string;
-  params: Record<string, any>;
+  params: Record<string, unknown>; // ✅ FIX: Replace any with unknown
 }
 
 export interface BlueprintStage {
@@ -256,12 +256,12 @@ export interface Blueprint {
   updatedAt: string;
 }
 
-// TRANSITIONS
+// TRANSITIONS - FIXED: Remove any types
 export interface Transition {
   fromStage: string;
   toStage: string;
   allowedRoles: string[];
-  conditions?: Record<string, any>;
+  conditions?: Record<string, unknown>; // ✅ FIX: Replace any with unknown
 }
 
 // NOTIFICATIONS
@@ -351,4 +351,25 @@ export interface UploadedFile {
   size: number;
   uploadedBy: string;
   createdAt: string;
+}
+
+// ✅ ADDITIONAL TYPES for better type safety
+export interface ApiResponse<T> {
+  data: T;
+  message?: string;
+  success: boolean;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface ErrorResponse {
+  error: string;
+  message: string;
+  statusCode: number;
 }

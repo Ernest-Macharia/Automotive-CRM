@@ -1,7 +1,7 @@
 // src/hooks/useUser.ts
 'use client';
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { authService, SessionExpiredError } from '@/services/authService';
 import { useEffect } from 'react';
 
@@ -11,8 +11,6 @@ import { useEffect } from 'react';
  * No deprecated options
  */
 export function useUser() {
-  const queryClient = useQueryClient();
-
   const query = useQuery({
     queryKey: ['user'],
     queryFn: () => authService.getCurrentUser(),
