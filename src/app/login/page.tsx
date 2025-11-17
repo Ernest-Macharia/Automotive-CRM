@@ -1,3 +1,4 @@
+// src/app/auth/login/page.tsx
 'use client';
 
 import React, { useState } from 'react';
@@ -28,11 +29,24 @@ export default function LoginPage() {
     setError('');
 
     try {
-      await authService.login(formData);
-      // On success navigate to dashboard/home
+      // ✅ SECURE: Use sessionStorage instead of localStorage
+      const response = await authService.login(formData);
+      
+      // Save to sessionStorage (cleared when browser closes)
+      sessionStorage.setItem('accessToken', response.accessToken);
+      sessionStorage.setItem('refreshToken', response.refreshToken);
+      sessionStorage.setItem('user', JSON.stringify(response.user));
+      
+      console.log('🔐 Login successful - sessionStorage used:', response.user);
+      
+      // Navigate to dashboard
       router.push('/');
     } catch (err: unknown) {
       console.error('Login failed:', err);
+      // Clear sessionStorage on error
+      sessionStorage.removeItem('accessToken');
+      sessionStorage.removeItem('refreshToken');
+      sessionStorage.removeItem('user');
 
       if (err instanceof AuthenticationError) {
         setError('Invalid email or password. Please check your credentials and try again.');
@@ -55,18 +69,28 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // use demoLogin helper from authService if available
+      let response;
       if (typeof authService.demoLogin === 'function') {
-        await authService.demoLogin();
+        response = await authService.demoLogin();
       } else {
-        await authService.login({
+        response = await authService.login({
           email: 'superadmin@crm.local',
           password: 'ChangeMe123!',
         });
       }
+      
+      // ✅ SECURE: Use sessionStorage
+      sessionStorage.setItem('accessToken', response.accessToken);
+      sessionStorage.setItem('refreshToken', response.refreshToken);
+      sessionStorage.setItem('user', JSON.stringify(response.user));
+      
+      console.log('🔐 Demo login successful - sessionStorage used:', response.user);
       router.push('/');
     } catch (err: unknown) {
       console.error('Demo login failed:', err);
+      sessionStorage.removeItem('accessToken');
+      sessionStorage.removeItem('refreshToken');
+      sessionStorage.removeItem('user');
       setError('Demo login failed. Please try manual login.');
     } finally {
       setIsLoading(false);
