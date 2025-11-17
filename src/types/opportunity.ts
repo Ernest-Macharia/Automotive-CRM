@@ -104,4 +104,8 @@ export interface OpportunityOverview {
   won: number;
   lost: number;
   conversion_rate: number;
+   totalValue?: number;
+  currency?: string;
+  byType?: {
+    deal?: number;
 }
