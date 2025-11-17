@@ -7,14 +7,16 @@ import { usePathname } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
 import { authService } from '@/services/authService';
 import Image from 'next/image';
-import { useUnreadCount } from '@/hooks/useNotifications';
+import { useNotificationsMe } from '@/hooks/useNotifications'; // ← NEW
 
 export function Header({ setSidebarOpen }: { setSidebarOpen: (open: boolean) => void }) {
   const pathname = usePathname();
   const { data: user, isLoading } = useUser();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
-  const { data: unreadCount = 0 } = useUnreadCount();
+  const { data: notifications = [], isLoading: notificationsLoading } = useNotificationsMe(); // ← NEW
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   // EAT Time (UTC+3)
   useEffect(() => {
@@ -77,8 +79,8 @@ export function Header({ setSidebarOpen }: { setSidebarOpen: (open: boolean) => 
       <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
         <div className="flex flex-1 items-center">
           <div className="w-full">
-            <h1 className="text-xl font-semibold text-gray-900">{getPageTitle()}</h1>
-            <p className="text-sm text-gray-500">
+      
+            <p className="text-lg text-gray-900">
               {isLoading ? 'Loading...' : `Welcome back, ${user?.firstName || 'User'}!`}
             </p>
           </div>
@@ -88,7 +90,7 @@ export function Header({ setSidebarOpen }: { setSidebarOpen: (open: boolean) => 
           {/* Kenya Flag + EAT Time */}
           <div className="hidden sm:flex items-center gap-2 text-sm text-gray-600">
             <Image
-              src="/kenya-flag.svg"
+              src="/images/kenya-flag.svg"
               alt="Kenya"
               width={20}
               height={15}
@@ -108,11 +110,14 @@ export function Header({ setSidebarOpen }: { setSidebarOpen: (open: boolean) => 
             </div>
           </div>
 
+          {/* NOTIFICATION BELL */}
           <button className="relative p-2 text-gray-400 hover:text-gray-500">
             <Bell className="h-6 w-6" />
-           <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-xs text-white flex items-center justify-center">
-  {unreadCount}
-</span>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-xs text-white flex items-center justify-center">
+                {unreadCount}
+              </span>
+            )}
           </button>
 
           <div className="relative">
