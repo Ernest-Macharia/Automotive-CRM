@@ -27,37 +27,36 @@ interface Blueprint {
   stages?: Array<{ name: string }>;
 }
 
-interface Opportunity {
-  assignedTo?: { name: string } | null;
+interface ApiOpportunity {
+  assignedTo?: { name: string; id: string; email: string } | null;
   status?: string;
   quotes?: Array<{ totalAmount: number }>;
   amount?: number;
 }
 
 export default function NewOpportunityPage() {
-  // ✅ FIX: Initialize open state directly instead of using useEffect
   const [open, setOpen] = useState(true);
 
-  // Fetch real pipeline stats from your API
   const { data: pipelineStats, isLoading: statsLoading } = useQuery({
     queryKey: ['opportunities-stats'],
     queryFn: async (): Promise<PipelineStats> => {
       try {
-        const opportunities = await api.opportunities.list() as Opportunity[];
+        const opportunities = await api.opportunities.list();
         const opportunitiesArray = Array.isArray(opportunities) ? opportunities : [];
         
-        // Calculate real stats from your data
         const totalDeals = opportunitiesArray.length;
-        const myDeals = opportunitiesArray.filter(opp => 
-          opp.assignedTo && typeof opp.assignedTo === 'object' && opp.assignedTo.name
-        ).length;
         
-        const pipelineValue = opportunitiesArray.reduce((sum, opp) => {
-          const amount = opp.quotes?.[0]?.totalAmount || opp.amount || 0;
+        const myDeals = opportunitiesArray.filter(opp => {
+          const assignedTo = (opp as any)?.assignedTo;
+          return assignedTo && typeof assignedTo === 'object' && 'name' in assignedTo;
+        }).length;
+        
+        const pipelineValue = opportunitiesArray.reduce((sum, opp: any) => {
+          const amount = opp?.quotes?.[0]?.totalAmount || opp?.amount || 0;
           return sum + amount;
         }, 0);
 
-        const wonDeals = opportunitiesArray.filter(opp => opp.status === 'won').length;
+        const wonDeals = opportunitiesArray.filter((opp: any) => opp?.status === 'won').length;
         const winRate = totalDeals > 0 ? Math.round((wonDeals / totalDeals) * 100) : 0;
 
         return {
@@ -198,7 +197,6 @@ export default function NewOpportunityPage() {
                 )}
               </div>
 
-              {/* Real Pipeline Stages from your Blueprint */}
               <PipelineStages />
             </div>
           </div>
@@ -219,7 +217,6 @@ export default function NewOpportunityPage() {
   );
 }
 
-// Component to fetch and display real pipeline stages from your blueprint
 function PipelineStages() {
   const { data: blueprints, isLoading } = useQuery({
     queryKey: ['blueprints'],
@@ -247,15 +244,13 @@ function PipelineStages() {
     );
   }
 
-  // Get the active opportunities blueprint
   const opportunityBlueprint = (blueprints as Blueprint[])?.find((bp: Blueprint) => 
     bp.module === 'opportunities' && bp.active
   );
 
-  // Calculate stage counts from real opportunities
   const stageCounts: StageCount[] = opportunityBlueprint?.stages?.map((stage: { name: string }) => {
-    const stageOpportunities = (opportunities as Opportunity[])?.filter((opp: Opportunity) => 
-      opp.status === stage.name
+    const stageOpportunities = (opportunities as any[])?.filter((opp: any) => 
+      opp?.status === stage.name
     ) || [];
     
     return {
