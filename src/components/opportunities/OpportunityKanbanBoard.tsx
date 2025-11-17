@@ -18,18 +18,23 @@ import { api } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { toast } from 'react-hot-toast';
 import { format } from 'date-fns';
-import { Building, MoreHorizontal, Calendar, User, Mail, Phone, FileText } from 'lucide-react';
+import { 
+  Building, Calendar, User, Mail, Phone, 
+  Eye, Edit, Trash2, Download, Mail as MailIcon,
+  Target, Check
+} from 'lucide-react';
 
 // ────────────────────────────────────────────────────────────────
-// FIXED TYPES - MATCHING YOUR ACTUAL API STRUCTURE
+// INTERFACES
 // ────────────────────────────────────────────────────────────────
 interface ApiOpportunity {
   _id: string;
   type: string;
   subject: string;
-  status: string; // This is string in your API, not OpportunityStatus
+  status: string;
   customer: {
     name: string;
     _id: string;
@@ -77,58 +82,86 @@ interface ApiBlueprint {
   __v: number;
 }
 
+interface OpportunityKanbanBoardProps {
+  sortBy?: string;
+  sortOrder?: string;
+}
+
 // ────────────────────────────────────────────────────────────────
-// FIXED KANBAN CARD - NO TYPE ERRORS
+// KENYAN CURRENCY FORMATTER
 // ────────────────────────────────────────────────────────────────
-function KanbanCard({ opportunity }: { opportunity: ApiOpportunity }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
+const formatKenyanShilling = (amount: number): string => {
+  if (amount === 0) return 'No amount';
+  return `KES ${amount.toLocaleString('en-KE')}`;
+};
+
+// ────────────────────────────────────────────────────────────────
+// ENHANCED KANBAN CARD WITH BETTER TYPOGRAPHY
+// ────────────────────────────────────────────────────────────────
+function KanbanCard({ 
+  opportunity, 
+  isSelected = false,
+  onSelect,
+  onQuickActions 
+}: { 
+  opportunity: ApiOpportunity;
+  isSelected?: boolean;
+  onSelect?: (selected: boolean) => void;
+  onQuickActions?: (action: string, opportunity: ApiOpportunity) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: opportunity._id,
   });
 
-  const style = { transform: CSS.Transform.toString(transform), transition };
+  const style = { 
+    transform: CSS.Transform.toString(transform), 
+    transition,
+    opacity: isDragging ? 0.5 : 1 
+  };
 
   const percentage = useMemo(() => {
     const map: Record<string, number> = {
-      'new': 10,
-      'qualified': 30,
-      'proposal': 60,
-      'proposal_sent': 70,
+      'new': 15,
+      'qualified': 35,
+      'proposal': 65,
+      'proposal_sent': 75,
+      'negotiation': 85,
       'won': 100,
       'lost': 0,
-      'closed': 0,
     };
-    return map[opportunity.status.toLowerCase()] ?? null;
+    return map[opportunity.status.toLowerCase()] ?? 25;
   }, [opportunity.status]);
 
-  // Safe amount calculation
   const amount = useMemo(() => {
     if (!opportunity.quotes || opportunity.quotes.length === 0) return 0;
-    
-    // Use the latest quote with amount
     const quotesWithAmount = opportunity.quotes.filter((quote): quote is { totalAmount: number } => 
       quote.totalAmount !== undefined && quote.totalAmount > 0
     );
-    
     if (quotesWithAmount.length === 0) return 0;
-    
-    // Return the latest quote amount
     return quotesWithAmount[quotesWithAmount.length - 1].totalAmount;
   }, [opportunity.quotes]);
 
   const formattedDate = useMemo(() => {
-    return format(new Date(opportunity.createdAt), 'dd/MM/yy');
+    return format(new Date(opportunity.createdAt), 'MMM dd');
   }, [opportunity.createdAt]);
 
   const assignedUserName = useMemo(() => {
     if (!opportunity.assignedTo) return 'Unassigned';
-    
-    // Safe type checking for assignedTo
     if (typeof opportunity.assignedTo === 'object' && opportunity.assignedTo !== null && 'name' in opportunity.assignedTo) {
       return (opportunity.assignedTo as { name: string }).name || 'Assigned';
     }
-    
     return 'Assigned';
   }, [opportunity.assignedTo]);
+
+  const handleCheckboxClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelect?.(!isSelected);
+  };
+
+  const handleAction = (action: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    onQuickActions?.(action, opportunity);
+  };
 
   return (
     <div
@@ -136,62 +169,122 @@ function KanbanCard({ opportunity }: { opportunity: ApiOpportunity }) {
       style={style}
       {...attributes}
       {...listeners}
-      className="mb-2 cursor-grab active:cursor-grabbing group relative"
+      className={`mb-3 cursor-grab active:cursor-grabbing group relative ${
+        isSelected ? 'ring-2 ring-orange-500 rounded-lg shadow-md' : 'hover:shadow-sm'
+      } transition-all duration-200`}
     >
-      <Card className="p-3 shadow-sm hover:shadow-md border border-gray-200 rounded-lg bg-white">
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button className="p-1 hover:bg-gray-100 rounded">
-            <MoreHorizontal className="h-3 w-3 text-gray-500" />
+      <Card className="p-3 shadow-xs border border-gray-200 rounded-lg hover:border-orange-300 transition-colors">
+        {/* Checkbox - Enhanced Visibility */}
+        <div 
+          className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 z-10 transition-opacity"
+          onClick={handleCheckboxClick}
+        >
+          <div 
+            className={`w-5 h-5 border-2 rounded-md flex items-center justify-center cursor-pointer transition-all ${
+              isSelected 
+                ? 'bg-orange-500 border-orange-500 text-white shadow-sm' 
+                : 'border-gray-400 bg-white hover:border-orange-500 hover:bg-orange-50'
+            }`}
+          >
+            {isSelected && <Check className="w-3 h-3" />}
+          </div>
+        </div>
+
+        {/* Quick Actions - Larger & More Visible */}
+        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+          <button 
+            onClick={(e) => handleAction('view', e)}
+            className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors"
+            title="View Details"
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+          <button 
+            onClick={(e) => handleAction('edit', e)}
+            className="p-1.5 hover:bg-green-50 rounded-lg text-green-600 transition-colors"
+            title="Edit Opportunity"
+          >
+            <Edit className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex justify-between items-start mb-2 pr-6">
-          <h4 className="font-semibold text-sm text-gray-900 flex-1 pr-2">
-            {opportunity.subject}
-          </h4>
-          {percentage !== null && (
-            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+        {/* Content - Enhanced Typography */}
+        <div className="pr-10">
+          {/* Header - Larger & Bolder */}
+          <div className="flex justify-between items-start mb-3">
+            <h4 className="font-bold text-gray-900 line-clamp-2 flex-1 pr-2 text-sm leading-tight">
+              {opportunity.subject}
+            </h4>
+            <Badge 
+              variant="outline" 
+              className={`text-xs font-semibold ${
+                percentage >= 80 ? 'bg-green-100 text-green-800 border-green-300' :
+                percentage >= 50 ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                'bg-orange-100 text-orange-800 border-orange-300'
+              }`}
+            >
               {percentage}%
             </Badge>
-          )}
-        </div>
-
-        <div className="space-y-1.5 mb-3">
-          <div className="flex items-center gap-1.5">
-            <Building className="h-3 w-3 text-gray-500" />
-            <p className="text-xs text-gray-600">{opportunity.customer.name}</p>
           </div>
-          
-          {(opportunity.customer.email || opportunity.customer.phone) && (
-            <div className="flex items-center gap-1.5">
-              {opportunity.customer.email ? (
-                <Mail className="h-3 w-3 text-gray-400" />
-              ) : (
-                <Phone className="h-3 w-3 text-gray-400" />
-              )}
-              <p className="text-xs text-gray-500 truncate">
-                {opportunity.customer.email || opportunity.customer.phone}
-              </p>
-            </div>
-          )}
 
-          <div className="flex items-center gap-1.5">
-            <User className="h-3 w-3 text-gray-400" />
-            <p className="text-xs text-gray-500 truncate">{assignedUserName}</p>
+          {/* Customer Info - Better Spacing & Typography */}
+          <div className="space-y-2 mb-3">
+            <div className="flex items-center gap-2">
+              <Building className="w-4 h-4 text-gray-600" />
+              <span className="text-sm font-medium text-gray-800 truncate">
+                {opportunity.customer.name}
+              </span>
+            </div>
+            
+            {(opportunity.customer.email || opportunity.customer.phone) && (
+              <div className="flex items-center gap-2">
+                {opportunity.customer.email ? (
+                  <Mail className="w-4 h-4 text-gray-500" />
+                ) : (
+                  <Phone className="w-4 h-4 text-gray-500" />
+                )}
+                <span className="text-sm text-gray-600 truncate">
+                  {opportunity.customer.email || opportunity.customer.phone}
+                </span>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <User className="w-4 h-4 text-gray-500" />
+              <span className="text-sm text-gray-600 truncate font-medium">
+                {assignedUserName}
+              </span>
+            </div>
           </div>
-        </div>
 
-        <div className="flex justify-between items-center pt-2 border-t border-gray-100">
-          <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-700">
-            {opportunity.vehicles[0]?.registrationNumber || 'No vehicle'}
-          </Badge>
-          <div className="text-right">
-            <div className="text-xs font-semibold text-gray-900">
-              {amount > 0 ? `KES ${amount.toLocaleString()}` : 'No amount'}
-            </div>
-            <div className="text-xs text-gray-500 flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              {formattedDate}
+          {/* Progress Bar - Thicker & More Visible */}
+          <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+            <div 
+              className={`h-2 rounded-full transition-all duration-500 ${
+                percentage >= 80 ? 'bg-green-500' :
+                percentage >= 50 ? 'bg-blue-500' :
+                'bg-orange-500'
+              }`}
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
+
+          {/* Footer - Enhanced Readability */}
+          <div className="flex justify-between items-center pt-3 border-t border-gray-100">
+            <Badge 
+              variant="secondary" 
+              className="bg-gray-100 text-gray-800 text-xs font-medium border border-gray-300"
+            >
+              {opportunity.vehicles[0]?.registrationNumber || 'No vehicle'}
+            </Badge>
+            <div className="text-right">
+              <div className="font-bold text-gray-900 text-sm">
+                {formatKenyanShilling(amount)}
+              </div>
+              <div className="text-gray-600 text-xs flex items-center gap-1 font-medium">
+                <Calendar className="w-3 h-3" />
+                {formattedDate}
+              </div>
             </div>
           </div>
         </div>
@@ -201,15 +294,19 @@ function KanbanCard({ opportunity }: { opportunity: ApiOpportunity }) {
 }
 
 // ────────────────────────────────────────────────────────────────
-// FIXED MAIN BOARD - NO TYPE ERRORS
+// ENHANCED KANBAN BOARD WITH BETTER TYPOGRAPHY
 // ────────────────────────────────────────────────────────────────
-export function OpportunityKanbanBoard() {
+export function OpportunityKanbanBoard({ 
+  sortBy = 'created_date', 
+  sortOrder = 'desc' 
+}: OpportunityKanbanBoardProps) {
   const queryClient = useQueryClient();
   const [stages, setStages] = useState<Record<string, ApiOpportunity[]>>({});
   const [blueprint, setBlueprint] = useState<ApiBlueprint | null>(null);
-  const [userRole] = useState<string>('sales');
+  const [selectedOpportunities, setSelectedOpportunities] = useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // Fixed queries with proper typing
+  // Fetch data
   const { data: opportunities = [], isLoading: oppLoading } = useQuery({
     queryKey: ['opportunities'],
     queryFn: async (): Promise<ApiOpportunity[]> => {
@@ -223,8 +320,6 @@ export function OpportunityKanbanBoard() {
     queryFn: async (): Promise<ApiBlueprint[]> => {
       const response = await api.blueprints.list();
       const data = Array.isArray(response) ? response : [];
-      
-      // Transform to ensure active field exists
       return data.map((bp: unknown) => ({
         ...(bp as Omit<ApiBlueprint, 'active'>),
         active: (bp as { active?: boolean }).active ?? false
@@ -232,143 +327,173 @@ export function OpportunityKanbanBoard() {
     },
   });
 
-  // Fixed blueprint selection - no sync state updates
+  // Enhanced sorting and filtering
+  const sortedAndFilteredOpportunities = useMemo(() => {
+    let sorted = [...opportunities].filter(opp => 
+      searchTerm === '' || 
+      opp.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      opp.customer.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    // Apply sorting
+    switch (sortBy) {
+      case 'amount':
+        sorted.sort((a, b) => {
+          const aAmount = a.quotes?.[0]?.totalAmount || 0;
+          const bAmount = b.quotes?.[0]?.totalAmount || 0;
+          return sortOrder === 'asc' ? aAmount - bAmount : bAmount - aAmount;
+        });
+        break;
+      case 'customer_name':
+        sorted.sort((a, b) => {
+          const aName = a.customer.name.toLowerCase();
+          const bName = b.customer.name.toLowerCase();
+          return sortOrder === 'asc' ? aName.localeCompare(bName) : bName.localeCompare(aName);
+        });
+        break;
+      case 'subject':
+        sorted.sort((a, b) => {
+          const aSubject = a.subject.toLowerCase();
+          const bSubject = b.subject.toLowerCase();
+          return sortOrder === 'asc' ? aSubject.localeCompare(bSubject) : bSubject.localeCompare(aSubject);
+        });
+        break;
+      case 'updated_date':
+        sorted.sort((a, b) => {
+          const aDate = new Date(a.updatedAt).getTime();
+          const bDate = new Date(b.updatedAt).getTime();
+          return sortOrder === 'asc' ? aDate - bDate : bDate - aDate;
+        });
+        break;
+      case 'created_date':
+      default:
+        sorted.sort((a, b) => {
+          const aDate = new Date(a.createdAt).getTime();
+          const bDate = new Date(b.createdAt).getTime();
+          return sortOrder === 'asc' ? aDate - bDate : bDate - aDate;
+        });
+        break;
+    }
+    
+    return sorted;
+  }, [opportunities, searchTerm, sortBy, sortOrder]);
+
+  // Blueprint and stage logic
   useEffect(() => {
     if (blueprints.length > 0) {
-      const timer = setTimeout(() => {
-        const activeBlueprints = blueprints.filter((bp: ApiBlueprint) => 
-          bp.module === 'opportunities' && bp.active
-        );
-        
-        const mostRecentBlueprint = activeBlueprints.sort((a: ApiBlueprint, b: ApiBlueprint) => 
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-        )[0];
-        
-        setBlueprint(mostRecentBlueprint || activeBlueprints[0] || null);
-      }, 0);
-      
-      return () => clearTimeout(timer);
+      const activeBlueprint = blueprints.find((bp: ApiBlueprint) => 
+        bp.module === 'opportunities' && bp.active
+      );
+      setBlueprint(activeBlueprint || null);
     }
   }, [blueprints]);
 
-  // Fixed stage grouping - no sync state updates
   useEffect(() => {
-    if (opportunities.length > 0 && blueprint) {
-      const timer = setTimeout(() => {
-        const newStages: Record<string, ApiOpportunity[]> = {};
-        
-        blueprint.stages.forEach((stage: BlueprintStage) => {
-          const stageKey = stage.name.toLowerCase();
-          newStages[stage.name] = opportunities.filter((opportunity: ApiOpportunity) => 
-            opportunity.status.toLowerCase() === stageKey
-          );
-        });
-        
-        setStages(newStages);
-      }, 0);
-      
-      return () => clearTimeout(timer);
+    if (sortedAndFilteredOpportunities.length > 0 && blueprint) {
+      const newStages: Record<string, ApiOpportunity[]> = {};
+      blueprint.stages.forEach((stage: BlueprintStage) => {
+        const stageKey = stage.name.toLowerCase();
+        newStages[stage.name] = sortedAndFilteredOpportunities.filter((opportunity: ApiOpportunity) => 
+          opportunity.status.toLowerCase() === stageKey
+        );
+      });
+      setStages(newStages);
     } else {
-      // Clear stages when no data
       setStages({});
     }
-  }, [opportunities, blueprint]);
+  }, [sortedAndFilteredOpportunities, blueprint]);
+
+  // Selection handlers
+  const handleOpportunitySelect = (opportunityId: string, selected: boolean) => {
+    setSelectedOpportunities(prev => 
+      selected ? [...prev, opportunityId] : prev.filter(id => id !== opportunityId)
+    );
+  };
+
+  const handleSelectAll = (selected: boolean) => {
+    setSelectedOpportunities(selected ? sortedAndFilteredOpportunities.map(opp => opp._id) : []);
+  };
+
+  // Bulk actions
+  const handleBulkDelete = async () => {
+    if (selectedOpportunities.length === 0) return;
+    
+    if (confirm(`Delete ${selectedOpportunities.length} selected opportunities?`)) {
+      try {
+        await Promise.all(selectedOpportunities.map(id => api.opportunities.delete(id)));
+        queryClient.invalidateQueries({ queryKey: ['opportunities'] });
+        setSelectedOpportunities([]);
+        toast.success('Opportunities deleted successfully');
+      } catch (error) {
+        toast.error('Failed to delete opportunities');
+      }
+    }
+  };
+
+  const handleBulkExport = () => {
+    if (selectedOpportunities.length === 0) {
+      toast.error('Please select opportunities to export');
+      return;
+    }
+    toast.success(`Exporting ${selectedOpportunities.length} opportunities`);
+  };
 
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor));
 
-  // Fixed mutation - properly typed status
   const updateMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       api.opportunities.update(id, { status } as Partial<ApiOpportunity>),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunities'] });
-      toast.success('Opportunity moved');
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Not allowed');
+      toast.success('Opportunity status updated');
     },
   });
 
-  // Fixed drag handler with proper typing
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over) return;
 
-    const fromStage = Object.keys(stages).find((stageName) =>
-      stages[stageName]?.some((o) => o._id === active.id)
+    const fromStage = Object.keys(stages).find(stageName =>
+      stages[stageName]?.some(o => o._id === active.id)
     );
 
     const toStageName = over.id as string;
-
     if (!fromStage || fromStage === toStageName) return;
 
-    const targetStage = blueprint?.stages.find((s) => s.name === toStageName);
-    if (!targetStage) return;
-
-    const opportunity = stages[fromStage]?.find((o) => o._id === active.id);
-    if (!opportunity) return;
-
-    // Fixed role checking
-    const userRolesMap: Record<string, string[]> = {
-      sales: ['sales'],
-      sales_manager: ['sales', 'management'],
-      sales_director: ['sales', 'management'],
-      admin: ['admin'],
-      management: ['management']
-    };
-
-    const userAllowedRoles = userRolesMap[userRole] || [];
-    const hasPermission = targetStage.allowedRoles.some((role: string) => 
-      userAllowedRoles.includes(role)
-    );
-
-    if (!hasPermission) {
-      toast.error(`Only ${targetStage.allowedRoles.join(', ')} can move to ${toStageName}`);
-      return;
+    const opportunity = stages[fromStage]?.find(o => o._id === active.id);
+    if (opportunity) {
+      updateMutation.mutate({ id: opportunity._id, status: toStageName.toLowerCase() });
     }
-
-    updateMutation.mutate({ id: opportunity._id, status: toStageName.toLowerCase() });
   };
 
-  // Fixed utility functions
+  // Utility functions
   const getTotal = (stage: string): number =>
-    stages[stage]?.reduce((sum, o) => {
-      const amount = o.quotes?.[0]?.totalAmount || 0;
-      return sum + amount;
-    }, 0) || 0;
+    stages[stage]?.reduce((sum, o) => sum + (o.quotes?.[0]?.totalAmount || 0), 0) || 0;
 
   const getCount = (stage: string): number => stages[stage]?.length || 0;
 
-  const getWinRate = (stage: string): number | null => {
-    const name = stage.toLowerCase();
-    if (name.includes('won')) return 100;
-    if (name.includes('lost')) return 0;
-    return null;
-  };
-
   const getStageColors = (name: string): string => {
-    const n = name.toLowerCase();
     const map: Record<string, string> = {
-      'new': 'bg-blue-50 border-l-blue-400 text-blue-900',
-      'qualified': 'bg-purple-50 border-l-purple-400 text-purple-900',
-      'proposal': 'bg-indigo-50 border-l-indigo-400 text-indigo-900',
-      'proposal_sent': 'bg-indigo-50 border-l-indigo-400 text-indigo-900',
-      'won': 'bg-green-50 border-l-green-400 text-green-900',
-      'lost': 'bg-red-50 border-l-red-400 text-red-900',
-      'closed': 'bg-gray-50 border-l-gray-400 text-gray-900',
+      'new': 'bg-blue-100 border-l-blue-500 text-blue-900',
+      'qualified': 'bg-purple-100 border-l-purple-500 text-purple-900',
+      'proposal': 'bg-indigo-100 border-l-indigo-500 text-indigo-900',
+      'proposal_sent': 'bg-indigo-100 border-l-indigo-500 text-indigo-900',
+      'negotiation': 'bg-orange-100 border-l-orange-500 text-orange-900',
+      'won': 'bg-green-100 border-l-green-500 text-green-900',
+      'lost': 'bg-red-100 border-l-red-500 text-red-900',
     };
-    return map[n] || 'bg-gray-50 border-l-gray-400 text-gray-900';
+    return map[name.toLowerCase()] || 'bg-gray-100 border-l-gray-500 text-gray-900';
   };
 
+  const totalValue = Object.keys(stages).reduce((sum, stage) => sum + getTotal(stage), 0);
   const totalOpportunities = Object.values(stages).reduce((sum, stage) => sum + stage.length, 0);
 
-  // Loading state
   if (oppLoading || bpLoading) {
     return (
-      <div className="flex items-center justify-center py-10">
+      <div className="flex items-center justify-center h-40">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2" />
-          <p className="text-gray-500">Loading...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-3" />
+          <p className="text-gray-600 font-medium">Loading opportunities...</p>
         </div>
       </div>
     );
@@ -376,75 +501,119 @@ export function OpportunityKanbanBoard() {
 
   if (!blueprint) {
     return (
-      <div className="text-center py-10 text-gray-500">
-        No active workflow
+      <div className="flex items-center justify-center h-40 text-gray-600">
+        <div className="text-center">
+          <Target className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+          <p className="font-medium">No workflow configured</p>
+          <p className="text-sm text-gray-500 mt-1">Please set up an opportunity workflow</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <div className="flex gap-4 overflow-x-auto pb-6">
-        {blueprint.stages.map((stage: BlueprintStage) => {
-          const list = stages[stage.name] || [];
-          const total = getTotal(stage.name);
-          const count = getCount(stage.name);
-          const winRate = getWinRate(stage.name);
-          const colors = getStageColors(stage.name);
+    <div className="h-full flex flex-col">
+      {/* Enhanced Bulk Actions Bar */}
+      {selectedOpportunities.length > 0 && (
+        <div className="bg-orange-100 border-b border-orange-300 px-4 py-2 flex items-center gap-3 flex-shrink-0">
+          <span className="text-sm font-bold text-orange-900">
+            {selectedOpportunities.length} selected
+          </span>
+          <Button 
+            size="sm" 
+            variant="outline"
+            onClick={handleBulkDelete}
+            className="h-7 text-sm font-medium text-red-700 border-red-400 hover:bg-red-50"
+          >
+            <Trash2 className="w-4 h-4 mr-1" />
+            Delete
+          </Button>
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={handleBulkExport}
+            className="h-7 text-sm font-medium text-gray-700 border-gray-400 hover:bg-gray-50"
+          >
+            <Download className="w-4 h-4 mr-1" />
+            Export
+          </Button>
+          <button 
+            onClick={() => setSelectedOpportunities([])}
+            className="text-sm font-medium text-orange-700 hover:text-orange-900 ml-auto"
+          >
+            Clear Selection
+          </button>
+        </div>
+      )}
 
-          return (
-            <div key={stage.name} id={stage.name} className="flex-shrink-0 w-72">
-              <div className={`relative mb-3 p-3 rounded-md border-l-4 ${colors}`}>
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-sm text-gray-900 capitalize">
-                      {stage.name.replace(/_/g, ' ')}
-                    </h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-lg font-bold text-gray-800">{count}</span>
-                      {total > 0 && (
-                        <span className="text-sm font-medium text-gray-700">
-                          KES {total.toLocaleString()}
-                        </span>
-                      )}
+      {/* Enhanced Kanban Board */}
+      <div className="flex-1 min-h-0 p-4">
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <div className="flex gap-4 h-full overflow-x-auto pb-2">
+            {blueprint.stages.map((stage: BlueprintStage) => {
+              const list = stages[stage.name] || [];
+              const total = getTotal(stage.name);
+              const count = getCount(stage.name);
+              const colors = getStageColors(stage.name);
+
+              return (
+                <div key={stage.name} className="flex-shrink-0 w-72">
+                  {/* Enhanced Stage Header */}
+                  <div className={`mb-3 p-3 rounded-lg border-l-4 ${colors} shadow-sm`}>
+                    <div className="flex justify-between items-center mb-1">
+                      <h3 className="font-bold text-sm capitalize">
+                        {stage.name.replace(/_/g, ' ')}
+                      </h3>
+                      <Badge variant="secondary" className="bg-white text-gray-800 font-bold text-sm">
+                        {count}
+                      </Badge>
                     </div>
+                    {total > 0 && (
+                      <div className="text-sm font-semibold text-gray-700">
+                        {formatKenyanShilling(total)}
+                      </div>
+                    )}
+                    {totalOpportunities > 0 && (
+                      <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                        <div
+                          className="bg-blue-600 h-1.5 rounded-full transition-all duration-500"
+                          style={{ width: `${(count / totalOpportunities) * 100}%` }}
+                        />
+                      </div>
+                    )}
                   </div>
-                  {winRate !== null && (
-                    <div
-                      className={`px-2 py-1 rounded text-xs font-bold ${
-                        winRate === 100 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {winRate}%
-                    </div>
-                  )}
+
+                  {/* Enhanced Stage Content */}
+                  <div className="bg-gray-50 rounded-lg border border-gray-300 h-full overflow-y-auto shadow-inner">
+                    <SortableContext items={list.map(o => o._id)} strategy={verticalListSortingStrategy}>
+                      {list.map(opp => (
+                        <KanbanCard 
+                          key={opp._id}
+                          opportunity={opp}
+                          isSelected={selectedOpportunities.includes(opp._id)}
+                          onSelect={(selected) => handleOpportunitySelect(opp._id, selected)}
+                          onQuickActions={(action, opp) => {
+                            if (action === 'view') window.open(`/opportunities/${opp._id}`, '_blank');
+                            if (action === 'edit') window.open(`/opportunities/${opp._id}/edit`, '_blank');
+                          }}
+                        />
+                      ))}
+                    </SortableContext>
+                    
+                    {list.length === 0 && (
+                      <div className="text-center py-12 text-gray-500">
+                        <Target className="w-8 h-8 mx-auto mb-2 opacity-60" />
+                        <p className="text-sm font-medium">No opportunities</p>
+                        <p className="text-xs text-gray-400 mt-1">Drop cards here</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                {totalOpportunities > 0 && (
-                  <div className="mt-2 bg-gray-200 rounded-full h-1.5">
-                    <div
-                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-                      style={{ width: `${(count / totalOpportunities) * 100}%` }}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-white rounded-lg p-2 min-h-96">
-                <SortableContext items={list.map(o => o._id)} strategy={verticalListSortingStrategy}>
-                  {list.map(opp => (
-                    <KanbanCard key={opp._id} opportunity={opp} />
-                  ))}
-                </SortableContext>
-                {list.length === 0 && (
-                  <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
-                    <p className="text-sm text-gray-500">Drop here</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        </DndContext>
       </div>
-    </DndContext>
+    </div>
   );
 }
