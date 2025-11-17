@@ -1,6 +1,6 @@
 import { StatsCards } from '@/components/dashboard/stats-cards';
 import { RecentActivities } from '@/components/dashboard/recent-activities';
-import { Target, Wrench, Users, FileText } from 'lucide-react'; // ADD THIS LINE
+import { Target, Wrench, Users, FileText } from 'lucide-react';
 
 export default function Dashboard() {
   return (
@@ -8,7 +8,7 @@ export default function Dashboard() {
       {/* Welcome Header */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h1 className="text-2xl font-bold text-gray-900">Welcome Nickson Njeru</h1>
-        <p className="text-gray-600 mt-1">Here's what's happening with your opportunities today.</p>
+        <p className="text-gray-600 mt-1">Here&apos;s what&apos;s happening with your opportunities today.</p>
       </div>
 
       {/* Stats Grid */}

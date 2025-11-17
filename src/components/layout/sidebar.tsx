@@ -21,8 +21,8 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // ✅ FIX: Remove useEffect and initialize client state properly
-  const [isClient] = useState(true); // Since this is a client component
+  // ✅ FIX: Remove unused isClient state
+  // const [isClient] = useState(true); // Remove this line
 
   // ✅ FIX: Only access sessionStorage on client side
   const user = useMemo(() => {
@@ -41,10 +41,8 @@ export function Sidebar() {
       console.error('Failed to parse user from sessionStorage:', err);
       return null;
     }
-  }, []); // Remove isClient dependency
+  }, []);
 
-  // ✅ FIX: Remove unused variable
-  // const userRoles = user?.role ? [user.role] : [];
   const isAdmin = user?.role === 'admin';
   const displayName = user?.name || user?.email?.split('@')[0] || 'User';
   const displayEmail = user?.email || '—';

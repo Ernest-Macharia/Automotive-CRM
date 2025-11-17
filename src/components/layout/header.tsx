@@ -7,14 +7,14 @@ import { usePathname } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
 import { authService } from '@/services/authService';
 import Image from 'next/image';
-import { useNotificationsMe } from '@/hooks/useNotifications'; // ← NEW
+import { useNotificationsMe } from '@/hooks/useNotifications';
 
 export function Header({ setSidebarOpen }: { setSidebarOpen: (open: boolean) => void }) {
   const pathname = usePathname();
   const { data: user, isLoading } = useUser();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
-  const { data: notifications = [], isLoading: notificationsLoading } = useNotificationsMe(); // ← NEW
+  const { data: notifications = [] } = useNotificationsMe(); // ✅ FIX: Remove unused variable
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -35,18 +35,19 @@ export function Header({ setSidebarOpen }: { setSidebarOpen: (open: boolean) => 
     return () => clearInterval(interval);
   }, []);
 
-  const getPageTitle = () => {
-    const routes: Record<string, string> = {
-      '/': 'Dashboard',
-      '/opportunities': 'Opportunities',
-      '/contacts': 'Contacts',
-      '/work-orders': 'Work Orders',
-      '/quotes': 'Quotes',
-      '/reports': 'Reports',
-      '/settings': 'Settings',
-    };
-    return routes[pathname] || 'Dashboard';
-  };
+  // ✅ FIX: Remove unused function
+  // const getPageTitle = () => {
+  //   const routes: Record<string, string> = {
+  //     '/': 'Dashboard',
+  //     '/opportunities': 'Opportunities',
+  //     '/contacts': 'Contacts',
+  //     '/work-orders': 'Work Orders',
+  //     '/quotes': 'Quotes',
+  //     '/reports': 'Reports',
+  //     '/settings': 'Settings',
+  //   };
+  //   return routes[pathname] || 'Dashboard';
+  // };
 
   const getInitials = () => {
     if (isLoading || !user?.firstName || !user?.lastName) return 'U';
@@ -79,7 +80,6 @@ export function Header({ setSidebarOpen }: { setSidebarOpen: (open: boolean) => 
       <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
         <div className="flex flex-1 items-center">
           <div className="w-full">
-      
             <p className="text-lg text-gray-900">
               {isLoading ? 'Loading...' : `Welcome back, ${user?.firstName || 'User'}!`}
             </p>

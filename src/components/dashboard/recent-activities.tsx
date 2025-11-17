@@ -1,6 +1,6 @@
 'use client';
 
-import { Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 
 const activities = [
   {

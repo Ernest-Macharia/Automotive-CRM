@@ -45,12 +45,14 @@ export default function DashboardPage() {
             <div>
               <p className="text-gray-500">Total Value</p>
               <p className="font-bold text-xl">
-                {overview?.currency || 'KES'} {overview?.totalValue.toLocaleString()}
+                KES {overview?.totalValue?.toLocaleString() || '0'}
               </p>
             </div>
             <div>
               <p className="text-gray-500">Deals</p>
-              <p className="font-bold text-xl">{overview?.byType.deal}</p>
+              <p className="font-bold text-xl">
+                {overview?.byType?.deal || '0'}
+              </p>
             </div>
           </div>
         </div>

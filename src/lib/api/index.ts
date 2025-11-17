@@ -5,8 +5,20 @@ import type {
   Opportunity, CreateOpportunityData,
   Contact, Vehicle, Quote, Invoice, Payment,
   WorkOrder, Waiver, JobCard,
-  Blueprint, Transition, ReportSummary
+  Blueprint, Transition, ReportSummary,
+  Notification // Add this import if it exists, or create the interface
 } from './types';
+
+// If Notification interface doesn't exist in types.ts, add it here:
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'error' | 'success';
+  read: boolean;
+  createdAt: string;
+  // Add other notification properties as needed
+}
 
 export const api = {
   // AUTH
@@ -90,9 +102,9 @@ export const api = {
     get: (id: string) => apiClient.get<Blueprint>(API_ENDPOINTS.BLUEPRINT_BY_ID(id)),
   },
 
-  // NOTIFICATIONS
+  // NOTIFICATIONS - FIXED: Replace 'any' with proper type
   notifications: {
-    me: () => apiClient.get<any[]>(API_ENDPOINTS.NOTIFICATIONS_ME),
+    me: () => apiClient.get<Notification[]>(API_ENDPOINTS.NOTIFICATIONS_ME),
   },
 
   // UPLOADS
