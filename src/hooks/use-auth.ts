@@ -1,6 +1,7 @@
 // src/hooks/use-auth.ts
 import { useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
+import { AxiosResponse } from 'axios';
 
 interface LoginData {
   email: string;
@@ -32,29 +33,15 @@ interface AuthResponse {
 export function useAuth() {
   const login = useMutation<AuthResponse, Error, LoginData>({
     mutationFn: async (credentials: LoginData) => {
-      // ✅ FIX: Remove the generic type or use AxiosResponse
-      const response = await apiClient.post('/auth/login', credentials);
-      
-      // Handle the unknown type properly
-      if (response && typeof response === 'object' && 'data' in response) {
-        return response.data as AuthResponse;
-      }
-      
-      throw new Error('Invalid response format');
+      const response: AxiosResponse<AuthResponse> = await apiClient.post('/auth/login', credentials);
+      return response.data;
     },
   });
 
   const register = useMutation<AuthResponse, Error, RegisterData>({
     mutationFn: async (userData: RegisterData) => {
-      // ✅ FIX: Remove the generic type or use AxiosResponse
-      const response = await apiClient.post('/auth/register', userData);
-      
-      // Handle the unknown type properly
-      if (response && typeof response === 'object' && 'data' in response) {
-        return response.data as AuthResponse;
-      }
-      
-      throw new Error('Invalid response format');
+      const response: AxiosResponse<AuthResponse> = await apiClient.post('/auth/register', userData);
+      return response.data;
     },
   });
 

@@ -6,19 +6,8 @@ import type {
   Contact, Vehicle, Quote, Invoice, Payment,
   WorkOrder, Waiver, JobCard,
   Blueprint, Transition, ReportSummary,
-  Notification // Add this import if it exists, or create the interface
+  Notification
 } from './types';
-
-// If Notification interface doesn't exist in types.ts, add it here:
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: 'info' | 'warning' | 'error' | 'success';
-  read: boolean;
-  createdAt: string;
-  // Add other notification properties as needed
-}
 
 export const api = {
   // AUTH
@@ -34,9 +23,9 @@ export const api = {
     overview: () => apiClient.get(API_ENDPOINTS.OPPORTUNITIES_OVERVIEW),
     get: (id: string) => apiClient.get<Opportunity>(API_ENDPOINTS.OPPORTUNITY_BY_ID(id)),
     create: (data: CreateOpportunityData) =>
-      apiClient.post<Opportunity>(API_ENDPOINTS.OPPORTUNITIES, data),
+      apiClient.post(API_ENDPOINTS.OPPORTUNITIES, data), // ✅ FIXED: Remove generic type
     update: (id: string, data: Partial<Opportunity>) =>
-      apiClient.patch<Opportunity>(API_ENDPOINTS.OPPORTUNITY_BY_ID(id), data),
+      apiClient.patch<Opportunity>(API_ENDPOINTS.OPPORTUNITY_BY_ID(id), data as Opportunity),
     delete: (id: string) => apiClient.delete(API_ENDPOINTS.OPPORTUNITY_BY_ID(id)),
   },
 
@@ -102,7 +91,7 @@ export const api = {
     get: (id: string) => apiClient.get<Blueprint>(API_ENDPOINTS.BLUEPRINT_BY_ID(id)),
   },
 
-  // NOTIFICATIONS - FIXED: Replace 'any' with proper type
+  // NOTIFICATIONS
   notifications: {
     me: () => apiClient.get<Notification[]>(API_ENDPOINTS.NOTIFICATIONS_ME),
   },
