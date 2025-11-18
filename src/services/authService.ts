@@ -61,7 +61,11 @@ export const authService = {
         throw new Error('Invalid response from server');
       }
 
-      apiClient.setTokens(response.accessToken, response.refreshToken);
+      // ✅ FIX: Use sessionStorage directly since apiClient might not have setTokens method
+      sessionStorage.setItem('accessToken', response.accessToken);
+      sessionStorage.setItem('refreshToken', response.refreshToken);
+      sessionStorage.setItem('user', JSON.stringify(response.user));
+      
       return response;
     } catch (error: unknown) {
       if (error instanceof Error) {
@@ -89,7 +93,8 @@ export const authService = {
   },
 
   async refreshToken(): Promise<string> {
-    const refreshToken = apiClient.getRefreshToken();
+    // ✅ FIX: Get refresh token from sessionStorage directly
+    const refreshToken = sessionStorage.getItem('refreshToken');
     if (!refreshToken) throw new SessionExpiredError();
 
     try {
@@ -104,21 +109,34 @@ export const authService = {
       const data = await response.json();
       const newAccessToken = data.accessToken;
 
-      apiClient.setTokens(newAccessToken, refreshToken);
+      // ✅ FIX: Store new token in sessionStorage
+      sessionStorage.setItem('accessToken', newAccessToken);
       return newAccessToken;
     } catch {
-      apiClient.clearTokens();
+      this.logout();
       throw new SessionExpiredError();
     }
   },
 
   logout(): void {
-    apiClient.clearTokens();
+    // ✅ FIX: Clear tokens from sessionStorage
+    sessionStorage.removeItem('accessToken');
+    sessionStorage.removeItem('refreshToken');
+    sessionStorage.removeItem('user');
     window.location.href = '/login';
   },
 
   isAuthenticated(): boolean {
-    return !!apiClient.getAccessToken();
+    // ✅ FIX: Check access token from sessionStorage
+    return !!sessionStorage.getItem('accessToken');
+  },
+
+  getAccessToken(): string | null {
+    return sessionStorage.getItem('accessToken');
+  },
+
+  getRefreshToken(): string | null {
+    return sessionStorage.getItem('refreshToken');
   },
 
   async demoLogin(): Promise<AuthResponse> {
@@ -128,4 +146,3 @@ export const authService = {
     });
   },
 };
-

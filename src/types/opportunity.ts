@@ -1,3 +1,5 @@
+import { OpportunityType } from "@/lib/api/types";
+
 // src/types/opportunity.ts
 export type OpportunityStatus = 
   | 'new' 
@@ -96,7 +98,7 @@ export interface Opportunity {
 }
 
 export interface CreateOpportunityData {
-  type: 'individual' | 'organization';
+  type: OpportunityType;
   subject: string;
   source: OpportunitySource;
   customer: {
@@ -111,6 +113,26 @@ export interface CreateOpportunityData {
     make: string;
     model: string;
     year: number;
+    color?: string;
+    vin?: string;
+  }>;
+  jobCards?: Array<{ // Add optional fields from your API request
+    jobTitle: string;
+    jobDescription: string;
+  }>;
+  waivers?: Array<{
+    type: string;
+    reason: string;
+  }>;
+  quotes?: Array<{
+    items: Array<{
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      total: number;
+    }>;
+    totalAmount: number;
+    notes?: string;
   }>;
 }
 
