@@ -14,37 +14,47 @@ interface RegisterData {
 }
 
 interface User {
-  id: string;
+  sub: string;
   email: string;
   role: string;
   permissions: string[];
+  requiresPasswordChange: boolean;
 }
 
 interface AuthResponse {
+  message: string;
+  accessToken: string;
+  refreshToken: string;
   user: User;
-  token?: string;
-  accessToken?: string;
-  refreshToken?: string;
-}
-
-interface ApiResponse<T> {
-  data: T;
-  message?: string;
-  success: boolean;
+  requiresPasswordChange: boolean;
 }
 
 export function useAuth() {
   const login = useMutation<AuthResponse, Error, LoginData>({
     mutationFn: async (credentials: LoginData) => {
-      const response = await apiClient.post<ApiResponse<AuthResponse>>('/auth/login', credentials);
-      return response.data.data;
+      // ✅ FIX: Remove the generic type or use AxiosResponse
+      const response = await apiClient.post('/auth/login', credentials);
+      
+      // Handle the unknown type properly
+      if (response && typeof response === 'object' && 'data' in response) {
+        return response.data as AuthResponse;
+      }
+      
+      throw new Error('Invalid response format');
     },
   });
 
   const register = useMutation<AuthResponse, Error, RegisterData>({
     mutationFn: async (userData: RegisterData) => {
-      const response = await apiClient.post<ApiResponse<AuthResponse>>('/auth/register', userData);
-      return response.data.data;
+      // ✅ FIX: Remove the generic type or use AxiosResponse
+      const response = await apiClient.post('/auth/register', userData);
+      
+      // Handle the unknown type properly
+      if (response && typeof response === 'object' && 'data' in response) {
+        return response.data as AuthResponse;
+      }
+      
+      throw new Error('Invalid response format');
     },
   });
 
