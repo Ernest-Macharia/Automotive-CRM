@@ -3,14 +3,14 @@
 
 import { useState, useEffect } from 'react';
 import { Menu, Bell, Search, ChevronDown, LogOut, Settings, User } from 'lucide-react';
-import { usePathname } from 'next/navigation';
+//import { usePathname } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
 import { authService } from '@/services/authService';
 import Image from 'next/image';
 import { useNotificationsMe } from '@/hooks/useNotifications';
 
 export function Header({ setSidebarOpen }: { setSidebarOpen: (open: boolean) => void }) {
-  const pathname = usePathname();
+ // const pathname = usePathname();
   const { data: user, isLoading } = useUser();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState('');

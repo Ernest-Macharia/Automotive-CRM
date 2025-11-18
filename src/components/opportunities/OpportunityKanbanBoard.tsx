@@ -26,7 +26,7 @@ import {
   Eye, Edit, Trash2, Download,
   Target, Check
 } from 'lucide-react';
-import type { Opportunity, Blueprint, BlueprintStage, Quote, OpportunityStatus } from '@/lib/api/types';
+import type { Opportunity, Blueprint, BlueprintStage, OpportunityStatus } from '@/lib/api/types';
 
 // ────────────────────────────────────────────────────────────────
 // INTERFACES
@@ -369,6 +369,8 @@ export function OpportunityKanbanBoard({
         queryClient.invalidateQueries({ queryKey: ['opportunities'] });
         setSelectedOpportunities([]);
         toast.success('Opportunities deleted successfully');
+   
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (error) {
         toast.error('Failed to delete opportunities');
       }
@@ -473,7 +475,7 @@ export function OpportunityKanbanBoard({
     <div className="h-full flex flex-col">
       {/* Enhanced Bulk Actions Bar */}
       {selectedOpportunities.length > 0 && (
-        <div className="bg-orange-100 border-b border-orange-300 px-4 py-2 flex items-center gap-3 flex-shrink-0">
+        <div className="bg-orange-100 border-b border-orange-300 px-4 py-2 flex items-center gap-3 shrink-0">
           <span className="text-sm font-bold text-orange-900">
             {selectedOpportunities.length} selected
           </span>
@@ -515,7 +517,7 @@ export function OpportunityKanbanBoard({
               const colors = getStageColors(stage.name);
 
               return (
-                <div key={stage.id || stage.name} className="flex-shrink-0 w-72">
+                <div key={stage.id || stage.name} className="shrink-0 w-72">
                   {/* Enhanced Stage Header */}
                   <div className={`mb-3 p-3 rounded-lg border-l-4 ${colors} shadow-sm`}>
                     <div className="flex justify-between items-center mb-1">

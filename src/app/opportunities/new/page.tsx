@@ -1,4 +1,4 @@
-// app/opportunities/new/page.tsx
+// src/app/opportunities/new/page.tsx
 'use client';
 
 import { useState } from 'react';
@@ -29,8 +29,14 @@ interface ApiBlueprint {
     name: string;
     order: number;
     allowedRoles: string[];
-    entryActions: unknown[];
-    exitActions: unknown[];
+    entryActions: Array<{
+      actionType: string;
+      params: Record<string, unknown>;
+    }>;
+    exitActions: Array<{
+      actionType: string;
+      params: Record<string, unknown>;
+    }>;
     _id: string;
   }>;
   active: boolean;
@@ -39,55 +45,65 @@ interface ApiBlueprint {
 }
 
 interface ApiOpportunity {
-<<<<<<< HEAD
   _id: string;
-  assignedTo?: { name: string } | null;
-=======
-  assignedTo?: { name: string; id: string; email: string } | null;
->>>>>>> 32eb1c7d6ef9be0504317ae62fcd903b186c9ac3
+  assignedTo?: { 
+    name: string; 
+    id: string; 
+    email: string;
+    firstName?: string;
+    lastName?: string;
+  } | null;
   status?: string;
   quotes?: Array<{ totalAmount: number }>;
   amount?: number;
+  customer: {
+    name: string;
+    email?: string;
+    phone?: string;
+  };
+  subject: string;
+  createdAt: string;
+  vehicles: Array<{ registrationNumber?: string }>;
+}
+
+interface BlueprintStage {
+  name: string;
+  order: number;
+  allowedRoles: string[];
+  entryActions: Array<{
+    actionType: string;
+    params: Record<string, unknown>;
+  }>;
+  exitActions: Array<{
+    actionType: string;
+    params: Record<string, unknown>;
+  }>;
+  _id: string;
 }
 
 export default function NewOpportunityPage() {
   const [open, setOpen] = useState(true);
 
+  // Fetch real pipeline stats from your API
   const { data: pipelineStats, isLoading: statsLoading } = useQuery({
     queryKey: ['opportunities-stats'],
     queryFn: async (): Promise<PipelineStats> => {
       try {
-<<<<<<< HEAD
-        const opportunitiesResponse = await api.opportunities.list();
-        const opportunities = opportunitiesResponse as unknown as ApiOpportunity[];
-=======
-        const opportunities = await api.opportunities.list();
->>>>>>> 32eb1c7d6ef9be0504317ae62fcd903b186c9ac3
+        const opportunities = await api.opportunities.list() as unknown as ApiOpportunity[];
         const opportunitiesArray = Array.isArray(opportunities) ? opportunities : [];
         
+        // Calculate real stats from your data
         const totalDeals = opportunitiesArray.length;
-<<<<<<< HEAD
         const myDeals = opportunitiesArray.filter(opp => 
-          opp.assignedTo && typeof opp.assignedTo === 'object' && 'name' in opp.assignedTo && opp.assignedTo.name
+          opp.assignedTo && typeof opp.assignedTo === 'object' && 'name' in opp.assignedTo
         ).length;
-=======
->>>>>>> 32eb1c7d6ef9be0504317ae62fcd903b186c9ac3
         
-        const myDeals = opportunitiesArray.filter(opp => {
-          const assignedTo = (opp as any)?.assignedTo;
-          return assignedTo && typeof assignedTo === 'object' && 'name' in assignedTo;
-        }).length;
-        
-        const pipelineValue = opportunitiesArray.reduce((sum, opp: any) => {
-          const amount = opp?.quotes?.[0]?.totalAmount || opp?.amount || 0;
+        const pipelineValue = opportunitiesArray.reduce((sum, opp) => {
+          const amount = opp.quotes?.[0]?.totalAmount || opp.amount || 0;
           return sum + amount;
         }, 0);
 
-<<<<<<< HEAD
-        const wonDeals = opportunitiesArray.filter(opp => opp.status === 'won' || opp.status === 'closed_won').length;
-=======
-        const wonDeals = opportunitiesArray.filter((opp: any) => opp?.status === 'won').length;
->>>>>>> 32eb1c7d6ef9be0504317ae62fcd903b186c9ac3
+        const wonDeals = opportunitiesArray.filter(opp => opp.status === 'won').length;
         const winRate = totalDeals > 0 ? Math.round((wonDeals / totalDeals) * 100) : 0;
 
         return {
@@ -248,6 +264,7 @@ export default function NewOpportunityPage() {
   );
 }
 
+// Component to fetch and display real pipeline stages from your blueprint
 function PipelineStages() {
   const { data: blueprints, isLoading } = useQuery({
     queryKey: ['blueprints'],
@@ -275,7 +292,6 @@ function PipelineStages() {
     );
   }
 
-<<<<<<< HEAD
   // Safely handle blueprint data with proper type checking
   const blueprintsData = blueprints as unknown as ApiBlueprint[] | undefined;
   const opportunitiesData = opportunities as unknown as ApiOpportunity[] | undefined;
@@ -286,18 +302,9 @@ function PipelineStages() {
   );
 
   // Calculate stage counts from real opportunities
-  const stageCounts: StageCount[] = opportunityBlueprint?.stages?.map((stage) => {
+  const stageCounts: StageCount[] = opportunityBlueprint?.stages?.map((stage: BlueprintStage) => {
     const stageOpportunities = opportunitiesData?.filter((opp: ApiOpportunity) => 
       opp.status === stage.name
-=======
-  const opportunityBlueprint = (blueprints as Blueprint[])?.find((bp: Blueprint) => 
-    bp.module === 'opportunities' && bp.active
-  );
-
-  const stageCounts: StageCount[] = opportunityBlueprint?.stages?.map((stage: { name: string }) => {
-    const stageOpportunities = (opportunities as any[])?.filter((opp: any) => 
-      opp?.status === stage.name
->>>>>>> 32eb1c7d6ef9be0504317ae62fcd903b186c9ac3
     ) || [];
     
     const totalCount = opportunitiesData?.length || 0;
