@@ -1,6 +1,18 @@
 // src/types/opportunity.ts
-export type OpportunityStatus = 'new' | 'qualified' | 'proposal' | 'closed';
+export type OpportunityStatus = 
+  | 'new' 
+  | 'qualified' 
+  | 'proposal' 
+  | 'closed'
+  | 'won'        // ✅ Add this
+  | 'lost'       // ✅ Add this
+  | 'open'       // ✅ Add this
+  | 'abandoned'  // ✅ Add this if you're using it
+  | 'in_progress' // ✅ Add this if you're using it
+  | 'proposal_sent' // ✅ Add this if you're using it
+  | 'negotiation';   // ✅ Add this if you're using it
 
+// ... rest of your types stay the same ...
 export type OpportunitySource = 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner';
 
 export interface Customer {
