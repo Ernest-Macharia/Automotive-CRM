@@ -30,11 +30,19 @@ export function OpportunityHeader({ opportunity }: OpportunityHeaderProps) {
     }
   };
 
+  // ✅ FIX: Add all possible status values from OpportunityStatus type
   const statusColors = {
+    new: 'bg-blue-100 text-blue-800',
+    qualified: 'bg-purple-100 text-purple-800',
+    proposal: 'bg-indigo-100 text-indigo-800',
+    closed: 'bg-gray-100 text-gray-800',
     open: 'bg-blue-100 text-blue-800',
     in_progress: 'bg-yellow-100 text-yellow-800',
     won: 'bg-green-100 text-green-800',
     lost: 'bg-red-100 text-red-800',
+    abandoned: 'bg-red-100 text-red-800',
+    negotiation: 'bg-orange-100 text-orange-800',
+    proposal_sent: 'bg-indigo-100 text-indigo-800',
   };
 
   const quoteAmount = opportunity.quotes[0]?.totalAmount || 0;
@@ -69,7 +77,10 @@ export function OpportunityHeader({ opportunity }: OpportunityHeaderProps) {
           </div>
 
           <div className="flex items-center gap-3">
-            <Badge className={statusColors[opportunity.status]} variant="secondary">
+            <Badge 
+              className={statusColors[opportunity.status] || 'bg-gray-100 text-gray-800'} 
+              variant="secondary"
+            >
               {opportunity.status.replace('_', ' ')}
             </Badge>
 
