@@ -10,19 +10,23 @@ import {
   Settings, LogOut, ChevronLeft, ChevronRight, X, Bell, Shield
 } from 'lucide-react';
 
+interface SidebarProps {
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
+}
+
 interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
 }
 
-export function Sidebar() {
+export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
 
-  // ✅ FIX: Remove unused isClient state
-  // const [isClient] = useState(true); // Remove this line
+  // ✅ FIX: Remove unused mobileOpen state since we're using props now
+  // const [mobileOpen, setMobileOpen] = useState(false); // Remove this line
 
   // ✅ FIX: Only access sessionStorage on client side
   const user = useMemo(() => {
@@ -47,7 +51,7 @@ export function Sidebar() {
   const displayName = user?.name || user?.email?.split('@')[0] || 'User';
   const displayEmail = user?.email || '—';
 
-  const closeMobile = useCallback(() => setMobileOpen(false), []);
+  const closeMobile = useCallback(() => setSidebarOpen(false), [setSidebarOpen]);
 
   const handleLogout = () => {
     sessionStorage.removeItem('accessToken');
@@ -81,16 +85,16 @@ export function Sidebar() {
 
   return (
     <>
-      {mobileOpen && (
+      {sidebarOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden" onClick={closeMobile} />
       )}
 
       <aside
         className={`
-          ${mobileOpen ? 'fixed' : 'sticky'} 
+          ${sidebarOpen ? 'fixed' : 'sticky'} 
           top-0 left-0 h-screen z-50 flex flex-col bg-gray-900 border-r border-gray-700
           transition-all duration-300 ease-in-out
-          ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
           ${collapsed ? 'w-16' : 'w-64'}
         `}
       >
@@ -186,7 +190,7 @@ export function Sidebar() {
 
       {/* Mobile Toggle */}
       <button
-        onClick={() => setMobileOpen(true)}
+        onClick={() => setSidebarOpen(true)}
         className="fixed bottom-6 left-6 z-30 lg:hidden w-12 h-12 bg-orange-500 text-white rounded-full shadow-lg flex items-center justify-center hover:opacity-90"
       >
         <LayoutDashboard className="w-6 h-6" />
