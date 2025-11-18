@@ -21,13 +21,25 @@ interface StageCount {
   percentage: string;
 }
 
-interface Blueprint {
+interface ApiBlueprint {
+  _id: string;
+  name: string;
   module: string;
+  stages: Array<{
+    name: string;
+    order: number;
+    allowedRoles: string[];
+    entryActions: unknown[];
+    exitActions: unknown[];
+    _id: string;
+  }>;
   active: boolean;
-  stages?: Array<{ name: string }>;
+  createdAt: string;
+  updatedAt: string;
 }
 
-interface Opportunity {
+interface ApiOpportunity {
+  _id: string;
   assignedTo?: { name: string } | null;
   status?: string;
   quotes?: Array<{ totalAmount: number }>;
@@ -35,7 +47,6 @@ interface Opportunity {
 }
 
 export default function NewOpportunityPage() {
-  // ✅ FIX: Initialize open state directly instead of using useEffect
   const [open, setOpen] = useState(true);
 
   // Fetch real pipeline stats from your API
@@ -43,13 +54,14 @@ export default function NewOpportunityPage() {
     queryKey: ['opportunities-stats'],
     queryFn: async (): Promise<PipelineStats> => {
       try {
-        const opportunities = await api.opportunities.list() as Opportunity[];
+        const opportunitiesResponse = await api.opportunities.list();
+        const opportunities = opportunitiesResponse as unknown as ApiOpportunity[];
         const opportunitiesArray = Array.isArray(opportunities) ? opportunities : [];
         
         // Calculate real stats from your data
         const totalDeals = opportunitiesArray.length;
         const myDeals = opportunitiesArray.filter(opp => 
-          opp.assignedTo && typeof opp.assignedTo === 'object' && opp.assignedTo.name
+          opp.assignedTo && typeof opp.assignedTo === 'object' && 'name' in opp.assignedTo && opp.assignedTo.name
         ).length;
         
         const pipelineValue = opportunitiesArray.reduce((sum, opp) => {
@@ -57,7 +69,7 @@ export default function NewOpportunityPage() {
           return sum + amount;
         }, 0);
 
-        const wonDeals = opportunitiesArray.filter(opp => opp.status === 'won').length;
+        const wonDeals = opportunitiesArray.filter(opp => opp.status === 'won' || opp.status === 'closed_won').length;
         const winRate = totalDeals > 0 ? Math.round((wonDeals / totalDeals) * 100) : 0;
 
         return {
@@ -247,22 +259,28 @@ function PipelineStages() {
     );
   }
 
+  // Safely handle blueprint data with proper type checking
+  const blueprintsData = blueprints as unknown as ApiBlueprint[] | undefined;
+  const opportunitiesData = opportunities as unknown as ApiOpportunity[] | undefined;
+
   // Get the active opportunities blueprint
-  const opportunityBlueprint = (blueprints as Blueprint[])?.find((bp: Blueprint) => 
+  const opportunityBlueprint = blueprintsData?.find((bp: ApiBlueprint) => 
     bp.module === 'opportunities' && bp.active
   );
 
   // Calculate stage counts from real opportunities
-  const stageCounts: StageCount[] = opportunityBlueprint?.stages?.map((stage: { name: string }) => {
-    const stageOpportunities = (opportunities as Opportunity[])?.filter((opp: Opportunity) => 
+  const stageCounts: StageCount[] = opportunityBlueprint?.stages?.map((stage) => {
+    const stageOpportunities = opportunitiesData?.filter((opp: ApiOpportunity) => 
       opp.status === stage.name
     ) || [];
+    
+    const totalCount = opportunitiesData?.length || 0;
     
     return {
       name: stage.name,
       count: stageOpportunities.length,
-      percentage: opportunities?.length ? 
-        Math.round((stageOpportunities.length / opportunities.length) * 100) + '%' : '0%'
+      percentage: totalCount > 0 ? 
+        Math.round((stageOpportunities.length / totalCount) * 100) + '%' : '0%'
     };
   }) || [];
 

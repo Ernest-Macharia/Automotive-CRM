@@ -1,5 +1,7 @@
 // src/types/opportunity.ts
-export type OpportunityStatus = 'open' | 'in_progress' | 'won' | 'lost';
+export type OpportunityStatus = 'new' | 'qualified' | 'proposal' | 'closed';
+
+export type OpportunitySource = 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner';
 
 export interface Customer {
   name: string;
@@ -59,7 +61,7 @@ export interface Opportunity {
   id: string;
   type: 'individual' | 'organization';
   subject: string;
-  source: string;
+  source: OpportunitySource;
   status: OpportunityStatus;
   customer: Customer;
   assignedTo: {
@@ -81,7 +83,7 @@ export interface Opportunity {
 export interface CreateOpportunityData {
   type: 'individual' | 'organization';
   subject: string;
-  source: string;
+  source: OpportunitySource;
   customer: {
     name: string;
     email: string;
@@ -99,9 +101,9 @@ export interface CreateOpportunityData {
 
 export interface OpportunityOverview {
   total: number;
-  open: number;
-  in_progress: number;
-  won: number;
-  lost: number;
+  new: number;
+  qualified: number;
+  proposal: number;
+  closed: number;
   conversion_rate: number;
 }

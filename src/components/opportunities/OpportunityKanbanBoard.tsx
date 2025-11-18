@@ -1,7 +1,7 @@
 // src/components/opportunities/OpportunityKanbanBoard.tsx
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -26,65 +26,25 @@ import {
   Eye, Edit, Trash2, Download,
   Target, Check
 } from 'lucide-react';
+import type { Opportunity, Blueprint, BlueprintStage, Quote, OpportunityStatus } from '@/lib/api/types';
 
 // ────────────────────────────────────────────────────────────────
 // INTERFACES
 // ────────────────────────────────────────────────────────────────
-interface ApiOpportunity {
-  _id: string;
-  type: string;
-  subject: string;
-  status: string;
-  customer: {
-    name: string;
-    _id: string;
-    email?: string;
-    phone?: string;
-    companyName?: string;
-  };
-  vehicles: Array<{
-    registrationNumber?: string;
-    make?: string;
-    model?: string;
-    year?: number;
-  }>;
-  quotes: Array<{
-    totalAmount?: number;
-    status?: string;
-    items?: unknown[];
-  }>;
-  assignedTo?: unknown;
-  jobCards: unknown[];
-  waivers: unknown[];
-  createdAt: string;
-  updatedAt: string;
-  __v: number;
+interface OpportunityKanbanBoardProps {
+  sortBy?: string;
+  sortOrder?: string;
 }
 
-interface BlueprintStage {
-  name: string;
-  order: number;
-  allowedRoles: string[];
-  entryActions: unknown[];
-  exitActions: unknown[];
-  _id: string;
-}
-
+// Local interface that matches your actual API response
 interface ApiBlueprint {
   _id: string;
   name: string;
   module: string;
   stages: BlueprintStage[];
-  createdBy: unknown;
-  active: boolean;
+  active: boolean; // ✅ Your API uses 'active' not 'isActive'
   createdAt: string;
   updatedAt: string;
-  __v: number;
-}
-
-interface OpportunityKanbanBoardProps {
-  sortBy?: string;
-  sortOrder?: string;
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -104,10 +64,10 @@ function KanbanCard({
   onSelect,
   onQuickActions 
 }: { 
-  opportunity: ApiOpportunity;
+  opportunity: Opportunity;
   isSelected?: boolean;
   onSelect?: (selected: boolean) => void;
-  onQuickActions?: (action: string, opportunity: ApiOpportunity) => void;
+  onQuickActions?: (action: string, opportunity: Opportunity) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: opportunity._id,
@@ -128,17 +88,19 @@ function KanbanCard({
       'negotiation': 85,
       'won': 100,
       'lost': 0,
+      'open': 25,
+      'in_progress': 50,
+      'closed': 0,
     };
-    return map[opportunity.status.toLowerCase()] ?? 25;
+    return map[opportunity.status] ?? 25;
   }, [opportunity.status]);
 
   const amount = useMemo(() => {
     if (!opportunity.quotes || opportunity.quotes.length === 0) return 0;
-    const quotesWithAmount = opportunity.quotes.filter((quote): quote is { totalAmount: number } => 
-      quote.totalAmount !== undefined && quote.totalAmount > 0
-    );
-    if (quotesWithAmount.length === 0) return 0;
-    return quotesWithAmount[quotesWithAmount.length - 1].totalAmount;
+    
+    // ✅ FIX: Use the actual Quote type
+    const lastQuote = opportunity.quotes[opportunity.quotes.length - 1];
+    return lastQuote?.totalAmount || 0;
   }, [opportunity.quotes]);
 
   const formattedDate = useMemo(() => {
@@ -147,10 +109,7 @@ function KanbanCard({
 
   const assignedUserName = useMemo(() => {
     if (!opportunity.assignedTo) return 'Unassigned';
-    if (typeof opportunity.assignedTo === 'object' && opportunity.assignedTo !== null && 'name' in opportunity.assignedTo) {
-      return (opportunity.assignedTo as { name: string }).name || 'Assigned';
-    }
-    return 'Assigned';
+    return `${opportunity.assignedTo.firstName} ${opportunity.assignedTo.lastName}`;
   }, [opportunity.assignedTo]);
 
   const handleCheckboxClick = (e: React.MouseEvent) => {
@@ -306,7 +265,7 @@ export function OpportunityKanbanBoard({
   // Fetch data
   const { data: opportunities = [], isLoading: oppLoading } = useQuery({
     queryKey: ['opportunities'],
-    queryFn: async (): Promise<ApiOpportunity[]> => {
+    queryFn: async (): Promise<Opportunity[]> => {
       const response = await api.opportunities.list();
       return Array.isArray(response) ? response : [];
     },
@@ -314,13 +273,9 @@ export function OpportunityKanbanBoard({
 
   const { data: blueprints = [], isLoading: bpLoading } = useQuery({
     queryKey: ['blueprints'],
-    queryFn: async (): Promise<ApiBlueprint[]> => {
+    queryFn: async (): Promise<Blueprint[]> => {
       const response = await api.blueprints.list();
-      const data = Array.isArray(response) ? response : [];
-      return data.map((bp: unknown) => ({
-        ...(bp as Omit<ApiBlueprint, 'active'>),
-        active: (bp as { active?: boolean }).active ?? false
-      }));
+      return Array.isArray(response) ? response : [];
     },
   });
 
@@ -371,11 +326,13 @@ export function OpportunityKanbanBoard({
     return sorted;
   }, [opportunities, sortBy, sortOrder]);
 
-  // Blueprint and stage logic
+  // ✅ FIXED: Blueprint and stage logic - use 'active' instead of 'isActive'
   const blueprint = useMemo(() => {
     if (blueprints.length > 0) {
-      const activeBlueprint = blueprints.find((bp: ApiBlueprint) => 
-        bp.module === 'opportunities' && bp.active
+      // Convert to ApiBlueprint type to access 'active' field
+      const blueprintsData = blueprints as unknown as ApiBlueprint[];
+      const activeBlueprint = blueprintsData.find((bp: ApiBlueprint) => 
+        bp.module === 'opportunities' && bp.active // ✅ Changed from isActive to active
       );
       return activeBlueprint || null;
     }
@@ -384,11 +341,10 @@ export function OpportunityKanbanBoard({
 
   const stages = useMemo(() => {
     if (sortedAndFilteredOpportunities.length > 0 && blueprint) {
-      const newStages: Record<string, ApiOpportunity[]> = {};
+      const newStages: Record<string, Opportunity[]> = {};
       blueprint.stages.forEach((stage: BlueprintStage) => {
-        const stageKey = stage.name.toLowerCase();
-        newStages[stage.name] = sortedAndFilteredOpportunities.filter((opportunity: ApiOpportunity) => 
-          opportunity.status.toLowerCase() === stageKey
+        newStages[stage.name] = sortedAndFilteredOpportunities.filter((opportunity: Opportunity) => 
+          opportunity.status === stage.name.toLowerCase()
         );
       });
       return newStages;
@@ -429,9 +385,10 @@ export function OpportunityKanbanBoard({
 
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor));
 
+  // ✅ FIX: Use proper status type
   const updateMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.opportunities.update(id, { status } as Partial<ApiOpportunity>),
+    mutationFn: ({ id, status }: { id: string; status: OpportunityStatus }) =>
+      api.opportunities.update(id, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['opportunities'] });
       toast.success('Opportunity status updated');
@@ -451,7 +408,9 @@ export function OpportunityKanbanBoard({
 
     const opportunity = stages[fromStage]?.find(o => o._id === active.id);
     if (opportunity) {
-      updateMutation.mutate({ id: opportunity._id, status: toStageName.toLowerCase() });
+      // ✅ FIX: Ensure status is valid OpportunityStatus
+      const validStatus = toStageName.toLowerCase() as OpportunityStatus;
+      updateMutation.mutate({ id: opportunity._id, status: validStatus });
     }
   };
 
@@ -470,6 +429,9 @@ export function OpportunityKanbanBoard({
       'negotiation': 'bg-orange-100 border-l-orange-500 text-orange-900',
       'won': 'bg-green-100 border-l-green-500 text-green-900',
       'lost': 'bg-red-100 border-l-red-500 text-red-900',
+      'open': 'bg-blue-100 border-l-blue-500 text-blue-900',
+      'in_progress': 'bg-yellow-100 border-l-yellow-500 text-yellow-900',
+      'closed': 'bg-gray-100 border-l-gray-500 text-gray-900',
     };
     return map[name.toLowerCase()] || 'bg-gray-100 border-l-gray-500 text-gray-900';
   };
@@ -494,6 +456,14 @@ export function OpportunityKanbanBoard({
           <Target className="w-12 h-12 text-gray-400 mx-auto mb-3" />
           <p className="font-medium">No workflow configured</p>
           <p className="text-sm text-gray-500 mt-1">Please set up an opportunity workflow</p>
+          <Button 
+            className="mt-3" 
+            onClick={() => window.location.reload()}
+            variant="outline"
+            size="sm"
+          >
+            Refresh
+          </Button>
         </div>
       </div>
     );
@@ -545,7 +515,7 @@ export function OpportunityKanbanBoard({
               const colors = getStageColors(stage.name);
 
               return (
-                <div key={stage.name} className="flex-shrink-0 w-72">
+                <div key={stage.id || stage.name} className="flex-shrink-0 w-72">
                   {/* Enhanced Stage Header */}
                   <div className={`mb-3 p-3 rounded-lg border-l-4 ${colors} shadow-sm`}>
                     <div className="flex justify-between items-center mb-1">

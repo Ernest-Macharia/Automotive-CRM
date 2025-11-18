@@ -3,6 +3,7 @@
 
 import { useOpportunities } from '@/hooks/useOpportunities';
 import { OpportunityCard } from './opportunity-card';
+import type { Opportunity } from '@/types/opportunity';
 
 export function OpportunitiesList() {
   const { data: opportunities, isLoading, error } = useOpportunities();
@@ -76,16 +77,10 @@ export function OpportunitiesList() {
       
       {/* List */}
       <div className="divide-y divide-gray-200">
-        {opportunities.map((opportunity: any) => (
+        {opportunities.map((opportunity: Opportunity) => (
           <OpportunityCard 
             key={opportunity.id} 
-            opportunity={{
-              id: opportunity.id,
-              subject: opportunity.subject || opportunity.title || 'Untitled Opportunity',
-              customerName: opportunity.customer?.name || opportunity.customer?.companyName || 'Unknown Customer',
-              contactEmail: opportunity.customer?.email || '',
-              status: opportunity.status || 'new',
-            }} 
+            opportunity={opportunity} // ✅ Pass the full opportunity object directly
           />
         ))}
       </div>

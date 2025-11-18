@@ -1,7 +1,7 @@
 // src/components/opportunities/CreateOpportunityModal.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X, Car, MapPin, Building, Mail, Phone } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'react-hot-toast';
+import type { CreateOpportunityData, OpportunitySource } from '@/lib/api/types';
 
 interface Props {
   open: boolean;
@@ -29,65 +30,68 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: Props) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [newVehicle, setNewVehicle] = useState<Partial<Vehicle>>({});
 
+  // ✅ Use EXACT types from API
   const [form, setForm] = useState({
     type: 'individual' as 'individual' | 'organization',
     subject: '',
-    source: 'manual' as string,
+    source: 'manual' as OpportunitySource, // ✅ Required as per API types
     customer: {
       name: '',
       email: '',
       phone: '',
       companyName: '',
     },
-    assignedTo: '', // This should be a user ID string
+    assignedTo: '',
     vehicles: [] as Vehicle[],
   });
 
-  // Reset form when modal opens/closes
-  useEffect(() => {
-    if (!open) {
-      setVehicles([]);
-      setNewVehicle({});
-      setForm({
-        type: 'individual',
-        subject: '',
-        source: 'manual',
-        customer: {
-          name: '',
-          email: '',
-          phone: '',
-          companyName: '',
-        },
-        assignedTo: '',
-        vehicles: [],
-      });
-    }
-  }, [open]);
+  const handleClose = () => {
+    setVehicles([]);
+    setNewVehicle({});
+    setForm({
+      type: 'individual',
+      subject: '',
+      source: 'manual',
+      customer: {
+        name: '',
+        email: '',
+        phone: '',
+        companyName: '',
+      },
+      assignedTo: '',
+      vehicles: [],
+    });
+    onClose();
+  };
 
-  // === CREATE OPPORTUNITY MUTATION ===
+  // ✅ Use the API types directly
   const createMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: CreateOpportunityData) => {
       console.log('Creating opportunity with data:', JSON.stringify(data, null, 2));
       const response = await api.opportunities.create(data);
       console.log('Create response:', response);
       return response;
     },
-    onSuccess: (response) => {
+    onSuccess: (response: unknown) => {
       console.log('Create success - full response:', response);
       
-      // Handle different response structures
-      const opportunityId = response._id || response.id || response.data?._id || response.data?.id;
-      
-      if (!opportunityId) {
-        console.error('No opportunity ID in response:', response);
-        toast.error('Created successfully but could not get opportunity ID');
-        return;
-      }
+      if (response && typeof response === 'object') {
+        const responseObj = response as Record<string, unknown>;
+        const opportunityId = responseObj._id || responseObj.id;
+        
+        if (!opportunityId) {
+          console.error('No opportunity ID in response:', response);
+          toast.error('Created successfully but could not get opportunity ID');
+          return;
+        }
 
-      queryClient.invalidateQueries({ queryKey: ['opportunities'] });
-      toast.success('Deal created successfully!');
-      onSuccess(opportunityId);
-      onClose();
+        queryClient.invalidateQueries({ queryKey: ['opportunities'] });
+        toast.success('Deal created successfully!');
+        onSuccess(opportunityId as string);
+        handleClose();
+      } else {
+        toast.error('Unexpected response format from server');
+      }
     },
     onError: (error: Error) => {
       console.error('Create error:', error);
@@ -106,23 +110,23 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: Props) {
       return;
     }
 
-    // Prepare data EXACTLY as your API expects
-    const submitData = {
+    // ✅ Prepare data with EXACT API types
+    const submitData: CreateOpportunityData = {
       type: form.type,
       subject: form.subject.trim(),
-      source: form.source,
+      source: form.source, // ✅ Required field
       customer: {
         name: form.customer.name.trim(),
-        ...(form.customer.email.trim() && { email: form.customer.email.trim() }),
-        ...(form.customer.phone.trim() && { phone: form.customer.phone.trim() }),
+        email: form.customer.email.trim(), // ✅ Required in API types
+        phone: form.customer.phone.trim(), // ✅ Required in API types
         ...(form.customer.companyName.trim() && { companyName: form.customer.companyName.trim() }),
       },
-      ...(form.assignedTo.trim() && { assignedTo: form.assignedTo.trim() }),
+      assignedTo: form.assignedTo.trim(), // ✅ Required in API types
       vehicles: vehicles.map(vehicle => ({
         registrationNumber: vehicle.registrationNumber.trim(),
-        ...(vehicle.make?.trim() && { make: vehicle.make.trim() }),
-        ...(vehicle.model?.trim() && { model: vehicle.model.trim() }),
-        ...(vehicle.year && { year: vehicle.year }),
+        make: vehicle.make?.trim() || '', // ✅ Required in API types
+        model: vehicle.model?.trim() || '', // ✅ Required in API types
+        year: vehicle.year || 0, // ✅ Required in API types
       })),
     };
 
@@ -150,6 +154,16 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: Props) {
   const removeVehicle = (index: number) => {
     setVehicles(prev => prev.filter((_, i) => i !== index));
   };
+
+  // ✅ Use exact source values from API types
+  const sourceOptions: { value: OpportunitySource; label: string }[] = [
+    { value: 'manual', label: 'Manual Entry' },
+    { value: 'referral', label: 'Referral' },
+    { value: 'website', label: 'Website' },
+    { value: 'email', label: 'Email' },
+    { value: 'phone', label: 'Phone' },
+    { value: 'social_media', label: 'Social Media' },
+  ];
 
   if (!open) return null;
 
@@ -213,7 +227,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: Props) {
 
               <div>
                 <Label htmlFor="customerEmail" className="text-sm font-medium text-gray-700">
-                  Email
+                  Email *
                 </Label>
                 <div className="relative mt-1">
                   <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -227,13 +241,14 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: Props) {
                       customer: { ...prev.customer, email: e.target.value }
                     }))}
                     className="pl-10 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                    required
                   />
                 </div>
               </div>
 
               <div>
                 <Label htmlFor="customerPhone" className="text-sm font-medium text-gray-700">
-                  Phone
+                  Phone *
                 </Label>
                 <div className="relative mt-1">
                   <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -246,6 +261,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: Props) {
                       customer: { ...prev.customer, phone: e.target.value }
                     }))}
                     className="pl-10 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                    required
                   />
                 </div>
               </div>
@@ -298,11 +314,11 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: Props) {
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="source" className="text-sm font-medium text-gray-700">
-                    Source
+                    Source *
                   </Label>
                   <Select
                     value={form.source}
-                    onValueChange={(value: string) => 
+                    onValueChange={(value: OpportunitySource) => 
                       setForm(prev => ({ ...prev, source: value }))
                     }
                   >
@@ -310,18 +326,18 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: Props) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                      <SelectItem value="manual">Manual Entry</SelectItem>
-                      <SelectItem value="referral">Referral</SelectItem>
-                      <SelectItem value="website">Website</SelectItem>
-                      <SelectItem value="walk-in">Walk-in</SelectItem>
-                      <SelectItem value="phone">Phone</SelectItem>
+                      {sourceOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div>
                   <Label htmlFor="assignedTo" className="text-sm font-medium text-gray-700">
-                    Assign To (User ID)
+                    Assign To (User ID) *
                   </Label>
                   <Input
                     id="assignedTo"
@@ -329,9 +345,10 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: Props) {
                     value={form.assignedTo}
                     onChange={(e) => setForm(prev => ({ ...prev, assignedTo: e.target.value }))}
                     className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                    required
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    Optional: Enter user ID to assign this deal
+                    Enter user ID to assign this deal
                   </p>
                 </div>
               </div>
@@ -357,19 +374,19 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: Props) {
                     className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
                   />
                   <Input
-                    placeholder="Make"
+                    placeholder="Make *"
                     value={newVehicle.make || ''}
                     onChange={(e) => setNewVehicle(prev => ({ ...prev, make: e.target.value }))}
                     className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
                   />
                   <Input
-                    placeholder="Model"
+                    placeholder="Model *"
                     value={newVehicle.model || ''}
                     onChange={(e) => setNewVehicle(prev => ({ ...prev, model: e.target.value }))}
                     className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
                   />
                   <Input
-                    placeholder="Year"
+                    placeholder="Year *"
                     type="number"
                     value={newVehicle.year || ''}
                     onChange={(e) => setNewVehicle(prev => ({ ...prev, year: parseInt(e.target.value) || undefined }))}
@@ -380,7 +397,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: Props) {
                   onClick={addNewVehicle}
                   className="mt-3 bg-orange-500 hover:bg-orange-600"
                   size="sm"
-                  disabled={!newVehicle.registrationNumber?.trim()}
+                  disabled={!newVehicle.registrationNumber?.trim() || !newVehicle.make?.trim() || !newVehicle.model?.trim() || !newVehicle.year}
                 >
                   <Car className="h-4 w-4 mr-2" />
                   Add Vehicle
@@ -430,14 +447,14 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: Props) {
       <div className="flex justify-end gap-3 border-t border-gray-200 px-8 py-6">
         <Button
           variant="outline"
-          onClick={onClose}
+          onClick={handleClose}
           className="border-gray-300 hover:bg-gray-50"
         >
           Cancel
         </Button>
         <Button
           onClick={handleSubmit}
-          disabled={createMutation.isPending || !form.customer.name.trim() || !form.subject.trim()}
+          disabled={createMutation.isPending || !form.customer.name.trim() || !form.subject.trim() || !form.customer.email.trim() || !form.customer.phone.trim() || !form.assignedTo.trim()}
           className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400"
         >
           {createMutation.isPending ? (
