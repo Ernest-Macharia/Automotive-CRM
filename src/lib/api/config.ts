@@ -9,6 +9,7 @@ export const API_BASE_URL = 'https://mag-backend-0gn4.onrender.com/api/v1';
 export const API_ENDPOINTS = {
   // === AUTH ===
   LOGIN: '/auth/login',
+  REGISTER: '/auth/register', // ✅ ADDED: Register endpoint
   REFRESH_TOKEN: '/auth/refresh',
   GET_ME: '/auth/me',
   LOGOUT: '/auth/logout',
@@ -61,7 +62,7 @@ export const API_ENDPOINTS = {
   REPORTS_TOP_CUSTOMERS: '/reports/top-customers',
   REPORTS_OPPORTUNITY_SOURCES: '/reports/opportunity-sources',
 
-  // === BLUEPRINTS === FIXED: Remove /api/v1
+  // === BLUEPRINTS ===
   BLUEPRINTS: '/blueprints',
   BLUEPRINT_BY_ID: (id: string) => `/blueprints/${id}`,
 

@@ -2,9 +2,19 @@
 import { apiClient } from '@/lib/api/client';
 import { API_ENDPOINTS, API_BASE_URL } from '@/lib/api/config';
 
+// ✅ Export all interfaces
 export interface LoginData {
   email: string;
   password: string;
+}
+
+export interface RegisterData {
+  email: string;
+  password: string;
+  roleName: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
 }
 
 export interface User {
@@ -24,6 +34,7 @@ export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
   user: User;
+  message?: string;
 }
 
 export class AuthenticationError extends Error {
@@ -31,6 +42,14 @@ export class AuthenticationError extends Error {
   constructor(message = 'Invalid email or password') {
     super(message);
     this.name = 'AuthenticationError';
+  }
+}
+
+export class RegistrationError extends Error {
+  status = 400;
+  constructor(message = 'Registration failed') {
+    super(message);
+    this.name = 'RegistrationError';
   }
 }
 
@@ -52,22 +71,31 @@ export class SessionExpiredError extends Error {
 export const authService = {
   async login(credentials: LoginData): Promise<AuthResponse> {
     try {
+      console.log('🔐 Attempting login with:', { email: credentials.email });
+      
       const response = await apiClient.post<LoginData, AuthResponse>(
         API_ENDPOINTS.LOGIN,
         credentials
       );
 
+      console.log('✅ Login API response:', response);
+
       if (!response?.accessToken || !response?.refreshToken || !response?.user) {
+        console.error('❌ Invalid login response:', response);
         throw new Error('Invalid response from server');
       }
 
-      // ✅ FIX: Use sessionStorage directly since apiClient might not have setTokens method
+      // Store tokens and user data
       sessionStorage.setItem('accessToken', response.accessToken);
       sessionStorage.setItem('refreshToken', response.refreshToken);
       sessionStorage.setItem('user', JSON.stringify(response.user));
       
+      console.log('📦 Tokens stored in sessionStorage');
+      
       return response;
     } catch (error: unknown) {
+      console.error('❌ Login error:', error);
+      
       if (error instanceof Error) {
         const apiError = error as { status?: number };
         if (apiError.status === 401) {
@@ -81,11 +109,73 @@ export const authService = {
     }
   },
 
+  async register(userData: RegisterData): Promise<AuthResponse> {
+    try {
+      console.log('👤 Attempting registration with:', { email: userData.email });
+      
+      const response = await apiClient.post<RegisterData, AuthResponse>(
+        API_ENDPOINTS.REGISTER, // ✅ FIXED: Now using the defined REGISTER endpoint
+        userData
+      );
+
+      console.log('✅ Registration API response:', response);
+
+      if (!response?.accessToken || !response?.refreshToken || !response?.user) {
+        console.error('❌ Invalid registration response:', response);
+        throw new Error('Invalid response from server');
+      }
+
+      // Store tokens and user data (auto-login after registration)
+      sessionStorage.setItem('accessToken', response.accessToken);
+      sessionStorage.setItem('refreshToken', response.refreshToken);
+      sessionStorage.setItem('user', JSON.stringify(response.user));
+      
+      console.log('📦 Tokens stored in sessionStorage after registration');
+      
+      return response;
+    } catch (error: unknown) {
+      console.error('❌ Registration error:', error);
+      
+      if (error instanceof Error) {
+        const apiError = error as { status?: number };
+        if (apiError.status === 400) {
+          throw new RegistrationError('User already exists or invalid data');
+        }
+        if (apiError.status === 401) {
+          throw new AuthenticationError('Registration not authorized');
+        }
+        if (error.message.toLowerCase().includes('network') || error.name === 'TypeError') {
+          throw new NetworkError();
+        }
+      }
+      throw new RegistrationError('Registration failed. Please try again.');
+    }
+  },
+
   async getCurrentUser(): Promise<User> {
     try {
-      return await apiClient.get<User>(API_ENDPOINTS.GET_ME);
+      console.log('👤 Fetching current user...');
+      
+      // Check if we have a token first
+      const token = sessionStorage.getItem('accessToken');
+      if (!token) {
+        console.warn('⚠️ No access token found when fetching current user');
+        throw new SessionExpiredError();
+      }
+
+      const user = await apiClient.get<User>(API_ENDPOINTS.GET_ME);
+      console.log('✅ Current user fetched:', user);
+      
+      // Update stored user data if needed
+      sessionStorage.setItem('user', JSON.stringify(user));
+      
+      return user;
     } catch (error: unknown) {
+      console.error('❌ Get current user error:', error);
+      
       if (error instanceof Error && (error as { status?: number }).status === 401) {
+        // Clear tokens on 401
+        this.clearTokens();
         throw new SessionExpiredError();
       }
       throw error;
@@ -93,9 +183,13 @@ export const authService = {
   },
 
   async refreshToken(): Promise<string> {
-    // ✅ FIX: Get refresh token from sessionStorage directly
+    console.log('🔄 Attempting token refresh...');
+    
     const refreshToken = sessionStorage.getItem('refreshToken');
-    if (!refreshToken) throw new SessionExpiredError();
+    if (!refreshToken) {
+      console.error('❌ No refresh token found');
+      throw new SessionExpiredError();
+    }
 
     try {
       const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.REFRESH_TOKEN}`, {
@@ -104,31 +198,60 @@ export const authService = {
         body: JSON.stringify({ refreshToken }),
       });
 
-      if (!response.ok) throw new Error('Refresh failed');
+      if (!response.ok) {
+        console.error('❌ Token refresh failed with status:', response.status);
+        throw new Error('Refresh failed');
+      }
 
       const data = await response.json();
       const newAccessToken = data.accessToken;
 
-      // ✅ FIX: Store new token in sessionStorage
+      if (!newAccessToken) {
+        console.error('❌ No access token in refresh response');
+        throw new Error('Invalid refresh response');
+      }
+
+      // Store new token
       sessionStorage.setItem('accessToken', newAccessToken);
+      console.log('✅ Token refreshed successfully');
+      
       return newAccessToken;
-    } catch {
+    } catch (error) {
+      console.error('❌ Token refresh error:', error);
       this.logout();
       throw new SessionExpiredError();
     }
   },
 
   logout(): void {
-    // ✅ FIX: Clear tokens from sessionStorage
-    sessionStorage.removeItem('accessToken');
-    sessionStorage.removeItem('refreshToken');
-    sessionStorage.removeItem('user');
+    console.log('🚪 Logging out...');
+    
+    // Clear all stored data
+    this.clearTokens();
+    
+    // Optional: Call logout API if available
+    try {
+      apiClient.post(API_ENDPOINTS.LOGOUT).catch(console.error);
+    } catch (error) {
+      console.error('Logout API call failed:', error);
+    }
+    
+    // Redirect to login
     window.location.href = '/login';
   },
 
+  clearTokens(): void {
+    sessionStorage.removeItem('accessToken');
+    sessionStorage.removeItem('refreshToken');
+    sessionStorage.removeItem('user');
+    console.log('🧹 Tokens cleared from sessionStorage');
+  },
+
   isAuthenticated(): boolean {
-    // ✅ FIX: Check access token from sessionStorage
-    return !!sessionStorage.getItem('accessToken');
+    const token = sessionStorage.getItem('accessToken');
+    const isAuthenticated = !!token;
+    console.log('🔐 Authentication check:', { isAuthenticated, hasToken: !!token });
+    return isAuthenticated;
   },
 
   getAccessToken(): string | null {
@@ -139,10 +262,38 @@ export const authService = {
     return sessionStorage.getItem('refreshToken');
   },
 
+  getStoredUser(): User | null {
+    try {
+      const userStr = sessionStorage.getItem('user');
+      if (!userStr) return null;
+      return JSON.parse(userStr);
+    } catch (error) {
+      console.error('❌ Error parsing stored user:', error);
+      return null;
+    }
+  },
+
   async demoLogin(): Promise<AuthResponse> {
+    console.log('🎯 Attempting demo login...');
     return this.login({
       email: 'superadmin@crm.local',
       password: 'ChangeMe123!',
     });
+  },
+
+  // Utility method to check token expiration (basic check)
+  isTokenExpired(): boolean {
+    const token = this.getAccessToken();
+    if (!token) return true;
+
+    try {
+      // Basic JWT expiration check (you might want to use a proper JWT library)
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const exp = payload.exp * 1000; // Convert to milliseconds
+      return Date.now() >= exp;
+    } catch (error) {
+      console.error('❌ Error checking token expiration:', error);
+      return true;
+    }
   },
 };
