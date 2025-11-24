@@ -1,7 +1,7 @@
 // src/components/opportunities/CreateOpportunityModal.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -14,7 +14,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { toast } from 'react-hot-toast';
-import type { CreateOpportunityData, OpportunitySource } from '@/lib/api/types';
 
 // ✅ COMPLETE SCHEMA MATCHING YOUR API REQUEST
 const opportunitySchema = z.object({
@@ -64,9 +63,6 @@ interface CreateOpportunityModalProps {
   onSuccess: (id: string) => void;
 }
 
-// ✅ TYPE-SAFE FIELD NAMES FOR QUOTE ITEMS
-type QuoteItemField = 'description' | 'quantity' | 'unitPrice' | 'total';
-
 export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOpportunityModalProps) {
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
@@ -114,11 +110,64 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
     },
   });
 
+  // ✅ FIXED: Calculate quote total without useEffect
+  const calculateQuoteTotal = useCallback((quoteIndex: number): number => {
+    const items = form.getValues(`quotes.${quoteIndex}.items`);
+    return items.reduce((sum, item) => sum + item.total, 0);
+  }, [form]);
+
+  // ✅ FIXED: Proper mutation with correct closing behavior
   const createMutation = useMutation({
-    mutationFn: async (data: CreateOpportunityData) => {
+    mutationFn: async (data: OpportunityFormData) => {
       console.log('🚀 Creating complete opportunity:', JSON.stringify(data, null, 2));
-      const response = await api.opportunities.create(data);
+      
+      // ✅ Transform data to match API exactly
+      const submitData = {
+        type: data.type,
+        subject: data.subject.trim(),
+        source: data.source,
+        customer: {
+          name: data.customer.name.trim(),
+          email: data.customer.email.trim(),
+          phone: data.customer.phone.trim(),
+          ...(data.customer.companyName?.trim() && { 
+            companyName: data.customer.companyName.trim() 
+          }),
+        },
+        ...(data.assignedTo?.trim() && { assignedTo: data.assignedTo.trim() }),
+        vehicles: data.vehicles.map(vehicle => ({
+          vin: vehicle.vin.trim(),
+          registrationNumber: vehicle.registrationNumber.trim(),
+          make: vehicle.make.trim(),
+          model: vehicle.model.trim(),
+          year: vehicle.year,
+          color: vehicle.color.trim(),
+        })),
+        jobCards: data.jobCards.map(jobCard => ({
+          jobTitle: jobCard.jobTitle.trim(),
+          jobDescription: jobCard.jobDescription.trim(),
+        })),
+        waivers: data.waivers.map(waiver => ({
+          type: waiver.type.trim(),
+          reason: waiver.reason.trim(),
+        })),
+        quotes: data.quotes.map(quote => ({
+          items: quote.items.map(item => ({
+            description: item.description.trim(),
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            total: item.total,
+          })),
+          totalAmount: quote.items.reduce((sum, item) => sum + item.total, 0),
+          ...(quote.notes?.trim() && { notes: quote.notes.trim() }),
+        })),
+      };
+
+      const response = await api.opportunities.create(submitData);
       return response;
+    },
+    onMutate: () => {
+      setIsLoading(true);
     },
     onSuccess: (response: unknown) => {
       console.log('✅ Create success:', response);
@@ -130,109 +179,63 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
         if (opportunityId) {
           queryClient.invalidateQueries({ queryKey: ['opportunities'] });
           toast.success('Deal created successfully! 🎉');
+          
+          // ✅ FIXED: Reset loading and call onSuccess - let page handle navigation
+          setIsLoading(false);
           onSuccess(opportunityId as string);
-          handleClose();
         } else {
           toast.error('Created but could not get opportunity ID');
+          setIsLoading(false);
         }
+      } else {
+        toast.error('Unexpected response format');
+        setIsLoading(false);
       }
     },
     onError: (error: Error) => {
       console.error('❌ Create error:', error);
       toast.error(error.message || 'Failed to create deal. Please check your data.');
+      setIsLoading(false);
     },
   });
 
+  // ✅ FIXED: Simple handleClose that just closes the modal
   const handleClose = () => {
-    form.reset();
-    setIsLoading(false);
-    onClose();
-  };
-
-  const onSubmit = (data: OpportunityFormData) => {
-    setIsLoading(true);
-    
-    // ✅ COMPLETE DATA TRANSFORMATION
-    const submitData: CreateOpportunityData = {
-      type: data.type,
-      subject: data.subject.trim(),
-      source: data.source,
-      customer: {
-        name: data.customer.name.trim(),
-        email: data.customer.email.trim(),
-        phone: data.customer.phone.trim(),
-        ...(data.customer.companyName?.trim() && { 
-          companyName: data.customer.companyName.trim() 
-        }),
-      },
-      ...(data.assignedTo?.trim() && { assignedTo: data.assignedTo.trim() }),
-      vehicles: data.vehicles.map(vehicle => ({
-        vin: vehicle.vin.trim(),
-        registrationNumber: vehicle.registrationNumber.trim(),
-        make: vehicle.make.trim(),
-        model: vehicle.model.trim(),
-        year: vehicle.year,
-        color: vehicle.color.trim(),
-      })),
-      jobCards: data.jobCards.map(jobCard => ({
-        jobTitle: jobCard.jobTitle.trim(),
-        jobDescription: jobCard.jobDescription.trim(),
-      })),
-      waivers: data.waivers.map(waiver => ({
-        type: waiver.type.trim(),
-        reason: waiver.reason.trim(),
-      })),
-      quotes: data.quotes.map(quote => ({
-        items: quote.items.map(item => ({
-          description: item.description.trim(),
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          total: item.total,
-        })),
-        totalAmount: quote.items.reduce((sum, item) => sum + item.total, 0),
-        ...(quote.notes?.trim() && { notes: quote.notes.trim() }),
-      })),
-    };
-
-    createMutation.mutate(submitData);
-  };
-
-  // ✅ CALCULATE QUOTE TOTALS
-  const calculateQuoteTotal = (quoteIndex: number) => {
-    const items = form.getValues(`quotes.${quoteIndex}.items`);
-    const total = items.reduce((sum, item) => sum + item.total, 0);
-    form.setValue(`quotes.${quoteIndex}.totalAmount`, total);
-    return total;
-  };
-
-  // ✅ FIXED: Type-safe updateQuoteItem function
-  const updateQuoteItem = (
-    quoteIndex: number, 
-    itemIndex: number, 
-    field: QuoteItemField, 
-    value: string | number
-  ) => {
-    const currentValue = form.getValues(`quotes.${quoteIndex}.items.${itemIndex}`);
-    
-    if (field === 'quantity' || field === 'unitPrice') {
-      const quantity = field === 'quantity' ? (Number(value) || 1) : currentValue.quantity;
-      const unitPrice = field === 'unitPrice' ? (Number(value) || 0) : currentValue.unitPrice;
-      const total = quantity * unitPrice;
-      
-      form.setValue(`quotes.${quoteIndex}.items.${itemIndex}`, {
-        ...currentValue,
-        [field]: Number(value),
-        total: total,
-      });
-      
-      calculateQuoteTotal(quoteIndex);
-    } else {
-      // For description and total fields
-      form.setValue(`quotes.${quoteIndex}.items.${itemIndex}.${field}`, value as never);
+    if (!isLoading) {
+      form.reset();
+      onClose();
     }
   };
 
-  // ✅ FIXED: Type-safe handlers for quantity and unitPrice changes
+  const onSubmit = (data: OpportunityFormData) => {
+    createMutation.mutate(data);
+  };
+
+  // ✅ FIXED: Update quote item with proper typing
+  const updateQuoteItem = (
+    quoteIndex: number, 
+    itemIndex: number, 
+    field: 'quantity' | 'unitPrice', 
+    value: string
+  ) => {
+    const currentValue = form.getValues(`quotes.${quoteIndex}.items.${itemIndex}`);
+    
+    const quantity = field === 'quantity' ? (Number(value) || 1) : currentValue.quantity;
+    const unitPrice = field === 'unitPrice' ? (Number(value) || 0) : currentValue.unitPrice;
+    const total = quantity * unitPrice;
+    
+    form.setValue(`quotes.${quoteIndex}.items.${itemIndex}`, {
+      ...currentValue,
+      [field]: Number(value),
+      total: total,
+    });
+
+    // Update the total amount for the quote
+    const items = form.getValues(`quotes.${quoteIndex}.items`);
+    const newTotalAmount = items.reduce((sum, item) => sum + item.total, 0);
+    form.setValue(`quotes.${quoteIndex}.totalAmount`, newTotalAmount);
+  };
+
   const handleQuantityChange = (quoteIndex: number, itemIndex: number, value: string) => {
     updateQuoteItem(quoteIndex, itemIndex, 'quantity', value);
   };
@@ -241,7 +244,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
     updateQuoteItem(quoteIndex, itemIndex, 'unitPrice', value);
   };
 
-  const sourceOptions: { value: OpportunitySource | 'walk_in'; label: string }[] = [
+  const sourceOptions = [
     { value: 'walk_in', label: 'Walk In' },
     { value: 'manual', label: 'Manual Entry' },
     { value: 'referral', label: 'Referral' },
@@ -263,7 +266,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-full max-w-6xl max-h-[90vh] overflow-hidden bg-white rounded-2xl shadow-2xl mx-4">
-        {/* 🎨 BEAUTIFUL HEADER */}
+        {/* 🎯 BEAUTIFUL HEADER */}
         <div className="border-b border-gray-200 px-8 py-6 bg-gradient-to-r from-orange-50 to-amber-50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -280,6 +283,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
               size="sm"
               onClick={handleClose}
               className="h-8 w-8 p-0 hover:bg-gray-100 rounded-lg"
+              disabled={isLoading}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -311,6 +315,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                             placeholder="e.g., John Doe"
                             className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
                             {...field}
+                            disabled={isLoading}
                           />
                         </FormControl>
                         <FormMessage className="text-xs text-red-600" />
@@ -331,6 +336,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                             placeholder="e.g., Doe Enterprises"
                             className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
                             {...field}
+                            disabled={isLoading}
                           />
                         </FormControl>
                         <FormMessage className="text-xs text-red-600" />
@@ -354,6 +360,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                               placeholder="e.g., john.doe@example.com"
                               className="pl-10 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
                               {...field}
+                              disabled={isLoading}
                             />
                           </div>
                         </FormControl>
@@ -377,6 +384,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                               placeholder="e.g., +254700123456"
                               className="pl-10 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
                               {...field}
+                              disabled={isLoading}
                             />
                           </div>
                         </FormControl>
@@ -403,7 +411,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                         <FormLabel className="text-sm font-medium text-gray-700">
                           Deal Type
                         </FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
                           <FormControl>
                             <SelectTrigger className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500">
                               <SelectValue placeholder="Select type" />
@@ -427,7 +435,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                         <FormLabel className="text-sm font-medium text-gray-700">
                           Source *
                         </FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
                           <FormControl>
                             <SelectTrigger className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500">
                               <SelectValue placeholder="Select source" />
@@ -459,6 +467,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                             placeholder="e.g., Car Service Request - Honda Civic"
                             className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
                             {...field}
+                            disabled={isLoading}
                           />
                         </FormControl>
                         <FormMessage className="text-xs text-red-600" />
@@ -479,6 +488,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                             placeholder="e.g., 6901e1b1813162deba7e462c"
                             className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
                             {...field}
+                            disabled={isLoading}
                           />
                         </FormControl>
                         <FormMessage className="text-xs text-red-600" />
@@ -511,6 +521,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                                 placeholder="1HGCM82633A123456"
                                 className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
                                 {...field}
+                                disabled={isLoading}
                               />
                             </FormControl>
                             <FormMessage className="text-xs text-red-600" />
@@ -531,6 +542,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                                 placeholder="ABC123"
                                 className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
                                 {...field}
+                                disabled={isLoading}
                               />
                             </FormControl>
                             <FormMessage className="text-xs text-red-600" />
@@ -551,6 +563,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                                 placeholder="Honda"
                                 className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
                                 {...field}
+                                disabled={isLoading}
                               />
                             </FormControl>
                             <FormMessage className="text-xs text-red-600" />
@@ -571,6 +584,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                                 placeholder="Civic"
                                 className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
                                 {...field}
+                                disabled={isLoading}
                               />
                             </FormControl>
                             <FormMessage className="text-xs text-red-600" />
@@ -593,6 +607,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                                 className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
                                 {...field}
                                 onChange={e => field.onChange(parseInt(e.target.value) || 0)}
+                                disabled={isLoading}
                               />
                             </FormControl>
                             <FormMessage className="text-xs text-red-600" />
@@ -614,6 +629,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                                   placeholder="Blue"
                                   className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
                                   {...field}
+                                  disabled={isLoading}
                                 />
                               </FormControl>
                               <FormMessage className="text-xs text-red-600" />
@@ -631,6 +647,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                               form.setValue('vehicles', vehicles.filter((_, i) => i !== index));
                             }}
                             className="h-10 w-10 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            disabled={isLoading}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -650,6 +667,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                       ]);
                     }}
                     className="border-dashed border-gray-300 text-gray-600 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-300"
+                    disabled={isLoading}
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Another Vehicle
@@ -680,6 +698,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                                 placeholder="e.g., Oil Change Service"
                                 className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
                                 {...field}
+                                disabled={isLoading}
                               />
                             </FormControl>
                             <FormMessage className="text-xs text-red-600" />
@@ -700,6 +719,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                                 placeholder="e.g., Full synthetic oil change and filter replacement"
                                 className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
                                 {...field}
+                                disabled={isLoading}
                               />
                             </FormControl>
                             <FormMessage className="text-xs text-red-600" />
@@ -720,6 +740,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                       ]);
                     }}
                     className="border-dashed border-gray-300 text-gray-600 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-300"
+                    disabled={isLoading}
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Another Service
@@ -745,7 +766,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                             <FormLabel className="text-sm font-medium text-gray-700">
                               Waiver Type *
                             </FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
                               <FormControl>
                                 <SelectTrigger className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white">
                                   <SelectValue placeholder="Select type" />
@@ -777,6 +798,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                                 placeholder="e.g., Standard service waiver for maintenance work"
                                 className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
                                 {...field}
+                                disabled={isLoading}
                               />
                             </FormControl>
                             <FormMessage className="text-xs text-red-600" />
@@ -797,6 +819,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                       ]);
                     }}
                     className="border-dashed border-gray-300 text-gray-600 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-300"
+                    disabled={isLoading}
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Another Waiver
@@ -826,6 +849,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                               form.setValue('quotes', quotes.filter((_, i) => i !== quoteIndex));
                             }}
                             className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                            disabled={isLoading}
                           >
                             <Trash2 className="h-4 w-4 mr-1" />
                             Remove Quote
@@ -849,6 +873,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                                       placeholder="e.g., Oil Change Service"
                                       className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
                                       {...field}
+                                      disabled={isLoading}
                                     />
                                   </FormControl>
                                   <FormMessage className="text-xs text-red-600" />
@@ -871,6 +896,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                                       className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
                                       value={field.value}
                                       onChange={(e) => handleQuantityChange(quoteIndex, itemIndex, e.target.value)}
+                                      disabled={isLoading}
                                     />
                                   </FormControl>
                                   <FormMessage className="text-xs text-red-600" />
@@ -893,6 +919,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                                       className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
                                       value={field.value}
                                       onChange={(e) => handleUnitPriceChange(quoteIndex, itemIndex, e.target.value)}
+                                      disabled={isLoading}
                                     />
                                   </FormControl>
                                   <FormMessage className="text-xs text-red-600" />
@@ -915,6 +942,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                                       className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-gray-100"
                                       readOnly
                                       {...field}
+                                      disabled={isLoading}
                                     />
                                   </FormControl>
                                   <FormMessage className="text-xs text-red-600" />
@@ -931,9 +959,13 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                                   onClick={() => {
                                     const items = form.getValues(`quotes.${quoteIndex}.items`);
                                     form.setValue(`quotes.${quoteIndex}.items`, items.filter((_, i) => i !== itemIndex));
-                                    calculateQuoteTotal(quoteIndex);
+                                    // Update total after removal
+                                    const newItems = form.getValues(`quotes.${quoteIndex}.items`);
+                                    const newTotalAmount = newItems.reduce((sum, item) => sum + item.total, 0);
+                                    form.setValue(`quotes.${quoteIndex}.totalAmount`, newTotalAmount);
                                   }}
                                   className="h-10 w-10 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                  disabled={isLoading}
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -954,6 +986,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                             ]);
                           }}
                           className="border-dashed border-gray-300 text-gray-600 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-300"
+                          disabled={isLoading}
                         >
                           <Plus className="h-4 w-4 mr-2" />
                           Add Item
@@ -973,6 +1006,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                                     placeholder="e.g., Standard service package"
                                     className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
                                     {...field}
+                                    disabled={isLoading}
                                   />
                                 </FormControl>
                                 <FormMessage className="text-xs text-red-600" />
@@ -1006,6 +1040,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                       ]);
                     }}
                     className="border-dashed border-gray-300 text-gray-600 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-300"
+                    disabled={isLoading}
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Another Quote
@@ -1013,7 +1048,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                 </div>
               </div>
 
-              {/* 🎯 BEAUTIFUL FOOTER - FIXED */}
+              {/* 🎯 BEAUTIFUL FOOTER */}
               <div className="flex justify-end gap-3 border-t border-gray-200 px-8 py-6 bg-gray-50">
                 <Button
                   type="button"
@@ -1025,7 +1060,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                   Cancel
                 </Button>
                 <Button
-                  type="submit" // ✅ FIX: Changed from onClick to type="submit"
+                  type="submit"
                   disabled={isLoading || !form.formState.isValid}
                   className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:from-gray-400 disabled:to-gray-400 text-white shadow-lg"
                 >

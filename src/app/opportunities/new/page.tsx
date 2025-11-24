@@ -4,129 +4,18 @@
 import { useState } from 'react';
 import { CreateOpportunityModal } from '@/components/opportunities/CreateOpportunityModal';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Target } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
-
-interface PipelineStats {
-  totalDeals: number;
-  myDeals: number;
-  pipelineValue: number;
-  winRate: number;
-}
-
-interface StageCount {
-  name: string;
-  count: number;
-  percentage: string;
-}
-
-interface ApiBlueprint {
-  _id: string;
-  name: string;
-  module: string;
-  stages: Array<{
-    name: string;
-    order: number;
-    allowedRoles: string[];
-    entryActions: Array<{
-      actionType: string;
-      params: Record<string, unknown>;
-    }>;
-    exitActions: Array<{
-      actionType: string;
-      params: Record<string, unknown>;
-    }>;
-    _id: string;
-  }>;
-  active: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface ApiOpportunity {
-  _id: string;
-  assignedTo?: { 
-    name: string; 
-    id: string; 
-    email: string;
-    firstName?: string;
-    lastName?: string;
-  } | null;
-  status?: string;
-  quotes?: Array<{ totalAmount: number }>;
-  amount?: number;
-  customer: {
-    name: string;
-    email?: string;
-    phone?: string;
-  };
-  subject: string;
-  createdAt: string;
-  vehicles: Array<{ registrationNumber?: string }>;
-}
-
-interface BlueprintStage {
-  name: string;
-  order: number;
-  allowedRoles: string[];
-  entryActions: Array<{
-    actionType: string;
-    params: Record<string, unknown>;
-  }>;
-  exitActions: Array<{
-    actionType: string;
-    params: Record<string, unknown>;
-  }>;
-  _id: string;
-}
+import { ArrowLeft, Package, TrendingUp, Award } from 'lucide-react';
 
 export default function NewOpportunityPage() {
   const [open, setOpen] = useState(true);
 
-  // Fetch real pipeline stats from your API
-  const { data: pipelineStats, isLoading: statsLoading } = useQuery({
-    queryKey: ['opportunities-stats'],
-    queryFn: async (): Promise<PipelineStats> => {
-      try {
-        const opportunities = await api.opportunities.list() as unknown as ApiOpportunity[];
-        const opportunitiesArray = Array.isArray(opportunities) ? opportunities : [];
-        
-        // Calculate real stats from your data
-        const totalDeals = opportunitiesArray.length;
-        const myDeals = opportunitiesArray.filter(opp => 
-          opp.assignedTo && typeof opp.assignedTo === 'object' && 'name' in opp.assignedTo
-        ).length;
-        
-        const pipelineValue = opportunitiesArray.reduce((sum, opp) => {
-          const amount = opp.quotes?.[0]?.totalAmount || opp.amount || 0;
-          return sum + amount;
-        }, 0);
-
-        const wonDeals = opportunitiesArray.filter(opp => opp.status === 'won').length;
-        const winRate = totalDeals > 0 ? Math.round((wonDeals / totalDeals) * 100) : 0;
-
-        return {
-          totalDeals,
-          myDeals,
-          pipelineValue,
-          winRate
-        };
-      } catch (error) {
-        console.error('Failed to fetch pipeline stats:', error);
-        return { totalDeals: 0, myDeals: 0, pipelineValue: 0, winRate: 0 };
-      }
-    },
-  });
-
   const handleClose = () => {
     setOpen(false);
-    setTimeout(() => {
-      window.history.back();
-    }, 300);
+    window.history.back();
   };
 
   const handleSuccess = (id: string) => {
+    setOpen(false);
     window.location.href = `/opportunities/${id}`;
   };
 
@@ -147,12 +36,12 @@ export default function NewOpportunityPage() {
               </Button>
               <div className="h-6 w-px bg-gray-300"></div>
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500">
-                  <Target className="h-5 w-5 text-white" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600">
+                  <Package className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Create New Deal</h1>
-                  <p className="text-sm text-gray-500">Add a new opportunity to your sales pipeline</p>
+                  <h1 className="text-2xl font-bold text-gray-900">Create New Service Job</h1>
+                  <p className="text-sm text-gray-500">Add a new automotive service opportunity</p>
                 </div>
               </div>
             </div>
@@ -173,78 +62,68 @@ export default function NewOpportunityPage() {
       {/* Main Content */}
       <div className="mx-auto max-w-7xl px-6 py-8">
         <div className="grid gap-8 lg:grid-cols-3">
-          {/* Left Column - Real Stats */}
+          {/* Left Column - Simple Stats */}
           <div className="lg:col-span-1">
             <div className="sticky top-8 space-y-6">
-              {/* Real Pipeline Stats */}
+              {/* Simple Stats Card */}
               <div className="rounded-lg bg-white p-6 shadow-sm border border-gray-200">
-                <h3 className="mb-4 text-sm font-semibold text-gray-900">Pipeline Overview</h3>
-                {statsLoading ? (
-                  <div className="space-y-4">
-                    {[1, 2, 3, 4].map(i => (
-                      <div key={i} className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-gray-200 animate-pulse"></div>
-                        <div className="flex-1">
-                          <div className="h-4 bg-gray-200 rounded animate-pulse mb-1"></div>
-                          <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2"></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                        <Target className="h-4 w-4" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-xs text-gray-500">Total Deals</div>
-                        <div className="text-sm font-semibold text-gray-900">
-                          {pipelineStats?.totalDeals || 0}
-                        </div>
-                      </div>
+                <h3 className="mb-4 text-sm font-semibold text-gray-900">Quick Stats</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
+                      <Package className="h-4 w-4 text-blue-600" />
                     </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-600">
-                        <Target className="h-4 w-4" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-xs text-gray-500">Pipeline Value</div>
-                        <div className="text-sm font-semibold text-gray-900">
-                          KES {(pipelineStats?.pipelineValue || 0).toLocaleString()}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 text-purple-600">
-                        <Target className="h-4 w-4" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-xs text-gray-500">Win Rate</div>
-                        <div className="text-sm font-semibold text-gray-900">
-                          {pipelineStats?.winRate || 0}%
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100 text-orange-600">
-                        <Target className="h-4 w-4" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-xs text-gray-500">My Open Deals</div>
-                        <div className="text-sm font-semibold text-gray-900">
-                          {pipelineStats?.myDeals || 0}
-                        </div>
-                      </div>
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-500">Service Jobs</div>
+                      <div className="text-sm font-semibold text-gray-900">0</div>
                     </div>
                   </div>
-                )}
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
+                      <TrendingUp className="h-4 w-4 text-green-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-500">Pipeline Value</div>
+                      <div className="text-sm font-semibold text-gray-900">KES 0</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100">
+                      <Award className="h-4 w-4 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-500">Completion Rate</div>
+                      <div className="text-sm font-semibold text-gray-900">0%</div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <PipelineStages />
+              {/* Simple Stages */}
+              <div className="rounded-lg bg-white p-6 shadow-sm border border-gray-200">
+                <h3 className="mb-4 text-sm font-semibold text-gray-900">Service Stages</h3>
+                <div className="space-y-3">
+                  {['New', 'In Progress', 'Quoted', 'Completed'].map((stage, index) => (
+                    <div key={stage} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-2 w-2 rounded-full ${
+                          index === 0 ? 'bg-blue-500' :
+                          index === 1 ? 'bg-purple-500' :
+                          index === 2 ? 'bg-indigo-500' :
+                          'bg-green-500'
+                        }`}></div>
+                        <span className="text-sm text-gray-700">{stage}</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs font-medium text-gray-900">0</div>
+                        <div className="text-xs text-gray-500">0%</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -259,94 +138,6 @@ export default function NewOpportunityPage() {
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// Component to fetch and display real pipeline stages from your blueprint
-function PipelineStages() {
-  const { data: blueprints, isLoading } = useQuery({
-    queryKey: ['blueprints'],
-    queryFn: () => api.blueprints.list(),
-  });
-
-  const { data: opportunities } = useQuery({
-    queryKey: ['opportunities'],
-    queryFn: () => api.opportunities.list(),
-  });
-
-  if (isLoading) {
-    return (
-      <div className="rounded-lg bg-white p-6 shadow-sm border border-gray-200">
-        <h3 className="mb-4 text-sm font-semibold text-gray-900">Pipeline Stages</h3>
-        <div className="space-y-3">
-          {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="flex items-center gap-3">
-              <div className="h-2 w-2 rounded-full bg-gray-200 animate-pulse"></div>
-              <div className="h-3 bg-gray-200 rounded animate-pulse flex-1"></div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // Safely handle blueprint data with proper type checking
-  const blueprintsData = blueprints as unknown as ApiBlueprint[] | undefined;
-  const opportunitiesData = opportunities as unknown as ApiOpportunity[] | undefined;
-
-  // Get the active opportunities blueprint
-  const opportunityBlueprint = blueprintsData?.find((bp: ApiBlueprint) => 
-    bp.module === 'opportunities' && bp.active
-  );
-
-  // Calculate stage counts from real opportunities
-  const stageCounts: StageCount[] = opportunityBlueprint?.stages?.map((stage: BlueprintStage) => {
-    const stageOpportunities = opportunitiesData?.filter((opp: ApiOpportunity) => 
-      opp.status === stage.name
-    ) || [];
-    
-    const totalCount = opportunitiesData?.length || 0;
-    
-    return {
-      name: stage.name,
-      count: stageOpportunities.length,
-      percentage: totalCount > 0 ? 
-        Math.round((stageOpportunities.length / totalCount) * 100) + '%' : '0%'
-    };
-  }) || [];
-
-  return (
-    <div className="rounded-lg bg-white p-6 shadow-sm border border-gray-200">
-      <h3 className="mb-4 text-sm font-semibold text-gray-900">Pipeline Stages</h3>
-      <div className="space-y-3">
-        {stageCounts.map((stage: StageCount, index: number) => (
-          <div key={stage.name} className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`h-2 w-2 rounded-full ${
-                index === 0 ? 'bg-blue-500' :
-                index === 1 ? 'bg-purple-500' :
-                index === 2 ? 'bg-indigo-500' :
-                index === 3 ? 'bg-orange-500' :
-                'bg-green-500'
-              }`}></div>
-              <span className="text-sm text-gray-700 capitalize">
-                {stage.name.replace(/_/g, ' ')}
-              </span>
-            </div>
-            <div className="text-right">
-              <div className="text-xs font-medium text-gray-900">{stage.count}</div>
-              <div className="text-xs text-gray-500">{stage.percentage}</div>
-            </div>
-          </div>
-        ))}
-        
-        {stageCounts.length === 0 && (
-          <div className="text-center py-4 text-sm text-gray-500">
-            No pipeline stages configured
-          </div>
-        )}
       </div>
     </div>
   );
