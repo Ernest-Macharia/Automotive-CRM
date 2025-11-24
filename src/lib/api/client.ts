@@ -15,8 +15,9 @@ export class ApiClient {
     this.baseURL = baseURL;
 
     if (typeof window !== 'undefined') {
-      this.accessToken = localStorage.getItem('access_token');
-      this.refreshToken = localStorage.getItem('refresh_token');
+      // ✅ FIXED: Use sessionStorage to match authService
+      this.accessToken = sessionStorage.getItem('accessToken');
+      this.refreshToken = sessionStorage.getItem('refreshToken');
     }
   }
 
@@ -25,8 +26,9 @@ export class ApiClient {
     this.refreshToken = refreshToken;
 
     if (typeof window !== 'undefined') {
-      localStorage.setItem('access_token', accessToken);
-      localStorage.setItem('refresh_token', refreshToken);
+      // ✅ FIXED: Use sessionStorage to match authService
+      sessionStorage.setItem('accessToken', accessToken);
+      sessionStorage.setItem('refreshToken', refreshToken);
     }
   }
 
@@ -35,8 +37,9 @@ export class ApiClient {
     this.refreshToken = null;
 
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
+      // ✅ FIXED: Use sessionStorage to match authService
+      sessionStorage.removeItem('accessToken');
+      sessionStorage.removeItem('refreshToken');
     }
   }
 

@@ -2,56 +2,82 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Car, MapPin, Building, Mail, Phone } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { X, Car, MapPin, Building, Mail, Phone, Plus, Trash2, Wrench, FileText, Shield } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { toast } from 'react-hot-toast';
 import type { CreateOpportunityData, OpportunitySource } from '@/lib/api/types';
 
-interface Props {
+// ✅ COMPLETE SCHEMA MATCHING YOUR API REQUEST
+const opportunitySchema = z.object({
+  type: z.enum(['individual', 'organization']),
+  subject: z.string().min(1, 'Deal name is required'),
+  source: z.enum(['manual', 'referral', 'website', 'email', 'phone', 'social_media', 'walk_in']),
+  customer: z.object({
+    name: z.string().min(1, 'Account name is required'),
+    email: z.string().email('Valid email is required').min(1, 'Email is required'),
+    phone: z.string().min(1, 'Phone number is required'),
+    companyName: z.string().optional(),
+  }),
+  assignedTo: z.string().optional(),
+  vehicles: z.array(z.object({
+    vin: z.string().min(1, 'VIN is required'),
+    registrationNumber: z.string().min(1, 'Registration number is required'),
+    make: z.string().min(1, 'Make is required'),
+    model: z.string().min(1, 'Model is required'),
+    year: z.number().min(1900, 'Valid year is required'),
+    color: z.string().min(1, 'Color is required'),
+  })).min(1, 'At least one vehicle is required'),
+  jobCards: z.array(z.object({
+    jobTitle: z.string().min(1, 'Job title is required'),
+    jobDescription: z.string().min(1, 'Job description is required'),
+  })).min(1, 'At least one job card is required'),
+  waivers: z.array(z.object({
+    type: z.string().min(1, 'Waiver type is required'),
+    reason: z.string().min(1, 'Reason is required'),
+  })).min(1, 'At least one waiver is required'),
+  quotes: z.array(z.object({
+    items: z.array(z.object({
+      description: z.string().min(1, 'Item description is required'),
+      quantity: z.number().min(1, 'Quantity must be at least 1'),
+      unitPrice: z.number().min(0, 'Unit price must be positive'),
+      total: z.number().min(0, 'Total must be positive'),
+    })).min(1, 'At least one quote item is required'),
+    totalAmount: z.number().min(0, 'Total amount must be positive'),
+    notes: z.string().optional(),
+  })).min(1, 'At least one quote is required'),
+});
+
+type OpportunityFormData = z.infer<typeof opportunitySchema>;
+
+interface CreateOpportunityModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (id: string) => void;
 }
 
-interface Vehicle {
-  registrationNumber: string;
-  make?: string;
-  model?: string;
-  year?: number;
-}
+// ✅ TYPE-SAFE FIELD NAMES FOR QUOTE ITEMS
+type QuoteItemField = 'description' | 'quantity' | 'unitPrice' | 'total';
 
-export function CreateOpportunityModal({ open, onClose, onSuccess }: Props) {
+export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOpportunityModalProps) {
   const queryClient = useQueryClient();
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [newVehicle, setNewVehicle] = useState<Partial<Vehicle>>({});
+  const [isLoading, setIsLoading] = useState(false);
 
-  // ✅ Use EXACT types from API
-  const [form, setForm] = useState({
-    type: 'individual' as 'individual' | 'organization',
-    subject: '',
-    source: 'manual' as OpportunitySource, // ✅ Required as per API types
-    customer: {
-      name: '',
-      email: '',
-      phone: '',
-      companyName: '',
-    },
-    assignedTo: '',
-    vehicles: [] as Vehicle[],
-  });
-
-  const handleClose = () => {
-    setVehicles([]);
-    setNewVehicle({});
-    setForm({
+  // ✅ COMPLETE FORM WITH ALL FIELDS
+  const form = useForm<OpportunityFormData>({
+    resolver: zodResolver(opportunitySchema),
+    defaultValues: {
       type: 'individual',
+      source: 'walk_in',
       subject: '',
-      source: 'manual',
       customer: {
         name: '',
         email: '',
@@ -59,104 +85,164 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: Props) {
         companyName: '',
       },
       assignedTo: '',
-      vehicles: [],
-    });
-    onClose();
-  };
-
-  // ✅ Use the API types directly
-  const createMutation = useMutation({
-    mutationFn: async (data: CreateOpportunityData) => {
-      console.log('Creating opportunity with data:', JSON.stringify(data, null, 2));
-      const response = await api.opportunities.create(data);
-      console.log('Create response:', response);
-      return response;
-    },
-    onSuccess: (response: unknown) => {
-      console.log('Create success - full response:', response);
-      
-      if (response && typeof response === 'object') {
-        const responseObj = response as Record<string, unknown>;
-        const opportunityId = responseObj._id || responseObj.id;
-        
-        if (!opportunityId) {
-          console.error('No opportunity ID in response:', response);
-          toast.error('Created successfully but could not get opportunity ID');
-          return;
-        }
-
-        queryClient.invalidateQueries({ queryKey: ['opportunities'] });
-        toast.success('Deal created successfully!');
-        onSuccess(opportunityId as string);
-        handleClose();
-      } else {
-        toast.error('Unexpected response format from server');
-      }
-    },
-    onError: (error: Error) => {
-      console.error('Create error:', error);
-      toast.error(error.message || 'Failed to create deal. Please check the data and try again.');
+      vehicles: [{
+        vin: '',
+        registrationNumber: '',
+        make: '',
+        model: '',
+        year: new Date().getFullYear(),
+        color: '',
+      }],
+      jobCards: [{
+        jobTitle: '',
+        jobDescription: '',
+      }],
+      waivers: [{
+        type: 'service',
+        reason: '',
+      }],
+      quotes: [{
+        items: [{
+          description: '',
+          quantity: 1,
+          unitPrice: 0,
+          total: 0,
+        }],
+        totalAmount: 0,
+        notes: '',
+      }],
     },
   });
 
-  const handleSubmit = () => {
-    if (!form.customer.name.trim()) {
-      toast.error('Please enter account name');
-      return;
-    }
+  const createMutation = useMutation({
+    mutationFn: async (data: CreateOpportunityData) => {
+      console.log('🚀 Creating complete opportunity:', JSON.stringify(data, null, 2));
+      const response = await api.opportunities.create(data);
+      return response;
+    },
+    onSuccess: (response: unknown) => {
+      console.log('✅ Create success:', response);
+      
+      if (response && typeof response === 'object') {
+        const responseObj = response as Record<string, unknown>;
+        const opportunityId = responseObj._id;
+        
+        if (opportunityId) {
+          queryClient.invalidateQueries({ queryKey: ['opportunities'] });
+          toast.success('Deal created successfully! 🎉');
+          onSuccess(opportunityId as string);
+          handleClose();
+        } else {
+          toast.error('Created but could not get opportunity ID');
+        }
+      }
+    },
+    onError: (error: Error) => {
+      console.error('❌ Create error:', error);
+      toast.error(error.message || 'Failed to create deal. Please check your data.');
+    },
+  });
 
-    if (!form.subject.trim()) {
-      toast.error('Please enter deal name');
-      return;
-    }
+  const handleClose = () => {
+    form.reset();
+    setIsLoading(false);
+    onClose();
+  };
 
-    // ✅ Prepare data with EXACT API types
+  const onSubmit = (data: OpportunityFormData) => {
+    setIsLoading(true);
+    
+    // ✅ COMPLETE DATA TRANSFORMATION
     const submitData: CreateOpportunityData = {
-      type: form.type,
-      subject: form.subject.trim(),
-      source: form.source, // ✅ Required field
+      type: data.type,
+      subject: data.subject.trim(),
+      source: data.source,
       customer: {
-        name: form.customer.name.trim(),
-        email: form.customer.email.trim(), // ✅ Required in API types
-        phone: form.customer.phone.trim(), // ✅ Required in API types
-        ...(form.customer.companyName.trim() && { companyName: form.customer.companyName.trim() }),
+        name: data.customer.name.trim(),
+        email: data.customer.email.trim(),
+        phone: data.customer.phone.trim(),
+        ...(data.customer.companyName?.trim() && { 
+          companyName: data.customer.companyName.trim() 
+        }),
       },
-      assignedTo: form.assignedTo.trim(), // ✅ Required in API types
-      vehicles: vehicles.map(vehicle => ({
+      ...(data.assignedTo?.trim() && { assignedTo: data.assignedTo.trim() }),
+      vehicles: data.vehicles.map(vehicle => ({
+        vin: vehicle.vin.trim(),
         registrationNumber: vehicle.registrationNumber.trim(),
-        make: vehicle.make?.trim() || '', // ✅ Required in API types
-        model: vehicle.model?.trim() || '', // ✅ Required in API types
-        year: vehicle.year || 0, // ✅ Required in API types
+        make: vehicle.make.trim(),
+        model: vehicle.model.trim(),
+        year: vehicle.year,
+        color: vehicle.color.trim(),
+      })),
+      jobCards: data.jobCards.map(jobCard => ({
+        jobTitle: jobCard.jobTitle.trim(),
+        jobDescription: jobCard.jobDescription.trim(),
+      })),
+      waivers: data.waivers.map(waiver => ({
+        type: waiver.type.trim(),
+        reason: waiver.reason.trim(),
+      })),
+      quotes: data.quotes.map(quote => ({
+        items: quote.items.map(item => ({
+          description: item.description.trim(),
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          total: item.total,
+        })),
+        totalAmount: quote.items.reduce((sum, item) => sum + item.total, 0),
+        ...(quote.notes?.trim() && { notes: quote.notes.trim() }),
       })),
     };
 
-    console.log('Submitting data:', JSON.stringify(submitData, null, 2));
     createMutation.mutate(submitData);
   };
 
-  const addNewVehicle = () => {
-    if (!newVehicle.registrationNumber?.trim()) {
-      toast.error('Registration number is required');
-      return;
+  // ✅ CALCULATE QUOTE TOTALS
+  const calculateQuoteTotal = (quoteIndex: number) => {
+    const items = form.getValues(`quotes.${quoteIndex}.items`);
+    const total = items.reduce((sum, item) => sum + item.total, 0);
+    form.setValue(`quotes.${quoteIndex}.totalAmount`, total);
+    return total;
+  };
+
+  // ✅ FIXED: Type-safe updateQuoteItem function
+  const updateQuoteItem = (
+    quoteIndex: number, 
+    itemIndex: number, 
+    field: QuoteItemField, 
+    value: string | number
+  ) => {
+    const currentValue = form.getValues(`quotes.${quoteIndex}.items.${itemIndex}`);
+    
+    if (field === 'quantity' || field === 'unitPrice') {
+      const quantity = field === 'quantity' ? (Number(value) || 1) : currentValue.quantity;
+      const unitPrice = field === 'unitPrice' ? (Number(value) || 0) : currentValue.unitPrice;
+      const total = quantity * unitPrice;
+      
+      form.setValue(`quotes.${quoteIndex}.items.${itemIndex}`, {
+        ...currentValue,
+        [field]: Number(value),
+        total: total,
+      });
+      
+      calculateQuoteTotal(quoteIndex);
+    } else {
+      // For description and total fields
+      form.setValue(`quotes.${quoteIndex}.items.${itemIndex}.${field}`, value as never);
     }
-
-    const vehicle: Vehicle = {
-      registrationNumber: newVehicle.registrationNumber.trim(),
-      make: newVehicle.make?.trim(),
-      model: newVehicle.model?.trim(),
-      year: newVehicle.year,
-    };
-
-    setVehicles(prev => [...prev, vehicle]);
-    setNewVehicle({});
   };
 
-  const removeVehicle = (index: number) => {
-    setVehicles(prev => prev.filter((_, i) => i !== index));
+  // ✅ FIXED: Type-safe handlers for quantity and unitPrice changes
+  const handleQuantityChange = (quoteIndex: number, itemIndex: number, value: string) => {
+    updateQuoteItem(quoteIndex, itemIndex, 'quantity', value);
   };
 
-  // ✅ Use exact source values from API types
-  const sourceOptions: { value: OpportunitySource; label: string }[] = [
+  const handleUnitPriceChange = (quoteIndex: number, itemIndex: number, value: string) => {
+    updateQuoteItem(quoteIndex, itemIndex, 'unitPrice', value);
+  };
+
+  const sourceOptions: { value: OpportunitySource | 'walk_in'; label: string }[] = [
+    { value: 'walk_in', label: 'Walk In' },
     { value: 'manual', label: 'Manual Entry' },
     { value: 'referral', label: 'Referral' },
     { value: 'website', label: 'Website' },
@@ -165,307 +251,797 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: Props) {
     { value: 'social_media', label: 'Social Media' },
   ];
 
+  const waiverTypes = [
+    { value: 'service', label: 'Service Waiver' },
+    { value: 'liability', label: 'Liability Waiver' },
+    { value: 'safety', label: 'Safety Waiver' },
+    { value: 'privacy', label: 'Privacy Waiver' },
+  ];
+
   if (!open) return null;
 
   return (
-    <div className="w-full">
-      {/* Header */}
-      <div className="border-b border-gray-200 px-8 py-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-500">
-            <Building className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Create New Deal</h2>
-            <p className="text-sm text-gray-500">Add a new opportunity to your pipeline</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-6xl max-h-[90vh] overflow-hidden bg-white rounded-2xl shadow-2xl mx-4">
+        {/* 🎨 BEAUTIFUL HEADER */}
+        <div className="border-b border-gray-200 px-8 py-6 bg-gradient-to-r from-orange-50 to-amber-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 shadow-lg">
+                <Building className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Create Complete Deal</h2>
+                <p className="text-sm text-gray-600">Add opportunity with vehicles, services, and quotes</p>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClose}
+              className="h-8 w-8 p-0 hover:bg-gray-100 rounded-lg"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
         </div>
-      </div>
 
-      {/* Form Content */}
-      <div className="max-h-[60vh] overflow-y-auto px-8 py-6">
-        <div className="grid gap-8">
-          {/* Account Section */}
-          <div className="border-b border-gray-200 pb-8">
-            <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Building className="h-4 w-4 text-orange-500" />
-              Account Information
-            </h3>
-            
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label htmlFor="customerName" className="text-sm font-medium text-gray-700">
-                  Account Name *
-                </Label>
-                <Input
-                  id="customerName"
-                  placeholder="e.g., ABC Logistics"
-                  value={form.customer.name}
-                  onChange={(e) => setForm(prev => ({ 
-                    ...prev, 
-                    customer: { ...prev.customer, name: e.target.value }
-                  }))}
-                  className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                />
-              </div>
+        {/* 📝 COMPLETE FORM CONTENT */}
+        <div className="max-h-[70vh] overflow-y-auto px-8 py-6">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+              {/* 👥 ACCOUNT INFORMATION SECTION */}
+              <div className="border-b border-gray-200 pb-8">
+                <h3 className="text-sm font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                  <Building className="h-4 w-4 text-orange-500" />
+                  Account Information
+                </h3>
+                
+                <div className="grid gap-6 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="customer.name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium text-gray-700">
+                          Account Name *
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., John Doe"
+                            className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage className="text-xs text-red-600" />
+                      </FormItem>
+                    )}
+                  />
 
-              <div>
-                <Label htmlFor="companyName" className="text-sm font-medium text-gray-700">
-                  Company Name
-                </Label>
-                <Input
-                  id="companyName"
-                  placeholder="e.g., ABC Logistics Ltd"
-                  value={form.customer.companyName}
-                  onChange={(e) => setForm(prev => ({ 
-                    ...prev, 
-                    customer: { ...prev.customer, companyName: e.target.value }
-                  }))}
-                  className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                />
-              </div>
+                  <FormField
+                    control={form.control}
+                    name="customer.companyName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium text-gray-700">
+                          Company Name
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., Doe Enterprises"
+                            className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage className="text-xs text-red-600" />
+                      </FormItem>
+                    )}
+                  />
 
-              <div>
-                <Label htmlFor="customerEmail" className="text-sm font-medium text-gray-700">
-                  Email *
-                </Label>
-                <div className="relative mt-1">
-                  <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <Input
-                    id="customerEmail"
-                    type="email"
-                    placeholder="e.g., ops@abclogistics.co.ke"
-                    value={form.customer.email}
-                    onChange={(e) => setForm(prev => ({ 
-                      ...prev, 
-                      customer: { ...prev.customer, email: e.target.value }
-                    }))}
-                    className="pl-10 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                    required
+                  <FormField
+                    control={form.control}
+                    name="customer.email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium text-gray-700">
+                          Email *
+                        </FormLabel>
+                        <FormControl>
+                          <div className="relative mt-1">
+                            <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                            <Input
+                              type="email"
+                              placeholder="e.g., john.doe@example.com"
+                              className="pl-10 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                              {...field}
+                            />
+                          </div>
+                        </FormControl>
+                        <FormMessage className="text-xs text-red-600" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="customer.phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium text-gray-700">
+                          Phone *
+                        </FormLabel>
+                        <FormControl>
+                          <div className="relative mt-1">
+                            <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                            <Input
+                              placeholder="e.g., +254700123456"
+                              className="pl-10 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                              {...field}
+                            />
+                          </div>
+                        </FormControl>
+                        <FormMessage className="text-xs text-red-600" />
+                      </FormItem>
+                    )}
                   />
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="customerPhone" className="text-sm font-medium text-gray-700">
-                  Phone *
-                </Label>
-                <div className="relative mt-1">
-                  <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <Input
-                    id="customerPhone"
-                    placeholder="e.g., +254700123456"
-                    value={form.customer.phone}
-                    onChange={(e) => setForm(prev => ({ 
-                      ...prev, 
-                      customer: { ...prev.customer, phone: e.target.value }
-                    }))}
-                    className="pl-10 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                    required
+              {/* 💼 DEAL INFORMATION SECTION */}
+              <div className="border-b border-gray-200 pb-8">
+                <h3 className="text-sm font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-orange-500" />
+                  Deal Information
+                </h3>
+                
+                <div className="grid gap-6 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium text-gray-700">
+                          Deal Type
+                        </FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500">
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                            <SelectItem value="individual">Individual</SelectItem>
+                            <SelectItem value="organization">Organization</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage className="text-xs text-red-600" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="source"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium text-gray-700">
+                          Source *
+                        </FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500">
+                              <SelectValue placeholder="Select source" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                            {sourceOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage className="text-xs text-red-600" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="subject"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium text-gray-700">
+                          Deal Name *
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., Car Service Request - Honda Civic"
+                            className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage className="text-xs text-red-600" />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="assignedTo"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-sm font-medium text-gray-700">
+                          Assign To (User ID)
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., 6901e1b1813162deba7e462c"
+                            className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage className="text-xs text-red-600" />
+                      </FormItem>
+                    )}
                   />
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Deal Information */}
-          <div className="border-b border-gray-200 pb-8">
-            <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-orange-500" />
-              Deal Information
-            </h3>
-            
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="type" className="text-sm font-medium text-gray-700">
-                    Deal Type
-                  </Label>
-                  <Select
-                    value={form.type}
-                    onValueChange={(value: 'individual' | 'organization') => 
-                      setForm(prev => ({ ...prev, type: value }))
-                    }
+              {/* 🚗 VEHICLES SECTION */}
+              <div className="border-b border-gray-200 pb-8">
+                <h3 className="text-sm font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                  <Car className="h-4 w-4 text-orange-500" />
+                  Vehicles
+                </h3>
+                
+                <div className="space-y-4">
+                  {form.watch('vehicles').map((vehicle, index) => (
+                    <div key={index} className="grid gap-4 md:grid-cols-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                      <FormField
+                        control={form.control}
+                        name={`vehicles.${index}.vin`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-medium text-gray-700">
+                              VIN *
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="1HGCM82633A123456"
+                                className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage className="text-xs text-red-600" />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name={`vehicles.${index}.registrationNumber`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-medium text-gray-700">
+                              Registration *
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="ABC123"
+                                className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage className="text-xs text-red-600" />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name={`vehicles.${index}.make`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-medium text-gray-700">
+                              Make *
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Honda"
+                                className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage className="text-xs text-red-600" />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name={`vehicles.${index}.model`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-medium text-gray-700">
+                              Model *
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Civic"
+                                className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage className="text-xs text-red-600" />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name={`vehicles.${index}.year`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-medium text-gray-700">
+                              Year *
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="2020"
+                                className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
+                                {...field}
+                                onChange={e => field.onChange(parseInt(e.target.value) || 0)}
+                              />
+                            </FormControl>
+                            <FormMessage className="text-xs text-red-600" />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className="flex items-end gap-2">
+                        <FormField
+                          control={form.control}
+                          name={`vehicles.${index}.color`}
+                          render={({ field }) => (
+                            <FormItem className="flex-1">
+                              <FormLabel className="text-xs font-medium text-gray-700">
+                                Color *
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="Blue"
+                                  className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage className="text-xs text-red-600" />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        {form.watch('vehicles').length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const vehicles = form.getValues('vehicles');
+                              form.setValue('vehicles', vehicles.filter((_, i) => i !== index));
+                            }}
+                            className="h-10 w-10 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const vehicles = form.getValues('vehicles');
+                      form.setValue('vehicles', [
+                        ...vehicles,
+                        { vin: '', registrationNumber: '', make: '', model: '', year: new Date().getFullYear(), color: '' }
+                      ]);
+                    }}
+                    className="border-dashed border-gray-300 text-gray-600 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-300"
                   >
-                    <SelectTrigger className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                      <SelectItem value="individual">Individual</SelectItem>
-                      <SelectItem value="organization">Organization</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="subject" className="text-sm font-medium text-gray-700">
-                    Deal Name *
-                  </Label>
-                  <Input
-                    id="subject"
-                    placeholder="e.g., Fleet maintenance request"
-                    value={form.subject}
-                    onChange={(e) => setForm(prev => ({ ...prev, subject: e.target.value }))}
-                    className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                  />
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Another Vehicle
+                  </Button>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="source" className="text-sm font-medium text-gray-700">
-                    Source *
-                  </Label>
-                  <Select
-                    value={form.source}
-                    onValueChange={(value: OpportunitySource) => 
-                      setForm(prev => ({ ...prev, source: value }))
-                    }
+              {/* 🔧 JOB CARDS SECTION */}
+              <div className="border-b border-gray-200 pb-8">
+                <h3 className="text-sm font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                  <Wrench className="h-4 w-4 text-orange-500" />
+                  Service Request
+                </h3>
+                
+                <div className="space-y-4">
+                  {form.watch('jobCards').map((jobCard, index) => (
+                    <div key={index} className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                      <FormField
+                        control={form.control}
+                        name={`jobCards.${index}.jobTitle`}
+                        render={({ field }) => (
+                          <FormItem className="mb-4">
+                            <FormLabel className="text-sm font-medium text-gray-700">
+                              Job Title *
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g., Oil Change Service"
+                                className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage className="text-xs text-red-600" />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name={`jobCards.${index}.jobDescription`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-medium text-gray-700">
+                              Job Description *
+                            </FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="e.g., Full synthetic oil change and filter replacement"
+                                className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage className="text-xs text-red-600" />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  ))}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const jobCards = form.getValues('jobCards');
+                      form.setValue('jobCards', [
+                        ...jobCards,
+                        { jobTitle: '', jobDescription: '' }
+                      ]);
+                    }}
+                    className="border-dashed border-gray-300 text-gray-600 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-300"
                   >
-                    <SelectTrigger className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border border-gray-200 shadow-lg">
-                      {sourceOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="assignedTo" className="text-sm font-medium text-gray-700">
-                    Assign To (User ID) *
-                  </Label>
-                  <Input
-                    id="assignedTo"
-                    placeholder="e.g., 6901e1b1813162deba7e462c"
-                    value={form.assignedTo}
-                    onChange={(e) => setForm(prev => ({ ...prev, assignedTo: e.target.value }))}
-                    className="mt-1 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                    required
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Enter user ID to assign this deal
-                  </p>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Another Service
+                  </Button>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Vehicles Section */}
-          <div className="border-b border-gray-200 pb-8">
-            <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Car className="h-4 w-4 text-orange-500" />
-              Vehicles
-            </h3>
-            
-            <div className="space-y-6">
-              {/* Add Vehicle Form */}
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                <Label className="text-sm font-medium text-gray-700 mb-3 block">Add Vehicle</Label>
-                <div className="grid gap-3 md:grid-cols-4">
-                  <Input
-                    placeholder="Registration *"
-                    value={newVehicle.registrationNumber || ''}
-                    onChange={(e) => setNewVehicle(prev => ({ ...prev, registrationNumber: e.target.value }))}
-                    className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                  />
-                  <Input
-                    placeholder="Make *"
-                    value={newVehicle.make || ''}
-                    onChange={(e) => setNewVehicle(prev => ({ ...prev, make: e.target.value }))}
-                    className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                  />
-                  <Input
-                    placeholder="Model *"
-                    value={newVehicle.model || ''}
-                    onChange={(e) => setNewVehicle(prev => ({ ...prev, model: e.target.value }))}
-                    className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                  />
-                  <Input
-                    placeholder="Year *"
-                    type="number"
-                    value={newVehicle.year || ''}
-                    onChange={(e) => setNewVehicle(prev => ({ ...prev, year: parseInt(e.target.value) || undefined }))}
-                    className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                  />
+              {/* 🛡️ WAIVERS SECTION */}
+              <div className="border-b border-gray-200 pb-8">
+                <h3 className="text-sm font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-orange-500" />
+                  Waivers
+                </h3>
+                
+                <div className="space-y-4">
+                  {form.watch('waivers').map((waiver, index) => (
+                    <div key={index} className="grid gap-4 md:grid-cols-2 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                      <FormField
+                        control={form.control}
+                        name={`waivers.${index}.type`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-medium text-gray-700">
+                              Waiver Type *
+                            </FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white">
+                                  <SelectValue placeholder="Select type" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="bg-white border border-gray-200 shadow-lg">
+                                {waiverTypes.map((type) => (
+                                  <SelectItem key={type.value} value={type.value}>
+                                    {type.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage className="text-xs text-red-600" />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name={`waivers.${index}.reason`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-medium text-gray-700">
+                              Reason *
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="e.g., Standard service waiver for maintenance work"
+                                className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-white"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage className="text-xs text-red-600" />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  ))}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const waivers = form.getValues('waivers');
+                      form.setValue('waivers', [
+                        ...waivers,
+                        { type: 'service', reason: '' }
+                      ]);
+                    }}
+                    className="border-dashed border-gray-300 text-gray-600 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-300"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Another Waiver
+                  </Button>
                 </div>
-                <Button
-                  onClick={addNewVehicle}
-                  className="mt-3 bg-orange-500 hover:bg-orange-600"
-                  size="sm"
-                  disabled={!newVehicle.registrationNumber?.trim() || !newVehicle.make?.trim() || !newVehicle.model?.trim() || !newVehicle.year}
-                >
-                  <Car className="h-4 w-4 mr-2" />
-                  Add Vehicle
-                </Button>
               </div>
 
-              {/* Selected Vehicles */}
-              {vehicles.length > 0 && (
-                <div>
-                  <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                    Selected Vehicles ({vehicles.length})
-                  </Label>
-                  <div className="space-y-2">
-                    {vehicles.map((vehicle, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Car className="h-4 w-4 text-orange-500" />
-                          <div>
-                            <div className="font-medium text-sm">{vehicle.registrationNumber}</div>
-                            <div className="text-xs text-gray-500">
-                              {vehicle.make} {vehicle.model} {vehicle.year}
+              {/* 💰 QUOTES SECTION */}
+              <div className="border-b border-gray-200 pb-8">
+                <h3 className="text-sm font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-orange-500" />
+                  Quote Information
+                </h3>
+                
+                <div className="space-y-6">
+                  {form.watch('quotes').map((quote, quoteIndex) => (
+                    <div key={quoteIndex} className="p-6 border border-gray-200 rounded-lg bg-gray-50">
+                      <div className="flex justify-between items-center mb-4">
+                        <h4 className="font-medium text-gray-900">Quote #{quoteIndex + 1}</h4>
+                        {form.watch('quotes').length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const quotes = form.getValues('quotes');
+                              form.setValue('quotes', quotes.filter((_, i) => i !== quoteIndex));
+                            }}
+                            className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Remove Quote
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="space-y-4">
+                        {quote.items.map((item, itemIndex) => (
+                          <div key={itemIndex} className="grid gap-4 md:grid-cols-5 p-4 border border-gray-200 rounded bg-white">
+                            <FormField
+                              control={form.control}
+                              name={`quotes.${quoteIndex}.items.${itemIndex}.description`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-xs font-medium text-gray-700">
+                                    Description *
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      placeholder="e.g., Oil Change Service"
+                                      className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage className="text-xs text-red-600" />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={form.control}
+                              name={`quotes.${quoteIndex}.items.${itemIndex}.quantity`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-xs font-medium text-gray-700">
+                                    Quantity *
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min="1"
+                                      className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                                      value={field.value}
+                                      onChange={(e) => handleQuantityChange(quoteIndex, itemIndex, e.target.value)}
+                                    />
+                                  </FormControl>
+                                  <FormMessage className="text-xs text-red-600" />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={form.control}
+                              name={`quotes.${quoteIndex}.items.${itemIndex}.unitPrice`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-xs font-medium text-gray-700">
+                                    Unit Price (KES) *
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                                      value={field.value}
+                                      onChange={(e) => handleUnitPriceChange(quoteIndex, itemIndex, e.target.value)}
+                                    />
+                                  </FormControl>
+                                  <FormMessage className="text-xs text-red-600" />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={form.control}
+                              name={`quotes.${quoteIndex}.items.${itemIndex}.total`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-xs font-medium text-gray-700">
+                                    Total (KES)
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 bg-gray-100"
+                                      readOnly
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage className="text-xs text-red-600" />
+                                </FormItem>
+                              )}
+                            />
+
+                            {quote.items.length > 1 && (
+                              <div className="flex items-end">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const items = form.getValues(`quotes.${quoteIndex}.items`);
+                                    form.setValue(`quotes.${quoteIndex}.items`, items.filter((_, i) => i !== itemIndex));
+                                    calculateQuoteTotal(quoteIndex);
+                                  }}
+                                  className="h-10 w-10 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const items = form.getValues(`quotes.${quoteIndex}.items`);
+                            form.setValue(`quotes.${quoteIndex}.items`, [
+                              ...items,
+                              { description: '', quantity: 1, unitPrice: 0, total: 0 }
+                            ]);
+                          }}
+                          className="border-dashed border-gray-300 text-gray-600 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-300"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Item
+                        </Button>
+
+                        <div className="flex justify-between items-center pt-4 border-t border-gray-200">
+                          <FormField
+                            control={form.control}
+                            name={`quotes.${quoteIndex}.notes`}
+                            render={({ field }) => (
+                              <FormItem className="flex-1">
+                                <FormLabel className="text-sm font-medium text-gray-700">
+                                  Notes
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder="e.g., Standard service package"
+                                    className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage className="text-xs text-red-600" />
+                              </FormItem>
+                            )}
+                          />
+
+                          <div className="ml-4 text-right">
+                            <div className="text-sm font-medium text-gray-700">Quote Total</div>
+                            <div className="text-2xl font-bold text-orange-600">
+                              KES {calculateQuoteTotal(quoteIndex).toLocaleString()}
                             </div>
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeVehicle(index)}
-                          className="h-8 w-8 p-0 hover:bg-orange-50"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+                    </div>
+                  ))}
 
-      {/* Footer */}
-      <div className="flex justify-end gap-3 border-t border-gray-200 px-8 py-6">
-        <Button
-          variant="outline"
-          onClick={handleClose}
-          className="border-gray-300 hover:bg-gray-50"
-        >
-          Cancel
-        </Button>
-        <Button
-          onClick={handleSubmit}
-          disabled={createMutation.isPending || !form.customer.name.trim() || !form.subject.trim() || !form.customer.email.trim() || !form.customer.phone.trim() || !form.assignedTo.trim()}
-          className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400"
-        >
-          {createMutation.isPending ? (
-            <>
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2"></div>
-              Creating...
-            </>
-          ) : (
-            'Create Deal'
-          )}
-        </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const quotes = form.getValues('quotes');
+                      form.setValue('quotes', [
+                        ...quotes,
+                        {
+                          items: [{ description: '', quantity: 1, unitPrice: 0, total: 0 }],
+                          totalAmount: 0,
+                          notes: '',
+                        }
+                      ]);
+                    }}
+                    className="border-dashed border-gray-300 text-gray-600 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-300"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Another Quote
+                  </Button>
+                </div>
+              </div>
+
+              {/* 🎯 BEAUTIFUL FOOTER - FIXED */}
+              <div className="flex justify-end gap-3 border-t border-gray-200 px-8 py-6 bg-gray-50">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleClose}
+                  className="border-gray-300 hover:bg-gray-50 text-gray-700"
+                  disabled={isLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit" // ✅ FIX: Changed from onClick to type="submit"
+                  disabled={isLoading || !form.formState.isValid}
+                  className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:from-gray-400 disabled:to-gray-400 text-white shadow-lg"
+                >
+                  {isLoading ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2"></div>
+                      Creating...
+                    </>
+                  ) : (
+                    'Create Complete Deal'
+                  )}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </div>
       </div>
     </div>
   );

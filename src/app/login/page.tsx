@@ -29,24 +29,15 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // ✅ SECURE: Use sessionStorage instead of localStorage
+      // ✅ FIXED: Let authService handle token storage
       const response = await authService.login(formData);
       
-      // Save to sessionStorage (cleared when browser closes)
-      sessionStorage.setItem('accessToken', response.accessToken);
-      sessionStorage.setItem('refreshToken', response.refreshToken);
-      sessionStorage.setItem('user', JSON.stringify(response.user));
-      
-      console.log('🔐 Login successful - sessionStorage used:', response.user);
+      console.log('🔐 Login successful:', response.user);
       
       // Navigate to dashboard
       router.push('/');
     } catch (err: unknown) {
       console.error('Login failed:', err);
-      // Clear sessionStorage on error
-      sessionStorage.removeItem('accessToken');
-      sessionStorage.removeItem('refreshToken');
-      sessionStorage.removeItem('user');
 
       if (err instanceof AuthenticationError) {
         setError('Invalid email or password. Please check your credentials and try again.');
@@ -69,6 +60,7 @@ export default function LoginPage() {
     setError('');
 
     try {
+      // ✅ FIXED: Use authService which handles token storage
       let response;
       if (typeof authService.demoLogin === 'function') {
         response = await authService.demoLogin();
@@ -79,18 +71,10 @@ export default function LoginPage() {
         });
       }
       
-      // ✅ SECURE: Use sessionStorage
-      sessionStorage.setItem('accessToken', response.accessToken);
-      sessionStorage.setItem('refreshToken', response.refreshToken);
-      sessionStorage.setItem('user', JSON.stringify(response.user));
-      
-      console.log('🔐 Demo login successful - sessionStorage used:', response.user);
+      console.log('🔐 Demo login successful:', response.user);
       router.push('/');
     } catch (err: unknown) {
       console.error('Demo login failed:', err);
-      sessionStorage.removeItem('accessToken');
-      sessionStorage.removeItem('refreshToken');
-      sessionStorage.removeItem('user');
       setError('Demo login failed. Please try manual login.');
     } finally {
       setIsLoading(false);

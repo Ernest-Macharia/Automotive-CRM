@@ -9,11 +9,16 @@ import type {
   Notification
 } from './types';
 
+// Import RegisterData for the auth.register method
+import type { RegisterData } from '@/services/authService';
+
 export const api = {
   // AUTH
   auth: {
     login: (email: string, password: string) =>
       apiClient.post(API_ENDPOINTS.LOGIN, { email, password }),
+    register: (userData: RegisterData) =>  // ✅ ADDED: Register endpoint
+      apiClient.post(API_ENDPOINTS.REGISTER, userData),
     me: () => apiClient.get(API_ENDPOINTS.GET_ME),
   },
 
@@ -23,7 +28,7 @@ export const api = {
     overview: () => apiClient.get(API_ENDPOINTS.OPPORTUNITIES_OVERVIEW),
     get: (id: string) => apiClient.get<Opportunity>(API_ENDPOINTS.OPPORTUNITY_BY_ID(id)),
     create: (data: CreateOpportunityData) =>
-      apiClient.post(API_ENDPOINTS.OPPORTUNITIES, data), // ✅ FIXED: Remove generic type
+      apiClient.post(API_ENDPOINTS.OPPORTUNITIES, data),
     update: (id: string, data: Partial<Opportunity>) =>
       apiClient.patch<Opportunity>(API_ENDPOINTS.OPPORTUNITY_BY_ID(id), data as Opportunity),
     delete: (id: string) => apiClient.delete(API_ENDPOINTS.OPPORTUNITY_BY_ID(id)),

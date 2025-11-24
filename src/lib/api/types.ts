@@ -1,4 +1,3 @@
-// src/lib/api/types.ts
 /**
  * MAG CRM — Full TypeScript Types
  * Synced with Swagger[](https://mag-backend-0gn4.onrender.com/api/v1)
@@ -26,23 +25,26 @@ export interface LoginResponse {
 
 // OPPORTUNITIES
 export type OpportunityType = 'individual' | 'organization';
-export type OpportunitySource =
-  | 'manual'
-  | 'referral'
-  | 'website'
-  | 'email'
-  | 'phone'
-  | 'social_media';
-export type OpportunityStatus =
-  | 'open'
-  | 'in_progress'
-  | 'won'
-  | 'lost'
-  | 'qualified'
-  | 'negotiation'
-  | 'closed';
+export type OpportunitySource = 
+  | 'manual' 
+  | 'referral' 
+  | 'website' 
+  | 'email' 
+  | 'phone' 
+  | 'social_media'
+  | 'walk_in'; // ✅ ADDED: Based on your request
+export type OpportunityStatus = 
+  | 'open' 
+  | 'in_progress' 
+  | 'won' 
+  | 'lost' 
+  | 'qualified' 
+  | 'negotiation' 
+  | 'closed'
+  | 'new'; // ✅ ADDED: Based on your response
 
 export interface OpportunityCustomer {
+  _id?: string; // ✅ ADDED: Based on response
   name: string;
   email: string;
   phone: string;
@@ -50,12 +52,48 @@ export interface OpportunityCustomer {
 }
 
 export interface OpportunityVehicle {
-  id: string;
+  _id: string; // ✅ ADDED: Based on response
+  vin: string; // ✅ CHANGED: from id to vin
   registrationNumber: string;
   make: string;
   model: string;
   year: number;
   color?: string;
+  opportunityId?: string; // ✅ ADDED: Based on response
+  ownerId?: string; // ✅ ADDED: Based on response
+  active?: boolean; // ✅ ADDED: Based on response
+  createdAt?: string; // ✅ ADDED: Based on response
+  updatedAt?: string; // ✅ ADDED: Based on response
+}
+
+// ✅ UPDATED: JobCard interface to match response
+export interface JobCard {
+  _id: string;
+  opportunityId: string;
+  vehicleId: string;
+  createdBy: string;
+  jobTitle: string;
+  jobDescription: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ✅ UPDATED: Waiver interface to match response
+export interface Waiver {
+  _id: string;
+  opportunityId: string;
+  vehicleId: string;
+  type: string; // ✅ ADDED: Based on response
+  reason: string;
+  createdBy: string; // ✅ ADDED: Based on response
+  status: 'pending' | 'signed' | 'declined';
+  active: boolean; // ✅ ADDED: Based on response
+  signedBy?: User;
+  dateSigned?: string;
+  createdAt: string;
+  updatedAt: string; // ✅ ADDED: Based on response
 }
 
 export interface Opportunity {
@@ -65,7 +103,7 @@ export interface Opportunity {
   source: OpportunitySource;
   status: OpportunityStatus;
   customer: OpportunityCustomer;
-  assignedTo: User;
+  assignedTo: User | null; // ✅ UPDATED: Can be null based on response
   vehicles: OpportunityVehicle[];
   waivers: Waiver[];
   jobCards: JobCard[];
@@ -74,8 +112,10 @@ export interface Opportunity {
   payments: Payment[];
   createdAt: string;
   updatedAt: string;
+  __v?: number; // ✅ ADDED: Based on response
 }
 
+// ✅ UPDATED: CreateOpportunityData to match your request structure
 export interface CreateOpportunityData {
   type: OpportunityType;
   subject: string;
@@ -86,13 +126,51 @@ export interface CreateOpportunityData {
     phone: string;
     companyName?: string;
   };
-  assignedTo: string;
+  assignedTo?: string;
   vehicles: Array<{
+    vin: string;
     registrationNumber: string;
     make: string;
     model: string;
     year: number;
+    color: string;
   }>;
+  jobCards: Array<{
+    jobTitle: string;
+    jobDescription: string;
+  }>;
+  waivers: Array<{
+    type: string;
+    reason: string;
+  }>;
+  quotes: Array<{
+    items: Array<{
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      total: number;
+    }>;
+    totalAmount: number;
+    notes?: string;
+  }>;
+}
+
+// ✅ ADDED: CreateOpportunityResponse interface based on your response
+export interface CreateOpportunityResponse {
+  _id: string;
+  type: OpportunityType;
+  subject: string;
+  source: OpportunitySource;
+  status: OpportunityStatus;
+  customer: OpportunityCustomer;
+  vehicles: OpportunityVehicle[];
+  jobCards: JobCard[];
+  waivers: Waiver[];
+  quotes: Quote[];
+  assignedTo: User | null;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
 }
 
 // CONTACTS
@@ -198,43 +276,14 @@ export interface WorkOrder {
   updatedAt: string;
 }
 
-// WAIVERS
-export interface Waiver {
-  _id: string;
-  reason: string;
-  opportunityId: string;
-  vehicleId: string;
-  status: 'pending' | 'signed' | 'declined';
-  signedBy?: User;
-  dateSigned?: string;
-  createdAt: string;
-}
+// JOB CARDS - Already defined above
 
-// JOB CARDS
-export interface JobCard {
-  _id: string;
-  jobTitle: string;
-  opportunityId: string;
-  vehicleId: string;
-  status: 'pending' | 'in_progress' | 'completed';
-  assignedTo: User;
-  partsUsed?: Array<{
-    name: string;
-    quantity: number;
-    cost: number;
-  }>;
-  laborHours: number;
-  laborRate: number;
-  totalCost: number;
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
-}
+// WAIVERS - Already defined above
 
-// BLUEPRINTS - FIXED: Remove any types
+// BLUEPRINTS
 export interface BlueprintStageAction {
   actionType: string;
-  params: Record<string, unknown>; // ✅ FIX: Replace any with unknown
+  params: Record<string, unknown>;
 }
 
 export interface BlueprintStage {
@@ -256,12 +305,12 @@ export interface Blueprint {
   updatedAt: string;
 }
 
-// TRANSITIONS - FIXED: Remove any types
+// TRANSITIONS
 export interface Transition {
   fromStage: string;
   toStage: string;
   allowedRoles: string[];
-  conditions?: Record<string, unknown>; // ✅ FIX: Replace any with unknown
+  conditions?: Record<string, unknown>;
 }
 
 // NOTIFICATIONS
