@@ -1,74 +1,83 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@theme {
-  --color-primary: #e55a2b;
-  --color-primary-50: #fef6f2;
-  --color-primary-100: #fde8dd;
-  --color-primary-200: #fbd0b8;
-  --color-primary-300: #f8af87;
-  --color-primary-400: #f38251;
-  --color-primary-500: #f15f2e;
-  --color-primary-600: #e55a2b;
-  --color-primary-700: #c0451d;
-  --color-primary-800: #9f391c;
-  --color-primary-900: #82331c;
-  
-  /* Sidebar colors */
-  --color-sidebar: #1f2937;
-  --color-sidebar-hover: #374151;
-  --color-sidebar-text: #f9fafb;
-  --color-sidebar-accent: #e55a2b;
-  
-  /* Font */
-  --font-sans: "Inter", system-ui, sans-serif;
+/* Custom classes */
+@layer components {
+  .card {
+    @apply bg-mag-charcoal rounded-xl border border-mag-border;
+  }
+
+  .card-hover {
+    @apply hover:border-mag-orange transition-all duration-200;
+  }
+
+  .btn-primary {
+    @apply bg-mag-orange hover:bg-mag-amber text-white font-medium px-4 py-2.5 rounded-lg transition-colors duration-200 flex items-center gap-2;
+  }
+
+  .btn-secondary {
+    @apply bg-mag-charcoal hover:bg-mag-border text-mag-lightgray border border-mag-border font-medium px-4 py-2.5 rounded-lg transition-colors duration-200 flex items-center gap-2;
+  }
+
+  .input-primary {
+    @apply bg-mag-charcoal border border-mag-border text-mag-lightgray rounded-lg focus:outline-none focus:ring-2 focus:ring-mag-orange focus:border-transparent placeholder-mag-muted;
+  }
+
+  .badge-primary {
+    @apply bg-mag-orange text-white text-xs font-medium px-2.5 py-1 rounded-full;
+  }
+
+  .alert-high {
+    @apply bg-mag-alert/10 border border-mag-alert/20 text-mag-alert rounded-xl;
+  }
+
+  .alert-medium {
+    @apply bg-mag-orange/10 border border-mag-orange/20 text-mag-orange rounded-xl;
+  }
+
+  .alert-low {
+    @apply bg-mag-amber/10 border border-mag-amber/20 text-mag-amber rounded-xl;
+  }
+
+  .loading-spinner {
+    @apply w-16 h-16 border-4 border-mag-orange border-t-transparent rounded-full animate-spin;
+  }
 }
 
-/* Sidebar styles */
-.sidebar {
-  background-color: var(--color-sidebar);
-  color: var(--color-sidebar-text);
+/* Base styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-.sidebar .nav-item:hover {
-  background-color: var(--color-sidebar-hover);
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
-.sidebar .nav-item.active {
-  background-color: var(--color-sidebar-accent);
-  color: white;
+body {
+  @apply bg-mag-dark text-mag-lightgray;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-.auth-container {
-  @apply min-h-screen bg-gradient-to-br from-primary-50 via-white to-orange-50;
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
-.auth-card {
-  @apply bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-primary-100;
+::-webkit-scrollbar-track {
+  @apply bg-mag-dark;
 }
 
-.auth-input {
-  @apply block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all bg-white/50;
+::-webkit-scrollbar-thumb {
+  @apply bg-mag-border rounded-full;
 }
 
-.auth-button {
-  @apply w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-semibold text-white bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200;
-}
-
-.auth-button-secondary {
-  @apply w-full flex justify-center items-center py-3 px-4 border border-gray-300 rounded-xl shadow-sm text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200;
-}
-
-.btn-primary {
-  @apply bg-primary-600 hover:bg-primary-700 text-white;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.fade-in {
-  animation: fadeIn 0.3s ease-in-out;
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-mag-muted;
 }
 
 .no-scrollbar::-webkit-scrollbar {

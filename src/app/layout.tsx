@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import ClientLayout from './ClientLayout';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -58,10 +59,11 @@ export default function RootLayout({
   if (isLoading) {
     return (
       <html lang="en">
-        <body className={`${inter.className} min-h-screen flex items-center justify-center`}>
+        <body className={`${inter.className} min-h-screen flex items-center justify-center bg-[#0B0B0B]`}>
           <div className="text-center">
-            <div className="w-16 h-16 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading MAG CRM...</p>
+            <div className="loading-spinner mx-auto mb-4"></div>
+            <p className="text-[#CCCCCC] text-sm">Loading MAG CRM...</p>
+            <p className="text-[#666666] text-xs mt-1">Please wait while we load your dashboard</p>
           </div>
         </body>
       </html>
@@ -69,9 +71,9 @@ export default function RootLayout({
   }
 
   return (
-    <html lang="en">
-      <body className={`${inter.className} min-h-screen`}>
-        {children}
+    <html lang="en" className="dark">
+      <body className={`${inter.className} antialiased bg-[#0B0B0B] text-[#CCCCCC] min-h-screen`}>
+        <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
   );

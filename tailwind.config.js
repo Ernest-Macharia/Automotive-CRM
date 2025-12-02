@@ -7,17 +7,17 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: '#fef6f2',
-          100: '#fde8dd',
-          200: '#fbd0b8',
-          300: '#f8af87',
-          400: '#f38251',
-          500: '#f15f2e',
-          600: '#e55a2b',
-          700: '#c0451d',
-          800: '#9f391c',
-          900: '#82331c',
+        // MAG Brand Colors
+        'mag': {
+          'orange': '#E65C00',
+          'amber': '#C44A00',
+          'charcoal': '#1A1A1A',
+          'lightgray': '#CCCCCC',
+          'alert': '#FF3300',
+          'white': '#FFFFFF',
+          'dark': '#0B0B0B',
+          'border': '#2A2A2A',
+          'muted': '#666666',
         }
       }
     },
