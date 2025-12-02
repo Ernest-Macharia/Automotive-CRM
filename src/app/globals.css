@@ -1,73 +1,26 @@
 @import "tailwindcss";
 
-@theme {
-  /* ────────────────────── Brand ────────────────────── */
-  --color-primary: #e55a2b;
-  --color-primary-50: #fef6f2;
-  --color-primary-100: #fde8dd;
-  --color-primary-200: #fbd0b8;
-  --color-primary-300: #f8af87;
-  --color-primary-400: #f38251;
-  --color-primary-500: #f15f2e;
-  --color-primary-600: #e55a2b;
-  --color-primary-700: #c0451d;
-  --color-primary-800: #9f391c;
-  --color-primary-900: #82331c;
-
-  /* ────────────────────── Sidebar ────────────────────── */
-  --color-sidebar: #1f2937;
-  --color-sidebar-hover: #374151;
-  --color-sidebar-text: #f9fafb;
-  --color-sidebar-accent: #e55a2b;
-
-  --font-sans: "Inter", system-ui, sans-serif;
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
 }
 
-/* ────────────────────── Sidebar (dark) ────────────────────── */
-.sidebar {
-  @apply bg-[var(--color-sidebar)] text-[var(--color-sidebar-text)];
-}
-.sidebar .nav-item:hover {
-  @apply bg-[var(--color-sidebar-hover)];
-}
-.sidebar .nav-item.active {
-  @apply bg-[var(--color-sidebar-accent)] text-white;
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
-/* ────────────────────── Filter Panel (WHITE) ────────────────────── */
-.filter-panel {
-  @apply bg-white border-r;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
 }
 
-/* ────────────────────── Stage Header Colors (Zoho-Exact) ────────────────────── */
-.stage-new       { @apply bg-blue-50   border-blue-200   text-blue-800; }
-.stage-qualified { @apply bg-blue-100  border-blue-300   text-blue-900; }
-.stage-proposal  { @apply bg-indigo-50 border-indigo-200 text-indigo-800; }
-.stage-won       { @apply bg-green-50  border-green-200  text-green-800; }
-.stage-lost      { @apply bg-red-50    border-red-200    text-red-800; }
-.stage-default   { @apply bg-gray-50   border-gray-200   text-gray-800; }
-
-/* ────────────────────── Stage Header: Smaller Radius ────────────────────── */
-.stage-header {
-  @apply rounded-md; /* Reduced from lg */
-}
-
-/* ────────────────────── Card Container: NO OUTER BORDER ────────────────────── */
-.kanban-column {
-  @apply bg-transparent p-0;
-}
-
-/* ────────────────────── Card Styling (Zoho) ────────────────────── */
-.kanban-card {
-  @apply rounded-lg border border-gray-200 p-3 shadow-sm transition-all;
-}
-.kanban-card:hover {
-  @apply shadow-lg -translate-y-0.5;
-}
-.kanban-card.selected {
-  @apply ring-2 ring-[var(--color-primary)];
-}
-
-.btn-primary {
-  @apply bg-[var(--color-primary)] hover:bg-[var(--color-primary-700)] text-white;
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
 }
