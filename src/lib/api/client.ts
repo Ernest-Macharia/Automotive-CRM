@@ -53,31 +53,41 @@ export class ApiClient {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
       ...(options.headers as Record<string, string> | undefined),
     };
 
-    if (this.accessToken) {
-      headers['Authorization'] = `Bearer ${this.accessToken}`;
+    let token = this.accessToken;
+    if (!token && typeof window !== 'undefined') {
+      token = sessionStorage.getItem('accessToken');
+      if (token) {
+        this.accessToken = token;
+        console.log('🔍 Retrieved token from sessionStorage');
+      }
+    }
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     const config: RequestInit = {
       ...options,
       headers,
+      mode: 'cors',
     };
 
     try {
       const response = await fetch(url, config);
-      const responseClone = response.clone();
 
       if (!response.ok) {
         let bodyText = '';
         try {
-          bodyText = await responseClone.text();
+          bodyText = await response.text();
         } catch (e) {
           bodyText = `<unable to read response body: ${String(e)}>`;
         }
 
-        let serverMessage = `HTTP error! status: ${response.status}`;
+        let serverMessage = `HTTP ${response.status}: ${response.statusText}`;
         try {
           const parsed = JSON.parse(bodyText);
           serverMessage = parsed?.message || parsed?.error || bodyText || serverMessage;
@@ -91,21 +101,18 @@ export class ApiClient {
         throw err;
       }
 
-      // Success: parse JSON if available, otherwise return text
       const contentType = response.headers.get('content-type') ?? '';
       if (contentType.includes('application/json')) {
-        return (await response.json()) as TResponse;
+        const data = await response.json();
+        return data as TResponse;
       }
+      
       return (await response.text()) as unknown as TResponse;
+      
     } catch (error: unknown) {
       if (error instanceof Error) {
-        if (error.name === 'TypeError' && error.message.includes('fetch')) {
-          throw new Error('Network error. Please check your internet connection and ensure the server is reachable.');
-        }
         throw error;
       }
-
-      console.error('Unknown error in ApiClient.request:', error);
       throw new Error('An unexpected error occurred');
     }
   }

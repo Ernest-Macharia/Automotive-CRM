@@ -27,7 +27,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
         const user = authService.getUser();
         
         if (!user) {
-            router.push('/auth/login');
+          router.push('/auth/login');
         } else {
           if (requiredRole && !requiredRole.includes(user.role)) {
             router.push('/unauthorized');

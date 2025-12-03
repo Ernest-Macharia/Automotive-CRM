@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Building, Search, Filter, Plus, MoreVertical, User } from 'lucide-react';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 
-function ClientsContent() {
+function CustomersContent() {
   const [searchQuery, setSearchQuery] = useState('');
   
   const clients = [
@@ -18,12 +18,12 @@ function ClientsContent() {
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex-1">
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Clients</h1>
-          <p className="text-gray-500 text-sm mt-1">Manage your client relationships</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Customers</h1>
+          <p className="text-gray-500 text-sm mt-1">Manage your customer relationships</p>
         </div>
         <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 text-sm font-medium shadow-sm transition-all">
           <Plus className="h-4 w-4" />
-          Add New Client
+          Add New Customer
         </button>
       </div>
 
@@ -33,7 +33,7 @@ function ClientsContent() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search clients..."
+              placeholder="Search customers..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 pr-4 py-2 rounded-xl border border-gray-200 bg-gray-50 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
@@ -52,7 +52,7 @@ function ClientsContent() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Client
+                  Customer
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Contact
@@ -115,7 +115,7 @@ function ClientsContent() {
 export default function ClientsPage() {
   return (
     <ProtectedRoute>
-      <ClientsContent />
+      <CustomersContent />
     </ProtectedRoute>
   );
 }

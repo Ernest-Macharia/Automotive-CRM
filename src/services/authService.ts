@@ -1,8 +1,5 @@
-// services/authService.ts
 import { apiClient } from '@/lib/api/client';
-import { LoginData, AuthResponse, User } from './types/auth';
 
-// Error classes moved from separate declarations
 export class AuthenticationError extends Error {
   constructor(message: string) {
     super(message);
@@ -24,15 +21,53 @@ export class ValidationError extends Error {
   }
 }
 
-interface LoginApiResponse {
-  access_token: string;
-  refresh_token: string;
-  user: User;
-  expires_in: number;
+export interface BackendUser {
+  sub: string;
+  email: string;
+  role: 'admin' | 'manager' | 'user' | 'superadmin';
+  permissions: string[];
+  requiresPasswordChange: boolean;
+}
+
+export interface FrontendUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName?: string;
+  role: 'admin' | 'manager' | 'user' | 'superadmin';
+  avatar?: string;
+  companyId?: string;
+  isActive: boolean;
+  lastLogin?: string;
+  createdAt: string;
+  updatedAt: string;
+  permissions?: string[];
+  requiresPasswordChange?: boolean;
+}
+
+export interface LoginData {
+  email: string;
+  password: string;
+  rememberMe?: boolean;
+}
+
+export interface LoginApiResponse {
+  message: string;
+  accessToken: string;
+  refreshToken: string;
+  user: BackendUser;
+  requiresPasswordChange: boolean;
+}
+
+export interface AuthResponse {
+  token: string;
+  refreshToken?: string;
+  user: FrontendUser;
+  expiresIn: number;
 }
 
 interface MeApiResponse {
-  user: User;
+  user: FrontendUser;
 }
 
 class AuthService {
@@ -59,19 +94,71 @@ class AuthService {
     }
   }
 
-  // Store tokens and user data
-  private storeAuthData(accessToken: string, refreshToken: string, user: User): void {
+  private storeAuthData(accessToken: string, refreshToken: string, user: FrontendUser): void {
     // Only store on client side
     if (typeof window === 'undefined') return;
     
     try {
+      console.log('🔍 Storing tokens and user...');
+      
+      // Store with consistent keys
       sessionStorage.setItem(this.TOKEN_KEY, accessToken);
       sessionStorage.setItem(this.REFRESH_TOKEN_KEY, refreshToken);
       sessionStorage.setItem(this.USER_KEY, JSON.stringify(user));
-
+      
+      // Update apiClient
       apiClient.setTokens(accessToken, refreshToken);
+      
     } catch (error) {
       console.error('Error storing auth data:', error);
+    }
+  }
+
+  async validateCurrentUser(): Promise<boolean> {
+    try {
+      const token = this.getToken();
+      if (!token) {
+        return false;
+      }
+
+      const user = this.getUser();
+      if (!user) {
+        return false;
+      }
+
+      try {
+        const response = await apiClient.get<{ valid: boolean; user?: any }>('/auth/validate');
+        return response.valid;
+      } catch (error) {
+        return this.isTokenValid(token);
+      }
+      
+    } catch (error) {
+      console.error('Error validating user:', error);
+      return false;
+    }
+  }
+
+  private isTokenValid(token: string): boolean {
+    try {
+      const parts = token.split('.');
+      return parts.length === 3;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async refreshUserData(): Promise<FrontendUser | null> {
+    try {
+      const response = await apiClient.get<MeApiResponse>('/auth/me');
+      if (response.user) {
+        sessionStorage.setItem(this.USER_KEY, JSON.stringify(response.user));
+        return response.user;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error refreshing user data:', error);
+      return null;
     }
   }
 
@@ -91,7 +178,7 @@ class AuthService {
     return null;
   }
 
-  getUser(): User | null {
+  getUser(): FrontendUser | null {
     if (typeof window !== 'undefined') {
       const userStr = sessionStorage.getItem(this.USER_KEY);
       return userStr ? JSON.parse(userStr) : null;
@@ -109,14 +196,31 @@ class AuthService {
       this.validateLoginData(data);
       
       const response = await apiClient.post<LoginData, LoginApiResponse>('/auth/login', data);
+
       
-      this.storeAuthData(response.access_token, response.refresh_token, response.user);
+      if (!response.accessToken) {
+        throw new Error('No access token received from server');
+      }
+      
+      const frontendUser: FrontendUser = {
+        id: response.user.sub,
+        email: response.user.email,
+        firstName: response.user.email.split('@')[0], // Use email prefix as first name
+        role: response.user.role,
+        permissions: response.user.permissions,
+        requiresPasswordChange: response.user.requiresPasswordChange,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      
+      this.storeAuthData(response.accessToken, response.refreshToken, frontendUser);
       
       return {
-        token: response.access_token,
-        refreshToken: response.refresh_token,
-        user: response.user,
-        expiresIn: response.expires_in
+        token: response.accessToken,
+        refreshToken: response.refreshToken,
+        user: frontendUser,
+        expiresIn: 86400, // Default 24 hours since expires_in not provided
       };
       
     } catch (error: any) {
@@ -124,8 +228,8 @@ class AuthService {
         throw error;
       } else if (error.status === 401) {
         throw new AuthenticationError('Invalid email or password');
-      } else if (error.message?.includes('Network') || error.message?.includes('CORS')) {
-        throw new NetworkError('Cannot connect to server. Check internet connection and CORS settings.');
+      } else if (error.message?.includes('Network') || error.message?.includes('CORS') || error.message?.includes('fetch')) {
+        throw new NetworkError('Cannot connect to server. Please check: 1) Server is running, 2) CORS is enabled, 3) Network connection');
       } else {
         throw new Error(error.message || 'Login failed. Please try again.');
       }
@@ -161,4 +265,4 @@ class AuthService {
 export const authService = new AuthService();
 
 // Initialize with mock mode
-authService.setMockMode(true);
+authService.setMockMode(false);

@@ -1,8 +1,16 @@
-export interface User {
+export interface BackendUser {
+  sub: string;
+  email: string;
+  role: 'admin' | 'manager' | 'user' | 'superadmin';
+  permissions: string[];
+  requiresPasswordChange: boolean;
+}
+
+export interface FrontendUser {
   id: string;
   email: string;
   firstName: string;
-  lastName: string;
+  lastName?: string;
   role: 'admin' | 'manager' | 'user' | 'superadmin';
   avatar?: string;
   companyId?: string;
@@ -10,6 +18,8 @@ export interface User {
   lastLogin?: string;
   createdAt: string;
   updatedAt: string;
+  permissions?: string[];
+  requiresPasswordChange?: boolean;
 }
 
 export interface LoginData {
@@ -18,9 +28,17 @@ export interface LoginData {
   rememberMe?: boolean;
 }
 
+export interface LoginApiResponse {
+  message: string;
+  accessToken: string;
+  refreshToken: string;
+  user: BackendUser;
+  requiresPasswordChange: boolean;
+}
+
 export interface AuthResponse {
   token: string;
   refreshToken?: string;
-  user: User;
+  user: FrontendUser;
   expiresIn: number;
 }

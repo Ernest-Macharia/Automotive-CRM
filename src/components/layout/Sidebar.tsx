@@ -42,7 +42,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const navItems = [
     { href: '/dashboard',      label: 'Dashboard',     icon: LayoutDashboard },
     { href: '/opportunities',  label: 'Opportunities', icon: Users },
-    { href: '/clients',        label: 'Clients',       icon: Building },
+    { href: '/clients',        label: 'Customers',       icon: Building },
     { href: '/quotes',         label: 'Quotes',        icon: FileText },
     { href: '/invoices',       label: 'Invoices',      icon: Receipt },
     { href: '/payments',       label: 'Payments',      icon: Wallet },
