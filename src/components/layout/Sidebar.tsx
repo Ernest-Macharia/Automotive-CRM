@@ -5,8 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Users, Building, FileText, Receipt, Wallet,
-  Truck, ClipboardList, MessageSquare, FileCheck, Handshake,
-  Settings, LogOut, X, Bell, Shield, Menu, ChevronRight
+  Truck, ClipboardList, MessageSquare, Settings, LogOut, X, Menu, ChevronRight
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -57,33 +56,34 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     <>
       <button
         onClick={() => setSidebarOpen(true)}
-        className="lg:hidden fixed bottom-6 left-6 z-50 w-12 h-12 bg-mag-orange text-white rounded-full shadow-lg flex items-center justify-center hover:bg-mag-amber transition-all duration-200"
+        className="lg:hidden fixed bottom-6 left-6 z-50 w-12 h-12 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-full shadow-lg flex items-center justify-center hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-md"
       >
-        <Menu className="w-6 h-6" />
+        <Menu className="w-5 h-5" />
       </button>
-      <aside className="h-screen w-64 flex flex-col bg-mag-charcoal border-r border-mag-border">
-        <div className="flex-shrink-0 flex items-center justify-between h-16 px-4" style={{ borderBottom: '1px solid #2A2A2A' }}>
+      
+      <aside className="h-screen w-64 flex flex-col bg-white border-r border-gray-200 shadow-sm">
+        <div className="flex-shrink-0 flex items-center justify-between h-16 px-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-mag-orange rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-sm">
               <span className="text-white font-bold text-sm">M</span>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">MAG CRM</h1>
-              <p className="text-xs text-mag-lightgray">v1.0.0</p>
+              <h1 className="text-lg font-bold text-gray-800">MAG CRM</h1>
+              <p className="text-xs text-gray-500">v1.0.0</p>
             </div>
           </div>
           <button 
             onClick={closeMobile} 
-            className="lg:hidden p-1.5 rounded-lg text-mag-lightgray hover:text-white hover:bg-mag-border transition-colors"
+            className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto py-4 px-2">
             <div className="mb-4 px-3">
-              <h3 className="text-xs font-semibold text-mag-lightgray uppercase tracking-wider mb-2">Navigation</h3>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Navigation</h3>
             </div>
             <ul className="space-y-1">
               {navItems.map((item) => {
@@ -100,17 +100,17 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                       className={`
                         group flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
                         ${active 
-                          ? 'bg-mag-orange text-white shadow-md' 
-                          : 'text-mag-lightgray hover:bg-mag-border hover:text-white'
+                          ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 border border-blue-200 shadow-sm' 
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800 hover:border hover:border-gray-200'
                         }
                       `}
                     >
                       <div className="flex items-center gap-3">
-                        <Icon className="w-5 h-5 flex-shrink-0" />
+                        <Icon className={`w-4 h-4 flex-shrink-0 ${active ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-600'}`} />
                         <span>{item.label}</span>
                       </div>
-                      <ChevronRight className={`w-4 h-4 flex-shrink-0 transition-transform ${
-                        active ? 'translate-x-0 opacity-100' : '-translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-60'
+                      <ChevronRight className={`w-3 h-3 flex-shrink-0 transition-transform ${
+                        active ? 'translate-x-0 opacity-100 text-blue-500' : '-translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-60 text-gray-400'
                       }`} />
                     </Link>
                   </li>
@@ -119,21 +119,21 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
             </ul>
           </div>
 
-          <div className="flex-shrink-0 p-4 border-t border-mag-border bg-mag-charcoal">
+          <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-gray-50/50">
             {user && (
               <>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-mag-orange rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0 shadow-sm">
                     {user.name?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || 'U'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{user.name || user.email?.split('@')[0] || 'User'}</p>
-                    <p className="text-xs text-mag-lightgray truncate">{user.email || '—'}</p>
+                    <p className="text-sm font-medium text-gray-800 truncate">{user.name || user.email?.split('@')[0] || 'User'}</p>
+                    <p className="text-xs text-gray-500 truncate">{user.email || '—'}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
                         user.role === 'admin' 
-                          ? 'bg-mag-alert/20 text-mag-alert' 
-                          : 'bg-mag-orange/20 text-mag-orange'
+                          ? 'bg-red-100 text-red-600' 
+                          : 'bg-blue-100 text-blue-600'
                       }`}>
                         {user.role === 'admin' ? 'Admin' : user.role || 'User'}
                       </span>
@@ -143,7 +143,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
 
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-mag-lightgray hover:bg-mag-border hover:text-white transition-colors duration-200 border border-mag-border hover:border-mag-orange"
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-white hover:text-gray-800 transition-colors duration-200 border border-gray-200 hover:border-gray-300 hover:shadow-sm"
                 >
                   <LogOut className="w-4 h-4" />
                   <span>Logout</span>

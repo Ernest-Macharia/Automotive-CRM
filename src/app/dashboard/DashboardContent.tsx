@@ -1,29 +1,31 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-  Car,
-  Users,
-  Calendar,
-  DollarSign,
-  Search,
-  Bell,
-  ChevronDown,
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import { authService } from '@/services/authService';
+import {
   TrendingUp,
   TrendingDown,
-  FileText,
-  MessageSquare,
-  Plus,
-  AlertCircle,
+  Users,
+  Car,
+  Calendar,
+  DollarSign,
   ArrowUpRight,
   ArrowDownRight,
-  Eye,
+  Search,
+  Bell,
+  Plus,
+  Filter,
   Download,
-  Filter
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Target,
+  BarChart3,
+  PieChart,
 } from 'lucide-react';
-import { authService } from '@/services/authService';
 
-export default function DashboardContent() {
+function DashboardContent() {
   const [user, setUser] = useState(authService.getUser());
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -34,367 +36,339 @@ export default function DashboardContent() {
     }
   }, []);
 
-  const stats = [
-    { 
-      label: 'Total Vehicles', 
-      value: '1,248', 
-      icon: Car, 
-      change: '+12%', 
+  const kpiCards = [
+    {
+      title: 'Total Vehicles',
+      value: '1,248',
+      change: '+12%',
       trend: 'up',
-      description: 'Active in system'
+      icon: Car,
+      color: 'from-blue-400 to-blue-500',
+      bgColor: 'bg-blue-50',
     },
-    { 
-      label: 'Active Customers', 
-      value: '845', 
-      icon: Users, 
-      change: '+8%', 
+    {
+      title: 'Active Customers',
+      value: '845',
+      change: '+8%',
       trend: 'up',
-      description: 'Last 30 days'
+      icon: Users,
+      color: 'from-purple-400 to-purple-500',
+      bgColor: 'bg-purple-50',
     },
-    { 
-      label: 'Appointments Today', 
-      value: '24', 
-      icon: Calendar, 
-      change: '-3%', 
+    {
+      title: 'Today\'s Appointments',
+      value: '24',
+      change: '-3%',
       trend: 'down',
-      description: 'Scheduled'
+      icon: Calendar,
+      color: 'from-amber-400 to-amber-500',
+      bgColor: 'bg-amber-50',
     },
-    { 
-      label: 'Monthly Revenue', 
-      value: 'Ksh 124,580', 
-      icon: DollarSign, 
-      change: '+23%', 
+    {
+      title: 'Monthly Revenue',
+      value: 'Ksh 124,580',
+      change: '+23%',
       trend: 'up',
-      description: 'Current month'
+      icon: DollarSign,
+      color: 'from-green-400 to-green-500',
+      bgColor: 'bg-green-50',
     },
   ];
 
-  const recentActivities = [
-    { id: 1, activity: 'New vehicle added', time: '10 min ago', user: 'John Doe', type: 'vehicle', icon: Car },
-    { id: 2, activity: 'Service appointment completed', time: '25 min ago', user: 'Jane Smith', type: 'appointment', icon: Calendar },
-    { id: 3, activity: 'Customer payment received', time: '1 hour ago', user: 'Mike Johnson', type: 'payment', icon: DollarSign },
-    { id: 4, activity: 'New lead registered', time: '2 hours ago', user: 'Sarah Williams', type: 'lead', icon: Users },
-    { id: 5, activity: 'Monthly report generated', time: '3 hours ago', user: 'System', type: 'report', icon: FileText },
+  const recentActivity = [
+    {
+      id: 1,
+      title: 'New vehicle added',
+      description: 'Toyota Mark X · KCD 890J',
+      time: '10 min ago',
+      icon: Car,
+      color: 'text-blue-500 bg-blue-100',
+    },
+    {
+      id: 2,
+      title: 'Service appointment completed',
+      description: 'Jane Smith · Subaru Forester',
+      time: '25 min ago',
+      icon: CheckCircle,
+      color: 'text-green-500 bg-green-100',
+    },
+    {
+      id: 3,
+      title: 'Customer payment received',
+      description: 'Mike Johnson · Invoice #3421',
+      time: '1 hour ago',
+      icon: DollarSign,
+      color: 'text-emerald-500 bg-emerald-100',
+    },
+    {
+      id: 4,
+      title: 'New lead created',
+      description: 'Sarah Omondi · Honda Fit',
+      time: '2 hours ago',
+      icon: Users,
+      color: 'text-purple-500 bg-purple-100',
+    },
   ];
 
   const urgentAlerts = [
-    { id: 1, message: 'Lead #2345 has not been contacted for 48 hours', priority: 'high', time: '2 hours ago' },
-    { id: 2, message: 'Quote #7890 is about to expire', priority: 'medium', time: '5 hours ago' },
-    { id: 3, message: 'Service appointment #5678 requires follow-up', priority: 'low', time: '1 day ago' },
+    {
+      id: 1,
+      title: 'Lead #2345 has not been contacted for 48 hours',
+      time: '2 hours ago',
+      priority: 'high',
+    },
+    {
+      id: 2,
+      title: 'Quote #7890 is about to expire',
+      time: '5 hours ago',
+      priority: 'medium',
+    },
+    {
+      id: 3,
+      title: 'Service appointment #5678 requires follow-up',
+      time: '1 day ago',
+      priority: 'low',
+    },
   ];
 
-  const quickStats = [
-    { label: 'Pending Invoices', value: '12', icon: FileText, color: 'rgba(230, 92, 0, 0.1)', iconColor: '#E65C00' },
-    { label: 'Today\'s Appointments', value: '8', icon: Calendar, color: 'rgba(196, 74, 0, 0.1)', iconColor: '#C44A00' },
-    { label: 'Unread Messages', value: '5', icon: MessageSquare, color: 'rgba(255, 51, 0, 0.1)', iconColor: '#FF3300' },
+  const pipelineData = [
+    { stage: 'New', leads: 3, amount: 'Ksh 100,000', color: 'bg-blue-100', progress: 'w-3/4' },
+    { stage: 'Contacted', leads: 1, amount: 'Ksh 35,000', color: 'bg-purple-100', progress: 'w-2/4' },
+    { stage: 'Qualified', leads: 1, amount: 'Ksh 30,000', color: 'bg-amber-100', progress: 'w-1/4' },
+    { stage: 'Quotation', leads: 1, amount: 'Ksh 650,000', color: 'bg-orange-100', progress: 'w-1/2' },
+    { stage: 'Won', leads: 1, amount: 'Ksh 1,200,000', color: 'bg-green-100', progress: 'w-full' },
   ];
 
   return (
-    <div className="h-full">
-      <div style={{
-        backgroundColor: '#1A1A1A',
-        borderRadius: '0.75rem',
-        border: '1px solid #2A2A2A',
-        padding: '1.5rem',
-        marginBottom: '1.5rem'
-      }}>
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-2xl lg:text-3xl font-bold" style={{ color: '#FFFFFF' }}>Dashboard</h1>
-              <span style={{
-                backgroundColor: '#E65C00',
-                color: 'white',
-                fontSize: '0.75rem',
-                fontWeight: '500',
-                padding: '0.25rem 0.625rem',
-                borderRadius: '9999px'
-              }}>Live</span>
-            </div>
-            <p style={{ color: '#CCCCCC' }}>Welcome back, <span style={{ color: '#E65C00', fontWeight: '600' }}>{user?.firstName || user?.name || 'User'}</span>! Here's what's happening today.</p>
+    <div className="space-y-6 p-4 md:p-6">
+      {/* Header */}
+      <div>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Dashboard</h1>
+            <p className="text-gray-500 text-sm mt-1">
+              Welcome back, <span className="font-semibold text-blue-600">{user?.firstName || 'Admin'}</span>! Here's what's happening today.
+            </p>
           </div>
-          <div className="flex items-center gap-3 w-full lg:w-auto">
-            <div className="relative flex-1 lg:flex-initial">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search dashboard..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  backgroundColor: '#1A1A1A',
-                  border: '1px solid #2A2A2A',
-                  color: '#CCCCCC',
-                  borderRadius: '0.5rem',
-                  padding: '0.625rem 2.5rem 0.625rem 2.5rem',
-                  width: '100%'
-                }}
-                className="focus:outline-none focus:ring-2 placeholder-gray-400"
+                className="pl-10 pr-4 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 w-full md:w-64"
               />
-              <Search className="absolute left-3 top-2.5 h-5 w-5" style={{ color: '#666666' }} />
             </div>
-            <button style={{
-              backgroundColor: '#1A1A1A',
-              border: '1px solid #2A2A2A',
-              borderRadius: '0.5rem',
-              padding: '0.625rem',
-              position: 'relative',
-              cursor: 'pointer'
-            }} className="hover:opacity-80 transition-opacity">
-              <Bell className="h-5 w-5" style={{ color: '#CCCCCC' }} />
-              <span style={{
-                position: 'absolute',
-                top: '-0.25rem',
-                right: '-0.25rem',
-                width: '1.25rem',
-                height: '1.25rem',
-                backgroundColor: '#FF3300',
-                color: 'white',
-                fontSize: '0.75rem',
-                borderRadius: '9999px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: '600'
-              }}>3</span>
+            <button className="relative p-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-colors">
+              <Bell className="h-5 w-5 text-gray-600" />
+              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white font-medium">
+                3
+              </span>
             </button>
-            <button style={{
-              backgroundColor: '#E65C00',
-              color: 'white',
-              borderRadius: '0.5rem',
-              padding: '0.625rem 1rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontWeight: '500',
-              border: 'none',
-              cursor: 'pointer'
-            }} className="hover:opacity-90 transition-opacity">
-              <Plus className="h-5 w-5" />
-              New
+            <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 text-sm font-medium shadow-sm transition-all">
+              <Plus className="h-4 w-4" />
+              New Task
             </button>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        {stats.map((stat, index) => (
-          <div key={index} style={{
-            backgroundColor: '#1A1A1A',
-            borderRadius: '0.75rem',
-            border: '1px solid #2A2A2A',
-            padding: '1.25rem'
-          }} className="hover:border-orange-500 transition-all">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div style={{
-                  padding: '0.625rem',
-                  borderRadius: '0.5rem',
-                  backgroundColor: stat.trend === 'up' ? 'rgba(230, 92, 0, 0.1)' : 'rgba(255, 51, 0, 0.1)'
-                }}>
-                  <stat.icon className="h-5 w-5" style={{ color: stat.trend === 'up' ? '#E65C00' : '#FF3300' }} />
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {kpiCards.map((card, index) => {
+          const Icon = card.icon;
+          const isUp = card.trend === 'up';
+          
+          return (
+            <div
+              key={index}
+              className={`${card.bgColor} rounded-2xl border border-gray-200 p-5 hover:shadow-md transition-shadow`}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className={`p-2.5 rounded-xl bg-gradient-to-r ${card.color} bg-opacity-10`}>
+                  <Icon className="h-5 w-5 text-gray-700" />
                 </div>
-                <div>
-                  <p className="text-sm font-medium" style={{ color: '#CCCCCC' }}>{stat.label}</p>
-                  <p className="text-xs" style={{ color: '#666666' }}>{stat.description}</p>
-                </div>
+                <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-white text-xs font-medium text-gray-600">
+                  {isUp ? (
+                    <>
+                      <ArrowUpRight className="h-3 w-3 text-green-500" />
+                      <span className="text-green-600">{card.change}</span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDownRight className="h-3 w-3 text-red-500" />
+                      <span className="text-red-600">{card.change}</span>
+                    </>
+                  )}
+                </span>
               </div>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                padding: '0.25rem 0.5rem',
-                borderRadius: '9999px',
-                fontSize: '0.75rem',
-                fontWeight: '600',
-                backgroundColor: stat.trend === 'up' ? 'rgba(230, 92, 0, 0.2)' : 'rgba(255, 51, 0, 0.2)',
-                color: stat.trend === 'up' ? '#E65C00' : '#FF3300'
-              }}>
-                {stat.trend === 'up' ? (
+              <div>
+                <p className="text-sm text-gray-500 font-medium mb-1">{card.title}</p>
+                <p className="text-2xl font-bold text-gray-800">{card.value}</p>
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-200/50">
+                <button className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                  View details
                   <ArrowUpRight className="h-3 w-3" />
-                ) : (
-                  <ArrowDownRight className="h-3 w-3" />
-                )}
-                {stat.change}
+                </button>
               </div>
             </div>
-            <div className="flex items-baseline gap-2">
-              <p className="text-2xl font-bold" style={{ color: '#FFFFFF' }}>{stat.value}</p>
-            </div>
-            <div className="mt-4 pt-4" style={{ borderTop: '1px solid #2A2A2A' }}>
-              <button className="text-sm font-medium flex items-center gap-1" style={{ color: '#E65C00' }}>
-                View details
-                <ChevronDown className="h-4 w-4 rotate-90" />
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2" style={{
-          backgroundColor: '#1A1A1A',
-          borderRadius: '0.75rem',
-          border: '1px solid #2A2A2A',
-          padding: '1.5rem'
-        }}>
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6">
             <div>
-              <h2 className="text-xl font-bold mb-1" style={{ color: '#FFFFFF' }}>Recent Activity</h2>
-              <p className="text-sm" style={{ color: '#666666' }}>Latest updates from your team</p>
+              <h2 className="text-lg font-semibold text-gray-800">Revenue & Deals</h2>
+              <p className="text-sm text-gray-500">Performance for the current month</p>
             </div>
-            <div className="flex items-center gap-3">
-              <button style={{
-                backgroundColor: '#1A1A1A',
-                color: '#CCCCCC',
-                border: '1px solid #2A2A2A',
-                borderRadius: '0.5rem',
-                padding: '0.5rem 1rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                fontWeight: '500',
-                cursor: 'pointer'
-              }} className="hover:opacity-80 transition-opacity">
-                <Filter className="h-4 w-4" />
-                Filter
+            <div className="flex items-center gap-2 mt-3 sm:mt-0">
+              <button className="px-3 py-1.5 rounded-full bg-blue-50 text-blue-600 text-sm font-medium">
+                Revenue
               </button>
-              <button className="text-sm font-semibold flex items-center gap-1" style={{ color: '#E65C00' }}>
-                View All
-                <ChevronDown className="h-4 w-4 rotate-90" />
+              <button className="px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 text-sm font-medium hover:bg-gray-200">
+                Vehicles
+              </button>
+              <button className="px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 text-sm font-medium hover:bg-gray-200">
+                Appointments
               </button>
             </div>
           </div>
+          <div className="h-64 rounded-xl bg-gradient-to-b from-gray-50 to-gray-100/50 flex items-center justify-center">
+            <div className="text-center">
+              <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-500 text-sm">Chart component goes here</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-200 p-5">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800">Lead Pipeline</h2>
+              <p className="text-sm text-gray-500">Current opportunities by stage</p>
+            </div>
+            <Target className="h-5 w-5 text-gray-400" />
+          </div>
           <div className="space-y-4">
-            {recentActivities.map((activity) => (
-              <div key={activity.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4" style={{
-                backgroundColor: '#0B0B0B',
-                borderRadius: '0.75rem',
-                border: '1px solid #2A2A2A'
-              }}>
-                <div className="flex items-center gap-4 mb-3 sm:mb-0">
-                  <div style={{
-                    padding: '0.625rem',
-                    borderRadius: '0.5rem',
-                    backgroundColor: '#1A1A1A',
-                    border: '1px solid #2A2A2A'
-                  }}>
-                    <activity.icon className="h-5 w-5" style={{ color: '#E65C00' }} />
-                  </div>
-                  <div>
-                    <p className="font-semibold" style={{ color: '#FFFFFF' }}>{activity.activity}</p>
-                    <p className="text-sm" style={{ color: '#666666' }}>by <span style={{ color: '#CCCCCC' }}>{activity.user}</span></p>
+            {pipelineData.map((item, index) => (
+              <div key={index} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">{item.stage}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-500">{item.leads} leads</span>
+                    <span className="text-sm font-medium text-gray-700">{item.amount}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-4 justify-between sm:justify-end">
-                  <span className="text-sm" style={{ color: '#666666' }}>{activity.time}</span>
-                  <button className="hover:text-orange-500 transition-colors" style={{ color: '#666666' }}>
-                    <Eye className="h-4 w-4" />
-                  </button>
+                <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                  <div className={`h-full rounded-full ${item.color} ${item.progress}`} />
                 </div>
               </div>
             ))}
           </div>
         </div>
+      </div>
 
-        <div className="space-y-6">
-          <div style={{
-            backgroundColor: '#1A1A1A',
-            borderRadius: '0.75rem',
-            border: '1px solid #2A2A2A',
-            padding: '1.5rem'
-          }}>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5" style={{ color: '#FF3300' }} />
-                <h2 className="text-xl font-bold" style={{ color: '#FFFFFF' }}>Urgent Alerts</h2>
-              </div>
-              <span style={{
-                backgroundColor: '#E65C00',
-                color: 'white',
-                fontSize: '0.75rem',
-                fontWeight: '500',
-                padding: '0.25rem 0.5rem',
-                borderRadius: '9999px'
-              }}>3 New</span>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-5">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800">Recent Activity</h2>
+              <p className="text-sm text-gray-500">Latest updates from your team</p>
             </div>
-            <div className="space-y-4">
-              {urgentAlerts.map((alert) => (
-                <div key={alert.id} style={{
-                  padding: '1rem',
-                  borderRadius: '0.75rem',
-                  backgroundColor: alert.priority === 'high' ? 'rgba(255, 51, 0, 0.1)' : 
-                                  alert.priority === 'medium' ? 'rgba(230, 92, 0, 0.1)' : 
-                                  'rgba(196, 74, 0, 0.1)',
-                  border: `1px solid ${alert.priority === 'high' ? 'rgba(255, 51, 0, 0.2)' : 
-                                  alert.priority === 'medium' ? 'rgba(230, 92, 0, 0.2)' : 
-                                  'rgba(196, 74, 0, 0.2)'}`,
-                  color: alert.priority === 'high' ? '#FF3300' : 
-                         alert.priority === 'medium' ? '#E65C00' : 
-                         '#C44A00'
-                }}>
-                  <div className="flex items-start gap-3">
-                    <div style={{
-                      width: '0.5rem',
-                      height: '0.5rem',
-                      marginTop: '0.5rem',
-                      borderRadius: '9999px',
-                      backgroundColor: alert.priority === 'high' ? '#FF3300' : 
-                                      alert.priority === 'medium' ? '#E65C00' : 
-                                      '#C44A00'
-                    }}></div>
-                    <div className="flex-1">
-                      <p className="text-sm">{alert.message}</p>
-                      <div className="flex items-center justify-between mt-3">
-                        <span className="text-xs" style={{ color: '#666666' }}>{alert.time}</span>
-                        <button className="text-xs font-semibold" style={{ color: '#E65C00' }}>
-                          Take action →
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-center gap-3">
+              <button className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-600 text-sm font-medium hover:bg-gray-100">
+                <Filter className="h-4 w-4" />
+                Filter
+              </button>
+              <button className="text-sm font-medium text-blue-600 hover:text-blue-700">
+                View all
+              </button>
             </div>
           </div>
-          <div style={{
-            backgroundColor: '#1A1A1A',
-            borderRadius: '0.75rem',
-            border: '1px solid #2A2A2A',
-            padding: '1.5rem'
-          }}>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold" style={{ color: '#FFFFFF' }}>Quick Stats</h2>
-              <button className="text-sm font-medium flex items-center gap-1" style={{ color: '#E65C00' }}>
+          <div className="space-y-4">
+            {recentActivity.map((activity) => {
+              const Icon = activity.icon;
+              return (
+                <div
+                  key={activity.id}
+                  className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors"
+                >
+                  <div className={`p-2 rounded-lg ${activity.color}`}>
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between">
+                      <h4 className="font-medium text-gray-800">{activity.title}</h4>
+                      <span className="text-xs text-gray-500">{activity.time}</span>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">{activity.description}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-200 p-5">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-orange-500" />
+              <h2 className="text-lg font-semibold text-gray-800">Urgent Alerts</h2>
+            </div>
+            <span className="px-2.5 py-1 rounded-full bg-orange-50 text-orange-600 text-xs font-medium">
+              {urgentAlerts.length} New
+            </span>
+          </div>
+          <div className="space-y-4">
+            {urgentAlerts.map((alert) => (
+              <div
+                key={alert.id}
+                className="p-4 rounded-xl border border-orange-100 bg-orange-50/50"
+              >
+                <p className="text-sm font-medium text-gray-800 mb-2">{alert.title}</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">{alert.time}</span>
+                  <button className="text-xs font-medium text-orange-600 hover:text-orange-700">
+                    Take action →
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-800">Quick Stats</h3>
+              <button className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700">
                 <Download className="h-4 w-4" />
                 Export
               </button>
             </div>
-            <div className="space-y-4">
-              {quickStats.map((stat, index) => (
-                <div key={index} className="p-4" style={{
-                  backgroundColor: '#0B0B0B',
-                  borderRadius: '0.75rem',
-                  borderLeft: '4px solid #E65C00'
-                }}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm" style={{ color: '#CCCCCC' }}>{stat.label}</p>
-                      <p className="text-2xl font-bold mt-1" style={{ color: '#FFFFFF' }}>{stat.value}</p>
-                    </div>
-                    <div style={{
-                      padding: '0.75rem',
-                      borderRadius: '0.5rem',
-                      backgroundColor: stat.color
-                    }}>
-                      <stat.icon className="h-6 w-6" style={{ color: stat.iconColor }} />
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-100">
+                <p className="text-xs text-gray-500 mb-1">Pending Invoices</p>
+                <p className="text-xl font-bold text-gray-800">12</p>
+              </div>
+              <div className="p-3 rounded-xl bg-green-50 border border-green-100">
+                <p className="text-xs text-gray-500 mb-1">Today's Appointments</p>
+                <p className="text-xl font-bold text-gray-800">8</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <ProtectedRoute>
+      <DashboardContent />
+    </ProtectedRoute>
   );
 }

@@ -15,11 +15,11 @@ export default function ClientLayout({
   const isAuthPage = pathname?.startsWith('/auth');
   
   if (isAuthPage) {
-    return <div className="min-h-screen" style={{ backgroundColor: '#0B0B0B' }}>{children}</div>;
+    return <div className="min-h-screen">{children}</div>;
   }
 
   return (
-    <div className="flex min-h-screen" style={{ backgroundColor: '#0B0B0B' }}>
+    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100/30">
       <div className={`
         fixed inset-y-0 left-0 z-40
         transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -31,12 +31,12 @@ export default function ClientLayout({
       </div>
 
       <main className={`
-        flex-1 min-h-screen
+        flex-1 min-h-screen min-w-0
         lg:ml-0
         transition-all duration-300
-        w-full
+        w-full overflow-hidden
       `}>
-        <div className="h-full p-4 lg:p-6 overflow-auto">
+        <div className="h-full overflow-auto">
           {children}
         </div>
       </main>

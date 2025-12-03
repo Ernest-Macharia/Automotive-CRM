@@ -1,160 +1,111 @@
 'use client';
 
 import { useState } from 'react';
-import { Building, Search, Filter, Plus, MoreVertical } from 'lucide-react';
+import { Building, Search, Filter, Plus, MoreVertical, User } from 'lucide-react';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 
 function ClientsContent() {
   const [searchQuery, setSearchQuery] = useState('');
   
   const clients = [
-    { id: 1, name: 'John Doe', email: 'john@example.com', phone: '+1234567890', status: 'Active' },
-    { id: 2, name: 'Jane Smith', email: 'jane@example.com', phone: '+1234567891', status: 'Active' },
-    { id: 3, name: 'Mike Johnson', email: 'mike@example.com', phone: '+1234567892', status: 'Inactive' },
-    { id: 4, name: 'Sarah Williams', email: 'sarah@example.com', phone: '+1234567893', status: 'Active' },
+    { id: 1, name: 'John Doe', email: 'john@example.com', phone: '+1234567890', status: 'Active', vehicles: 2 },
+    { id: 2, name: 'Jane Smith', email: 'jane@example.com', phone: '+1234567891', status: 'Active', vehicles: 1 },
+    { id: 3, name: 'Mike Johnson', email: 'mike@example.com', phone: '+1234567892', status: 'Inactive', vehicles: 0 },
+    { id: 4, name: 'Sarah Williams', email: 'sarah@example.com', phone: '+1234567893', status: 'Active', vehicles: 3 },
   ];
 
   return (
-    <div className="h-full flex flex-col min-h-0">
-      <div className="pb-6 flex-shrink-0">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div className="flex-1">
-            <h1 className="text-2xl md:text-3xl font-bold" style={{ color: '#FFFFFF' }}>Clients</h1>
-            <p className="mt-2" style={{ color: '#CCCCCC' }}>Manage your client relationships</p>
-          </div>
-          <button style={{
-            backgroundColor: '#E65C00',
-            color: 'white',
-            borderRadius: '0.5rem',
-            padding: '0.625rem 1rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            fontWeight: '500',
-            border: 'none',
-            cursor: 'pointer'
-          }} className="hover:opacity-90 transition-opacity">
-            <Plus className="h-5 w-5" />
-            Add New Client
-          </button>
+    <div className="space-y-6 p-4 md:p-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex-1">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Clients</h1>
+          <p className="text-gray-500 text-sm mt-1">Manage your client relationships</p>
         </div>
+        <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 text-sm font-medium shadow-sm transition-all">
+          <Plus className="h-4 w-4" />
+          Add New Client
+        </button>
       </div>
 
-      <div style={{
-        backgroundColor: '#1A1A1A',
-        borderRadius: '0.75rem',
-        border: '1px solid #2A2A2A',
-        padding: '1rem',
-        marginBottom: '1.5rem'
-      }}>
+      <div className="bg-white rounded-2xl border border-gray-200 p-4">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
               placeholder="Search clients..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                backgroundColor: '#1A1A1A',
-                border: '1px solid #2A2A2A',
-                color: '#CCCCCC',
-                borderRadius: '0.5rem',
-                padding: '0.625rem 2.5rem 0.625rem 2.5rem',
-                width: '100%'
-              }}
-              className="focus:outline-none focus:ring-2 placeholder-gray-400"
+              className="pl-10 pr-4 py-2 rounded-xl border border-gray-200 bg-gray-50 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
             />
-            <Search className="absolute left-3 top-2.5 h-5 w-5" style={{ color: '#666666' }} />
           </div>
-          <button style={{
-            backgroundColor: '#1A1A1A',
-            color: '#CCCCCC',
-            border: '1px solid #2A2A2A',
-            borderRadius: '0.5rem',
-            padding: '0.625rem 1rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            fontWeight: '500',
-            cursor: 'pointer'
-          }} className="hover:opacity-80 transition-opacity">
-            <Filter className="h-5 w-5" />
+          <button className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors">
+            <Filter className="h-4 w-4" />
             Filter
           </button>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <div style={{
-          backgroundColor: '#1A1A1A',
-          borderRadius: '0.75rem',
-          border: '1px solid #2A2A2A',
-          overflow: 'hidden',
-          height: '100%'
-        }}>
-          <div className="h-full overflow-auto">
-            <table className="min-w-full divide-y" style={{ borderColor: '#2A2A2A' }}>
-              <thead className="bg-[#1A1A1A]">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#CCCCCC', borderColor: '#2A2A2A' }}>
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#CCCCCC', borderColor: '#2A2A2A' }}>
-                    Contact
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#CCCCCC', borderColor: '#2A2A2A' }}>
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#CCCCCC', borderColor: '#2A2A2A' }}>
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y" style={{ borderColor: '#2A2A2A' }}>
-                {clients.map((client) => (
-                  <tr key={client.id} className="hover:bg-[#2A2A2A] transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="h-10 w-10 flex-shrink-0" style={{
-                          backgroundColor: 'rgba(230, 92, 0, 0.1)',
-                          borderRadius: '0.5rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}>
-                          <Building className="h-5 w-5" style={{ color: '#E65C00' }} />
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium" style={{ color: '#FFFFFF' }}>{client.name}</div>
-                          <div className="text-sm" style={{ color: '#CCCCCC' }}>{client.email}</div>
-                        </div>
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Client
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Contact
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Vehicles
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {clients.map((client) => (
+                <tr key={client.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <User className="h-5 w-5 text-blue-600" />
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm" style={{ color: '#FFFFFF' }}>{client.phone}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style={{
-                        backgroundColor: client.status === 'Active' 
-                          ? 'rgba(34, 197, 94, 0.1)' 
-                          : 'rgba(239, 68, 68, 0.1)',
-                        color: client.status === 'Active' 
-                          ? '#22C55E' 
-                          : '#EF4444'
-                      }}>
-                        {client.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button className="hover:text-[#E65C00] transition-colors" style={{ color: '#CCCCCC' }}>
-                        <MoreVertical className="h-5 w-5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      <div className="ml-4">
+                        <div className="text-sm font-medium text-gray-900">{client.name}</div>
+                        <div className="text-sm text-gray-500">{client.email}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{client.phone}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{client.vehicles}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      client.status === 'Active' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {client.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <button className="text-gray-400 hover:text-gray-600 transition-colors">
+                      <MoreVertical className="h-5 w-5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

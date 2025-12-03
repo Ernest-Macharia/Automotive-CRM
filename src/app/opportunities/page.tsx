@@ -1,397 +1,286 @@
 'use client';
 
-import { useState } from 'react';
-import { Search, Plus, Filter, Calendar, MoveRight, ChevronDown } from 'lucide-react';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import { Plus, Filter, CalendarDays, Search, MoreVertical, Phone, MessageCircle } from 'lucide-react';
+import { useState } from 'react';
+
+type StageId = 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost';
+
+type Lead = {
+  id: string;
+  customerName: string;
+  vehicle: string;
+  budget: string;
+  stage: StageId;
+  lastActivity: string;
+  source?: string;
+  tags?: string[];
+  advisor?: string;
+  avatarColor?: string;
+};
+
+const stages: { id: StageId; label: string; count: number; pastelClass: string; borderColor: string }[] = [
+  { id: 'new', label: 'New', count: 2, pastelClass: 'bg-blue-50', borderColor: 'border-blue-200' },
+  { id: 'contacted', label: 'Contacted', count: 1, pastelClass: 'bg-purple-50', borderColor: 'border-purple-200' },
+  { id: 'qualified', label: 'Qualified', count: 1, pastelClass: 'bg-amber-50', borderColor: 'border-amber-200' },
+  { id: 'quotation', label: 'Quotation', count: 1, pastelClass: 'bg-orange-50', borderColor: 'border-orange-200' },
+  { id: 'won', label: 'Won', count: 1, pastelClass: 'bg-green-50', borderColor: 'border-green-200' },
+  { id: 'lost', label: 'Lost', count: 0, pastelClass: 'bg-rose-50', borderColor: 'border-rose-200' },
+];
+
+const leads: Lead[] = [
+  {
+    id: '1',
+    customerName: 'John Mwangi',
+    vehicle: 'Toyota Mark X',
+    budget: 'Ksh 45,000',
+    stage: 'new',
+    lastActivity: '2 hours ago',
+    source: 'Facebook Lead',
+    tags: ['Sedan', 'Follow-up'],
+    avatarColor: 'bg-blue-100 text-blue-600',
+  },
+  {
+    id: '2',
+    customerName: 'Sarah Omondi',
+    vehicle: 'Honda Fit',
+    budget: 'Ksh 25,000',
+    stage: 'new',
+    lastActivity: 'Just now',
+    source: 'Website',
+    tags: ['Hatchback'],
+    avatarColor: 'bg-purple-100 text-purple-600',
+  },
+  {
+    id: '3',
+    customerName: 'David Kimani',
+    vehicle: 'Toyota Premio',
+    budget: 'Ksh 35,000',
+    stage: 'contacted',
+    lastActivity: '5 hours ago',
+    source: 'Walk-in',
+    avatarColor: 'bg-amber-100 text-amber-600',
+  },
+  {
+    id: '4',
+    customerName: 'Mercy Wanjiru',
+    vehicle: 'Subaru Forester',
+    budget: 'Ksh 30,000',
+    stage: 'qualified',
+    lastActivity: '1 day ago',
+    source: 'Referral',
+    tags: ['High Intent', 'SUV'],
+    avatarColor: 'bg-green-100 text-green-600',
+  },
+  {
+    id: '5',
+    customerName: 'Ali Hussein',
+    vehicle: 'Mazda Demio',
+    budget: 'Ksh 650,000',
+    stage: 'quotation',
+    lastActivity: '3 days ago',
+    source: 'Website',
+    tags: ['Quote #7890'],
+    avatarColor: 'bg-orange-100 text-orange-600',
+  },
+  {
+    id: '6',
+    customerName: 'Peter Otieno',
+    vehicle: 'Mitsubishi Outlander',
+    budget: 'Ksh 1,200,000',
+    stage: 'won',
+    lastActivity: '4 days ago',
+    source: 'Showroom',
+    tags: ['Paid', 'Delivered'],
+    avatarColor: 'bg-emerald-100 text-emerald-600',
+  },
+];
 
 function OpportunitiesContent() {
-  const [stages] = useState([
-    { id: 1, name: "New", color: "bg-gray-700" },
-    { id: 2, name: "Contacted", color: "bg-blue-700" },
-    { id: 3, name: "Qualified", color: "bg-amber-700" },
-    { id: 4, name: "Quote Sent", color: "bg-orange-700" },
-    { id: 5, name: "Job Confirmed", color: "bg-green-700" },
-    { id: 6, name: "Closed – Won", color: "bg-emerald-800" },
-  ]);
-
-  const sampleLeads = [
-    { id: 1, name: "John Mwangi", vehicle: "Toyota Mark X", value: "Ksh 45,000", stage: "New", lastContact: "2 hours ago" },
-    { id: 2, name: "Mercy Wanjiru", vehicle: "Subaru Forester", value: "Ksh 30,000", stage: "Qualified", lastContact: "1 day ago" },
-    { id: 3, name: "Ali Yusuf", vehicle: "Mazda Axela", value: "Ksh 20,000", stage: "Quote Sent", lastContact: "3 days ago" },
-    { id: 4, name: "David Kimani", vehicle: "Toyota Premio", value: "Ksh 35,000", stage: "Contacted", lastContact: "5 hours ago" },
-    { id: 5, name: "Sarah Omondi", vehicle: "Honda Fit", value: "Ksh 25,000", stage: "New", lastContact: "Just now" },
-    { id: 6, name: "Robert Otieno", vehicle: "Nissan X-Trail", value: "Ksh 50,000", stage: "Job Confirmed", lastContact: "2 days ago" },
-    { id: 7, name: "Grace Akinyi", vehicle: "Toyota RAV4", value: "Ksh 40,000", stage: "Closed – Won", lastContact: "1 week ago" },
-    { id: 8, name: "Peter Kipchoge", vehicle: "Mitsubishi Lancer", value: "Ksh 28,000", stage: "Quote Sent", lastContact: "4 days ago" },
-  ];
-
-  const filters = [
-    "Touched Records",
-    "Untouched Records",
-    "Locked",
-    "Activities",
-    "Campaigns",
-    "Vehicle Make",
-    "Vehicle Model",
-    "Car Colour",
-    "Service Type",
-    "Lead Source",
-    "Assigned Advisor",
-    "Stage",
-    "Time Visited",
-    "Visitor Score",
-    "Average Time Spent (min)",
-    "Days Visited",
-    "Referrer",
-  ];
-
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
-
-  const toggleFilter = (filter: string) => {
-    setSelectedFilters(prev =>
-      prev.includes(filter) 
-        ? prev.filter(f => f !== filter)
-        : [...prev, filter]
-    );
-  };
-
-  // Color mapping for Tailwind classes to actual colors
-  const colorClasses = {
-    "bg-gray-700": "#374151",    // Gray 700
-    "bg-blue-700": "#1D4ED8",    // Blue 700
-    "bg-amber-700": "#B45309",   // Amber 700
-    "bg-orange-700": "#C2410C",  // Orange 700
-    "bg-green-700": "#15803D",   // Green 700
-    "bg-emerald-800": "#065F46", // Emerald 800
-  };
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Page Header */}
-      <div className="pb-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div className="flex-1">
-            <h1 className="text-2xl md:text-3xl font-bold" style={{ color: '#FFFFFF' }}>Opportunities</h1>
-            <p className="mt-2" style={{ color: '#CCCCCC' }}>Track and manage your leads through the sales pipeline</p>
-          </div>
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <div className="relative flex-1 md:flex-initial">
-              <input
-                type="text"
-                placeholder="Search opportunities..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  backgroundColor: '#1A1A1A',
-                  border: '1px solid #2A2A2A',
-                  color: '#CCCCCC',
-                  borderRadius: '0.5rem',
-                  padding: '0.625rem 2.5rem 0.625rem 2.5rem',
-                  width: '100%'
-                }}
-                className="focus:outline-none focus:ring-2 placeholder-gray-400"
-              />
-              <Search className="absolute left-3 top-2.5 h-5 w-5" style={{ color: '#666666' }} />
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100/30">
+      <div className="p-4 md:p-6">
+        <div className="mb-8">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Opportunities</h1>
+              <p className="text-gray-500 text-sm mt-1">Track and manage your leads through the sales pipeline</p>
             </div>
-            <button style={{
-              backgroundColor: '#E65C00',
-              color: 'white',
-              borderRadius: '0.5rem',
-              padding: '0.625rem 1rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontWeight: '500',
-              border: 'none',
-              cursor: 'pointer'
-            }} className="hover:opacity-90 transition-opacity">
-              <Plus className="h-5 w-5" />
-              New Opportunity
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search leads..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-4 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 w-full md:w-64"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <button className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors">
+                  <Filter className="h-4 w-4" />
+                  Filter
+                </button>
+                <button className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors">
+                  <CalendarDays className="h-4 w-4" />
+                  Today
+                </button>
+                <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 text-sm font-medium shadow-sm transition-all">
+                  <Plus className="h-4 w-4" />
+                  New Lead
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3 mt-6">
+            <div className="px-4 py-2 rounded-full bg-white border border-gray-200 text-sm text-gray-600">
+              Sort: Stage
+            </div>
+            <div className="px-4 py-2 rounded-full bg-white border border-gray-200 text-sm text-gray-600">
+              Owner: All
+            </div>
+            <div className="px-4 py-2 rounded-full bg-white border border-gray-200 text-sm text-gray-600">
+              Status: Active
+            </div>
+            <div className="px-4 py-2 rounded-full bg-white border border-gray-200 text-sm text-gray-600">
+              Source: All
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col lg:flex-row gap-6 overflow-hidden">
-        <aside className="w-full lg:w-72 flex flex-col">
-          <div style={{
-            backgroundColor: '#1A1A1A',
-            borderRadius: '0.75rem',
-            border: '1px solid #2A2A2A',
-            padding: '1rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1rem',
-            height: '100%',
-            overflow: 'hidden'
-          }}>
-            <h2 className="text-lg font-semibold" style={{ color: '#FFFFFF' }}>Lead Board</h2>
-
-            <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
-              <div className="flex items-center gap-2">
-                <button style={{
-                  backgroundColor: '#E65C00',
-                  color: 'white',
-                  borderRadius: '0.5rem',
-                  padding: '0.625rem 1rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  fontWeight: '500',
-                  border: 'none',
-                  cursor: 'pointer',
-                  flex: 1
-                }} className="hover:opacity-90 transition-opacity">
-                  <Plus size={16} /> New Lead
-                </button>
-                <button style={{
-                  backgroundColor: '#1A1A1A',
-                  color: '#CCCCCC',
-                  border: '1px solid #2A2A2A',
-                  borderRadius: '0.5rem',
-                  padding: '0.5rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer'
-                }} className="hover:opacity-80 transition-opacity">
-                  <Filter size={18} />
-                </button>
-              </div>
-
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                backgroundColor: '#0B0B0B',
-                borderRadius: '0.5rem',
-                padding: '0.5rem',
-                border: '1px solid #2A2A2A'
-              }}>
-                <Search size={16} style={{ color: '#666666' }} />
-                <input
-                  type="text"
-                  placeholder="Search leads..."
-                  style={{
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    color: '#CCCCCC',
-                    outline: 'none',
-                    fontSize: '0.875rem',
-                    width: '100%'
-                  }}
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <button style={{
-                  backgroundColor: '#1A1A1A',
-                  color: '#CCCCCC',
-                  border: '1px solid #2A2A2A',
-                  borderRadius: '0.5rem',
-                  padding: '0.5rem 0.75rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  fontSize: '0.875rem',
-                  cursor: 'pointer'
-                }} className="hover:opacity-80 transition-opacity">
-                  <span>Sort by Stage</span> <ChevronDown size={14} />
-                </button>
-                <button style={{
-                  backgroundColor: '#1A1A1A',
-                  color: '#CCCCCC',
-                  border: '1px solid #2A2A2A',
-                  borderRadius: '0.5rem',
-                  padding: '0.5rem 0.75rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  fontSize: '0.875rem',
-                  cursor: 'pointer'
-                }} className="hover:opacity-80 transition-opacity">
-                  <span>Sort by Date</span> <Calendar size={14} />
-                </button>
-              </div>
-
-              <div className="mt-4 flex-1 overflow-hidden flex flex-col">
-                <h3 className="text-sm font-semibold mb-3" style={{ color: '#E65C00' }}>Filters</h3>
-                <div className="space-y-2 flex-1 overflow-y-auto pr-2">
-                  {filters.map((filter, idx) => (
-                    <label key={idx} className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: '#CCCCCC' }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedFilters.includes(filter)}
-                        onChange={() => toggleFilter(filter)}
-                        style={{
-                          accentColor: '#E65C00',
-                          borderRadius: '0.25rem',
-                          borderColor: '#2A2A2A'
-                        }}
-                      />
-                      <span className="truncate">{filter}</span>
-                    </label>
-                  ))}
-                </div>
-                {selectedFilters.length > 0 && (
-                  <div className="mt-4 pt-4" style={{ borderTop: '1px solid #2A2A2A' }}>
-                    <div className="text-xs mb-2" style={{ color: '#666666' }}>Active filters ({selectedFilters.length}):</div>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedFilters.map(filter => (
-                        <span key={filter} style={{
-                          backgroundColor: '#0B0B0B',
-                          color: '#E65C00',
-                          border: '1px solid #2A2A2A',
-                          fontSize: '0.75rem',
-                          padding: '0.25rem 0.5rem',
-                          borderRadius: '9999px'
-                        }}>
-                          {filter}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+      <div className="px-4 md:px-6 pb-6">
+        <div className="kanban-container">
+          <div className="flex gap-4 md:gap-6 pb-4 min-w-max">
+            {stages.map((stage) => (
+              <KanbanColumn
+                key={stage.id}
+                stage={stage}
+                leads={leads.filter((l) => l.stage === stage.id)}
+              />
+            ))}
+            <div className="flex-shrink-0 w-4" />
           </div>
-        </aside>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-        <main className="flex-1 overflow-hidden">
-          <div className="flex gap-4 overflow-x-auto h-full pb-4">
-            {stages.map((stage) => {
-              const stageLeads = sampleLeads.filter((lead) => lead.stage === stage.name);
-              const stageBorderColors = {
-                "New": "#E65C00",
-                "Contacted": "#C44A00",
-                "Qualified": "#E65C00",
-                "Quote Sent": "#C44A00",
-                "Job Confirmed": "#E65C00",
-                "Closed – Won": "#C44A00"
-              };
-              
-              const borderColor = stageBorderColors[stage.name as keyof typeof stageBorderColors] || '#E65C00';
-              const backgroundColor = colorClasses[stage.color as keyof typeof colorClasses] || '#1A1A1A';
-              
-              return (
-                <div key={stage.id} className="min-w-[280px] flex flex-col">
-                  <div style={{
-                    backgroundColor: backgroundColor,
-                    border: '1px solid #2A2A2A',
-                    color: '#FFFFFF',
-                    fontWeight: '500',
-                    padding: '1rem',
-                    borderTopLeftRadius: '0.75rem',
-                    borderTopRightRadius: '0.75rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: '0.75rem',
-                    borderLeft: `4px solid ${borderColor}`
-                  }}>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{stage.name}</span>
-                      <span className="text-xs opacity-90">({stageLeads.length})</span>
-                    </div>
-                    <button style={{ color: '#CCCCCC' }} className="hover:text-white transition-colors">
-                      <Plus size={16} />
-                    </button>
-                  </div>
+function KanbanColumn({
+  stage,
+  leads,
+}: {
+  stage: (typeof stages)[number];
+  leads: Lead[];
+}) {
+  const getStageColor = (stageId: StageId) => {
+    switch (stageId) {
+      case 'new': return 'from-blue-400 to-blue-500';
+      case 'contacted': return 'from-purple-400 to-purple-500';
+      case 'qualified': return 'from-amber-400 to-amber-500';
+      case 'quotation': return 'from-orange-400 to-orange-500';
+      case 'won': return 'from-green-400 to-green-500';
+      case 'lost': return 'from-rose-400 to-rose-500';
+    }
+  };
 
-                  <div className="flex flex-col gap-3 flex-1 overflow-y-auto">
-                    {stageLeads.map((lead) => (
-                      <div 
-                        key={lead.id} 
-                        style={{
-                          backgroundColor: '#1A1A1A',
-                          borderRadius: '0.5rem',
-                          border: '1px solid #2A2A2A',
-                          padding: '1rem',
-                          cursor: 'pointer'
-                        }}
-                        className="hover:border-orange-500 transition-all"
-                      >
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h3 className="font-semibold" style={{ color: '#FFFFFF' }}>
-                              {lead.name}
-                            </h3>
-                            <p className="text-sm mt-1" style={{ color: '#CCCCCC' }}>{lead.vehicle}</p>
-                          </div>
-                          <MoveRight size={16} style={{ color: '#E65C00', opacity: 0 }} className="group-hover:opacity-100 transition-opacity" />
-                        </div>
-                        
-                        <div className="flex justify-between items-center">
-                          <span className="font-bold" style={{ color: '#E65C00' }}>{lead.value}</span>
-                          <span className="text-xs" style={{ color: '#666666' }}>{lead.lastContact}</span>
-                        </div>
-
-                        <div className="mt-3 pt-3" style={{ borderTop: '1px solid #2A2A2A' }}>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div style={{
-                                width: '1.5rem',
-                                height: '1.5rem',
-                                backgroundColor: '#0B0B0B',
-                                borderRadius: '9999px',
-                                border: '1px solid #2A2A2A'
-                              }}></div>
-                              <span className="text-xs" style={{ color: '#CCCCCC' }}>Unassigned</span>
-                            </div>
-                            <button className="text-xs" style={{ color: '#666666' }}>View details</button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    {stageLeads.length === 0 && (
-                      <div style={{
-                        backgroundColor: '#0B0B0B',
-                        borderRadius: '0.5rem',
-                        border: '2px dashed #2A2A2A',
-                        padding: '2rem',
-                        textAlign: 'center',
-                        flex: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        <div>
-                          <p className="text-sm" style={{ color: '#666666' }}>No opportunities in this stage</p>
-                          <button className="mt-2 text-sm" style={{ color: '#E65C00' }}>
-                            + Add opportunity
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </main>
+  return (
+    <div className={`flex-shrink-0 w-72 md:w-80 flex flex-col rounded-2xl ${stage.pastelClass} border ${stage.borderColor} p-4 h-[calc(100vh-280px)] min-h-[500px]`}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <div className={`h-3 w-3 rounded-full bg-gradient-to-r ${getStageColor(stage.id)}`} />
+          <h3 className="font-semibold text-gray-800">{stage.label}</h3>
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-medium text-gray-600">
+            {leads.length}
+          </span>
+        </div>
+        <button className="p-1 hover:bg-white/50 rounded-lg transition-colors">
+          <MoreVertical className="h-4 w-4 text-gray-400" />
+        </button>
       </div>
 
-      <div className="pt-6 mt-6" style={{ borderTop: '1px solid #2A2A2A' }}>
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="text-sm" style={{ color: '#CCCCCC' }}>
-            <span className="font-medium" style={{ color: '#FFFFFF' }}>{sampleLeads.length}</span> total opportunities
+      <button className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white/50 py-2.5 text-sm text-gray-500 hover:bg-white hover:border-gray-400 transition-colors">
+        <Plus className="h-4 w-4" />
+        Add Lead
+      </button>
+
+      <div className="space-y-3 flex-1 overflow-y-auto pr-1">
+        {leads.map((lead) => (
+          <LeadCard key={lead.id} lead={lead} />
+        ))}
+        {leads.length === 0 && (
+          <div className="text-center py-8">
+            <div className="text-gray-400 mb-2">No leads in this stage</div>
+            <button className="text-sm text-blue-500 hover:text-blue-600 font-medium">
+              + Add first lead
+            </button>
           </div>
-          <div className="flex items-center gap-6">
-            <div className="text-sm">
-              <span className="font-medium" style={{ color: '#E65C00' }}>Ksh 273,000</span>
-              <span className="ml-2" style={{ color: '#666666' }}>Total pipeline value</span>
-            </div>
-            <div className="text-sm">
-              <span className="font-medium" style={{ color: '#C44A00' }}>42%</span>
-              <span className="ml-2" style={{ color: '#666666' }}>Win rate</span>
-            </div>
-            <div className="text-sm">
-              <span className="font-medium" style={{ color: '#E65C00' }}>8 days</span>
-              <span className="ml-2" style={{ color: '#666666' }}>Avg. deal cycle</span>
-            </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LeadCard({ lead }: { lead: Lead }) {
+  const getStageColor = (stage: StageId) => {
+    switch (stage) {
+      case 'new': return 'bg-gradient-to-r from-blue-400 to-blue-500';
+      case 'contacted': return 'bg-gradient-to-r from-purple-400 to-purple-500';
+      case 'qualified': return 'bg-gradient-to-r from-amber-400 to-amber-500';
+      case 'quotation': return 'bg-gradient-to-r from-orange-400 to-orange-500';
+      case 'won': return 'bg-gradient-to-r from-green-400 to-green-500';
+      case 'lost': return 'bg-gradient-to-r from-rose-400 to-rose-500';
+    }
+  };
+
+  return (
+    <div className="group bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-all duration-200">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <div className={`h-8 w-8 rounded-full flex items-center justify-center ${lead.avatarColor || 'bg-gray-100 text-gray-600'}`}>
+            {lead.customerName.charAt(0)}
           </div>
+          <div>
+            <h4 className="font-semibold text-gray-800 text-sm">{lead.customerName}</h4>
+            <p className="text-gray-500 text-xs">{lead.vehicle}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className={`h-2 w-2 rounded-full ${getStageColor(lead.stage)}`} />
+          <span className="text-xs font-medium text-gray-700">{lead.budget}</span>
+        </div>
+      </div>
+      {lead.tags && lead.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-3">
+          {lead.tags.map((tag) => (
+            <span
+              key={tag}
+              className="px-2 py-1 rounded-lg bg-gray-50 text-gray-600 text-xs"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-gray-500">
+          <span className="font-medium">Last activity:</span> {lead.lastActivity}
+          {lead.source && (
+            <span className="ml-2">• Source: {lead.source}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-500 transition-colors">
+            <Phone className="h-4 w-4" />
+          </button>
+          <button className="p-1.5 hover:bg-green-50 rounded-lg text-green-500 transition-colors">
+            <MessageCircle className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </div>

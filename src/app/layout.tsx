@@ -59,11 +59,11 @@ export default function RootLayout({
   if (isLoading) {
     return (
       <html lang="en">
-        <body className={`${inter.className} min-h-screen flex items-center justify-center bg-[#0B0B0B]`}>
+        <body className={`${inter.className} min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100/30`}>
           <div className="text-center">
             <div className="loading-spinner mx-auto mb-4"></div>
-            <p className="text-[#CCCCCC] text-sm">Loading MAG CRM...</p>
-            <p className="text-[#666666] text-xs mt-1">Please wait while we load your dashboard</p>
+            <p className="text-gray-600 text-sm">Loading MAG CRM...</p>
+            <p className="text-gray-500 text-xs mt-1">Please wait while we load your dashboard</p>
           </div>
         </body>
       </html>
@@ -71,8 +71,8 @@ export default function RootLayout({
   }
 
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.className} antialiased bg-[#0B0B0B] text-[#CCCCCC] min-h-screen`}>
+    <html lang="en">
+      <body className={`${inter.className} antialiased min-h-screen`}>
         <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
