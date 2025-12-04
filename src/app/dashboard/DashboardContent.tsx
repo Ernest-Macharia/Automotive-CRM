@@ -758,7 +758,6 @@ function DashboardContent() {
                   <Users className="h-4 w-4 text-blue-500" />
                   <span className="text-sm font-medium text-gray-800">Active Leads</span>
                 </div>
-                <p className="text-2xl font-bold text-gray-800">{stats?.performance.hotLeads + stats?.performance.warmLeads || 0}</p>
                 <div className="flex items-center gap-1 mt-1">
                   <div className="flex-1 h-1.5 rounded-full bg-blue-200 overflow-hidden">
                     <div className="h-full w-3/4 rounded-full bg-blue-500" />
