@@ -10,7 +10,8 @@ import {
   Plus, Filter, CalendarDays, Search, MoreVertical, Phone, MessageCircle,
   Loader2, RefreshCw, AlertCircle, TrendingUp, TrendingDown, User, Building,
   ChevronLeft, ChevronRight, Briefcase, Car, FileText, DollarSign, Shield,
-  Users, Target, BarChart3, Globe, Heart, Zap, Sparkles
+  Users, Target, BarChart3, Globe, Heart, Zap, Sparkles,
+  Eye, Receipt, Wallet, ClipboardList
 } from 'lucide-react';
 
 type StageId = 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost';
@@ -106,7 +107,7 @@ const SkeletonCard = () => (
 );
 
 const SkeletonColumn = () => (
-  <div className="flex-shrink-0 w-72 md:w-80 flex flex-col rounded-2xl bg-gray-50 border border-gray-200 p-4 h-[calc(100vh-250px)] min-h-[500px]">
+  <div className="w-full md:w-72 lg:w-80 flex flex-col rounded-2xl bg-gray-50 border border-gray-200 p-4 h-auto md:h-[calc(100vh-250px)] min-h-[400px] md:min-h-[500px]">
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center gap-2">
         <div className="h-3 w-3 rounded-full bg-gray-300" />
@@ -135,7 +136,6 @@ const SkeletonStats = () => (
   </div>
 );
 
-// Extended Opportunity interface to include all properties used in the component
 interface ExtendedOpportunity extends Opportunity {
   invoices?: any[];
   payments?: any[];
@@ -144,7 +144,7 @@ interface ExtendedOpportunity extends Opportunity {
     tier: 'hot' | 'warm' | 'cold';
     priority: number;
     lastCalculated: string;
-    scoreChange?: number; // Make scoreChange optional
+    scoreChange?: number;
   };
 }
 
@@ -192,13 +192,11 @@ function OpportunitiesContent() {
       
       let opportunitiesData: ExtendedOpportunity[] = [];
       
-      // Handle the response based on its type
       if (Array.isArray(opportunitiesResponse)) {
         opportunitiesData = opportunitiesResponse as ExtendedOpportunity[];
       } else if (opportunitiesResponse.data && Array.isArray(opportunitiesResponse.data)) {
         opportunitiesData = opportunitiesResponse.data as ExtendedOpportunity[];
       } else if (opportunitiesResponse && typeof opportunitiesResponse === 'object') {
-        // Cast to OpportunitiesResponse and extract data
         const response = opportunitiesResponse as OpportunitiesResponse;
         opportunitiesData = response.data as ExtendedOpportunity[];
       } else {
@@ -207,8 +205,6 @@ function OpportunitiesContent() {
       
       setOpportunities(opportunitiesData);
       
-      // Handle the stats response - we need to cast it to OpportunityStatsData
-      // Since the OpportunityStats interface from service doesn't match what we're using
       const statsData = overviewResponse as unknown as OpportunityStatsData;
       setStats(statsData);
       
@@ -269,15 +265,12 @@ function OpportunitiesContent() {
       
       console.log('API Response:', result);
       
-      // Store the created opportunity and show success modal
       setCreatedOpportunity(result);
       setIsCreateModalOpen(false);
       setIsSuccessModalOpen(true);
       
-      // Show toast notification
       showToast('Opportunity created successfully!', 'success', 3000);
       
-      // Refresh the opportunities list
       setTimeout(() => {
         fetchOpportunities();
       }, 1000);
@@ -285,7 +278,6 @@ function OpportunitiesContent() {
     } catch (error: any) {
       console.error('Error creating opportunity:', error);
       
-      // Show user-friendly error message
       let errorMessage = 'Failed to create opportunity. ';
       
       if (error.message.includes('Authentication failed')) {
@@ -306,11 +298,7 @@ function OpportunitiesContent() {
 
   const handleViewOpportunityDetails = () => {
     if (createdOpportunity) {
-      // Navigate to opportunity details page
       console.log('Viewing opportunity:', createdOpportunity._id);
-      // router.push(`/opportunities/${createdOpportunity._id}`);
-      
-      // For now, show a toast
       showToast(`Redirecting to opportunity ${createdOpportunity.subject}`, 'info', 2000);
       setIsSuccessModalOpen(false);
     }
@@ -323,12 +311,8 @@ function OpportunitiesContent() {
 
   const handleAssignToTeam = () => {
     if (createdOpportunity) {
-      // Implement assign to team logic
       console.log('Assigning opportunity to team:', createdOpportunity._id);
       showToast(`Assigning opportunity to team...`, 'info', 2000);
-      
-      // You could open another modal or make an API call here
-      // For now, just close the success modal
       setIsSuccessModalOpen(false);
     }
   };
@@ -341,7 +325,7 @@ function OpportunitiesContent() {
   const handleStatusChange = async (opportunityId: string, newStatus: StageId) => {
     try {
       await opportunityService.updateOpportunity(opportunityId, { status: newStatus });
-      await fetchOpportunities(); // Refresh the list
+      await fetchOpportunities();
       showToast('Opportunity status updated', 'success', 2000);
     } catch (err) {
       console.error('Error updating opportunity status:', err);
@@ -352,7 +336,7 @@ function OpportunitiesContent() {
   const handleRecalculateScore = async (opportunityId: string) => {
     try {
       await opportunityService.recalculateLeadScore(opportunityId);
-      await fetchOpportunities(); // Refresh to get updated score
+      await fetchOpportunities();
       showToast('Lead score recalculated successfully', 'success', 2000);
     } catch (err) {
       console.error('Error recalculating score:', err);
@@ -419,7 +403,6 @@ function OpportunitiesContent() {
     };
   };
 
-  // Calculate lead score stats from opportunities
   const calculateLeadScoreStats = () => {
     if (!opportunities.length) return { hot: 0, warm: 0, cold: 0 };
     
@@ -434,7 +417,6 @@ function OpportunitiesContent() {
     return { hot, warm, cold };
   };
 
-  // Check if kanban needs horizontal scroll
   useEffect(() => {
     const checkScroll = () => {
       if (kanbanRef.current) {
@@ -473,17 +455,14 @@ function OpportunitiesContent() {
     ? stats?.bySource || []
     : (stats?.bySource || []).slice(0, 3);
 
-  // Loading skeleton for initial load
   if (loading && !opportunities.length) {
     return (
       <div className="min-h-screen p-4 md:p-6 space-y-6">
-        {/* Header Skeleton */}
         <div className="animate-pulse">
           <div className="h-8 w-48 bg-gray-200 rounded mb-2" />
           <div className="h-4 w-64 bg-gray-200 rounded" />
         </div>
 
-        {/* Search and Actions Skeleton */}
         <div className="flex flex-col md:flex-row gap-4 animate-pulse">
           <div className="h-10 w-full md:w-96 bg-gray-200 rounded-xl" />
           <div className="flex gap-3">
@@ -493,13 +472,11 @@ function OpportunitiesContent() {
           </div>
         </div>
 
-        {/* Stats Skeleton */}
         <SkeletonStats />
 
-        {/* Kanban Skeleton */}
         <div className="pb-6 relative">
           <div className="kanban-container">
-            <div className="flex gap-4 md:gap-6 pb-4 min-w-max">
+            <div className="flex flex-col md:flex-row gap-4 md:gap-6 pb-4">
               {[1, 2, 3, 4, 5, 6].map((i) => (
                 <SkeletonColumn key={i} />
               ))}
@@ -512,11 +489,10 @@ function OpportunitiesContent() {
 
   return (
     <div className="space-y-6 p-4 md:p-6">
-      {/* Header */}
       <div>
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Opportunities</h1>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800">Opportunities</h1>
             <div className="flex items-center gap-2 mt-1">
               <p className="text-gray-500 text-sm">
                 {statsLoading ? (
@@ -539,22 +515,25 @@ function OpportunitiesContent() {
               )}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative">
-              <form onSubmit={handleSearch} className="flex gap-2">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search opportunities..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 w-full md:w-64"
-                  disabled={loading || creating}
-                />
+          
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="relative w-full sm:w-auto">
+              <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search opportunities..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 pr-4 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 w-full"
+                    disabled={loading || creating}
+                  />
+                </div>
                 <button
                   type="submit"
                   disabled={loading || creating}
-                  className={`px-3 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-1 ${
+                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-1 ${
                     loading || creating
                       ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
@@ -571,11 +550,12 @@ function OpportunitiesContent() {
                 </button>
               </form>
             </div>
+            
             <div className="flex items-center gap-2">
               <button 
                 onClick={() => fetchOpportunities(true)}
                 disabled={refreshing || loading || creating}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-colors ${
+                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-colors flex-1 sm:flex-none ${
                   refreshing || loading || creating
                     ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
                     : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
@@ -584,37 +564,36 @@ function OpportunitiesContent() {
                 {refreshing ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Refreshing...
+                    <span className="hidden sm:inline">Refreshing...</span>
                   </>
                 ) : (
                   <>
                     <RefreshCw className="h-4 w-4" />
-                    Refresh
+                    <span className="hidden sm:inline">Refresh</span>
                   </>
                 )}
               </button>
               <button 
-                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors"
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors flex-1 sm:flex-none"
                 disabled={loading || creating}
               >
                 <Filter className="h-4 w-4" />
-                Filter
+                <span className="hidden sm:inline">Filter</span>
               </button>
-              {/* New Opportunity Button */}
               <button 
                 onClick={() => setIsCreateModalOpen(true)}
                 disabled={loading || creating}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 text-sm font-medium shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 text-sm font-medium shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-none"
               >
                 {creating ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Creating...
+                    <span className="hidden sm:inline">Creating...</span>
                   </>
                 ) : (
                   <>
                     <Plus className="h-4 w-4" />
-                    New Opportunity
+                    <span className="hidden sm:inline">New Opportunity</span>
                   </>
                 )}
               </button>
@@ -622,7 +601,6 @@ function OpportunitiesContent() {
           </div>
         </div>
 
-        {/* Error Alert */}
         {error && (
           <div className="mt-4 p-4 rounded-xl bg-red-50 border border-red-200 flex items-start gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
             <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
@@ -647,60 +625,55 @@ function OpportunitiesContent() {
           </div>
         )}
 
-        {/* Stats & Filters with loading states */}
-        <div className="flex flex-wrap items-center gap-3 mt-6">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-4 sm:mt-6">
           {statsLoading ? (
             <SkeletonStats />
           ) : stats ? (
             <>
-              {/* Total Stats */}
-              <div className="px-4 py-2 rounded-full bg-white border border-gray-200 text-sm text-gray-600 transition-all hover:scale-105">
-                <div className="flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4" />
-                  Total: {stats.totalopportunities}
+              <div className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-white border border-gray-200 text-xs sm:text-sm text-gray-600 transition-all hover:scale-105">
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span>Total: {stats.totalopportunities}</span>
                 </div>
               </div>
               
-              {/* Open/Closed Stats */}
-              <div className="px-4 py-2 rounded-full bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-medium shadow-sm">
-                <div className="flex items-center gap-2">
-                  <Target className="h-4 w-4" />
-                  Closed: {stats.closedopportunities}
+              <div className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-green-500 to-green-600 text-white text-xs sm:text-sm font-medium shadow-sm">
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <Target className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span>Closed: {stats.closedopportunities}</span>
                 </div>
               </div>
               
-              <div className="px-4 py-2 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-medium shadow-sm">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4" />
-                  Open: {stats.openopportunities}
+              <div className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs sm:text-sm font-medium shadow-sm">
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <Zap className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span>Open: {stats.openopportunities}</span>
                 </div>
               </div>
               
-              {/* Lead Score Stats */}
               {leadScoreStats.hot > 0 && (
-                <div className="px-4 py-2 rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-medium shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <Heart className="h-4 w-4" />
-                    Hot Leads: {leadScoreStats.hot}
+                <div className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white text-xs sm:text-sm font-medium shadow-sm">
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    <Heart className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span>Hot Leads: {leadScoreStats.hot}</span>
                   </div>
                 </div>
               )}
               
               {leadScoreStats.warm > 0 && (
-                <div className="px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 text-white text-sm font-medium shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <Target className="h-4 w-4" />
-                    Warm Leads: {leadScoreStats.warm}
+                <div className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 text-white text-xs sm:text-sm font-medium shadow-sm">
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    <Target className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span>Warm Leads: {leadScoreStats.warm}</span>
                   </div>
                 </div>
               )}
               
-              {/* Status Filter */}
               <select 
                 value={filter.status || ''}
                 onChange={(e) => setFilter(prev => ({ ...prev, status: e.target.value || undefined }))}
                 disabled={loading || creating}
-                className="px-4 py-2 rounded-full bg-white border border-gray-200 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all hover:border-blue-300 disabled:opacity-50"
+                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-white border border-gray-200 text-xs sm:text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all hover:border-blue-300 disabled:opacity-50"
               >
                 <option value="">All Status</option>
                 {stages.map(stage => (
@@ -708,12 +681,11 @@ function OpportunitiesContent() {
                 ))}
               </select>
               
-              {/* Type Filter */}
               <select 
                 value={filter.type || ''}
                 onChange={(e) => setFilter(prev => ({ ...prev, type: e.target.value || undefined }))}
                 disabled={loading || creating}
-                className="px-4 py-2 rounded-full bg-white border border-gray-200 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all hover:border-blue-300 disabled:opacity-50"
+                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-white border border-gray-200 text-xs sm:text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all hover:border-blue-300 disabled:opacity-50"
               >
                 <option value="">All Types</option>
                 {stats.byType.map(type => (
@@ -723,12 +695,11 @@ function OpportunitiesContent() {
                 ))}
               </select>
               
-              {/* Source Filter */}
               <select 
                 value={filter.source || ''}
                 onChange={(e) => setFilter(prev => ({ ...prev, source: e.target.value || undefined }))}
                 disabled={loading || creating}
-                className="px-4 py-2 rounded-full bg-white border border-gray-200 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all hover:border-blue-300 disabled:opacity-50"
+                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-white border border-gray-200 text-xs sm:text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all hover:border-blue-300 disabled:opacity-50"
               >
                 <option value="">All Sources</option>
                 {stats.bySource.map(source => (
@@ -741,7 +712,6 @@ function OpportunitiesContent() {
           ) : null}
         </div>
 
-        {/* Sources Breakdown */}
         {stats && stats.bySource && stats.bySource.length > 0 && (
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
@@ -771,30 +741,47 @@ function OpportunitiesContent() {
           </div>
         )}
       </div>
-
-      {/* Kanban Board with scroll controls */}
       <div className="pb-6 relative">
-        {/* Scroll Buttons */}
+        {showScrollButtons && (
+          <div className="md:hidden flex justify-center gap-2 mb-4">
+            <button
+              onClick={() => scrollKanban('left')}
+              disabled={scrolling || loading || creating}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-50 transition-all"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span>Previous</span>
+            </button>
+            <button
+              onClick={() => scrollKanban('right')}
+              disabled={scrolling || loading || creating}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-50 transition-all"
+            >
+              <span>Next</span>
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         {showScrollButtons && (
           <>
             <button
               onClick={() => scrollKanban('left')}
               disabled={scrolling || loading || creating}
-              className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-2 z-10 h-10 w-10 bg-white border border-gray-200 rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 transition-all"
+              className="hidden md:block absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-2 z-10 h-10 w-10 bg-white border border-gray-200 rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 transition-all"
             >
               <ChevronLeft className="h-5 w-5 text-gray-600" />
             </button>
             <button
               onClick={() => scrollKanban('right')}
               disabled={scrolling || loading || creating}
-              className="absolute right-0 top-1/2 transform -translate-y-1/2 translate-x-2 z-10 h-10 w-10 bg-white border border-gray-200 rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 transition-all"
+              className="hidden md:block absolute right-0 top-1/2 transform -translate-y-1/2 translate-x-2 z-10 h-10 w-10 bg-white border border-gray-200 rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 transition-all"
             >
               <ChevronRight className="h-5 w-5 text-gray-600" />
             </button>
           </>
         )}
 
-        {/* Loading overlay */}
         {loading && opportunities.length > 0 && (
           <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-20 flex items-center justify-center rounded-2xl">
             <div className="text-center">
@@ -804,7 +791,6 @@ function OpportunitiesContent() {
           </div>
         )}
 
-        {/* Drag & Drop overlay */}
         {isDragging && (
           <div className="absolute inset-0 border-4 border-dashed border-blue-400 bg-blue-50/20 z-10 rounded-2xl flex items-center justify-center pointer-events-none">
             <div className="bg-white px-6 py-4 rounded-xl shadow-lg border border-blue-200">
@@ -818,43 +804,42 @@ function OpportunitiesContent() {
 
         <div 
           ref={kanbanRef}
-          className="kanban-container overflow-x-auto scrollbar-hide scroll-smooth"
+          className="kanban-container overflow-x-auto scrollbar-hide scroll-smooth pb-4"
           onScroll={() => setScrolling(true)}
         >
-          <div className="flex gap-4 md:gap-6 pb-4 min-w-max">
+          <div className="flex flex-col md:flex-row gap-4 md:gap-6 pb-4 min-w-max">
             {stages.map((stage) => {
               const stageOpportunities = opportunities.filter(opp => opp.status === stage.id);
               
               return (
-                <KanbanColumn
-                  key={stage.id}
-                  stage={stage}
-                  opportunities={stageOpportunities}
-                  onStatusChange={handleStatusChange}
-                  onRecalculateScore={handleRecalculateScore}
-                  getAvatarColor={getAvatarColor}
-                  getLeadScoreTier={getLeadScoreTier}
-                  getStageColor={getStageColor}
-                  formatDate={formatDate}
-                  getChildCounts={getChildCounts}
-                  loading={loading || creating}
-                  setIsDragging={setIsDragging}
-                />
+                <div key={stage.id} className="w-full md:w-72 lg:w-80 flex-shrink-0">
+                  <KanbanColumn
+                    stage={stage}
+                    opportunities={stageOpportunities}
+                    onStatusChange={handleStatusChange}
+                    onRecalculateScore={handleRecalculateScore}
+                    getAvatarColor={getAvatarColor}
+                    getLeadScoreTier={getLeadScoreTier}
+                    getStageColor={getStageColor}
+                    formatDate={formatDate}
+                    getChildCounts={getChildCounts}
+                    loading={loading || creating}
+                    setIsDragging={setIsDragging}
+                  />
+                </div>
               );
             })}
-            <div className="flex-shrink-0 w-4" />
           </div>
         </div>
       </div>
 
-      {/* Create Opportunity Modal */}
+      {/* Modals remain unchanged */}
       <CreateOpportunityModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSubmit={handleCreateOpportunity}
       />
 
-      {/* Success Modal */}
       <SuccessModal
         isOpen={isSuccessModalOpen}
         onClose={() => setIsSuccessModalOpen(false)}
@@ -911,7 +896,6 @@ function KanbanColumn({
     
     const opportunityId = e.dataTransfer.getData('opportunityId');
     if (opportunityId) {
-      // Show loading state on the dropped card
       const card = e.currentTarget.querySelector(`[data-id="${opportunityId}"]`);
       if (card) {
         card.classList.add('opacity-50');
@@ -936,16 +920,15 @@ function KanbanColumn({
 
   return (
     <div 
-      className={`flex-shrink-0 w-72 md:w-80 flex flex-col rounded-2xl transition-all duration-300 ${
+      className={`flex flex-col rounded-2xl transition-all duration-300 ${
         dropping 
           ? `${stage.pastelClass} border-2 ${stage.borderColor} scale-[1.02] shadow-lg` 
           : `${stage.pastelClass} border ${stage.borderColor}`
-      } p-4 h-[calc(100vh-250px)] min-h-[500px]`}
+      } p-4 h-auto md:h-[calc(100vh-250px)] min-h-[400px] md:min-h-[500px]`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Column Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className={`h-3 w-3 rounded-full ${getStageColor(stage.id)}`} />
@@ -963,20 +946,17 @@ function KanbanColumn({
         </button>
       </div>
 
-      {/* Add Opportunity Button - Disabled since we have the main button */}
       <button 
         className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white/50 py-2.5 text-sm text-gray-500 hover:bg-white hover:border-gray-400 transition-all duration-200 disabled:opacity-50 cursor-not-allowed"
         disabled={true}
         title="Use the main 'New Opportunity' button above"
       >
         <Plus className="h-4 w-4" />
-        Add Opportunity
+        <span className="hidden sm:inline">Add Opportunity</span>
       </button>
 
-      {/* Opportunities List */}
       <div className="space-y-3 flex-1 overflow-y-auto pr-1">
         {loading && opportunities.length === 0 ? (
-          // Show skeleton cards when loading empty column
           [1, 2].map((i) => (
             <div key={i} className="opacity-70">
               <SkeletonCard />
@@ -1054,37 +1034,39 @@ function OpportunityCard({
       onDragStart={handleDragStart}
       onDragEnd={onDragEnd}
     >
-      {/* Opportunity Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <div className={`h-8 w-8 rounded-full flex items-center justify-center ${getAvatarColor(opportunity.type, opportunity.leadScore?.totalScore)} transition-colors`}>
+      {/* Opportunity Header - Improved spacing */}
+      <div className="flex items-start justify-between mb-3 gap-2">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${getAvatarColor(opportunity.type, opportunity.leadScore?.totalScore)} transition-colors`}>
             {opportunity.type === 'organization' ? (
               <Building className="h-4 w-4" />
             ) : (
               <User className="h-4 w-4" />
             )}
           </div>
-          <div>
-            <h4 className="font-semibold text-gray-800 text-sm">{opportunity.subject}</h4>
-            <p className="text-gray-500 text-xs">
+          <div className="min-w-0 flex-1">
+            <h4 className="font-semibold text-gray-800 text-sm truncate" title={opportunity.subject}>
+              {opportunity.subject}
+            </h4>
+            <p className="text-gray-500 text-xs truncate mt-0.5" title={`${opportunity.customer.name}${opportunity.customer.companyName ? ` · ${opportunity.customer.companyName}` : ''}`}>
               {opportunity.customer.name}
               {opportunity.customer.companyName && ` · ${opportunity.customer.companyName}`}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-shrink-0">
           <span className={`h-2 w-2 rounded-full ${getStageColor(opportunity.status)}`} />
           {opportunity.leadScore?.totalScore && (
-            <span className="text-xs font-medium text-gray-700">
+            <span className="text-xs font-medium text-gray-700 whitespace-nowrap">
               {opportunity.leadScore.totalScore}
             </span>
           )}
         </div>
       </div>
 
-      {/* Tags & Score */}
+      {/* Tags & Score - Better wrapping */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <span className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors hover:scale-105 ${
+        <span className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors hover:scale-105 whitespace-nowrap ${
           opportunity.leadScore?.tier === 'hot' ? 'bg-red-100 text-red-600 hover:bg-red-200' :
           opportunity.leadScore?.tier === 'warm' ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' :
           'bg-blue-100 text-blue-600 hover:bg-blue-200'
@@ -1093,44 +1075,53 @@ function OpportunityCard({
         </span>
         
         {opportunity.type === 'organization' && (
-          <span className="px-2 py-1 rounded-lg bg-purple-50 text-purple-600 text-xs transition-colors hover:bg-purple-100">
+          <span className="px-2 py-1 rounded-lg bg-purple-50 text-purple-600 text-xs transition-colors hover:bg-purple-100 whitespace-nowrap">
             Organization
           </span>
         )}
         
-        {/* Child item counts */}
+        {/* Child item counts - Improved layout */}
         <div className="flex items-center gap-1">
           {childCounts.vehicles > 0 && (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 text-blue-600 text-xs">
-              <Car className="h-3 w-3" />
+            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 text-blue-600 text-xs whitespace-nowrap">
+              <Car className="h-3 w-3 flex-shrink-0" />
               {childCounts.vehicles}
             </span>
           )}
           {childCounts.quotes > 0 && (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-green-50 text-green-600 text-xs">
-              <FileText className="h-3 w-3" />
+            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-green-50 text-green-600 text-xs whitespace-nowrap">
+              <FileText className="h-3 w-3 flex-shrink-0" />
               {childCounts.quotes}
+            </span>
+          )}
+          {childCounts.jobCards > 0 && (
+            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-50 text-orange-600 text-xs whitespace-nowrap">
+              <ClipboardList className="h-3 w-3 flex-shrink-0" />
+              {childCounts.jobCards}
             </span>
           )}
         </div>
       </div>
 
-      {/* Lead Score Info */}
+      {/* Lead Score Info - Fixed width issues */}
       {opportunity.leadScore && (
         <div className="mb-3">
           <div className="flex items-center justify-between text-xs mb-1">
-            <span className="text-gray-500">Lead Score</span>
+            <span className="text-gray-500 whitespace-nowrap">Lead Score</span>
             <div className="flex items-center gap-2">
-              <span className="font-medium text-gray-700">{opportunity.leadScore.totalScore}</span>
-              {/* Check if scoreChange exists before displaying */}
+              <span className="font-medium text-gray-700 whitespace-nowrap">
+                {opportunity.leadScore.totalScore}
+              </span>
               {opportunity.leadScore.scoreChange !== undefined && opportunity.leadScore.scoreChange !== 0 && (
                 <span className={`flex items-center gap-0.5 ${opportunity.leadScore.scoreChange > 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {opportunity.leadScore.scoreChange > 0 ? (
-                    <TrendingUp className="h-3 w-3" />
+                    <TrendingUp className="h-3 w-3 flex-shrink-0" />
                   ) : (
-                    <TrendingDown className="h-3 w-3" />
+                    <TrendingDown className="h-3 w-3 flex-shrink-0" />
                   )}
-                  {Math.abs(opportunity.leadScore.scoreChange)}
+                  <span className="text-xs whitespace-nowrap">
+                    {Math.abs(opportunity.leadScore.scoreChange)}
+                  </span>
                 </span>
               )}
             </div>
@@ -1145,64 +1136,91 @@ function OpportunityCard({
               style={{ width: `${Math.min(opportunity.leadScore.totalScore, 100)}%` }}
             />
           </div>
-          <div className="flex items-center justify-between text-xs mt-1">
-            <span className="text-gray-400">Priority: {opportunity.leadScore.priority}</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs mt-1 gap-1">
+            <span className="text-gray-400 truncate">
+              Priority: {opportunity.leadScore.priority}
+            </span>
             <button 
               onClick={handleRecalculateClick}
               disabled={isRecalculating}
-              className="text-blue-500 hover:text-blue-600 font-medium flex items-center gap-1 transition-colors disabled:opacity-50"
+              className="text-blue-500 hover:text-blue-600 font-medium flex items-center gap-1 transition-colors disabled:opacity-50 justify-end sm:justify-start"
             >
               {isRecalculating ? (
                 <>
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Calculating...
+                  <Loader2 className="h-3 w-3 animate-spin flex-shrink-0" />
+                  <span className="whitespace-nowrap">Calculating...</span>
                 </>
               ) : (
-                'Recalculate'
+                <span className="whitespace-nowrap">Recalculate</span>
               )}
             </button>
           </div>
         </div>
       )}
 
-      {/* Child items summary */}
-      {(childCounts.vehicles > 0 || childCounts.jobCards > 0 || childCounts.quotes > 0) && (
-        <div className="flex items-center gap-2 mb-3 text-xs text-gray-500">
+      {/* Child items summary - Better wrapping */}
+      {(childCounts.vehicles > 0 || childCounts.jobCards > 0 || childCounts.quotes > 0 || 
+        childCounts.invoices > 0 || childCounts.payments > 0) && (
+        <div className="flex flex-wrap items-center gap-2 mb-3 text-xs text-gray-500">
           {childCounts.vehicles > 0 && (
-            <span className="flex items-center gap-1">
-              <Car className="h-3 w-3" />
+            <span className="flex items-center gap-1 whitespace-nowrap">
+              <Car className="h-3 w-3 flex-shrink-0" />
               {childCounts.vehicles} vehicle{childCounts.vehicles !== 1 ? 's' : ''}
             </span>
           )}
           {childCounts.jobCards > 0 && (
-            <span className="flex items-center gap-1">
-              <Briefcase className="h-3 w-3" />
+            <span className="flex items-center gap-1 whitespace-nowrap">
+              <Briefcase className="h-3 w-3 flex-shrink-0" />
               {childCounts.jobCards} job{childCounts.jobCards !== 1 ? 's' : ''}
             </span>
           )}
           {childCounts.quotes > 0 && (
-            <span className="flex items-center gap-1">
-              <FileText className="h-3 w-3" />
+            <span className="flex items-center gap-1 whitespace-nowrap">
+              <FileText className="h-3 w-3 flex-shrink-0" />
               {childCounts.quotes} quote{childCounts.quotes !== 1 ? 's' : ''}
+            </span>
+          )}
+          {childCounts.invoices > 0 && (
+            <span className="flex items-center gap-1 whitespace-nowrap">
+              <Receipt className="h-3 w-3 flex-shrink-0" />
+              {childCounts.invoices} invoice{childCounts.invoices !== 1 ? 's' : ''}
+            </span>
+          )}
+          {childCounts.payments > 0 && (
+            <span className="flex items-center gap-1 whitespace-nowrap">
+              <Wallet className="h-3 w-3 flex-shrink-0" />
+              {childCounts.payments} payment{childCounts.payments !== 1 ? 's' : ''}
             </span>
           )}
         </div>
       )}
 
-      {/* Opportunity Footer */}
-      <div className="flex items-center justify-between">
-        <div className="text-xs text-gray-500">
+      {/* Opportunity Footer - Better spacing */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="text-xs text-gray-500 truncate">
           <span className="font-medium">Updated:</span> {formatDate(opportunity.updatedAt)}
           {opportunity.assignedTo && (
-            <span className="ml-2">• Assigned</span>
+            <span className="ml-1 sm:ml-2">• Assigned</span>
           )}
         </div>
-        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-500 transition-all hover:scale-110">
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+          <button 
+            className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-500 transition-all hover:scale-110"
+            title="Call"
+          >
             <Phone className="h-4 w-4" />
           </button>
-          <button className="p-1.5 hover:bg-green-50 rounded-lg text-green-500 transition-all hover:scale-110">
+          <button 
+            className="p-1.5 hover:bg-green-50 rounded-lg text-green-500 transition-all hover:scale-110"
+            title="Message"
+          >
             <MessageCircle className="h-4 w-4" />
+          </button>
+          <button 
+            className="p-1.5 hover:bg-gray-50 rounded-lg text-gray-500 transition-all hover:scale-110"
+            title="View details"
+          >
+            <Eye className="h-4 w-4" />
           </button>
         </div>
       </div>

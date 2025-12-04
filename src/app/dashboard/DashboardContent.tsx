@@ -42,6 +42,7 @@ import {
   TrendingDown as TrendingDownIcon,
   RefreshCw,
   ChevronRight,
+  ChevronLeft,
   Eye,
   MessageSquare,
   Phone,
@@ -90,6 +91,7 @@ function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'quarter'>('month');
   const [notifications, setNotifications] = useState(3);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const currentUser = authService.getUser();
@@ -106,7 +108,6 @@ function DashboardContent() {
     try {
       setLoading(true);
       
-      // Fetch live data from APIs
       const [opportunitiesData, opportunitiesOverview] = await Promise.all([
         opportunityService.getAllOpportunities({}),
         opportunityService.getOpportunitiesOverview(),
@@ -120,7 +121,6 @@ function DashboardContent() {
       setStats(processedStats);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      // Set empty/default stats on error
       setStats({
         opportunities: {
           total: 0,
@@ -156,7 +156,6 @@ function DashboardContent() {
     opportunities: any[],
     overview: any
   ): DashboardStats => {
-    // Calculate lead score distribution
     const hotLeads = opportunities.filter(opp => 
       opp.leadScore?.tier === 'hot'
     ).length;
@@ -169,30 +168,25 @@ function DashboardContent() {
       opp.leadScore?.tier === 'cold'
     ).length;
 
-    // Calculate financial metrics from opportunities
     const wonOpportunities = opportunities.filter(opp => opp.status === 'won');
     const totalRevenue = wonOpportunities.reduce((sum, opp) => 
       sum + (opp.leadScore?.commercial?.dealValue || 0), 0
     );
     
-    // Estimate pending invoices and collected payments
     const pendingInvoices = opportunities.filter(opp => 
       ['quotation', 'qualified'].includes(opp.status)
     ).length;
     
     const collectedPayments = wonOpportunities.length;
 
-    // Calculate average deal size
     const avgDealSize = wonOpportunities.length > 0 
       ? totalRevenue / wonOpportunities.length
       : 0;
 
-    // Calculate conversion rate
     const conversionRate = opportunities.length > 0 
       ? (wonOpportunities.length / opportunities.length) * 100 
       : 0;
 
-    // Calculate win rate (won vs contacted/qualified)
     const contactedOpps = opportunities.filter(opp => 
       ['contacted', 'qualified'].includes(opp.status)
     );
@@ -200,7 +194,6 @@ function DashboardContent() {
       ? (wonOpportunities.length / contactedOpps.length) * 100
       : 0;
 
-    // Get recent opportunities
     const recentOpportunities = opportunities
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .slice(0, 5);
@@ -225,15 +218,14 @@ function DashboardContent() {
         hotLeads,
         warmLeads,
         coldLeads,
-        responseTime: 24, // Default placeholder - can be calculated from actual data if available
+        responseTime: 24,
         winRate,
-        avgFollowUps: 2.3, // Default placeholder - update with actual data if available
+        avgFollowUps: 2.3,
       },
       recentOpportunities,
     };
   };
 
-  // Calculate derived metrics
   const performanceScore = useMemo(() => {
     if (!stats) return 0;
     
@@ -371,7 +363,7 @@ function DashboardContent() {
         </div>
         <div className="h-32 bg-gray-200 rounded-2xl" />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map(i => (
             <div key={i} className="h-32 bg-gray-200 rounded-2xl" />
           ))}
@@ -387,11 +379,10 @@ function DashboardContent() {
 
   return (
     <div className="space-y-6 p-4 md:p-6">
-      {/* Header */}
       <div>
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Dashboard</h1>
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 truncate">Dashboard</h1>
             <div className="flex items-center gap-2 mt-1">
               <p className="text-gray-500 text-sm">
                 Welcome back, <span className="font-semibold text-blue-600">{user?.firstName || 'Admin'}</span>! 
@@ -403,13 +394,20 @@ function DashboardContent() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl p-1">
+          <button 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="md:hidden p-2 rounded-lg border border-gray-200 bg-white text-gray-600"
+          >
+            <Filter className="h-5 w-5" />
+          </button>
+          
+          <div className={`${isMobileMenuOpen ? 'block' : 'hidden'} md:block md:flex md:items-center md:gap-3`}>
+            <div className="flex flex-wrap items-center gap-2 mb-3 md:mb-0 md:bg-white md:border md:border-gray-200 md:rounded-xl md:p-1">
               {['today', 'week', 'month', 'quarter'].map((range) => (
                 <button
                   key={range}
                   onClick={() => setTimeRange(range as any)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex-1 md:flex-none ${
                     timeRange === range
                       ? 'bg-blue-50 text-blue-600'
                       : 'text-gray-600 hover:bg-gray-50'
@@ -419,44 +417,50 @@ function DashboardContent() {
                 </button>
               ))}
             </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search dashboard..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 w-full md:w-64"
-              />
+            
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search dashboard..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-4 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 w-full"
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button className="relative p-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-colors">
+                  <Bell className="h-5 w-5 text-gray-600" />
+                  {notifications > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white font-medium">
+                      {notifications}
+                    </span>
+                  )}
+                </button>
+                <button 
+                  onClick={fetchDashboardData}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
+              </div>
             </div>
-            <button className="relative p-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-colors">
-              <Bell className="h-5 w-5 text-gray-600" />
-              {notifications > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white font-medium">
-                  {notifications}
-                </span>
-              )}
-            </button>
-            <button 
-              onClick={fetchDashboardData}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Refresh
-            </button>
           </div>
         </div>
       </div>
 
-      <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-6 text-white">
-        <div className="flex flex-col md:flex-row md:items-center justify-between">
-          <div>
+      <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-4 md:p-6 text-white">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex-1">
             <h2 className="text-lg font-semibold mb-2">Your Performance Score</h2>
             <p className="text-gray-300 text-sm">Based on win rate, response time, and lead quality</p>
           </div>
-          <div className="flex items-center gap-4 mt-4 md:mt-0">
+          <div className="flex flex-col sm:flex-row items-center gap-4">
             <div className="relative">
-              <div className="h-24 w-24">
+              <div className="h-20 w-20 md:h-24 md:w-24">
                 <svg className="h-full w-full" viewBox="0 0 36 36">
                   <path
                     d="M18 2.0845
@@ -484,7 +488,7 @@ function DashboardContent() {
                   </defs>
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-2xl font-bold">{performanceScore}</span>
+                  <span className="text-xl md:text-2xl font-bold">{performanceScore}</span>
                 </div>
               </div>
             </div>
@@ -512,7 +516,7 @@ function DashboardContent() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpiCards.map((card, index) => {
           const Icon = card.icon;
           const isUp = card.trend === 'up';
@@ -520,11 +524,11 @@ function DashboardContent() {
           return (
             <div
               key={index}
-              className={`${card.bgColor} rounded-2xl border ${card.borderColor} p-5 hover:shadow-lg transition-all duration-300 hover:-translate-y-1`}
+              className={`${card.bgColor} rounded-2xl border ${card.borderColor} p-4 md:p-5 hover:shadow-lg transition-all duration-300 hover:-translate-y-1`}
             >
-              <div className="flex items-start justify-between mb-4">
-                <div className={`p-3 rounded-xl bg-gradient-to-r ${card.color}`}>
-                  <Icon className="h-5 w-5 text-white" />
+              <div className="flex items-start justify-between mb-3 md:mb-4">
+                <div className={`p-2 md:p-3 rounded-xl bg-gradient-to-r ${card.color}`}>
+                  <Icon className="h-4 w-4 md:h-5 md:w-5 text-white" />
                 </div>
                 <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-white/80 text-xs font-medium text-gray-600">
                   {isUp ? (
@@ -542,12 +546,12 @@ function DashboardContent() {
               </div>
               <div>
                 <p className="text-sm text-gray-500 font-medium mb-1">{card.title}</p>
-                <p className="text-2xl font-bold text-gray-800">{card.value}</p>
+                <p className="text-xl md:text-2xl font-bold text-gray-800 truncate">{card.value}</p>
               </div>
-              <div className="mt-4 pt-4 border-t border-gray-200/50">
+              <div className="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-gray-200/50">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">{card.metric}</span>
-                  <span className="text-sm font-medium text-gray-700">{card.metricValue}</span>
+                  <span className="text-xs text-gray-500 truncate">{card.metric}</span>
+                  <span className="text-sm font-medium text-gray-700 truncate ml-2">{card.metricValue}</span>
                 </div>
               </div>
             </div>
@@ -556,8 +560,7 @@ function DashboardContent() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Pipeline Overview */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-5">
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6">
             <div>
               <h2 className="text-lg font-semibold text-gray-800">Opportunity Pipeline</h2>
@@ -585,7 +588,7 @@ function DashboardContent() {
               
               return (
                 <div key={stage} className="space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className={`px-2 py-1 rounded-lg text-xs font-medium capitalize ${getOpportunityStageColor(stage)}`}>
                         {stage}
@@ -609,7 +612,7 @@ function DashboardContent() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-200 p-5">
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-lg font-semibold text-gray-800">Lead Sources</h2>
@@ -660,16 +663,16 @@ function DashboardContent() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-6">
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6">
             <div>
               <h2 className="text-lg font-semibold text-gray-800">Recent Opportunities</h2>
               <p className="text-sm text-gray-500">Latest updates from your pipeline</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 mt-3 sm:mt-0">
               <button className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-600 text-sm font-medium hover:bg-gray-100">
                 <Filter className="h-4 w-4" />
-                Filter
+                <span className="hidden sm:inline">Filter</span>
               </button>
               <button className="text-sm font-medium text-blue-600 hover:text-blue-700">
                 View all
@@ -682,7 +685,7 @@ function DashboardContent() {
                 key={opp._id}
                 className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors group"
               >
-                <div className={`p-2 rounded-lg ${getAvatarColor(opp.type, opp.leadScore?.totalScore)}`}>
+                <div className={`p-2 rounded-lg ${getAvatarColor(opp.type, opp.leadScore?.totalScore)} flex-shrink-0`}>
                   {opp.type === 'organization' ? (
                     <Building className="h-4 w-4" />
                   ) : (
@@ -690,8 +693,8 @@ function DashboardContent() {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between">
-                    <div>
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                    <div className="min-w-0">
                       <h4 className="font-medium text-gray-800 truncate">{opp.subject}</h4>
                       <p className="text-sm text-gray-500 truncate">
                         {opp.customer?.name}
@@ -699,16 +702,16 @@ function DashboardContent() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">{formatTimeAgo(opp.updatedAt)}</span>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${getOpportunityStageColor(opp.status)}`}>
+                      <span className="text-xs text-gray-500 whitespace-nowrap">{formatTimeAgo(opp.updatedAt)}</span>
+                      <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${getOpportunityStageColor(opp.status)}`}>
                         {opp.status}
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 mt-2">
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
                     {opp.leadScore?.totalScore && (
                       <div className="flex items-center gap-1">
-                        <Target className="h-3 w-3 text-gray-400" />
+                        <Target className="h-3 w-3 text-gray-400 flex-shrink-0" />
                         <span className="text-xs text-gray-600">Score: {opp.leadScore.totalScore}</span>
                         <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
                           opp.leadScore.tier === 'hot' ? 'bg-red-100 text-red-600' :
@@ -721,13 +724,13 @@ function DashboardContent() {
                     )}
                     {opp.vehicles?.length > 0 && (
                       <div className="flex items-center gap-1">
-                        <Car className="h-3 w-3 text-gray-400" />
+                        <Car className="h-3 w-3 text-gray-400 flex-shrink-0" />
                         <span className="text-xs text-gray-600">{opp.vehicles.length} vehicle(s)</span>
                       </div>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                   <button className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-500">
                     <Eye className="h-4 w-4" />
                   </button>
@@ -740,7 +743,7 @@ function DashboardContent() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-200 p-5">
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <Activity className="h-5 w-5 text-blue-500" />
@@ -752,7 +755,7 @@ function DashboardContent() {
           </div>
           
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="p-4 rounded-xl border border-blue-100 bg-blue-50/50">
                 <div className="flex items-center gap-2 mb-2">
                   <Users className="h-4 w-4 text-blue-500" />

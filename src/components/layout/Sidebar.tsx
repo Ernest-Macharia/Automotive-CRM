@@ -30,7 +30,11 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     }
   }, []);
 
-  const closeMobile = useCallback(() => setSidebarOpen(false), [setSidebarOpen]);
+  const handleNavigation = useCallback((e: React.MouseEvent) => {
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  }, [setSidebarOpen]);
 
   const handleLogout = () => {
     sessionStorage.removeItem('accessToken');
@@ -54,13 +58,6 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
 
   return (
     <>
-      <button
-        onClick={() => setSidebarOpen(true)}
-        className="lg:hidden fixed bottom-6 left-6 z-50 w-12 h-12 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-full shadow-lg flex items-center justify-center hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-md"
-      >
-        <Menu className="w-5 h-5" />
-      </button>
-      
       <aside className="h-screen w-64 flex flex-col bg-white border-r border-gray-200 shadow-sm">
         <div className="flex-shrink-0 flex items-center justify-between h-16 px-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
@@ -73,7 +70,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
             </div>
           </div>
           <button 
-            onClick={closeMobile} 
+            onClick={() => setSidebarOpen(false)} 
             className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
           >
             <X className="w-4 h-4" />
@@ -96,7 +93,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                   <li key={item.href}>
                     <Link
                       href={item.href}
-                      onClick={closeMobile}
+                      onClick={handleNavigation}
                       className={`
                         group flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
                         ${active 
