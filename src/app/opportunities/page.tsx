@@ -1,13 +1,16 @@
 'use client';
 
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import { opportunityService, type Opportunity } from '@/services/opportunityService';
+import CreateOpportunityModal from '@/components/opportunities/CreateOpportunityModal';
+import SuccessModal from '@/components/opportunities/SuccessModal';
+import { opportunityService, Opportunity, CreateOpportunityData } from '@/services/opportunityService';
+import { useToast } from '@/contexts/ToastContext';
 import { useState, useEffect, useRef } from 'react';
 import { 
   Plus, Filter, CalendarDays, Search, MoreVertical, Phone, MessageCircle,
   Loader2, RefreshCw, AlertCircle, TrendingUp, TrendingDown, User, Building,
   ChevronLeft, ChevronRight, Briefcase, Car, FileText, DollarSign, Shield,
-  Users, Target, BarChart3, Globe, Heart, Zap
+  Users, Target, BarChart3, Globe, Heart, Zap, Sparkles
 } from 'lucide-react';
 
 type StageId = 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost';
@@ -20,74 +23,6 @@ const stages: { id: StageId; label: string; pastelClass: string; borderColor: st
   { id: 'won', label: 'Won', pastelClass: 'bg-green-50', borderColor: 'border-green-200' },
   { id: 'lost', label: 'Lost', pastelClass: 'bg-rose-50', borderColor: 'border-rose-200' },
 ];
-
-interface Opportunity {
-  _id: string;
-  id: string;
-  type: 'individual' | 'organization';
-  subject: string;
-  status: StageId;
-  customer: {
-    _id: string;
-    id: string;
-    name: string;
-    companyName?: string;
-  };
-  vehicles: any[];
-  jobCards: any[];
-  waivers: any[];
-  quotes: any[];
-  invoices: any[];
-  payments: any[];
-  assignedTo: any | null;
-  createdAt: string;
-  updatedAt: string;
-  isNurturing: boolean;
-  leadScore: {
-    _id: string;
-    id: string;
-    behavioral: {
-      messageEngagement: number;
-      callEngagement: number;
-      replyRate: number;
-      appointmentAttendance: number;
-      websiteVisits: number;
-      documentViews: number;
-    };
-    automotive: {
-      vehicleValue: number;
-      urgency: number;
-      serviceHistory: number;
-      premiumBrand: number;
-      repeatVehicle: number;
-      maintenanceRequired: number;
-    };
-    commercial: {
-      dealValue: number;
-      profitMargin: number;
-      closingLikelihood: number;
-      stockAvailability: number;
-      customerTier: number;
-      paymentTerms: number;
-    };
-    autoAssigned: boolean;
-    lastCalculated: string;
-    previousScore: number;
-    priority: number;
-    scoreChange: number;
-    tier: 'hot' | 'warm' | 'cold';
-    totalScore: number;
-  };
-  scoreHistory: Array<{
-    date: string;
-    score: number;
-    tier: string;
-    reason: string;
-    triggeredBy: string;
-    _id: string;
-    id: string;
-  }>;
-}
 
 interface OpportunityStats {
   totalopportunities: number;
@@ -201,6 +136,7 @@ const SkeletonStats = () => (
 );
 
 function OpportunitiesContent() {
+  const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -214,6 +150,10 @@ function OpportunitiesContent() {
   const [showScrollButtons, setShowScrollButtons] = useState(false);
   const kanbanRef = useRef<HTMLDivElement>(null);
   const [showAllSources, setShowAllSources] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [createdOpportunity, setCreatedOpportunity] = useState<Opportunity | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const fetchOpportunities = async (isRefresh = false) => {
     try {
@@ -242,6 +182,8 @@ function OpportunitiesContent() {
         opportunitiesData = opportunitiesResponse;
       } else if (opportunitiesResponse.data && Array.isArray(opportunitiesResponse.data)) {
         opportunitiesData = opportunitiesResponse.data;
+      } else {
+        opportunitiesData = opportunitiesResponse || [];
       }
       
       setOpportunities(opportunitiesData);
@@ -250,10 +192,117 @@ function OpportunitiesContent() {
     } catch (err: any) {
       console.error('Error fetching opportunities:', err);
       setError(err.message || 'Failed to fetch opportunities');
+      showToast('Failed to load opportunities', 'error', 3000);
     } finally {
       setLoading(false);
       setRefreshing(false);
       setStatsLoading(false);
+    }
+  };
+
+  const handleCreateOpportunity = async (formData: any) => {
+    try {
+      setCreating(true);
+      console.log('Form data received:', formData);
+
+      const opportunityData: CreateOpportunityData = {
+        type: formData.accountType,
+        subject: formData.subject,
+        status: 'new',
+        source: formData.source,
+        customer: {
+          name: formData.accountType === 'organization' 
+            ? formData.companyName 
+            : `${formData.firstName} ${formData.lastName}`.trim(),
+          ...(formData.email && { email: formData.email }),
+          ...(formData.phone && { phone: formData.phone }),
+          ...(formData.accountType === 'organization' && formData.companyName && { 
+            companyName: formData.companyName 
+          }),
+        },
+        ...(formData.notes && { notes: formData.notes }),
+      };
+
+      if (formData.vehicles && formData.vehicles.length > 0) {
+        opportunityData.vehicles = formData.vehicles
+          .filter((v: any) => v.make.trim() && v.model.trim())
+          .map((v: any) => ({
+            ...(v.vin && { vin: v.vin }),
+            ...(v.registrationNumber && { registrationNumber: v.registrationNumber }),
+            make: v.make,
+            model: v.model,
+            ...(v.year && { year: v.year }),
+            ...(v.color && { color: v.color }),
+          }));
+      }
+
+      console.log('Sending opportunity data:', JSON.stringify(opportunityData, null, 2));
+
+      const result = await opportunityService.createOpportunity(opportunityData);
+      
+      console.log('API Response:', result);
+      
+      // Store the created opportunity and show success modal
+      setCreatedOpportunity(result);
+      setIsCreateModalOpen(false);
+      setIsSuccessModalOpen(true);
+      
+      // Show toast notification
+      showToast('Opportunity created successfully!', 'success', 3000);
+      
+      // Refresh the opportunities list
+      setTimeout(() => {
+        fetchOpportunities();
+      }, 1000);
+      
+    } catch (error: any) {
+      console.error('Error creating opportunity:', error);
+      
+      // Show user-friendly error message
+      let errorMessage = 'Failed to create opportunity. ';
+      
+      if (error.message.includes('Authentication failed')) {
+        errorMessage += 'Please log in again.';
+      } else if (error.message.includes('Network error')) {
+        errorMessage += 'Please check your internet connection.';
+      } else if (error.message.includes('API Error')) {
+        errorMessage += `Server error: ${error.message}`;
+      } else {
+        errorMessage += 'Please try again.';
+      }
+      
+      showToast(errorMessage, 'error', 5000);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleViewOpportunityDetails = () => {
+    if (createdOpportunity) {
+      // Navigate to opportunity details page
+      console.log('Viewing opportunity:', createdOpportunity._id);
+      // router.push(`/opportunities/${createdOpportunity._id}`);
+      
+      // For now, show a toast
+      showToast(`Redirecting to opportunity ${createdOpportunity.subject}`, 'info', 2000);
+      setIsSuccessModalOpen(false);
+    }
+  };
+
+  const handleCreateAnother = () => {
+    setIsSuccessModalOpen(false);
+    setIsCreateModalOpen(true);
+  };
+
+  const handleAssignToTeam = () => {
+    if (createdOpportunity) {
+      // Implement assign to team logic
+      console.log('Assigning opportunity to team:', createdOpportunity._id);
+      showToast(`Assigning opportunity to team...`, 'info', 2000);
+      
+      // You could open another modal or make an API call here
+      // For now, just close the success modal
+      setIsSuccessModalOpen(false);
     }
   };
 
@@ -266,9 +315,10 @@ function OpportunitiesContent() {
     try {
       await opportunityService.updateOpportunity(opportunityId, { status: newStatus });
       await fetchOpportunities(); // Refresh the list
+      showToast('Opportunity status updated', 'success', 2000);
     } catch (err) {
       console.error('Error updating opportunity status:', err);
-      alert('Failed to update opportunity status');
+      showToast('Failed to update opportunity status', 'error', 3000);
     }
   };
 
@@ -276,10 +326,10 @@ function OpportunitiesContent() {
     try {
       await opportunityService.recalculateLeadScore(opportunityId);
       await fetchOpportunities(); // Refresh to get updated score
-      alert('Lead score recalculated successfully');
+      showToast('Lead score recalculated successfully', 'success', 2000);
     } catch (err) {
       console.error('Error recalculating score:', err);
-      alert('Failed to recalculate lead score');
+      showToast('Failed to recalculate lead score', 'error', 3000);
     }
   };
 
@@ -348,7 +398,7 @@ function OpportunitiesContent() {
     
     const leadScores = opportunities
       .filter(opp => opp.leadScore?.totalScore)
-      .map(opp => opp.leadScore.totalScore);
+      .map(opp => opp.leadScore?.totalScore || 0);
     
     const hot = leadScores.filter(score => score >= 70).length;
     const warm = leadScores.filter(score => score >= 50 && score < 70).length;
@@ -391,6 +441,11 @@ function OpportunitiesContent() {
     fetchOpportunities();
   }, [filter]);
 
+  const leadScoreStats = calculateLeadScoreStats();
+  const visibleSources = showAllSources 
+    ? stats?.bySource || []
+    : (stats?.bySource || []).slice(0, 3);
+
   // Loading skeleton for initial load
   if (loading && !opportunities.length) {
     return (
@@ -427,11 +482,6 @@ function OpportunitiesContent() {
       </div>
     );
   }
-
-  const leadScoreStats = calculateLeadScoreStats();
-  const visibleSources = showAllSources 
-    ? stats?.bySource || []
-    : (stats?.bySource || []).slice(0, 3);
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -472,13 +522,13 @@ function OpportunitiesContent() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 pr-4 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 w-full md:w-64"
-                  disabled={loading}
+                  disabled={loading || creating}
                 />
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || creating}
                   className={`px-3 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-1 ${
-                    loading 
+                    loading || creating
                       ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
                   }`}
@@ -497,9 +547,9 @@ function OpportunitiesContent() {
             <div className="flex items-center gap-2">
               <button 
                 onClick={() => fetchOpportunities(true)}
-                disabled={refreshing || loading}
+                disabled={refreshing || loading || creating}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-colors ${
-                  refreshing || loading
+                  refreshing || loading || creating
                     ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
                     : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                 }`}
@@ -518,17 +568,28 @@ function OpportunitiesContent() {
               </button>
               <button 
                 className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors"
-                disabled={loading}
+                disabled={loading || creating}
               >
                 <Filter className="h-4 w-4" />
                 Filter
               </button>
+              {/* New Opportunity Button */}
               <button 
+                onClick={() => setIsCreateModalOpen(true)}
+                disabled={loading || creating}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 text-sm font-medium shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={loading}
               >
-                <Plus className="h-4 w-4" />
-                New Opportunity
+                {creating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4" />
+                    New Opportunity
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -611,7 +672,7 @@ function OpportunitiesContent() {
               <select 
                 value={filter.status || ''}
                 onChange={(e) => setFilter(prev => ({ ...prev, status: e.target.value || undefined }))}
-                disabled={loading}
+                disabled={loading || creating}
                 className="px-4 py-2 rounded-full bg-white border border-gray-200 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all hover:border-blue-300 disabled:opacity-50"
               >
                 <option value="">All Status</option>
@@ -624,7 +685,7 @@ function OpportunitiesContent() {
               <select 
                 value={filter.type || ''}
                 onChange={(e) => setFilter(prev => ({ ...prev, type: e.target.value || undefined }))}
-                disabled={loading}
+                disabled={loading || creating}
                 className="px-4 py-2 rounded-full bg-white border border-gray-200 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all hover:border-blue-300 disabled:opacity-50"
               >
                 <option value="">All Types</option>
@@ -639,7 +700,7 @@ function OpportunitiesContent() {
               <select 
                 value={filter.source || ''}
                 onChange={(e) => setFilter(prev => ({ ...prev, source: e.target.value || undefined }))}
-                disabled={loading}
+                disabled={loading || creating}
                 className="px-4 py-2 rounded-full bg-white border border-gray-200 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all hover:border-blue-300 disabled:opacity-50"
               >
                 <option value="">All Sources</option>
@@ -691,14 +752,14 @@ function OpportunitiesContent() {
           <>
             <button
               onClick={() => scrollKanban('left')}
-              disabled={scrolling}
+              disabled={scrolling || loading || creating}
               className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-2 z-10 h-10 w-10 bg-white border border-gray-200 rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 transition-all"
             >
               <ChevronLeft className="h-5 w-5 text-gray-600" />
             </button>
             <button
               onClick={() => scrollKanban('right')}
-              disabled={scrolling}
+              disabled={scrolling || loading || creating}
               className="absolute right-0 top-1/2 transform -translate-y-1/2 translate-x-2 z-10 h-10 w-10 bg-white border border-gray-200 rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 transition-all"
             >
               <ChevronRight className="h-5 w-5 text-gray-600" />
@@ -749,7 +810,7 @@ function OpportunitiesContent() {
                   getStageColor={getStageColor}
                   formatDate={formatDate}
                   getChildCounts={getChildCounts}
-                  loading={loading}
+                  loading={loading || creating}
                   setIsDragging={setIsDragging}
                 />
               );
@@ -758,6 +819,23 @@ function OpportunitiesContent() {
           </div>
         </div>
       </div>
+
+      {/* Create Opportunity Modal */}
+      <CreateOpportunityModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSubmit={handleCreateOpportunity}
+      />
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={isSuccessModalOpen}
+        onClose={() => setIsSuccessModalOpen(false)}
+        opportunity={createdOpportunity}
+        onViewDetails={handleViewOpportunityDetails}
+        onCreateAnother={handleCreateAnother}
+        onAssignToTeam={handleAssignToTeam}
+      />
     </div>
   );
 }
@@ -858,10 +936,11 @@ function KanbanColumn({
         </button>
       </div>
 
-      {/* Add Opportunity Button */}
+      {/* Add Opportunity Button - Disabled since we have the main button */}
       <button 
-        className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white/50 py-2.5 text-sm text-gray-500 hover:bg-white hover:border-gray-400 transition-all duration-200 disabled:opacity-50"
-        disabled={loading}
+        className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white/50 py-2.5 text-sm text-gray-500 hover:bg-white hover:border-gray-400 transition-all duration-200 disabled:opacity-50 cursor-not-allowed"
+        disabled={true}
+        title="Use the main 'New Opportunity' button above"
       >
         <Plus className="h-4 w-4" />
         Add Opportunity
@@ -879,9 +958,7 @@ function KanbanColumn({
         ) : opportunities.length === 0 ? (
           <div className="text-center py-8">
             <div className="text-gray-400 mb-2">No opportunities in this stage</div>
-            <button className="text-sm text-blue-500 hover:text-blue-600 font-medium transition-colors">
-              + Add first opportunity
-            </button>
+            <div className="text-sm text-gray-500">Create opportunities using the button above</div>
           </div>
         ) : (
           opportunities.map((opportunity) => (

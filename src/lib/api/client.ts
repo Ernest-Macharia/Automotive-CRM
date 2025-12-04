@@ -1,145 +1,95 @@
 import { API_BASE_URL } from './config';
 
-export interface ApiError extends Error {
-  status?: number;
-  body?: string;
-}
-
-export class ApiClient {
-  private baseURL: string;
-  private accessToken: string | null = null;
-  private refreshToken: string | null = null;
-
-  constructor(baseURL: string) {
-    this.baseURL = baseURL;
-
-    if (typeof window !== 'undefined') {
-      this.accessToken = sessionStorage.getItem('accessToken');
-      this.refreshToken = sessionStorage.getItem('refreshToken');
-    }
-  }
-
-  setTokens(accessToken: string, refreshToken: string) {
-    this.accessToken = accessToken;
-    this.refreshToken = refreshToken;
-
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('accessToken', accessToken);
-      sessionStorage.setItem('refreshToken', refreshToken);
-    }
-  }
-
-  clearTokens() {
-    this.accessToken = null;
-    this.refreshToken = null;
-
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('accessToken');
-      sessionStorage.removeItem('refreshToken');
-    }
-  }
-
-  getAccessToken(): string | null {
-    return this.accessToken;
-  }
-
-  private async request<TResponse = unknown>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<TResponse> {
-    if (!endpoint) throw new Error('API endpoint is undefined');
-
-    const url = `${this.baseURL}${endpoint}`;
-
+class ApiClient {
+  private getHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...(options.headers as Record<string, string> | undefined),
     };
 
-    let token = this.accessToken;
-    if (!token && typeof window !== 'undefined') {
-      token = sessionStorage.getItem('accessToken');
-      if (token) {
-        this.accessToken = token;
-        console.log('🔍 Retrieved token from sessionStorage');
-      }
-    }
-    
+    const token = sessionStorage.getItem('accessToken');
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
+
+    return headers;
+  }
+
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const url = `${API_BASE_URL}${endpoint}`;
+    
+    const headers = {
+      ...this.getHeaders(),
+      ...options.headers,
+    };
 
     const config: RequestInit = {
       ...options,
       headers,
       mode: 'cors',
+      credentials: 'include',
     };
 
-    try {
-      const response = await fetch(url, config);
+    console.log(`API Request: ${options.method || 'GET'} ${url}`);
+    console.log('Request headers:', headers);
 
-      if (!response.ok) {
-        let bodyText = '';
-        try {
-          bodyText = await response.text();
-        } catch (e) {
-          bodyText = `<unable to read response body: ${String(e)}>`;
-        }
+    const response = await fetch(url, config);
+    
+    console.log(`API Response: ${response.status} ${response.statusText}`);
 
-        let serverMessage = `HTTP ${response.status}: ${response.statusText}`;
-        try {
-          const parsed = JSON.parse(bodyText);
-          serverMessage = parsed?.message || parsed?.error || bodyText || serverMessage;
-        } catch {
-          serverMessage = bodyText || serverMessage;
-        }
-
-        const err: ApiError = new Error(serverMessage) as ApiError;
-        err.status = response.status;
-        err.body = bodyText;
-        throw err;
-      }
-
-      const contentType = response.headers.get('content-type') ?? '';
-      if (contentType.includes('application/json')) {
-        const data = await response.json();
-        return data as TResponse;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API Error Response:', errorText);
+      
+      if (response.status === 401) {
+        // Clear token and redirect to login
+        sessionStorage.removeItem('accessToken');
+        window.location.href = '/login';
       }
       
-      return (await response.text()) as unknown as TResponse;
-      
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error('An unexpected error occurred');
+      throw new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
     }
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json();
+    }
+    return {} as T;
   }
 
-  async get<TResponse = unknown>(endpoint: string): Promise<TResponse> {
-    return this.request<TResponse>(endpoint, { method: 'GET' });
+  async get<T>(endpoint: string, params?: Record<string, string>): Promise<T> {
+    let url = endpoint;
+    if (params) {
+      const queryParams = new URLSearchParams(params);
+      url += `?${queryParams.toString()}`;
+    }
+    return this.request<T>(url);
   }
 
-  async post<TRequest = unknown, TResponse = unknown>(endpoint: string, data?: TRequest): Promise<TResponse> {
-    const body = data !== undefined ? JSON.stringify(data) : undefined;
-    return this.request<TResponse>(endpoint, { method: 'POST', body });
+  async post<D, T>(endpoint: string, data: D): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 
-  async put<TRequest = unknown, TResponse = unknown>(endpoint: string, data?: TRequest): Promise<TResponse> {
-    const body = data !== undefined ? JSON.stringify(data) : undefined;
-    return this.request<TResponse>(endpoint, { method: 'PUT', body });
+  async put<D, T>(endpoint: string, data: D): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   }
 
-  async patch<TRequest = unknown, TResponse = unknown>(endpoint: string, data?: TRequest): Promise<TResponse> {
-    const body = data !== undefined ? JSON.stringify(data) : undefined;
-    return this.request<TResponse>(endpoint, { method: 'PATCH', body });
+  async patch<D, T>(endpoint: string, data: D): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
   }
 
-  async delete<TResponse = unknown>(endpoint: string): Promise<TResponse> {
-    return this.request<TResponse>(endpoint, { method: 'DELETE' });
+  async delete<T>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'DELETE',
+    });
   }
 }
 
-// Export a singleton instance
-export const apiClient = new ApiClient(API_BASE_URL);
+export const apiClient = new ApiClient();

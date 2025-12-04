@@ -170,3 +170,23 @@ body {
 .bg-pastel-rose {
   @apply bg-rose-50 border-rose-200;
 }
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e5e7eb;
+  border-top: 4px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Optional: Add these styles for better toast positioning */
+.fixed.top-4.right-4 {
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}

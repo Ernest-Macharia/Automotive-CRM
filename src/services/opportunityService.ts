@@ -40,14 +40,23 @@ export interface Opportunity {
 export interface CreateOpportunityData {
   type: 'individual' | 'organization';
   subject: string;
-  status: 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost';
+  status?: 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost';
   source?: string;
   customer: {
     name: string;
     email?: string;
-    companyName?: string;
     phone?: string;
+    companyName?: string;
   };
+  vehicles?: Array<{
+    vin?: string;
+    registrationNumber?: string;
+    make: string;
+    model: string;
+    year?: string;
+    color?: string;
+  }>;
+  notes?: string;
 }
 
 export interface UpdateOpportunityData {
@@ -109,9 +118,60 @@ class OpportunityService {
 
   async createOpportunity(data: CreateOpportunityData): Promise<Opportunity> {
     try {
-      return await apiClient.post<CreateOpportunityData, Opportunity>('/opportunities', data);
+      console.log('Creating opportunity with data:', JSON.stringify(data, null, 2));
+
+      const formattedData = {
+        type: data.type,
+        subject: data.subject,
+        status: data.status || 'new',
+        source: data.source || 'walk_in',
+        customer: {
+          name: data.customer.name,
+          ...(data.customer.email && { email: data.customer.email }),
+          ...(data.customer.phone && { phone: data.customer.phone }),
+          ...(data.customer.companyName && { companyName: data.customer.companyName }),
+        },
+      };
+
+      // Add vehicles if provided - make sure year is a number
+      if (data.vehicles && data.vehicles.length > 0) {
+        formattedData.vehicles = data.vehicles.map(vehicle => ({
+          ...(vehicle.vin && { vin: vehicle.vin }),
+          ...(vehicle.registrationNumber && { registrationNumber: vehicle.registrationNumber }),
+          make: vehicle.make,
+          model: vehicle.model,
+          ...(vehicle.year && { year: parseInt(vehicle.year) || vehicle.year }),
+          ...(vehicle.color && { color: vehicle.color }),
+        }));
+      }
+
+      // Add notes if provided
+      if (data.notes) {
+        formattedData.notes = data.notes;
+      }
+
+      console.log('Formatted data for API:', JSON.stringify(formattedData, null, 2));
+      
+      return await apiClient.post<typeof formattedData, Opportunity>('/opportunities', formattedData);
     } catch (error) {
       console.error('Error creating opportunity:', error);
+      
+      // Enhanced error messages
+      if (error instanceof Error) {
+        if (error.message.includes('CORS')) {
+          throw new Error('CORS configuration issue. Please contact the backend team to allow requests from localhost:3000.');
+        } else if (error.message.includes('502')) {
+          throw new Error('Backend server is currently unavailable. Please try again later.');
+        } else if (error.message.includes('401') || error.message.includes('403')) {
+          // Clear token and redirect
+          sessionStorage.removeItem('accessToken');
+          window.location.href = '/login';
+          throw new Error('Session expired. Please log in again.');
+        } else if (error.message.includes('NetworkError')) {
+          throw new Error('Network error. Please check your internet connection and try again.');
+        }
+      }
+      
       throw error;
     }
   }

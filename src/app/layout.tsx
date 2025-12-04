@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import ClientLayout from './ClientLayout';
+import { ToastProvider } from '@/contexts/ToastContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -73,7 +74,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} antialiased min-h-screen`}>
-        <ClientLayout>{children}</ClientLayout>
+        <ToastProvider>
+          <ClientLayout>{children}</ClientLayout>
+        </ToastProvider>
       </body>
     </html>
   );
