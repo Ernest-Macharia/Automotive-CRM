@@ -3,7 +3,7 @@
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import CreateOpportunityModal from '@/components/opportunities/CreateOpportunityModal';
 import SuccessModal from '@/components/opportunities/SuccessModal';
-import { opportunityService, Opportunity, CreateOpportunityData } from '@/services/opportunityService';
+import { opportunityService, Opportunity, CreateOpportunityData, OpportunitiesResponse, OpportunityStats } from '@/services/opportunityService';
 import { useToast } from '@/contexts/ToastContext';
 import { useState, useEffect, useRef } from 'react';
 import { 
@@ -24,7 +24,7 @@ const stages: { id: StageId; label: string; pastelClass: string; borderColor: st
   { id: 'lost', label: 'Lost', pastelClass: 'bg-rose-50', borderColor: 'border-rose-200' },
 ];
 
-interface OpportunityStats {
+interface OpportunityStatsData {
   totalopportunities: number;
   openopportunities: number;
   closedopportunities: number;
@@ -135,15 +135,28 @@ const SkeletonStats = () => (
   </div>
 );
 
+// Extended Opportunity interface to include all properties used in the component
+interface ExtendedOpportunity extends Opportunity {
+  invoices?: any[];
+  payments?: any[];
+  leadScore?: {
+    totalScore: number;
+    tier: 'hot' | 'warm' | 'cold';
+    priority: number;
+    lastCalculated: string;
+    scoreChange?: number; // Make scoreChange optional
+  };
+}
+
 function OpportunitiesContent() {
   const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
-  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [opportunities, setOpportunities] = useState<ExtendedOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [statsLoading, setStatsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [stats, setStats] = useState<OpportunityStats | null>(null);
+  const [stats, setStats] = useState<OpportunityStatsData | null>(null);
   const [filter, setFilter] = useState<{ status?: string; tier?: string; source?: string; type?: string }>({});
   const [isDragging, setIsDragging] = useState(false);
   const [scrolling, setScrolling] = useState(false);
@@ -177,17 +190,27 @@ function OpportunitiesContent() {
         opportunityService.getOpportunitiesOverview()
       ]);
       
-      let opportunitiesData: Opportunity[] = [];
+      let opportunitiesData: ExtendedOpportunity[] = [];
+      
+      // Handle the response based on its type
       if (Array.isArray(opportunitiesResponse)) {
-        opportunitiesData = opportunitiesResponse;
+        opportunitiesData = opportunitiesResponse as ExtendedOpportunity[];
       } else if (opportunitiesResponse.data && Array.isArray(opportunitiesResponse.data)) {
-        opportunitiesData = opportunitiesResponse.data;
+        opportunitiesData = opportunitiesResponse.data as ExtendedOpportunity[];
+      } else if (opportunitiesResponse && typeof opportunitiesResponse === 'object') {
+        // Cast to OpportunitiesResponse and extract data
+        const response = opportunitiesResponse as OpportunitiesResponse;
+        opportunitiesData = response.data as ExtendedOpportunity[];
       } else {
-        opportunitiesData = opportunitiesResponse || [];
+        opportunitiesData = [];
       }
       
       setOpportunities(opportunitiesData);
-      setStats(overviewResponse);
+      
+      // Handle the stats response - we need to cast it to OpportunityStatsData
+      // Since the OpportunityStats interface from service doesn't match what we're using
+      const statsData = overviewResponse as unknown as OpportunityStatsData;
+      setStats(statsData);
       
     } catch (err: any) {
       console.error('Error fetching opportunities:', err);
@@ -381,7 +404,7 @@ function OpportunitiesContent() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const getChildCounts = (opportunity: Opportunity) => {
+  const getChildCounts = (opportunity: ExtendedOpportunity) => {
     return {
       vehicles: opportunity.vehicles?.length || 0,
       jobCards: opportunity.jobCards?.length || 0,
@@ -854,14 +877,14 @@ function KanbanColumn({
   setIsDragging
 }: {
   stage: typeof stages[0];
-  opportunities: Opportunity[];
+  opportunities: ExtendedOpportunity[];
   onStatusChange: (id: string, status: StageId) => void;
   onRecalculateScore: (id: string) => void;
   getAvatarColor: (type: string, score?: number) => string;
   getLeadScoreTier: (score?: number) => string;
   getStageColor: (stage: StageId) => string;
   formatDate: (date: string) => string;
-  getChildCounts: (opp: Opportunity) => any;
+  getChildCounts: (opp: ExtendedOpportunity) => any;
   loading: boolean;
   setIsDragging: (dragging: boolean) => void;
 }) {
@@ -992,13 +1015,13 @@ function OpportunityCard({
   onDragStart,
   onDragEnd
 }: {
-  opportunity: Opportunity;
+  opportunity: ExtendedOpportunity;
   onRecalculateScore: (id: string) => void;
   getAvatarColor: (type: string, score?: number) => string;
   getLeadScoreTier: (score?: number) => string;
   formatDate: (date: string) => string;
   getStageColor: (stage: StageId) => string;
-  getChildCounts: (opp: Opportunity) => any;
+  getChildCounts: (opp: ExtendedOpportunity) => any;
   onDragStart: () => void;
   onDragEnd: () => void;
 }) {
@@ -1095,7 +1118,8 @@ function OpportunityCard({
             <span className="text-gray-500">Lead Score</span>
             <div className="flex items-center gap-2">
               <span className="font-medium text-gray-700">{opportunity.leadScore.totalScore}</span>
-              {opportunity.leadScore.scoreChange !== 0 && (
+              {/* Check if scoreChange exists before displaying */}
+              {opportunity.leadScore.scoreChange !== undefined && opportunity.leadScore.scoreChange !== 0 && (
                 <span className={`flex items-center gap-0.5 ${opportunity.leadScore.scoreChange > 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {opportunity.leadScore.scoreChange > 0 ? (
                     <TrendingUp className="h-3 w-3" />

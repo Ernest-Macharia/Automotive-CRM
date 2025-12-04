@@ -83,6 +83,28 @@ export interface OpportunityStats {
   hotLeads: number;
 }
 
+interface FormattedOpportunityData {
+  type: 'individual' | 'organization';
+  subject: string;
+  status: 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost';
+  source: string;
+  customer: {
+    name: string;
+    email?: string;
+    phone?: string;
+    companyName?: string;
+  };
+  vehicles?: Array<{
+    vin?: string;
+    registrationNumber?: string;
+    make: string;
+    model: string;
+    year?: number | string;
+    color?: string;
+  }>;
+  notes?: string;
+}
+
 class OpportunityService {
   async getAllOpportunities(params?: {
     page?: number;
@@ -120,7 +142,8 @@ class OpportunityService {
     try {
       console.log('Creating opportunity with data:', JSON.stringify(data, null, 2));
 
-      const formattedData = {
+      // Create a properly typed formattedData object
+      const formattedData: FormattedOpportunityData = {
         type: data.type,
         subject: data.subject,
         status: data.status || 'new',
@@ -140,7 +163,7 @@ class OpportunityService {
           ...(vehicle.registrationNumber && { registrationNumber: vehicle.registrationNumber }),
           make: vehicle.make,
           model: vehicle.model,
-          ...(vehicle.year && { year: parseInt(vehicle.year) || vehicle.year }),
+          ...(vehicle.year && { year: parseInt(vehicle.year as string) || vehicle.year }),
           ...(vehicle.color && { color: vehicle.color }),
         }));
       }
@@ -152,7 +175,7 @@ class OpportunityService {
 
       console.log('Formatted data for API:', JSON.stringify(formattedData, null, 2));
       
-      return await apiClient.post<typeof formattedData, Opportunity>('/opportunities', formattedData);
+      return await apiClient.post<FormattedOpportunityData, Opportunity>('/opportunities', formattedData);
     } catch (error) {
       console.error('Error creating opportunity:', error);
       
