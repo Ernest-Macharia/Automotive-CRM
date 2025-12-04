@@ -228,7 +228,7 @@ function OpportunitiesContent() {
       setCreating(true);
       console.log('Form data received:', formData);
 
-      const opportunityData: CreateOpportunityData = {
+      const opportunityData = {
         type: formData.accountType,
         subject: formData.subject,
         status: 'new',
@@ -247,9 +247,12 @@ function OpportunitiesContent() {
       };
 
       if (formData.vehicles && formData.vehicles.length > 0) {
-        opportunityData.vehicles = formData.vehicles
-          .filter((v: any) => v.make.trim() && v.model.trim())
-          .map((v: any) => ({
+        const validVehicles = formData.vehicles.filter((v: any) => 
+          v.make.trim() && v.model.trim()
+        );
+        
+        if (validVehicles.length > 0) {
+          opportunityData.vehicles = validVehicles.map((v: any) => ({
             ...(v.vin && { vin: v.vin }),
             ...(v.registrationNumber && { registrationNumber: v.registrationNumber }),
             make: v.make,
@@ -257,6 +260,7 @@ function OpportunitiesContent() {
             ...(v.year && { year: v.year }),
             ...(v.color && { color: v.color }),
           }));
+        }
       }
 
       console.log('Sending opportunity data:', JSON.stringify(opportunityData, null, 2));

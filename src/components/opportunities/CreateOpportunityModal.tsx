@@ -60,10 +60,25 @@ interface OpportunityFormData {
   notes: string;
 }
 
+// This is what will be sent to the API
+export interface OpportunityFormDataForAPI {
+  accountType: 'individual' | 'organization';
+  source: string;
+  firstName: string;
+  lastName: string;
+  companyName: string;
+  email: string;
+  phone: string;
+  subject: string;
+  opportunityId: string;
+  vehicles: Vehicle[];
+  notes: string;
+}
+
 interface CreateOpportunityModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: OpportunityFormData) => void;
+  onSubmit: (data: OpportunityFormDataForAPI) => void;
 }
 
 export default function CreateOpportunityModal({ isOpen, onClose, onSubmit }: CreateOpportunityModalProps) {
@@ -317,8 +332,8 @@ export default function CreateOpportunityModal({ isOpen, onClose, onSubmit }: Cr
 
   const handleSubmit = () => {
     if (validateStep()) {
-        // Create a clean data object with only necessary fields
-        const cleanFormData = {
+      // Create data object with only the fields needed for the API
+      const apiFormData: OpportunityFormDataForAPI = {
         accountType: formData.accountType,
         source: formData.source,
         firstName: formData.firstName,
@@ -328,14 +343,22 @@ export default function CreateOpportunityModal({ isOpen, onClose, onSubmit }: Cr
         phone: formData.phone,
         subject: formData.subject,
         opportunityId: formData.opportunityId,
-        vehicles: formData.vehicles,
+        vehicles: formData.vehicles.map(vehicle => ({
+          ...vehicle,
+          // Ensure all vehicle properties are included
+          vin: vehicle.vin || '',
+          registrationNumber: vehicle.registrationNumber || '',
+          make: vehicle.make || '',
+          model: vehicle.model || '',
+          year: vehicle.year || '',
+          color: vehicle.color || ''
+        })),
         notes: formData.notes,
-        // We'll handle services and quotes separately if needed
-        };
-        
-        onSubmit(cleanFormData);
+      };
+      
+      onSubmit(apiFormData);
     }
-    };
+  };
 
   if (!isOpen) return null;
 
