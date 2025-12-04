@@ -106,9 +106,6 @@ class AuthService {
       sessionStorage.setItem(this.REFRESH_TOKEN_KEY, refreshToken);
       sessionStorage.setItem(this.USER_KEY, JSON.stringify(user));
       
-      // Update apiClient
-      apiClient.setTokens(accessToken, refreshToken);
-      
     } catch (error) {
       console.error('Error storing auth data:', error);
     }
@@ -167,7 +164,6 @@ class AuthService {
       sessionStorage.removeItem(this.TOKEN_KEY);
       sessionStorage.removeItem(this.REFRESH_TOKEN_KEY);
       sessionStorage.removeItem(this.USER_KEY);
-      apiClient.clearTokens();
     }
   }
 
