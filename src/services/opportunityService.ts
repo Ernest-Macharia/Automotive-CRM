@@ -66,6 +66,43 @@ export interface UpdateOpportunityData {
   assignedTo?: string;
 }
 
+export interface FilterParams {
+  // Basic filters
+  status?: string;
+  source?: string;
+  type?: string;
+  tier?: string;
+  
+  // Advanced filters
+  search?: string;
+  minScore?: number;
+  maxScore?: number;
+  fromDate?: string;
+  toDate?: string;
+  assignedTo?: string | null;
+  
+  // Multiple values
+  statuses?: string[];
+  sources?: string[];
+  types?: string[];
+  
+  // Sorting
+  sort?: string;
+  
+  // Pagination
+  page?: number;
+  limit?: number;
+  
+  // Additional filters
+  customerName?: string;
+  subject?: string;
+  priority?: number;
+  hasVehicles?: boolean;
+  hasQuotes?: boolean;
+  hasJobCards?: boolean;
+  isNurturing?: boolean;
+}
+
 export interface OpportunitiesResponse {
   data: Opportunity[];
   pagination?: {
@@ -74,6 +111,14 @@ export interface OpportunitiesResponse {
     limit: number;
     totalPages: number;
   };
+  stats?: {
+    total: number;
+    open: number;
+    closed: number;
+    hot: number;
+    warm: number;
+    cold: number;
+  };
 }
 
 export interface OpportunityStats {
@@ -81,6 +126,19 @@ export interface OpportunityStats {
   byStatus: Record<string, number>;
   byTier: Record<string, number>;
   hotLeads: number;
+  totalopportunities?: number;
+  openopportunities?: number;
+  closedopportunities?: number;
+  inProgress?: number;
+  byType?: Array<{
+    _id: 'individual' | 'organization' | null;
+    count: number;
+  }>;
+  bySource?: Array<{
+    _id: string | null;
+    count: number;
+  }>;
+  lastUpdated?: string;
 }
 
 interface FormattedOpportunityData {
@@ -106,29 +164,207 @@ interface FormattedOpportunityData {
 }
 
 class OpportunityService {
-  async getAllOpportunities(params?: {
-    page?: number;
-    limit?: number;
-    status?: string;
-    search?: string;
-  }): Promise<OpportunitiesResponse> {
+  // Main method to get opportunities with filtering, searching, and sorting
+  async getAllOpportunities(params?: FilterParams): Promise<OpportunitiesResponse> {
     try {
       const queryParams = new URLSearchParams();
-      if (params?.page) queryParams.append('page', params.page.toString());
-      if (params?.limit) queryParams.append('limit', params.limit.toString());
-      if (params?.status) queryParams.append('status', params.status);
-      if (params?.search) queryParams.append('search', params.search);
-
-      const queryString = queryParams.toString();
-      const endpoint = queryString ? `/opportunities?${queryString}` : '/opportunities';
       
-      return await apiClient.get<OpportunitiesResponse>(endpoint);
+      // Add all filter parameters if they exist
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            if (Array.isArray(value)) {
+              // Handle array parameters (for multiple statuses, sources, etc.)
+              value.forEach(item => queryParams.append(`${key}[]`, item));
+            } else if (key === 'assignedTo' && value === 'null') {
+              // Special handling for unassigned filter
+              queryParams.append(key, 'null');
+            } else if (typeof value === 'object') {
+              // Handle nested objects (like date ranges)
+              Object.entries(value).forEach(([nestedKey, nestedValue]) => {
+                if (nestedValue !== undefined && nestedValue !== null && nestedValue !== '') {
+                  queryParams.append(`${key}.${nestedKey}`, nestedValue.toString());
+                }
+              });
+            } else {
+              queryParams.append(key, value.toString());
+            }
+          }
+        });
+      }
+      
+      // Use the search/filter endpoint for advanced filtering
+      const endpoint = `/opportunities/search/filter${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      
+      const response = await apiClient.get<any>(endpoint);
+      
+      // Ensure response has proper structure
+      if (response.data && Array.isArray(response.data)) {
+        return {
+          data: response.data,
+          pagination: response.pagination,
+          stats: response.stats
+        };
+      } else if (Array.isArray(response)) {
+        return {
+          data: response,
+          pagination: undefined,
+          stats: undefined
+        };
+      } else {
+        // If it's already in the right format
+        return response;
+      }
     } catch (error) {
       console.error('Error fetching opportunities:', error);
       throw error;
     }
   }
 
+  // Get opportunities with simple parameters (backward compatibility)
+  async getOpportunitiesSimple(params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    search?: string;
+  }): Promise<OpportunitiesResponse> {
+    const filterParams: FilterParams = {
+      ...params,
+      search: params?.search
+    };
+    return this.getAllOpportunities(filterParams);
+  }
+
+  // Common filter presets from documentation
+  async getNewWebLeads(): Promise<OpportunitiesResponse> {
+    return this.getAllOpportunities({ 
+      status: 'new', 
+      source: 'web',
+      sort: 'createdAt:desc',
+      limit: 50
+    });
+  }
+
+  async searchOpportunities(searchTerm: string): Promise<OpportunitiesResponse> {
+    return this.getAllOpportunities({
+      search: searchTerm,
+      sort: 'leadScore.totalScore:desc',
+      limit: 50
+    });
+  }
+
+  async getHotLeadsWithHighScores(): Promise<OpportunitiesResponse> {
+    return this.getAllOpportunities({ 
+      tier: 'hot', 
+      minScore: 70,
+      sort: 'leadScore.totalScore:desc',
+      limit: 50
+    });
+  }
+
+  async getThisMonthsOpportunities(): Promise<OpportunitiesResponse> {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    
+    return this.getAllOpportunities({
+      fromDate: firstDay.toISOString().split('T')[0],
+      toDate: today.toISOString().split('T')[0],
+      sort: 'createdAt:desc',
+      limit: 100
+    });
+  }
+
+  async getUnassignedNewLeads(): Promise<OpportunitiesResponse> {
+    return this.getAllOpportunities({ 
+      status: 'new', 
+      assignedTo: 'null',
+      sort: 'createdAt:desc',
+      limit: 50
+    });
+  }
+
+  async getPaginatedResults(page: number = 1, limit: number = 20): Promise<OpportunitiesResponse> {
+    return this.getAllOpportunities({
+      page,
+      limit,
+      sort: 'createdAt:desc'
+    });
+  }
+
+  async getMultipleStatuses(statuses: string[]): Promise<OpportunitiesResponse> {
+    return this.getAllOpportunities({
+      statuses,
+      sort: 'leadScore.priority:desc',
+      limit: 50
+    });
+  }
+
+  // Hot leads with priority
+  async getHotPriorityOpportunities(): Promise<OpportunitiesResponse> {
+    return this.getAllOpportunities({ 
+      tier: 'hot', 
+      sort: 'leadScore.priority:desc',
+      limit: 50
+    });
+  }
+
+  // Get opportunities by date range
+  async getOpportunitiesByDateRange(fromDate: string, toDate: string): Promise<OpportunitiesResponse> {
+    return this.getAllOpportunities({
+      fromDate,
+      toDate,
+      sort: 'createdAt:desc',
+      limit: 100
+    });
+  }
+
+  // Get opportunities by score range
+  async getOpportunitiesByScoreRange(minScore: number, maxScore: number): Promise<OpportunitiesResponse> {
+    return this.getAllOpportunities({
+      minScore,
+      maxScore,
+      sort: 'leadScore.totalScore:desc',
+      limit: 50
+    });
+  }
+
+  // Get opportunities with vehicles
+  async getOpportunitiesWithVehicles(): Promise<OpportunitiesResponse> {
+    return this.getAllOpportunities({
+      hasVehicles: true,
+      sort: 'createdAt:desc',
+      limit: 50
+    });
+  }
+
+  // Get opportunities with quotes
+  async getOpportunitiesWithQuotes(): Promise<OpportunitiesResponse> {
+    return this.getAllOpportunities({
+      hasQuotes: true,
+      sort: 'createdAt:desc',
+      limit: 50
+    });
+  }
+
+  // Get nurturing opportunities
+  async getNurturingOpportunities(): Promise<OpportunitiesResponse> {
+    return this.getAllOpportunities({
+      isNurturing: true,
+      sort: 'createdAt:desc',
+      limit: 50
+    });
+  }
+
+  // Get opportunities by customer name
+  async getOpportunitiesByCustomerName(customerName: string): Promise<OpportunitiesResponse> {
+    return this.getAllOpportunities({
+      customerName,
+      sort: 'createdAt:desc',
+      limit: 50
+    });
+  }
+
+  // Existing methods (keep for backward compatibility)
   async getOpportunityById(id: string): Promise<Opportunity> {
     try {
       return await apiClient.get<Opportunity>(`/opportunities/${id}`);
@@ -237,21 +473,18 @@ class OpportunityService {
 
   async getOpportunitiesByTier(tier: string) {
     try {
-      return await apiClient.get(`/opportunities/tier/${tier}`);
+      return this.getAllOpportunities({ 
+        tier, 
+        sort: 'leadScore.totalScore:desc',
+        limit: 50
+      });
     } catch (error) {
       console.error(`Error fetching opportunities by tier ${tier}:`, error);
       throw error;
     }
   }
 
-  async getHotPriorityOpportunities() {
-    try {
-      return await apiClient.get('/opportunities/hot/priority');
-    } catch (error) {
-      console.error('Error fetching hot priority opportunities:', error);
-      throw error;
-    }
-  }
+  
 
   async recalculateLeadScore(id: string) {
     try {
@@ -286,6 +519,50 @@ class OpportunityService {
     } catch (error) {
       console.error(`Error fetching lead score for ${id}:`, error);
       throw error;
+    }
+  }
+
+  // Utility method to build filter query
+  buildFilterQuery(params: FilterParams): string {
+    const queryParams = new URLSearchParams();
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        if (Array.isArray(value)) {
+          value.forEach(item => queryParams.append(`${key}[]`, item));
+        } else {
+          queryParams.append(key, value.toString());
+        }
+      }
+    });
+    
+    return queryParams.toString();
+  }
+
+  // Get all available filter options (for UI dropdowns)
+  async getFilterOptions() {
+    try {
+      const [overview, scoringStats] = await Promise.all([
+        this.getOpportunitiesOverview(),
+        this.getScoringStats()
+      ]);
+      
+      return {
+        statuses: Object.keys(overview.byStatus || {}),
+        tiers: Object.keys(overview.byTier || {}),
+        sources: (overview.bySource || []).map((source: any) => source._id).filter(Boolean),
+        types: (overview.byType || []).map((type: any) => type._id).filter(Boolean),
+        scoringStats
+      };
+    } catch (error) {
+      console.error('Error fetching filter options:', error);
+      return {
+        statuses: [],
+        tiers: [],
+        sources: [],
+        types: [],
+        scoringStats: null
+      };
     }
   }
 }

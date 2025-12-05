@@ -3,15 +3,16 @@
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import CreateOpportunityModal from '@/components/opportunities/CreateOpportunityModal';
 import SuccessModal from '@/components/opportunities/SuccessModal';
-import { opportunityService, Opportunity, CreateOpportunityData, OpportunitiesResponse, OpportunityStats } from '@/services/opportunityService';
+import { opportunityService, Opportunity, FilterParams } from '@/services/opportunityService';
 import { useToast } from '@/contexts/ToastContext';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Plus, Filter, CalendarDays, Search, MoreVertical, Phone, MessageCircle,
   Loader2, RefreshCw, AlertCircle, TrendingUp, TrendingDown, User, Building,
   ChevronLeft, ChevronRight, Briefcase, Car, FileText, DollarSign, Shield,
   Users, Target, BarChart3, Globe, Heart, Zap, Sparkles,
-  Eye, Receipt, Wallet, ClipboardList
+  Eye, Receipt, Wallet, ClipboardList, X, ChevronDown, Calendar, Star, Hash,
+  Mail, Clock, TrendingUp as TrendingUpIcon, Award, CheckCircle, AlertTriangle
 } from 'lucide-react';
 
 type StageId = 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost';
@@ -25,56 +26,57 @@ const stages: { id: StageId; label: string; pastelClass: string; borderColor: st
   { id: 'lost', label: 'Lost', pastelClass: 'bg-rose-50', borderColor: 'border-rose-200' },
 ];
 
-interface OpportunityStatsData {
-  totalopportunities: number;
-  openopportunities: number;
-  closedopportunities: number;
-  inProgress: number;
-  byType: Array<{
-    _id: 'individual' | 'organization' | null;
-    count: number;
-  }>;
-  bySource: Array<{
-    _id: string | null;
-    count: number;
-  }>;
-  lastUpdated: string;
+const leadTiers = [
+  { id: 'hot', label: 'Hot', color: 'bg-red-100 text-red-600' },
+  { id: 'warm', label: 'Warm', color: 'bg-amber-100 text-amber-600' },
+  { id: 'cold', label: 'Cold', color: 'bg-blue-100 text-blue-600' },
+];
+
+const sources = [
+  { id: 'walk_in', label: 'Walk In', icon: Users },
+  { id: 'website', label: 'Website', icon: Globe },
+  { id: 'referral', label: 'Referral', icon: Heart },
+  { id: 'manual', label: 'Manual', icon: User },
+  { id: 'phone', label: 'Phone', icon: Phone },
+  { id: 'email', label: 'Email', icon: Mail },
+];
+
+const opportunityTypes = [
+  { id: 'individual', label: 'Individual' },
+  { id: 'organization', label: 'Organization' },
+];
+
+const sortOptions = [
+  { id: 'createdAt:desc', label: 'Newest First' },
+  { id: 'createdAt:asc', label: 'Oldest First' },
+  { id: 'leadScore.totalScore:desc', label: 'Highest Score' },
+  { id: 'leadScore.totalScore:asc', label: 'Lowest Score' },
+  { id: 'leadScore.priority:desc', label: 'Highest Priority' },
+  { id: 'customer.name:asc', label: 'Customer Name (A-Z)' },
+  { id: 'customer.name:desc', label: 'Customer Name (Z-A)' },
+  { id: 'updatedAt:desc', label: 'Recently Updated' },
+];
+
+const quickFilters = [
+  { id: 'hot_leads', label: 'Hot Leads', icon: Zap, color: 'bg-red-500' },
+  { id: 'new_web', label: 'New Web Leads', icon: Globe, color: 'bg-blue-500' },
+  { id: 'unassigned', label: 'Unassigned', icon: User, color: 'bg-amber-500' },
+  { id: 'with_vehicles', label: 'With Vehicles', icon: Car, color: 'bg-green-500' },
+  { id: 'this_month', label: 'This Month', icon: Calendar, color: 'bg-purple-500' },
+  { id: 'high_priority', label: 'High Priority', icon: Target, color: 'bg-orange-500' },
+];
+
+interface ExtendedOpportunity extends Opportunity {
+  invoices?: any[];
+  payments?: any[];
+  leadScore?: {
+    totalScore: number;
+    tier: 'hot' | 'warm' | 'cold';
+    priority: number;
+    lastCalculated: string;
+    scoreChange?: number;
+  };
 }
-
-const getSourceIcon = (source: string | null) => {
-  switch (source) {
-    case 'walk_in':
-      return <Users className="h-3 w-3" />;
-    case 'website':
-      return <Globe className="h-3 w-3" />;
-    case 'referral':
-      return <Heart className="h-3 w-3" />;
-    case 'manual':
-      return <User className="h-3 w-3" />;
-    default:
-      return <Target className="h-3 w-3" />;
-  }
-};
-
-const getSourceColor = (source: string | null) => {
-  switch (source) {
-    case 'walk_in':
-      return 'bg-blue-100 text-blue-600';
-    case 'website':
-      return 'bg-green-100 text-green-600';
-    case 'referral':
-      return 'bg-purple-100 text-purple-600';
-    case 'manual':
-      return 'bg-amber-100 text-amber-600';
-    default:
-      return 'bg-gray-100 text-gray-600';
-  }
-};
-
-const formatSourceName = (source: string | null) => {
-  if (!source) return 'Other';
-  return source.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-};
 
 const SkeletonCard = () => (
   <div className="bg-white rounded-xl border border-gray-200 p-4 animate-pulse">
@@ -136,18 +138,6 @@ const SkeletonStats = () => (
   </div>
 );
 
-interface ExtendedOpportunity extends Opportunity {
-  invoices?: any[];
-  payments?: any[];
-  leadScore?: {
-    totalScore: number;
-    tier: 'hot' | 'warm' | 'cold';
-    priority: number;
-    lastCalculated: string;
-    scoreChange?: number;
-  };
-}
-
 function OpportunitiesContent() {
   const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
@@ -156,19 +146,46 @@ function OpportunitiesContent() {
   const [refreshing, setRefreshing] = useState(false);
   const [statsLoading, setStatsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [stats, setStats] = useState<OpportunityStatsData | null>(null);
-  const [filter, setFilter] = useState<{ status?: string; tier?: string; source?: string; type?: string }>({});
+  const [stats, setStats] = useState<any>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [scrolling, setScrolling] = useState(false);
   const [showScrollButtons, setShowScrollButtons] = useState(false);
   const kanbanRef = useRef<HTMLDivElement>(null);
-  const [showAllSources, setShowAllSources] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [createdOpportunity, setCreatedOpportunity] = useState<Opportunity | null>(null);
   const [creating, setCreating] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [pagination, setPagination] = useState<any>(null);
+  const [activeQuickFilter, setActiveQuickFilter] = useState<string | null>(null);
+  
+  const [filters, setFilters] = useState<FilterParams>({
+    status: undefined,
+    tier: undefined,
+    source: undefined,
+    type: undefined,
+    search: undefined,
+    minScore: undefined,
+    maxScore: undefined,
+    fromDate: undefined,
+    toDate: undefined,
+    assignedTo: undefined,
+    sort: 'createdAt:desc',
+    page: 1,
+    limit: 100,
+  });
+  
+  const [advancedFilters, setAdvancedFilters] = useState({
+    showAdvanced: false,
+    multipleStatuses: [] as string[],
+    multipleSources: [] as string[],
+    hasVehicles: undefined as boolean | undefined,
+    hasQuotes: undefined as boolean | undefined,
+    hasJobCards: undefined as boolean | undefined,
+    isNurturing: undefined as boolean | undefined,
+  });
 
-  const fetchOpportunities = async (isRefresh = false) => {
+  const fetchOpportunities = useCallback(async (isRefresh = false) => {
     try {
       if (!isRefresh) {
         setLoading(true);
@@ -178,35 +195,46 @@ function OpportunitiesContent() {
       }
       setError(null);
       
-      const params: any = {};
-      if (filter.status) params.status = filter.status;
-      if (filter.tier) params.tier = filter.tier;
-      if (filter.source) params.source = filter.source;
-      if (filter.type) params.type = filter.type;
-      if (searchQuery) params.search = searchQuery;
+      const params: FilterParams = { ...filters };
       
-      const [opportunitiesResponse, overviewResponse] = await Promise.all([
-        opportunityService.getAllOpportunities(params),
-        opportunityService.getOpportunitiesOverview()
-      ]);
-      
-      let opportunitiesData: ExtendedOpportunity[] = [];
-      
-      if (Array.isArray(opportunitiesResponse)) {
-        opportunitiesData = opportunitiesResponse as ExtendedOpportunity[];
-      } else if (opportunitiesResponse.data && Array.isArray(opportunitiesResponse.data)) {
-        opportunitiesData = opportunitiesResponse.data as ExtendedOpportunity[];
-      } else if (opportunitiesResponse && typeof opportunitiesResponse === 'object') {
-        const response = opportunitiesResponse as OpportunitiesResponse;
-        opportunitiesData = response.data as ExtendedOpportunity[];
-      } else {
-        opportunitiesData = [];
+      if (advancedFilters.multipleStatuses.length > 0) {
+        params.statuses = advancedFilters.multipleStatuses;
+        delete params.status;
       }
       
-      setOpportunities(opportunitiesData);
+      if (advancedFilters.multipleSources.length > 0) {
+        params.sources = advancedFilters.multipleSources;
+        delete params.source;
+      }
       
-      const statsData = overviewResponse as unknown as OpportunityStatsData;
-      setStats(statsData);
+      if (advancedFilters.hasVehicles !== undefined) {
+        params.hasVehicles = advancedFilters.hasVehicles;
+      }
+      
+      if (advancedFilters.hasQuotes !== undefined) {
+        params.hasQuotes = advancedFilters.hasQuotes;
+      }
+      
+      if (advancedFilters.hasJobCards !== undefined) {
+        params.hasJobCards = advancedFilters.hasJobCards;
+      }
+      
+      if (advancedFilters.isNurturing !== undefined) {
+        params.isNurturing = advancedFilters.isNurturing;
+      }
+      
+      if (searchQuery.trim()) {
+        params.search = searchQuery.trim();
+      }
+      
+      const response = await opportunityService.getAllOpportunities(params);
+      
+      setOpportunities(response.data || []);
+      setPagination(response.pagination);
+      
+      if (response.stats) {
+        setStats(response.stats);
+      }
       
     } catch (err: any) {
       console.error('Error fetching opportunities:', err);
@@ -217,53 +245,39 @@ function OpportunitiesContent() {
       setRefreshing(false);
       setStatsLoading(false);
     }
-  };
+  }, [filters, advancedFilters, searchQuery, showToast]);
+
+  const fetchOverview = useCallback(async () => {
+    try {
+      const overview = await opportunityService.getOpportunitiesOverview();
+      setStats(overview);
+    } catch (err) {
+      console.error('Error fetching overview:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchOpportunities();
+    fetchOverview();
+  }, [fetchOpportunities, fetchOverview]);
+
+  useEffect(() => {
+    const checkScroll = () => {
+      if (kanbanRef.current) {
+        const needsScroll = kanbanRef.current.scrollWidth > kanbanRef.current.clientWidth;
+        setShowScrollButtons(needsScroll);
+      }
+    };
+
+    checkScroll();
+    window.addEventListener('resize', checkScroll);
+    return () => window.removeEventListener('resize', checkScroll);
+  }, [opportunities]);
 
   const handleCreateOpportunity = async (formData: any) => {
     try {
       setCreating(true);
-      console.log('Form data received:', formData);
-
-      const opportunityData = {
-        type: formData.accountType,
-        subject: formData.subject,
-        status: 'new',
-        source: formData.source,
-        customer: {
-          name: formData.accountType === 'organization' 
-            ? formData.companyName 
-            : `${formData.firstName} ${formData.lastName}`.trim(),
-          ...(formData.email && { email: formData.email }),
-          ...(formData.phone && { phone: formData.phone }),
-          ...(formData.accountType === 'organization' && formData.companyName && { 
-            companyName: formData.companyName 
-          }),
-        },
-        ...(formData.notes && { notes: formData.notes }),
-      };
-
-      if (formData.vehicles && formData.vehicles.length > 0) {
-        const validVehicles = formData.vehicles.filter((v: any) => 
-          v.make.trim() && v.model.trim()
-        );
-        
-        if (validVehicles.length > 0) {
-          opportunityData.vehicles = validVehicles.map((v: any) => ({
-            ...(v.vin && { vin: v.vin }),
-            ...(v.registrationNumber && { registrationNumber: v.registrationNumber }),
-            make: v.make,
-            model: v.model,
-            ...(v.year && { year: v.year }),
-            ...(v.color && { color: v.color }),
-          }));
-        }
-      }
-
-      console.log('Sending opportunity data:', JSON.stringify(opportunityData, null, 2));
-
-      const result = await opportunityService.createOpportunity(opportunityData);
-      
-      console.log('API Response:', result);
+      const result = await opportunityService.createOpportunity(formData);
       
       setCreatedOpportunity(result);
       setIsCreateModalOpen(false);
@@ -273,52 +287,20 @@ function OpportunitiesContent() {
       
       setTimeout(() => {
         fetchOpportunities();
+        fetchOverview();
       }, 1000);
       
     } catch (error: any) {
       console.error('Error creating opportunity:', error);
-      
-      let errorMessage = 'Failed to create opportunity. ';
-      
-      if (error.message.includes('Authentication failed')) {
-        errorMessage += 'Please log in again.';
-      } else if (error.message.includes('Network error')) {
-        errorMessage += 'Please check your internet connection.';
-      } else if (error.message.includes('API Error')) {
-        errorMessage += `Server error: ${error.message}`;
-      } else {
-        errorMessage += 'Please try again.';
-      }
-      
-      showToast(errorMessage, 'error', 5000);
+      showToast('Failed to create opportunity. Please try again.', 'error', 5000);
     } finally {
       setCreating(false);
     }
   };
 
-  const handleViewOpportunityDetails = () => {
-    if (createdOpportunity) {
-      console.log('Viewing opportunity:', createdOpportunity._id);
-      showToast(`Redirecting to opportunity ${createdOpportunity.subject}`, 'info', 2000);
-      setIsSuccessModalOpen(false);
-    }
-  };
-
-  const handleCreateAnother = () => {
-    setIsSuccessModalOpen(false);
-    setIsCreateModalOpen(true);
-  };
-
-  const handleAssignToTeam = () => {
-    if (createdOpportunity) {
-      console.log('Assigning opportunity to team:', createdOpportunity._id);
-      showToast(`Assigning opportunity to team...`, 'info', 2000);
-      setIsSuccessModalOpen(false);
-    }
-  };
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    setFilters(prev => ({ ...prev, page: 1 }));
     fetchOpportunities();
   };
 
@@ -342,6 +324,138 @@ function OpportunitiesContent() {
       console.error('Error recalculating score:', err);
       showToast('Failed to recalculate lead score', 'error', 3000);
     }
+  };
+
+  const handleFilterChange = (key: keyof FilterParams, value: any) => {
+    setFilters(prev => ({ ...prev, [key]: value, page: 1 }));
+  };
+
+  const handleMultipleStatusToggle = (status: string) => {
+    setAdvancedFilters(prev => {
+      const newStatuses = prev.multipleStatuses.includes(status)
+        ? prev.multipleStatuses.filter(s => s !== status)
+        : [...prev.multipleStatuses, status];
+      
+      return { ...prev, multipleStatuses: newStatuses };
+    });
+  };
+
+  const handleMultipleSourceToggle = (source: string) => {
+    setAdvancedFilters(prev => {
+      const newSources = prev.multipleSources.includes(source)
+        ? prev.multipleSources.filter(s => s !== source)
+        : [...prev.multipleSources, source];
+      
+      return { ...prev, multipleSources: newSources };
+    });
+  };
+
+  const handleQuickFilter = (filterId: string) => {
+    setActiveQuickFilter(filterId);
+    setFilters({
+      status: undefined,
+      tier: undefined,
+      source: undefined,
+      type: undefined,
+      search: undefined,
+      minScore: undefined,
+      maxScore: undefined,
+      fromDate: undefined,
+      toDate: undefined,
+      assignedTo: undefined,
+      sort: 'createdAt:desc',
+      page: 1,
+      limit: 100,
+    });
+    
+    setAdvancedFilters({
+      showAdvanced: false,
+      multipleStatuses: [],
+      multipleSources: [],
+      hasVehicles: undefined,
+      hasQuotes: undefined,
+      hasJobCards: undefined,
+      isNurturing: undefined,
+    });
+    
+    switch (filterId) {
+      case 'hot_leads':
+        opportunityService.getHotLeadsWithHighScores().then(response => {
+          setOpportunities(response.data || []);
+          setPagination(response.pagination);
+          if (response.stats) setStats(response.stats);
+        });
+        break;
+      case 'new_web':
+        opportunityService.getNewWebLeads().then(response => {
+          setOpportunities(response.data || []);
+          setPagination(response.pagination);
+          if (response.stats) setStats(response.stats);
+        });
+        break;
+      case 'unassigned':
+        opportunityService.getUnassignedNewLeads().then(response => {
+          setOpportunities(response.data || []);
+          setPagination(response.pagination);
+          if (response.stats) setStats(response.stats);
+        });
+        break;
+      case 'with_vehicles':
+        opportunityService.getOpportunitiesWithVehicles().then(response => {
+          setOpportunities(response.data || []);
+          setPagination(response.pagination);
+          if (response.stats) setStats(response.stats);
+        });
+        break;
+      case 'this_month':
+        opportunityService.getThisMonthsOpportunities().then(response => {
+          setOpportunities(response.data || []);
+          setPagination(response.pagination);
+          if (response.stats) setStats(response.stats);
+        });
+        break;
+      case 'high_priority':
+        opportunityService.getHotPriorityOpportunities().then(response => {
+          setOpportunities(response.data || []);
+          setPagination(response.pagination);
+          if (response.stats) setStats(response.stats);
+        });
+        break;
+    }
+  };
+
+  const handleClearFilters = () => {
+    setFilters({
+      status: undefined,
+      tier: undefined,
+      source: undefined,
+      type: undefined,
+      search: undefined,
+      minScore: undefined,
+      maxScore: undefined,
+      fromDate: undefined,
+      toDate: undefined,
+      assignedTo: undefined,
+      sort: 'createdAt:desc',
+      page: 1,
+      limit: 100,
+    });
+    setAdvancedFilters({
+      showAdvanced: false,
+      multipleStatuses: [],
+      multipleSources: [],
+      hasVehicles: undefined,
+      hasQuotes: undefined,
+      hasJobCards: undefined,
+      isNurturing: undefined,
+    });
+    setSearchQuery('');
+    setActiveQuickFilter(null);
+  };
+
+  const applyFilters = () => {
+    setActiveQuickFilter(null);
+    fetchOpportunities();
   };
 
   const getAvatarColor = (type: string, score?: number) => {
@@ -417,19 +531,6 @@ function OpportunitiesContent() {
     return { hot, warm, cold };
   };
 
-  useEffect(() => {
-    const checkScroll = () => {
-      if (kanbanRef.current) {
-        const needsScroll = kanbanRef.current.scrollWidth > kanbanRef.current.clientWidth;
-        setShowScrollButtons(needsScroll);
-      }
-    };
-
-    checkScroll();
-    window.addEventListener('resize', checkScroll);
-    return () => window.removeEventListener('resize', checkScroll);
-  }, [opportunities]);
-
   const scrollKanban = (direction: 'left' | 'right') => {
     if (kanbanRef.current) {
       const scrollAmount = 300;
@@ -446,14 +547,13 @@ function OpportunitiesContent() {
     }
   };
 
-  useEffect(() => {
-    fetchOpportunities();
-  }, [filter]);
-
   const leadScoreStats = calculateLeadScoreStats();
-  const visibleSources = showAllSources 
-    ? stats?.bySource || []
-    : (stats?.bySource || []).slice(0, 3);
+  const hasActiveFilters = filters.status || filters.tier || filters.source || filters.type || 
+    filters.minScore || filters.maxScore || filters.fromDate || filters.toDate || 
+    filters.assignedTo || advancedFilters.multipleStatuses.length > 0 ||
+    advancedFilters.multipleSources.length > 0 || advancedFilters.hasVehicles !== undefined ||
+    advancedFilters.hasQuotes !== undefined || advancedFilters.hasJobCards !== undefined ||
+    advancedFilters.isNurturing !== undefined;
 
   if (loading && !opportunities.length) {
     return (
@@ -502,9 +602,9 @@ function OpportunitiesContent() {
                   </span>
                 ) : stats ? (
                   <>
-                    {stats.totalopportunities} total opportunities • 
-                    <span className="ml-1 text-green-600">{stats.closedopportunities} closed</span> • 
-                    <span className="ml-1 text-blue-600">{stats.openopportunities} open</span>
+                    {stats.totalopportunities || opportunities.length} total opportunities • 
+                    <span className="ml-1 text-green-600">{stats.closedopportunities || 0} closed</span> • 
+                    <span className="ml-1 text-blue-600">{stats.openopportunities || opportunities.filter(o => !['won', 'lost'].includes(o.status)).length} open</span>
                   </>
                 ) : (
                   'Track and manage your leads & deals'
@@ -523,7 +623,7 @@ function OpportunitiesContent() {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
                     type="text"
-                    placeholder="Search opportunities..."
+                    placeholder="Search opportunities, customers..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10 pr-4 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 w-full"
@@ -573,13 +673,19 @@ function OpportunitiesContent() {
                   </>
                 )}
               </button>
+              
               <button 
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors flex-1 sm:flex-none"
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors relative"
                 disabled={loading || creating}
               >
                 <Filter className="h-4 w-4" />
                 <span className="hidden sm:inline">Filter</span>
+                {hasActiveFilters && (
+                  <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full"></span>
+                )}
               </button>
+              
               <button 
                 onClick={() => setIsCreateModalOpen(true)}
                 disabled={loading || creating}
@@ -625,123 +731,286 @@ function OpportunitiesContent() {
           </div>
         )}
 
+        {/* Quick Filters */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-4 sm:mt-6">
-          {statsLoading ? (
-            <SkeletonStats />
-          ) : stats ? (
-            <>
-              <div className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-white border border-gray-200 text-xs sm:text-sm text-gray-600 transition-all hover:scale-105">
-                <div className="flex items-center gap-1 sm:gap-2">
-                  <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span>Total: {stats.totalopportunities}</span>
-                </div>
-              </div>
-              
-              <div className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-green-500 to-green-600 text-white text-xs sm:text-sm font-medium shadow-sm">
-                <div className="flex items-center gap-1 sm:gap-2">
-                  <Target className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span>Closed: {stats.closedopportunities}</span>
-                </div>
-              </div>
-              
-              <div className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs sm:text-sm font-medium shadow-sm">
-                <div className="flex items-center gap-1 sm:gap-2">
-                  <Zap className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span>Open: {stats.openopportunities}</span>
-                </div>
-              </div>
-              
-              {leadScoreStats.hot > 0 && (
-                <div className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white text-xs sm:text-sm font-medium shadow-sm">
-                  <div className="flex items-center gap-1 sm:gap-2">
-                    <Heart className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span>Hot Leads: {leadScoreStats.hot}</span>
-                  </div>
-                </div>
-              )}
-              
-              {leadScoreStats.warm > 0 && (
-                <div className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 text-white text-xs sm:text-sm font-medium shadow-sm">
-                  <div className="flex items-center gap-1 sm:gap-2">
-                    <Target className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span>Warm Leads: {leadScoreStats.warm}</span>
-                  </div>
-                </div>
-              )}
-              
-              <select 
-                value={filter.status || ''}
-                onChange={(e) => setFilter(prev => ({ ...prev, status: e.target.value || undefined }))}
-                disabled={loading || creating}
-                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-white border border-gray-200 text-xs sm:text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all hover:border-blue-300 disabled:opacity-50"
+          {quickFilters.map((filter) => {
+            const Icon = filter.icon;
+            const isActive = activeQuickFilter === filter.id;
+            
+            return (
+              <button
+                key={filter.id}
+                onClick={() => handleQuickFilter(filter.id)}
+                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium shadow-sm transition-all hover:scale-105 flex items-center gap-1 sm:gap-2 ${
+                  isActive 
+                    ? `bg-gradient-to-r ${filter.color} text-white` 
+                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
               >
-                <option value="">All Status</option>
-                {stages.map(stage => (
-                  <option key={stage.id} value={stage.id}>{stage.label}</option>
-                ))}
-              </select>
-              
-              <select 
-                value={filter.type || ''}
-                onChange={(e) => setFilter(prev => ({ ...prev, type: e.target.value || undefined }))}
-                disabled={loading || creating}
-                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-white border border-gray-200 text-xs sm:text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all hover:border-blue-300 disabled:opacity-50"
-              >
-                <option value="">All Types</option>
-                {stats.byType.map(type => (
-                  <option key={type._id || 'other'} value={type._id || ''}>
-                    {type._id ? type._id.charAt(0).toUpperCase() + type._id.slice(1) : 'Other'}
-                  </option>
-                ))}
-              </select>
-              
-              <select 
-                value={filter.source || ''}
-                onChange={(e) => setFilter(prev => ({ ...prev, source: e.target.value || undefined }))}
-                disabled={loading || creating}
-                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-white border border-gray-200 text-xs sm:text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all hover:border-blue-300 disabled:opacity-50"
-              >
-                <option value="">All Sources</option>
-                {stats.bySource.map(source => (
-                  <option key={source._id || 'other'} value={source._id || ''}>
-                    {formatSourceName(source._id)}
-                  </option>
-                ))}
-              </select>
-            </>
-          ) : null}
+                <Icon className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span>{filter.label}</span>
+              </button>
+            );
+          })}
+          
+          {hasActiveFilters && (
+            <button 
+              onClick={handleClearFilters}
+              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gray-100 text-gray-600 text-xs sm:text-sm font-medium hover:bg-gray-200 transition-all flex items-center gap-1 sm:gap-2"
+            >
+              <X className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span>Clear All</span>
+            </button>
+          )}
         </div>
 
-        {stats && stats.bySource && stats.bySource.length > 0 && (
-          <div className="mt-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-700">Sources Breakdown</h3>
-              {stats.bySource.length > 3 && (
-                <button
-                  onClick={() => setShowAllSources(!showAllSources)}
-                  className="text-xs text-blue-500 hover:text-blue-600"
+        {/* Advanced Filters Panel */}
+        {showFilters && (
+          <div className="mt-4 p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-800">Advanced Filters</h3>
+              <button 
+                onClick={() => setAdvancedFilters(prev => ({ ...prev, showAdvanced: !prev.showAdvanced }))}
+                className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1"
+              >
+                {advancedFilters.showAdvanced ? 'Show Basic' : 'Show Advanced'}
+                <ChevronDown className={`h-3 w-3 transition-transform ${advancedFilters.showAdvanced ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Basic Filters */}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-2">Status</label>
+                <select 
+                  value={filters.status || ''}
+                  onChange={(e) => handleFilterChange('status', e.target.value || undefined)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
                 >
-                  {showAllSources ? 'Show less' : `Show all ${stats.bySource.length} sources`}
-                </button>
+                  <option value="">All Statuses</option>
+                  {stages.map(stage => (
+                    <option key={stage.id} value={stage.id}>{stage.label}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-2">Lead Tier</label>
+                <select 
+                  value={filters.tier || ''}
+                  onChange={(e) => handleFilterChange('tier', e.target.value || undefined)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                >
+                  <option value="">All Tiers</option>
+                  {leadTiers.map(tier => (
+                    <option key={tier.id} value={tier.id}>{tier.label}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-2">Source</label>
+                <select 
+                  value={filters.source || ''}
+                  onChange={(e) => handleFilterChange('source', e.target.value || undefined)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                >
+                  <option value="">All Sources</option>
+                  {sources.map(source => {
+                    const Icon = source.icon;
+                    return (
+                      <option key={source.id} value={source.id}>
+                        {source.label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-2">Sort By</label>
+                <select 
+                  value={filters.sort || 'createdAt:desc'}
+                  onChange={(e) => handleFilterChange('sort', e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                >
+                  {sortOptions.map(option => (
+                    <option key={option.id} value={option.id}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Advanced Filters */}
+              {advancedFilters.showAdvanced && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-2">Date From</label>
+                    <input
+                      type="date"
+                      value={filters.fromDate || ''}
+                      onChange={(e) => handleFilterChange('fromDate', e.target.value || undefined)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-2">Date To</label>
+                    <input
+                      type="date"
+                      value={filters.toDate || ''}
+                      onChange={(e) => handleFilterChange('toDate', e.target.value || undefined)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-2">Min Score</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={filters.minScore || ''}
+                      onChange={(e) => handleFilterChange('minScore', e.target.value ? parseInt(e.target.value) : undefined)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                      placeholder="0"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-2">Max Score</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={filters.maxScore || ''}
+                      onChange={(e) => handleFilterChange('maxScore', e.target.value ? parseInt(e.target.value) : undefined)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                      placeholder="100"
+                    />
+                  </div>
+                  
+                  {/* Multiple Statuses */}
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 mb-2">Multiple Statuses</label>
+                    <div className="flex flex-wrap gap-2">
+                      {stages.map(stage => (
+                        <button
+                          key={stage.id}
+                          type="button"
+                          onClick={() => handleMultipleStatusToggle(stage.id)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            advancedFilters.multipleStatuses.includes(stage.id)
+                              ? 'bg-blue-100 text-blue-600 border border-blue-200'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {stage.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Multiple Sources */}
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 mb-2">Multiple Sources</label>
+                    <div className="flex flex-wrap gap-2">
+                      {sources.map(source => (
+                        <button
+                          key={source.id}
+                          type="button"
+                          onClick={() => handleMultipleSourceToggle(source.id)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            advancedFilters.multipleSources.includes(source.id)
+                              ? 'bg-green-100 text-green-600 border border-green-200'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {source.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Boolean Filters */}
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 mb-2">Additional Filters</label>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAdvancedFilters(prev => ({ 
+                          ...prev, 
+                          hasVehicles: prev.hasVehicles === true ? undefined : true 
+                        }))}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          advancedFilters.hasVehicles === true
+                            ? 'bg-blue-100 text-blue-600 border border-blue-200'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        Has Vehicles
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAdvancedFilters(prev => ({ 
+                          ...prev, 
+                          hasQuotes: prev.hasQuotes === true ? undefined : true 
+                        }))}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          advancedFilters.hasQuotes === true
+                            ? 'bg-green-100 text-green-600 border border-green-200'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        Has Quotes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAdvancedFilters(prev => ({ 
+                          ...prev, 
+                          isNurturing: prev.isNurturing === true ? undefined : true 
+                        }))}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          advancedFilters.isNurturing === true
+                            ? 'bg-purple-100 text-purple-600 border border-purple-200'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        Is Nurturing
+                      </button>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
-            <div className="flex flex-wrap gap-2">
-              {visibleSources.map((source, index) => (
-                <div
-                  key={source._id || `source-${index}`}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 transition-all hover:scale-105 ${getSourceColor(source._id)}`}
-                  title={`${formatSourceName(source._id)}: ${source.count} opportunities`}
-                >
-                  {getSourceIcon(source._id)}
-                  <span>{formatSourceName(source._id)}</span>
-                  <span className="ml-1 opacity-75">({source.count})</span>
-                </div>
-              ))}
+            
+            <div className="mt-4 pt-4 border-t border-gray-200 flex items-center gap-2">
+              <button
+                onClick={applyFilters}
+                disabled={loading}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 disabled:opacity-50"
+              >
+                Apply Filters
+              </button>
+              <button
+                onClick={handleClearFilters}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300"
+              >
+                Clear All
+              </button>
+              <button
+                onClick={() => setShowFilters(false)}
+                className="px-4 py-2 bg-transparent text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 ml-auto"
+              >
+                Close
+              </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* Kanban Board */}
       <div className="pb-6 relative">
+        {/* Mobile scroll buttons */}
         {showScrollButtons && (
           <div className="md:hidden flex justify-center gap-2 mb-4">
             <button
@@ -763,6 +1032,7 @@ function OpportunitiesContent() {
           </div>
         )}
 
+        {/* Desktop scroll buttons */}
         {showScrollButtons && (
           <>
             <button
@@ -831,9 +1101,84 @@ function OpportunitiesContent() {
             })}
           </div>
         </div>
+        
+        {/* Pagination */}
+        {pagination && pagination.totalPages > 1 && (
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-sm text-gray-500">
+              Showing {opportunities.length} of {pagination.total} opportunities
+              {pagination.page && pagination.totalPages && (
+                <span> (Page {pagination.page} of {pagination.totalPages})</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleFilterChange('page', Math.max(1, (pagination.page || 1) - 1))}
+                disabled={!pagination.page || pagination.page <= 1}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Previous
+              </button>
+              <div className="flex items-center gap-1">
+                {(() => {
+                  if (!pagination.totalPages) return null;
+                  
+                  const pages = [];
+                  const currentPage = pagination.page || 1;
+                  const totalPages = pagination.totalPages;
+                  
+                  // Show first page, current page, and last page with ellipsis
+                  if (totalPages <= 5) {
+                    for (let i = 1; i <= totalPages; i++) {
+                      pages.push(i);
+                    }
+                  } else {
+                    pages.push(1);
+                    if (currentPage > 3) pages.push('...');
+                    
+                    const start = Math.max(2, currentPage - 1);
+                    const end = Math.min(totalPages - 1, currentPage + 1);
+                    
+                    for (let i = start; i <= end; i++) {
+                      if (!pages.includes(i)) pages.push(i);
+                    }
+                    
+                    if (currentPage < totalPages - 2) pages.push('...');
+                    pages.push(totalPages);
+                  }
+                  
+                  return pages.map((pageNum, index) => (
+                    pageNum === '...' ? (
+                      <span key={`ellipsis-${index}`} className="px-2 text-gray-400">...</span>
+                    ) : (
+                      <button
+                        key={pageNum}
+                        onClick={() => handleFilterChange('page', pageNum)}
+                        className={`w-8 h-8 rounded-lg text-sm font-medium ${
+                          currentPage === pageNum
+                            ? 'bg-blue-500 text-white'
+                            : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    )
+                  ));
+                })()}
+              </div>
+              <button
+                onClick={() => handleFilterChange('page', Math.min(pagination.totalPages || 1, (pagination.page || 1) + 1))}
+                disabled={!pagination.page || pagination.page >= pagination.totalPages}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Modals remain unchanged */}
+      {/* Modals */}
       <CreateOpportunityModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
@@ -844,9 +1189,9 @@ function OpportunitiesContent() {
         isOpen={isSuccessModalOpen}
         onClose={() => setIsSuccessModalOpen(false)}
         opportunity={createdOpportunity}
-        onViewDetails={handleViewOpportunityDetails}
-        onCreateAnother={handleCreateAnother}
-        onAssignToTeam={handleAssignToTeam}
+        // onViewDetails={handleViewOpportunityDetails}
+        // onCreateAnother={handleCreateAnother}
+        // onAssignToTeam={handleAssignToTeam}
       />
     </div>
   );
