@@ -5,7 +5,7 @@ import CreateOpportunityModal from '@/components/opportunities/CreateOpportunity
 import SuccessModal from '@/components/opportunities/SuccessModal';
 import { opportunityService, Opportunity, FilterParams } from '@/services/opportunityService';
 import { useToast } from '@/contexts/ToastContext';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   Plus, Filter, CalendarDays, Search, MoreVertical, Phone, MessageCircle,
   Loader2, RefreshCw, AlertCircle, TrendingUp, TrendingDown, User, Building,
@@ -141,6 +141,8 @@ const SkeletonStats = () => (
 function OpportunitiesContent() {
   const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [searchLoading, setSearchLoading] = useState(false);
   const [opportunities, setOpportunities] = useState<ExtendedOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -185,6 +187,36 @@ function OpportunitiesContent() {
     isNurturing: undefined as boolean | undefined,
   });
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const trimmedSearch = searchQuery.trim();
+      
+      // Only search if 3+ characters or empty (to clear search)
+      if (trimmedSearch.length >= 3 || trimmedSearch.length === 0) {
+        setDebouncedSearch(trimmedSearch);
+        
+        // Update filters with search query
+        if (trimmedSearch.length >= 3) {
+          setSearchLoading(true);
+          setFilters(prev => ({ 
+            ...prev, 
+            search: trimmedSearch,
+            page: 1 
+          }));
+        } else if (trimmedSearch.length === 0 && filters.search) {
+          // Clear search if input is empty
+          setFilters(prev => ({ 
+            ...prev, 
+            search: undefined,
+            page: 1 
+          }));
+        }
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, filters.search]);
+
   const fetchOpportunities = useCallback(async (isRefresh = false) => {
     try {
       if (!isRefresh) {
@@ -223,9 +255,6 @@ function OpportunitiesContent() {
         params.isNurturing = advancedFilters.isNurturing;
       }
       
-      if (searchQuery.trim()) {
-        params.search = searchQuery.trim();
-      }
       
       const response = await opportunityService.getAllOpportunities(params);
       
@@ -244,8 +273,15 @@ function OpportunitiesContent() {
       setLoading(false);
       setRefreshing(false);
       setStatsLoading(false);
+      setSearchLoading(false);
     }
-  }, [filters, advancedFilters, searchQuery, showToast]);
+  }, [filters, advancedFilters, showToast]);
+
+  useEffect(() => {
+    if (!activeQuickFilter) {
+      fetchOpportunities();
+    }
+  }, [filters, fetchOpportunities, activeQuickFilter]);
 
   const fetchOverview = useCallback(async () => {
     try {
@@ -257,22 +293,8 @@ function OpportunitiesContent() {
   }, []);
 
   useEffect(() => {
-    fetchOpportunities();
     fetchOverview();
-  }, [fetchOpportunities, fetchOverview]);
-
-  useEffect(() => {
-    const checkScroll = () => {
-      if (kanbanRef.current) {
-        const needsScroll = kanbanRef.current.scrollWidth > kanbanRef.current.clientWidth;
-        setShowScrollButtons(needsScroll);
-      }
-    };
-
-    checkScroll();
-    window.addEventListener('resize', checkScroll);
-    return () => window.removeEventListener('resize', checkScroll);
-  }, [opportunities]);
+  }, [fetchOverview]);
 
   const handleCreateOpportunity = async (formData: any) => {
     try {
@@ -298,10 +320,53 @@ function OpportunitiesContent() {
     }
   };
 
+  const handleViewOpportunityDetails = () => {
+    if (createdOpportunity) {
+      showToast(`Redirecting to opportunity ${createdOpportunity.subject}`, 'info', 2000);
+      setIsSuccessModalOpen(false);
+    }
+  };
+
+  const handleCreateAnother = () => {
+    setIsSuccessModalOpen(false);
+    setIsCreateModalOpen(true);
+  };
+
+  const handleAssignToTeam = () => {
+    if (createdOpportunity) {
+      console.log('Assigning opportunity to team:', createdOpportunity._id);
+      showToast(`Assigning opportunity to team...`, 'info', 2000);
+      setIsSuccessModalOpen(false);
+    }
+  };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    setFilters(prev => ({ ...prev, page: 1 }));
-    fetchOpportunities();
+    const trimmedSearch = searchQuery.trim();
+    
+    if (trimmedSearch.length >= 3) {
+      setSearchLoading(true);
+      setFilters(prev => ({ 
+        ...prev, 
+        search: trimmedSearch,
+        page: 1 
+      }));
+      setActiveQuickFilter(null);
+    } else if (trimmedSearch.length > 0 && trimmedSearch.length < 3) {
+      showToast('Please enter at least 3 characters to search', 'info', 2000);
+    }
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setDebouncedSearch('');
+    if (filters.search) {
+      setFilters(prev => ({ 
+        ...prev, 
+        search: undefined,
+        page: 1 
+      }));
+    }
   };
 
   const handleStatusChange = async (opportunityId: string, newStatus: StageId) => {
@@ -450,6 +515,7 @@ function OpportunitiesContent() {
       isNurturing: undefined,
     });
     setSearchQuery('');
+    setDebouncedSearch('');
     setActiveQuickFilter(null);
   };
 
@@ -531,6 +597,19 @@ function OpportunitiesContent() {
     return { hot, warm, cold };
   };
 
+  useEffect(() => {
+    const checkScroll = () => {
+      if (kanbanRef.current) {
+        const needsScroll = kanbanRef.current.scrollWidth > kanbanRef.current.clientWidth;
+        setShowScrollButtons(needsScroll);
+      }
+    };
+
+    checkScroll();
+    window.addEventListener('resize', checkScroll);
+    return () => window.removeEventListener('resize', checkScroll);
+  }, [opportunities]);
+
   const scrollKanban = (direction: 'left' | 'right') => {
     if (kanbanRef.current) {
       const scrollAmount = 300;
@@ -554,6 +633,11 @@ function OpportunitiesContent() {
     advancedFilters.multipleSources.length > 0 || advancedFilters.hasVehicles !== undefined ||
     advancedFilters.hasQuotes !== undefined || advancedFilters.hasJobCards !== undefined ||
     advancedFilters.isNurturing !== undefined;
+
+  const showSearchHelp = useMemo(() => {
+    const trimmedSearch = searchQuery.trim();
+    return trimmedSearch.length > 0 && trimmedSearch.length < 3;
+  }, [searchQuery]);
 
   if (loading && !opportunities.length) {
     return (
@@ -626,23 +710,38 @@ function OpportunitiesContent() {
                     placeholder="Search opportunities, customers..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 pr-4 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 w-full"
+                    className="pl-10 pr-10 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 w-full"
                     disabled={loading || creating}
                   />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={handleClearSearch}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      disabled={loading || creating}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                  {showSearchHelp && (
+                    <div className="absolute top-full left-0 right-0 mt-1 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+                      Type at least 3 characters to search
+                    </div>
+                  )}
                 </div>
                 <button
                   type="submit"
-                  disabled={loading || creating}
+                  disabled={loading || creating || searchLoading}
                   className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-1 ${
-                    loading || creating
+                    loading || creating || searchLoading
                       ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
                   }`}
                 >
-                  {loading ? (
+                  {searchLoading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Searching...
+                      <span className="hidden sm:inline">Searching...</span>
                     </>
                   ) : (
                     'Search'
@@ -707,6 +806,27 @@ function OpportunitiesContent() {
           </div>
         </div>
 
+        {debouncedSearch.length >= 3 && (
+          <div className="mt-3 flex items-center gap-2 text-sm">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg">
+              <Search className="h-3 w-3" />
+              <span>Searching for: "{debouncedSearch}"</span>
+              <button
+                onClick={handleClearSearch}
+                className="ml-2 text-blue-400 hover:text-blue-600"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+            {searchLoading && (
+              <div className="flex items-center gap-1 text-gray-500">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span>Searching...</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {error && (
           <div className="mt-4 p-4 rounded-xl bg-red-50 border border-red-200 flex items-start gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
             <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
@@ -769,13 +889,20 @@ function OpportunitiesContent() {
           <div className="mt-4 p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-gray-800">Advanced Filters</h3>
-              <button 
-                onClick={() => setAdvancedFilters(prev => ({ ...prev, showAdvanced: !prev.showAdvanced }))}
-                className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1"
-              >
-                {advancedFilters.showAdvanced ? 'Show Basic' : 'Show Advanced'}
-                <ChevronDown className={`h-3 w-3 transition-transform ${advancedFilters.showAdvanced ? 'rotate-180' : ''}`} />
-              </button>
+              <div className="flex items-center gap-2">
+                {searchQuery && (
+                  <div className="text-xs text-gray-500">
+                    Search: "{searchQuery}"
+                  </div>
+                )}
+                <button 
+                  onClick={() => setAdvancedFilters(prev => ({ ...prev, showAdvanced: !prev.showAdvanced }))}
+                  className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1"
+                >
+                  {advancedFilters.showAdvanced ? 'Show Basic' : 'Show Advanced'}
+                  <ChevronDown className={`h-3 w-3 transition-transform ${advancedFilters.showAdvanced ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1189,9 +1316,9 @@ function OpportunitiesContent() {
         isOpen={isSuccessModalOpen}
         onClose={() => setIsSuccessModalOpen(false)}
         opportunity={createdOpportunity}
-        // onViewDetails={handleViewOpportunityDetails}
-        // onCreateAnother={handleCreateAnother}
-        // onAssignToTeam={handleAssignToTeam}
+        onViewDetails={handleViewOpportunityDetails}
+        onCreateAnother={handleCreateAnother}
+        onAssignToTeam={handleAssignToTeam}
       />
     </div>
   );
