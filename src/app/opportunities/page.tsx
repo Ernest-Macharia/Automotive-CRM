@@ -1,11 +1,10 @@
 'use client';
 
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import CreateOpportunityModal from '@/components/opportunities/CreateOpportunityModal';
-import SuccessModal from '@/components/opportunities/SuccessModal';
 import { opportunityService, Opportunity, FilterParams } from '@/services/opportunityService';
 import { useToast } from '@/contexts/ToastContext';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Plus, Filter, CalendarDays, Search, MoreVertical, Phone, MessageCircle,
   Loader2, RefreshCw, AlertCircle, TrendingUp, TrendingDown, User, Building,
@@ -140,6 +139,7 @@ const SkeletonStats = () => (
 
 function OpportunitiesContent() {
   const { showToast } = useToast();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
@@ -153,9 +153,6 @@ function OpportunitiesContent() {
   const [scrolling, setScrolling] = useState(false);
   const [showScrollButtons, setShowScrollButtons] = useState(false);
   const kanbanRef = useRef<HTMLDivElement>(null);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
-  const [createdOpportunity, setCreatedOpportunity] = useState<Opportunity | null>(null);
   const [creating, setCreating] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [pagination, setPagination] = useState<any>(null);
@@ -255,7 +252,6 @@ function OpportunitiesContent() {
         params.isNurturing = advancedFilters.isNurturing;
       }
       
-      
       const response = await opportunityService.getAllOpportunities(params);
       
       setOpportunities(response.data || []);
@@ -295,50 +291,6 @@ function OpportunitiesContent() {
   useEffect(() => {
     fetchOverview();
   }, [fetchOverview]);
-
-  const handleCreateOpportunity = async (formData: any) => {
-    try {
-      setCreating(true);
-      const result = await opportunityService.createOpportunity(formData);
-      
-      setCreatedOpportunity(result);
-      setIsCreateModalOpen(false);
-      setIsSuccessModalOpen(true);
-      
-      showToast('Opportunity created successfully!', 'success', 3000);
-      
-      setTimeout(() => {
-        fetchOpportunities();
-        fetchOverview();
-      }, 1000);
-      
-    } catch (error: any) {
-      console.error('Error creating opportunity:', error);
-      showToast('Failed to create opportunity. Please try again.', 'error', 5000);
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const handleViewOpportunityDetails = () => {
-    if (createdOpportunity) {
-      showToast(`Redirecting to opportunity ${createdOpportunity.subject}`, 'info', 2000);
-      setIsSuccessModalOpen(false);
-    }
-  };
-
-  const handleCreateAnother = () => {
-    setIsSuccessModalOpen(false);
-    setIsCreateModalOpen(true);
-  };
-
-  const handleAssignToTeam = () => {
-    if (createdOpportunity) {
-      console.log('Assigning opportunity to team:', createdOpportunity._id);
-      showToast(`Assigning opportunity to team...`, 'info', 2000);
-      setIsSuccessModalOpen(false);
-    }
-  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -786,21 +738,12 @@ function OpportunitiesContent() {
               </button>
               
               <button 
-                onClick={() => setIsCreateModalOpen(true)}
+                onClick={() => router.push('/opportunities/create')}
                 disabled={loading || creating}
                 className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 text-sm font-medium shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-none"
               >
-                {creating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="hidden sm:inline">Creating...</span>
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4" />
-                    <span className="hidden sm:inline">New Opportunity</span>
-                  </>
-                )}
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">New Opportunity</span>
               </button>
             </div>
           </div>
@@ -1304,22 +1247,6 @@ function OpportunitiesContent() {
           </div>
         )}
       </div>
-
-      {/* Modals */}
-      <CreateOpportunityModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSubmit={handleCreateOpportunity}
-      />
-
-      <SuccessModal
-        isOpen={isSuccessModalOpen}
-        onClose={() => setIsSuccessModalOpen(false)}
-        opportunity={createdOpportunity}
-        onViewDetails={handleViewOpportunityDetails}
-        onCreateAnother={handleCreateAnother}
-        onAssignToTeam={handleAssignToTeam}
-      />
     </div>
   );
 }
