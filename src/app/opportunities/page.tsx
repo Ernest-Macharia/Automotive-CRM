@@ -11,7 +11,8 @@ import {
   ChevronLeft, ChevronRight, Briefcase, Car, FileText, DollarSign, Shield,
   Users, Target, BarChart3, Globe, Heart, Zap, Sparkles,
   Eye, Receipt, Wallet, ClipboardList, X, ChevronDown, Calendar, Star, Hash,
-  Mail, Clock, TrendingUp as TrendingUpIcon, Award, CheckCircle, AlertTriangle
+  Mail, Clock, TrendingUp as TrendingUpIcon, Award, CheckCircle, AlertTriangle,
+  Trophy
 } from 'lucide-react';
 
 type StageId = 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost';
@@ -78,62 +79,51 @@ interface ExtendedOpportunity extends Opportunity {
 }
 
 const SkeletonCard = () => (
-  <div className="bg-white rounded-xl border border-gray-200 p-4 animate-pulse">
+  <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-white/30 p-4 animate-pulse">
     <div className="flex items-start justify-between mb-3">
       <div className="flex items-center gap-3">
-        <div className="h-8 w-8 rounded-full bg-gray-200" />
+        <div className="h-8 w-8 rounded-full bg-gray-300/50" />
         <div className="space-y-2">
-          <div className="h-4 w-32 bg-gray-200 rounded" />
-          <div className="h-3 w-24 bg-gray-200 rounded" />
+          <div className="h-4 w-32 bg-gray-300/50 rounded" />
+          <div className="h-3 w-24 bg-gray-300/50 rounded" />
         </div>
       </div>
-      <div className="h-4 w-8 bg-gray-200 rounded" />
+      <div className="h-4 w-8 bg-gray-300/50 rounded" />
     </div>
     <div className="flex gap-2 mb-3">
-      <div className="h-6 w-16 bg-gray-200 rounded-lg" />
-      <div className="h-6 w-20 bg-gray-200 rounded-lg" />
+      <div className="h-6 w-16 bg-gray-300/50 rounded-lg" />
+      <div className="h-6 w-20 bg-gray-300/50 rounded-lg" />
     </div>
     <div className="space-y-2 mb-3">
-      <div className="h-2 w-full bg-gray-200 rounded" />
-      <div className="h-2 w-3/4 bg-gray-200 rounded" />
+      <div className="h-2 w-full bg-gray-300/50 rounded" />
+      <div className="h-2 w-3/4 bg-gray-300/50 rounded" />
     </div>
     <div className="flex justify-between">
-      <div className="h-3 w-24 bg-gray-200 rounded" />
+      <div className="h-3 w-24 bg-gray-300/50 rounded" />
       <div className="flex gap-1">
-        <div className="h-6 w-6 bg-gray-200 rounded-lg" />
-        <div className="h-6 w-6 bg-gray-200 rounded-lg" />
+        <div className="h-6 w-6 bg-gray-300/50 rounded-lg" />
+        <div className="h-6 w-6 bg-gray-300/50 rounded-lg" />
       </div>
     </div>
   </div>
 );
 
 const SkeletonColumn = () => (
-  <div className="w-full md:w-72 lg:w-80 flex flex-col rounded-2xl bg-gray-50 border border-gray-200 p-4 h-auto md:h-[calc(100vh-250px)] min-h-[400px] md:min-h-[500px]">
+  <div className="w-full md:w-72 lg:w-80 flex flex-col rounded-2xl bg-gray-50/80 backdrop-blur-sm border border-gray-200/50 p-4 h-auto md:h-[calc(100vh-250px)] min-h-[400px] md:min-h-[500px]">
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center gap-2">
-        <div className="h-3 w-3 rounded-full bg-gray-300" />
-        <div className="h-5 w-24 bg-gray-300 rounded" />
-        <div className="h-5 w-5 bg-gray-300 rounded-full" />
+        <div className="h-3 w-3 rounded-full bg-gray-400/50" />
+        <div className="h-5 w-24 bg-gray-400/50 rounded" />
+        <div className="h-5 w-5 bg-gray-400/50 rounded-full" />
       </div>
-      <div className="h-4 w-4 bg-gray-300 rounded" />
+      <div className="h-4 w-4 bg-gray-400/50 rounded" />
     </div>
-    <div className="h-10 bg-gray-200/50 rounded-xl border border-dashed border-gray-300 mb-4" />
+    <div className="h-10 bg-gray-300/50 rounded-xl border border-dashed border-gray-400/50 mb-4" />
     <div className="space-y-3 flex-1 overflow-y-auto pr-1">
       {[1, 2, 3].map((i) => (
         <SkeletonCard key={i} />
       ))}
     </div>
-  </div>
-);
-
-const SkeletonStats = () => (
-  <div className="flex flex-wrap items-center gap-3 mt-6 animate-pulse">
-    <div className="h-8 w-24 bg-gray-200 rounded-full" />
-    <div className="h-8 w-32 bg-gray-200 rounded-full" />
-    <div className="h-8 w-28 bg-gray-200 rounded-full" />
-    <div className="h-8 w-32 bg-gray-200 rounded-full" />
-    <div className="h-8 w-28 bg-gray-200 rounded-full" />
-    <div className="h-8 w-32 bg-gray-200 rounded-full" />
   </div>
 );
 
@@ -188,11 +178,9 @@ function OpportunitiesContent() {
     const timer = setTimeout(() => {
       const trimmedSearch = searchQuery.trim();
       
-      // Only search if 3+ characters or empty (to clear search)
       if (trimmedSearch.length >= 3 || trimmedSearch.length === 0) {
         setDebouncedSearch(trimmedSearch);
         
-        // Update filters with search query
         if (trimmedSearch.length >= 3) {
           setSearchLoading(true);
           setFilters(prev => ({ 
@@ -201,7 +189,6 @@ function OpportunitiesContent() {
             page: 1 
           }));
         } else if (trimmedSearch.length === 0 && filters.search) {
-          // Clear search if input is empty
           setFilters(prev => ({ 
             ...prev, 
             search: undefined,
@@ -593,29 +580,25 @@ function OpportunitiesContent() {
 
   if (loading && !opportunities.length) {
     return (
-      <div className="min-h-screen p-4 md:p-6 space-y-6">
-        <div className="animate-pulse">
-          <div className="h-8 w-48 bg-gray-200 rounded mb-2" />
-          <div className="h-4 w-64 bg-gray-200 rounded" />
-        </div>
-
-        <div className="flex flex-col md:flex-row gap-4 animate-pulse">
-          <div className="h-10 w-full md:w-96 bg-gray-200 rounded-xl" />
-          <div className="flex gap-3">
-            <div className="h-10 w-24 bg-gray-200 rounded-xl" />
-            <div className="h-10 w-24 bg-gray-200 rounded-xl" />
-            <div className="h-10 w-32 bg-gray-200 rounded-xl" />
+      <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-hidden">
+        <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg" />
+        <div className="h-[calc(100vh-64px)] p-4 md:p-6 space-y-6 overflow-auto">
+          <div className="flex flex-col md:flex-row gap-4 animate-pulse">
+            <div className="h-10 w-full md:w-96 bg-white/50 backdrop-blur-sm rounded-xl border border-white/30" />
+            <div className="flex gap-3">
+              <div className="h-10 w-24 bg-white/50 backdrop-blur-sm rounded-xl border border-white/30" />
+              <div className="h-10 w-24 bg-white/50 backdrop-blur-sm rounded-xl border border-white/30" />
+              <div className="h-10 w-32 bg-white/50 backdrop-blur-sm rounded-xl border border-white/30" />
+            </div>
           </div>
-        </div>
 
-        <SkeletonStats />
-
-        <div className="pb-6 relative">
-          <div className="kanban-container">
-            <div className="flex flex-col md:flex-row gap-4 md:gap-6 pb-4">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <SkeletonColumn key={i} />
-              ))}
+          <div className="pb-6 relative">
+            <div className="kanban-container">
+              <div className="flex flex-col md:flex-row gap-4 md:gap-6 pb-4">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <SkeletonColumn key={i} />
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -624,92 +607,111 @@ function OpportunitiesContent() {
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div>
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800">Opportunities</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <p className="text-gray-500 text-sm">
-                {statsLoading ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Loading stats...
-                  </span>
-                ) : stats ? (
-                  <>
-                    {stats.totalopportunities || opportunities.length} total opportunities • 
-                    <span className="ml-1 text-green-600">{stats.closedopportunities || 0} closed</span> • 
-                    <span className="ml-1 text-blue-600">{stats.openopportunities || opportunities.filter(o => !['won', 'lost'].includes(o.status)).length} open</span>
-                  </>
-                ) : (
-                  'Track and manage your leads & deals'
+    <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-hidden">
+      {/* Fixed Header */}
+      <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg flex items-center px-6">
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white/20 rounded-xl">
+              <Target className="h-6 w-6 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl font-bold text-white">Opportunities</h1>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-blue-100 text-sm">
+                  {statsLoading ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Loading stats...
+                    </span>
+                  ) : stats ? (
+                    <>
+                      {stats.totalopportunities || opportunities.length} total opportunities
+                    </>
+                  ) : (
+                    'Track and manage your leads & deals'
+                  )}
+                </p>
+                {refreshing && (
+                  <Loader2 className="h-3 w-3 animate-spin text-blue-200" />
                 )}
-              </p>
-              {refreshing && (
-                <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
-              )}
+              </div>
             </div>
           </div>
           
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <div className="relative w-full sm:w-auto">
-              <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search opportunities, customers..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 pr-10 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 w-full"
+          <button 
+            onClick={() => router.push('/opportunities/create')}
+            disabled={loading || creating}
+            className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-medium shadow-sm transition-all disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">New Opportunity</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Scrollable Content */}
+      <div className="h-[calc(100vh-64px)] p-4 md:p-6 space-y-6 overflow-auto">
+        {/* Search and Filter Section */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-5">
+          <div className="flex flex-col md:flex-row justify-between gap-4">
+            <div className="flex-1">
+              <form onSubmit={handleSearch} className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search opportunities, customers..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-10 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 w-full transition-all"
+                  disabled={loading || creating}
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={handleClearSearch}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
                     disabled={loading || creating}
-                  />
-                  {searchQuery && (
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+                {showSearchHelp && (
+                  <div className="absolute top-full left-0 right-0 mt-1 px-3 py-1.5 bg-amber-50/80 backdrop-blur-sm border border-amber-200/50 rounded-lg text-xs text-amber-700">
+                    Type at least 3 characters to search
+                  </div>
+                )}
+              </form>
+              {debouncedSearch.length >= 3 && (
+                <div className="mt-3 flex items-center gap-2 text-sm">
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50/80 backdrop-blur-sm text-blue-600 rounded-lg">
+                    <Search className="h-3 w-3" />
+                    <span>Searching for: "{debouncedSearch}"</span>
                     <button
-                      type="button"
                       onClick={handleClearSearch}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      disabled={loading || creating}
+                      className="ml-2 text-blue-400 hover:text-blue-600"
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-3 w-3" />
                     </button>
-                  )}
-                  {showSearchHelp && (
-                    <div className="absolute top-full left-0 right-0 mt-1 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
-                      Type at least 3 characters to search
+                  </div>
+                  {searchLoading && (
+                    <div className="flex items-center gap-1 text-gray-500">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span>Searching...</span>
                     </div>
                   )}
                 </div>
-                <button
-                  type="submit"
-                  disabled={loading || creating || searchLoading}
-                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-1 ${
-                    loading || creating || searchLoading
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
-                  }`}
-                >
-                  {searchLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="hidden sm:inline">Searching...</span>
-                    </>
-                  ) : (
-                    'Search'
-                  )}
-                </button>
-              </form>
+              )}
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button 
                 onClick={() => fetchOpportunities(true)}
                 disabled={refreshing || loading || creating}
-                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-colors flex-1 sm:flex-none ${
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium transition-colors ${
                   refreshing || loading || creating
-                    ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
-                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                    ? 'border-gray-200/50 bg-gray-50/50 text-gray-400 cursor-not-allowed'
+                    : 'border-gray-200 bg-white/50 text-gray-600 hover:bg-white'
                 }`}
               >
                 {refreshing ? (
@@ -727,7 +729,7 @@ function OpportunitiesContent() {
               
               <button 
                 onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors relative"
+                className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-gray-600 hover:bg-white text-sm font-medium transition-colors relative"
                 disabled={loading || creating}
               >
                 <Filter className="h-4 w-4" />
@@ -736,516 +738,534 @@ function OpportunitiesContent() {
                   <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full"></span>
                 )}
               </button>
-              
-              <button 
-                onClick={() => router.push('/opportunities/create')}
-                disabled={loading || creating}
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 text-sm font-medium shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-none"
-              >
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">New Opportunity</span>
-              </button>
             </div>
           </div>
-        </div>
 
-        {debouncedSearch.length >= 3 && (
-          <div className="mt-3 flex items-center gap-2 text-sm">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg">
-              <Search className="h-3 w-3" />
-              <span>Searching for: "{debouncedSearch}"</span>
-              <button
-                onClick={handleClearSearch}
-                className="ml-2 text-blue-400 hover:text-blue-600"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-            {searchLoading && (
-              <div className="flex items-center gap-1 text-gray-500">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                <span>Searching...</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {error && (
-          <div className="mt-4 p-4 rounded-xl bg-red-50 border border-red-200 flex items-start gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
-            <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-red-800">Error loading opportunities</p>
-              <p className="text-sm text-red-600 mt-1">{error}</p>
-              <button 
-                onClick={() => fetchOpportunities()}
-                disabled={loading}
-                className="mt-2 text-sm font-medium text-red-700 hover:text-red-800 flex items-center gap-1"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Retrying...
-                  </>
-                ) : (
-                  'Try again'
-                )}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Quick Filters */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-4 sm:mt-6">
-          {quickFilters.map((filter) => {
-            const Icon = filter.icon;
-            const isActive = activeQuickFilter === filter.id;
-            
-            return (
-              <button
-                key={filter.id}
-                onClick={() => handleQuickFilter(filter.id)}
-                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium shadow-sm transition-all hover:scale-105 flex items-center gap-1 sm:gap-2 ${
-                  isActive 
-                    ? `bg-gradient-to-r ${filter.color} text-white` 
-                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <Icon className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span>{filter.label}</span>
-              </button>
-            );
-          })}
-          
-          {hasActiveFilters && (
-            <button 
-              onClick={handleClearFilters}
-              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gray-100 text-gray-600 text-xs sm:text-sm font-medium hover:bg-gray-200 transition-all flex items-center gap-1 sm:gap-2"
-            >
-              <X className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span>Clear All</span>
-            </button>
-          )}
-        </div>
-
-        {/* Advanced Filters Panel */}
-        {showFilters && (
-          <div className="mt-4 p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-gray-800">Advanced Filters</h3>
-              <div className="flex items-center gap-2">
-                {searchQuery && (
-                  <div className="text-xs text-gray-500">
-                    Search: "{searchQuery}"
-                  </div>
-                )}
+          {error && (
+            <div className="mt-4 p-4 rounded-xl bg-red-50/80 backdrop-blur-sm border border-red-200/50 flex items-start gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
+              <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-800">Error loading opportunities</p>
+                <p className="text-sm text-red-600 mt-1">{error}</p>
                 <button 
-                  onClick={() => setAdvancedFilters(prev => ({ ...prev, showAdvanced: !prev.showAdvanced }))}
-                  className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1"
+                  onClick={() => fetchOpportunities()}
+                  disabled={loading}
+                  className="mt-2 text-sm font-medium text-red-700 hover:text-red-800 flex items-center gap-1"
                 >
-                  {advancedFilters.showAdvanced ? 'Show Basic' : 'Show Advanced'}
-                  <ChevronDown className={`h-3 w-3 transition-transform ${advancedFilters.showAdvanced ? 'rotate-180' : ''}`} />
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Retrying...
+                    </>
+                  ) : (
+                    'Try again'
+                  )}
                 </button>
               </div>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Basic Filters */}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">Status</label>
-                <select 
-                  value={filters.status || ''}
-                  onChange={(e) => handleFilterChange('status', e.target.value || undefined)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                >
-                  <option value="">All Statuses</option>
-                  {stages.map(stage => (
-                    <option key={stage.id} value={stage.id}>{stage.label}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">Lead Tier</label>
-                <select 
-                  value={filters.tier || ''}
-                  onChange={(e) => handleFilterChange('tier', e.target.value || undefined)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                >
-                  <option value="">All Tiers</option>
-                  {leadTiers.map(tier => (
-                    <option key={tier.id} value={tier.id}>{tier.label}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">Source</label>
-                <select 
-                  value={filters.source || ''}
-                  onChange={(e) => handleFilterChange('source', e.target.value || undefined)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                >
-                  <option value="">All Sources</option>
-                  {sources.map(source => {
-                    const Icon = source.icon;
-                    return (
-                      <option key={source.id} value={source.id}>
-                        {source.label}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">Sort By</label>
-                <select 
-                  value={filters.sort || 'createdAt:desc'}
-                  onChange={(e) => handleFilterChange('sort', e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                >
-                  {sortOptions.map(option => (
-                    <option key={option.id} value={option.id}>{option.label}</option>
-                  ))}
-                </select>
-              </div>
-              
-              {/* Advanced Filters */}
-              {advancedFilters.showAdvanced && (
-                <>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-2">Date From</label>
-                    <input
-                      type="date"
-                      value={filters.fromDate || ''}
-                      onChange={(e) => handleFilterChange('fromDate', e.target.value || undefined)}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-2">Date To</label>
-                    <input
-                      type="date"
-                      value={filters.toDate || ''}
-                      onChange={(e) => handleFilterChange('toDate', e.target.value || undefined)}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-2">Min Score</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={filters.minScore || ''}
-                      onChange={(e) => handleFilterChange('minScore', e.target.value ? parseInt(e.target.value) : undefined)}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                      placeholder="0"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-2">Max Score</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={filters.maxScore || ''}
-                      onChange={(e) => handleFilterChange('maxScore', e.target.value ? parseInt(e.target.value) : undefined)}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                      placeholder="100"
-                    />
-                  </div>
-                  
-                  {/* Multiple Statuses */}
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-gray-700 mb-2">Multiple Statuses</label>
-                    <div className="flex flex-wrap gap-2">
-                      {stages.map(stage => (
-                        <button
-                          key={stage.id}
-                          type="button"
-                          onClick={() => handleMultipleStatusToggle(stage.id)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                            advancedFilters.multipleStatuses.includes(stage.id)
-                              ? 'bg-blue-100 text-blue-600 border border-blue-200'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          }`}
-                        >
-                          {stage.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  {/* Multiple Sources */}
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-gray-700 mb-2">Multiple Sources</label>
-                    <div className="flex flex-wrap gap-2">
-                      {sources.map(source => (
-                        <button
-                          key={source.id}
-                          type="button"
-                          onClick={() => handleMultipleSourceToggle(source.id)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                            advancedFilters.multipleSources.includes(source.id)
-                              ? 'bg-green-100 text-green-600 border border-green-200'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          }`}
-                        >
-                          {source.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  {/* Boolean Filters */}
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-gray-700 mb-2">Additional Filters</label>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setAdvancedFilters(prev => ({ 
-                          ...prev, 
-                          hasVehicles: prev.hasVehicles === true ? undefined : true 
-                        }))}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                          advancedFilters.hasVehicles === true
-                            ? 'bg-blue-100 text-blue-600 border border-blue-200'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        Has Vehicles
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAdvancedFilters(prev => ({ 
-                          ...prev, 
-                          hasQuotes: prev.hasQuotes === true ? undefined : true 
-                        }))}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                          advancedFilters.hasQuotes === true
-                            ? 'bg-green-100 text-green-600 border border-green-200'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        Has Quotes
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAdvancedFilters(prev => ({ 
-                          ...prev, 
-                          isNurturing: prev.isNurturing === true ? undefined : true 
-                        }))}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                          advancedFilters.isNurturing === true
-                            ? 'bg-purple-100 text-purple-600 border border-purple-200'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        Is Nurturing
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-            
-            <div className="mt-4 pt-4 border-t border-gray-200 flex items-center gap-2">
-              <button
-                onClick={applyFilters}
-                disabled={loading}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 disabled:opacity-50"
-              >
-                Apply Filters
-              </button>
-              <button
-                onClick={handleClearFilters}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300"
-              >
-                Clear All
-              </button>
-              <button
-                onClick={() => setShowFilters(false)}
-                className="px-4 py-2 bg-transparent text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 ml-auto"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+          )}
 
-      {/* Kanban Board */}
-      <div className="pb-6 relative">
-        {/* Mobile scroll buttons */}
-        {showScrollButtons && (
-          <div className="md:hidden flex justify-center gap-2 mb-4">
-            <button
-              onClick={() => scrollKanban('left')}
-              disabled={scrolling || loading || creating}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-50 transition-all"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              <span>Previous</span>
-            </button>
-            <button
-              onClick={() => scrollKanban('right')}
-              disabled={scrolling || loading || creating}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-50 transition-all"
-            >
-              <span>Next</span>
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-
-        {/* Desktop scroll buttons */}
-        {showScrollButtons && (
-          <>
-            <button
-              onClick={() => scrollKanban('left')}
-              disabled={scrolling || loading || creating}
-              className="hidden md:block absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-2 z-10 h-10 w-10 bg-white border border-gray-200 rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 transition-all"
-            >
-              <ChevronLeft className="h-5 w-5 text-gray-600" />
-            </button>
-            <button
-              onClick={() => scrollKanban('right')}
-              disabled={scrolling || loading || creating}
-              className="hidden md:block absolute right-0 top-1/2 transform -translate-y-1/2 translate-x-2 z-10 h-10 w-10 bg-white border border-gray-200 rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 disabled:opacity-50 transition-all"
-            >
-              <ChevronRight className="h-5 w-5 text-gray-600" />
-            </button>
-          </>
-        )}
-
-        {loading && opportunities.length > 0 && (
-          <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-20 flex items-center justify-center rounded-2xl">
-            <div className="text-center">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-3" />
-              <p className="text-gray-600">Updating opportunities...</p>
-            </div>
-          </div>
-        )}
-
-        {isDragging && (
-          <div className="absolute inset-0 border-4 border-dashed border-blue-400 bg-blue-50/20 z-10 rounded-2xl flex items-center justify-center pointer-events-none">
-            <div className="bg-white px-6 py-4 rounded-xl shadow-lg border border-blue-200">
-              <div className="flex items-center gap-3">
-                <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
-                <span className="font-medium text-blue-600">Drop opportunity here</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div 
-          ref={kanbanRef}
-          className="kanban-container overflow-x-auto scrollbar-hide scroll-smooth pb-4"
-          onScroll={() => setScrolling(true)}
-        >
-          <div className="flex flex-col md:flex-row gap-4 md:gap-6 pb-4 min-w-max">
-            {stages.map((stage) => {
-              const stageOpportunities = opportunities.filter(opp => opp.status === stage.id);
+          {/* Quick Filters */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-4">
+            {quickFilters.map((filter) => {
+              const Icon = filter.icon;
+              const isActive = activeQuickFilter === filter.id;
               
               return (
-                <div key={stage.id} className="w-full md:w-72 lg:w-80 flex-shrink-0">
-                  <KanbanColumn
-                    stage={stage}
-                    opportunities={stageOpportunities}
-                    onStatusChange={handleStatusChange}
-                    onRecalculateScore={handleRecalculateScore}
-                    getAvatarColor={getAvatarColor}
-                    getLeadScoreTier={getLeadScoreTier}
-                    getStageColor={getStageColor}
-                    formatDate={formatDate}
-                    getChildCounts={getChildCounts}
-                    loading={loading || creating}
-                    setIsDragging={setIsDragging}
-                  />
-                </div>
+                <button
+                  key={filter.id}
+                  onClick={() => handleQuickFilter(filter.id)}
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium shadow-sm transition-all hover:scale-105 flex items-center gap-1 sm:gap-2 ${
+                    isActive 
+                      ? `bg-gradient-to-r ${filter.color} text-white` 
+                      : 'bg-white/50 border border-gray-200/50 text-gray-600 hover:bg-white'
+                  }`}
+                >
+                  <Icon className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span>{filter.label}</span>
+                </button>
               );
             })}
+            
+            {hasActiveFilters && (
+              <button 
+                onClick={handleClearFilters}
+                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gray-100/50 text-gray-600 text-xs sm:text-sm font-medium hover:bg-gray-200/50 transition-all flex items-center gap-1 sm:gap-2"
+              >
+                <X className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span>Clear All</span>
+              </button>
+            )}
+          </div>
+
+          {/* Advanced Filters Panel */}
+          {showFilters && (
+            <div className="mt-4 p-4 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-xl shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-800">Advanced Filters</h3>
+                <div className="flex items-center gap-2">
+                  {searchQuery && (
+                    <div className="text-xs text-gray-500">
+                      Search: "{searchQuery}"
+                    </div>
+                  )}
+                  <button 
+                    onClick={() => setAdvancedFilters(prev => ({ ...prev, showAdvanced: !prev.showAdvanced }))}
+                    className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1"
+                  >
+                    {advancedFilters.showAdvanced ? 'Show Basic' : 'Show Advanced'}
+                    <ChevronDown className={`h-3 w-3 transition-transform ${advancedFilters.showAdvanced ? 'rotate-180' : ''}`} />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Basic Filters */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">Status</label>
+                  <select 
+                    value={filters.status || ''}
+                    onChange={(e) => handleFilterChange('status', e.target.value || undefined)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                  >
+                    <option value="">All Statuses</option>
+                    {stages.map(stage => (
+                      <option key={stage.id} value={stage.id}>{stage.label}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">Lead Tier</label>
+                  <select 
+                    value={filters.tier || ''}
+                    onChange={(e) => handleFilterChange('tier', e.target.value || undefined)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                  >
+                    <option value="">All Tiers</option>
+                    {leadTiers.map(tier => (
+                      <option key={tier.id} value={tier.id}>{tier.label}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">Source</label>
+                  <select 
+                    value={filters.source || ''}
+                    onChange={(e) => handleFilterChange('source', e.target.value || undefined)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                  >
+                    <option value="">All Sources</option>
+                    {sources.map(source => {
+                      const Icon = source.icon;
+                      return (
+                        <option key={source.id} value={source.id}>
+                          {source.label}
+                        </option>
+                      );
+                    })}
+                </select>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">Sort By</label>
+                  <select 
+                    value={filters.sort || 'createdAt:desc'}
+                    onChange={(e) => handleFilterChange('sort', e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                  >
+                    {sortOptions.map(option => (
+                      <option key={option.id} value={option.id}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Advanced Filters */}
+                {advancedFilters.showAdvanced && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-2">Date From</label>
+                      <input
+                        type="date"
+                        value={filters.fromDate || ''}
+                        onChange={(e) => handleFilterChange('fromDate', e.target.value || undefined)}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-2">Date To</label>
+                      <input
+                        type="date"
+                        value={filters.toDate || ''}
+                        onChange={(e) => handleFilterChange('toDate', e.target.value || undefined)}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-2">Min Score</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={filters.minScore || ''}
+                        onChange={(e) => handleFilterChange('minScore', e.target.value ? parseInt(e.target.value) : undefined)}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                        placeholder="0"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-2">Max Score</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={filters.maxScore || ''}
+                        onChange={(e) => handleFilterChange('maxScore', e.target.value ? parseInt(e.target.value) : undefined)}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                        placeholder="100"
+                      />
+                    </div>
+                    
+                    {/* Multiple Statuses */}
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-medium text-gray-700 mb-2">Multiple Statuses</label>
+                      <div className="flex flex-wrap gap-2">
+                        {stages.map(stage => (
+                          <button
+                            key={stage.id}
+                            type="button"
+                            onClick={() => handleMultipleStatusToggle(stage.id)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              advancedFilters.multipleStatuses.includes(stage.id)
+                                ? 'bg-blue-100/80 text-blue-600 border border-blue-200/50'
+                                : 'bg-gray-100/50 text-gray-600 hover:bg-gray-200/50'
+                            }`}
+                          >
+                            {stage.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Multiple Sources */}
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-medium text-gray-700 mb-2">Multiple Sources</label>
+                      <div className="flex flex-wrap gap-2">
+                        {sources.map(source => (
+                          <button
+                            key={source.id}
+                            type="button"
+                            onClick={() => handleMultipleSourceToggle(source.id)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              advancedFilters.multipleSources.includes(source.id)
+                                ? 'bg-green-100/80 text-green-600 border border-green-200/50'
+                                : 'bg-gray-100/50 text-gray-600 hover:bg-gray-200/50'
+                            }`}
+                          >
+                            {source.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Boolean Filters */}
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-medium text-gray-700 mb-2">Additional Filters</label>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAdvancedFilters(prev => ({ 
+                            ...prev, 
+                            hasVehicles: prev.hasVehicles === true ? undefined : true 
+                          }))}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            advancedFilters.hasVehicles === true
+                              ? 'bg-blue-100/80 text-blue-600 border border-blue-200/50'
+                              : 'bg-gray-100/50 text-gray-600 hover:bg-gray-200/50'
+                          }`}
+                        >
+                          Has Vehicles
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAdvancedFilters(prev => ({ 
+                            ...prev, 
+                            hasQuotes: prev.hasQuotes === true ? undefined : true 
+                          }))}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            advancedFilters.hasQuotes === true
+                              ? 'bg-green-100/80 text-green-600 border border-green-200/50'
+                              : 'bg-gray-100/50 text-gray-600 hover:bg-gray-200/50'
+                          }`}
+                        >
+                          Has Quotes
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAdvancedFilters(prev => ({ 
+                            ...prev, 
+                            isNurturing: prev.isNurturing === true ? undefined : true 
+                          }))}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            advancedFilters.isNurturing === true
+                              ? 'bg-purple-100/80 text-purple-600 border border-purple-200/50'
+                              : 'bg-gray-100/50 text-gray-600 hover:bg-gray-200/50'
+                          }`}
+                        >
+                          Is Nurturing
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+              
+              <div className="mt-4 pt-4 border-t border-gray-200/50 flex items-center gap-2">
+                <button
+                  onClick={applyFilters}
+                  disabled={loading}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg text-sm font-medium hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 transition-all"
+                >
+                  Apply Filters
+                </button>
+                <button
+                  onClick={handleClearFilters}
+                  className="px-4 py-2 bg-gray-200/50 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300/50 transition-colors"
+                >
+                  Clear All
+                </button>
+                <button
+                  onClick={() => setShowFilters(false)}
+                  className="px-4 py-2 bg-transparent text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100/50 ml-auto"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Stats */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-blue-50/50 to-blue-100/30">
+              <div className="p-2 rounded-lg bg-blue-100/50">
+                <Target className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Total Leads</p>
+                <p className="text-lg font-bold text-gray-900">{opportunities.length}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-green-50/50 to-green-100/30">
+              <div className="p-2 rounded-lg bg-green-100/50">
+                <TrendingUp className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Hot Leads</p>
+                <p className="text-lg font-bold text-gray-900">{leadScoreStats.hot}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-amber-50/50 to-amber-100/30">
+              <div className="p-2 rounded-lg bg-amber-100/50">
+                <Briefcase className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Active Deals</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {opportunities.filter(o => !['won', 'lost'].includes(o.status)).length}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-purple-50/50 to-purple-100/30">
+              <div className="p-2 rounded-lg bg-purple-100/50">
+                <Trophy className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Win Rate</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {opportunities.length > 0 
+                    ? Math.round((opportunities.filter(o => o.status === 'won').length / opportunities.length) * 100)
+                    : 0
+                  }%
+                </p>
+              </div>
+            </div>
           </div>
         </div>
-        
-        {/* Pagination */}
-        {pagination && pagination.totalPages > 1 && (
-          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-sm text-gray-500">
-              Showing {opportunities.length} of {pagination.total} opportunities
-              {pagination.page && pagination.totalPages && (
-                <span> (Page {pagination.page} of {pagination.totalPages})</span>
-              )}
+
+        {/* Kanban Board */}
+        <div className="pb-6 relative">
+          {/* Mobile scroll buttons */}
+          {showScrollButtons && (
+            <div className="md:hidden flex justify-center gap-2 mb-4">
+              <button
+                onClick={() => scrollKanban('left')}
+                disabled={scrolling || loading || creating}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/80 backdrop-blur-sm border border-gray-200/50 hover:bg-white disabled:opacity-50 transition-all"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span>Previous</span>
+              </button>
+              <button
+                onClick={() => scrollKanban('right')}
+                disabled={scrolling || loading || creating}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/80 backdrop-blur-sm border border-gray-200/50 hover:bg-white disabled:opacity-50 transition-all"
+              >
+                <span>Next</span>
+                <ChevronRight className="h-4 w-4" />
+              </button>
             </div>
-            <div className="flex items-center gap-2">
+          )}
+
+          {/* Desktop scroll buttons */}
+          {showScrollButtons && (
+            <>
               <button
-                onClick={() => handleFilterChange('page', Math.max(1, (pagination.page || 1) - 1))}
-                disabled={!pagination.page || pagination.page <= 1}
-                className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                onClick={() => scrollKanban('left')}
+                disabled={scrolling || loading || creating}
+                className="hidden md:block absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-2 z-10 h-10 w-10 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-full shadow-lg flex items-center justify-center hover:bg-white disabled:opacity-50 transition-all"
               >
-                Previous
+                <ChevronLeft className="h-5 w-5 text-gray-600" />
               </button>
-              <div className="flex items-center gap-1">
-                {(() => {
-                  if (!pagination.totalPages) return null;
-                  
-                  const pages = [];
-                  const currentPage = pagination.page || 1;
-                  const totalPages = pagination.totalPages;
-                  
-                  // Show first page, current page, and last page with ellipsis
-                  if (totalPages <= 5) {
-                    for (let i = 1; i <= totalPages; i++) {
-                      pages.push(i);
-                    }
-                  } else {
-                    pages.push(1);
-                    if (currentPage > 3) pages.push('...');
-                    
-                    const start = Math.max(2, currentPage - 1);
-                    const end = Math.min(totalPages - 1, currentPage + 1);
-                    
-                    for (let i = start; i <= end; i++) {
-                      if (!pages.includes(i)) pages.push(i);
-                    }
-                    
-                    if (currentPage < totalPages - 2) pages.push('...');
-                    pages.push(totalPages);
-                  }
-                  
-                  return pages.map((pageNum, index) => (
-                    pageNum === '...' ? (
-                      <span key={`ellipsis-${index}`} className="px-2 text-gray-400">...</span>
-                    ) : (
-                      <button
-                        key={pageNum}
-                        onClick={() => handleFilterChange('page', pageNum)}
-                        className={`w-8 h-8 rounded-lg text-sm font-medium ${
-                          currentPage === pageNum
-                            ? 'bg-blue-500 text-white'
-                            : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    )
-                  ));
-                })()}
+              <button
+                onClick={() => scrollKanban('right')}
+                disabled={scrolling || loading || creating}
+                className="hidden md:block absolute right-0 top-1/2 transform -translate-y-1/2 translate-x-2 z-10 h-10 w-10 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-full shadow-lg flex items-center justify-center hover:bg-white disabled:opacity-50 transition-all"
+              >
+                <ChevronRight className="h-5 w-5 text-gray-600" />
+              </button>
+            </>
+          )}
+
+          {loading && opportunities.length > 0 && (
+            <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-20 flex items-center justify-center rounded-2xl">
+              <div className="text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-3" />
+                <p className="text-gray-600">Updating opportunities...</p>
               </div>
-              <button
-                onClick={() => handleFilterChange('page', Math.min(pagination.totalPages || 1, (pagination.page || 1) + 1))}
-                disabled={!pagination.page || pagination.page >= pagination.totalPages}
-                className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Next
-              </button>
+            </div>
+          )}
+
+          {isDragging && (
+            <div className="absolute inset-0 border-4 border-dashed border-blue-400 bg-blue-50/20 z-10 rounded-2xl flex items-center justify-center pointer-events-none">
+              <div className="bg-white/80 backdrop-blur-sm px-6 py-4 rounded-xl shadow-lg border border-blue-200/50">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                  <span className="font-medium text-blue-600">Drop opportunity here</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div 
+            ref={kanbanRef}
+            className="kanban-container overflow-x-auto scrollbar-hide scroll-smooth pb-4"
+            onScroll={() => setScrolling(true)}
+          >
+            <div className="flex flex-col md:flex-row gap-4 md:gap-6 pb-4 min-w-max">
+              {stages.map((stage) => {
+                const stageOpportunities = opportunities.filter(opp => opp.status === stage.id);
+                
+                return (
+                  <div key={stage.id} className="w-full md:w-72 lg:w-80 flex-shrink-0">
+                    <KanbanColumn
+                      stage={stage}
+                      opportunities={stageOpportunities}
+                      onStatusChange={handleStatusChange}
+                      onRecalculateScore={handleRecalculateScore}
+                      getAvatarColor={getAvatarColor}
+                      getLeadScoreTier={getLeadScoreTier}
+                      getStageColor={getStageColor}
+                      formatDate={formatDate}
+                      getChildCounts={getChildCounts}
+                      loading={loading || creating}
+                      setIsDragging={setIsDragging}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
-        )}
+          
+          {/* Pagination */}
+          {pagination && pagination.totalPages > 1 && (
+            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="text-sm text-gray-600">
+                Showing {opportunities.length} of {pagination.total} opportunities
+                {pagination.page && pagination.totalPages && (
+                  <span> (Page {pagination.page} of {pagination.totalPages})</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleFilterChange('page', Math.max(1, (pagination.page || 1) - 1))}
+                  disabled={!pagination.page || pagination.page <= 1}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200/50 bg-white/50 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors"
+                >
+                  Previous
+                </button>
+                <div className="flex items-center gap-1">
+                  {(() => {
+                    if (!pagination.totalPages) return null;
+                    
+                    const pages = [];
+                    const currentPage = pagination.page || 1;
+                    const totalPages = pagination.totalPages;
+                    
+                    if (totalPages <= 5) {
+                      for (let i = 1; i <= totalPages; i++) {
+                        pages.push(i);
+                      }
+                    } else {
+                      pages.push(1);
+                      if (currentPage > 3) pages.push('...');
+                      
+                      const start = Math.max(2, currentPage - 1);
+                      const end = Math.min(totalPages - 1, currentPage + 1);
+                      
+                      for (let i = start; i <= end; i++) {
+                        if (!pages.includes(i)) pages.push(i);
+                      }
+                      
+                      if (currentPage < totalPages - 2) pages.push('...');
+                      pages.push(totalPages);
+                    }
+                    
+                    return pages.map((pageNum, index) => (
+                      pageNum === '...' ? (
+                        <span key={`ellipsis-${index}`} className="px-2 text-gray-400">...</span>
+                      ) : (
+                        <button
+                          key={pageNum}
+                          onClick={() => handleFilterChange('page', pageNum)}
+                          className={`w-8 h-8 rounded-lg text-sm font-medium transition-all ${
+                            currentPage === pageNum
+                              ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm'
+                              : 'border border-gray-200/50 bg-white/50 text-gray-600 hover:bg-white hover:border-gray-300'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      )
+                    ));
+                  })()}
+                </div>
+                <button
+                  onClick={() => handleFilterChange('page', Math.min(pagination.totalPages || 1, (pagination.page || 1) + 1))}
+                  disabled={!pagination.page || pagination.page >= pagination.totalPages}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200/50 bg-white/50 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1428,12 +1448,12 @@ function OpportunityCard({
   return (
     <div 
       data-id={opportunity._id}
-      className="group bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-move active:cursor-grabbing hover:-translate-y-0.5"
+      className="group bg-white/80 backdrop-blur-sm rounded-xl border border-white/30 p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-move active:cursor-grabbing hover:-translate-y-0.5"
       draggable
       onDragStart={handleDragStart}
       onDragEnd={onDragEnd}
     >
-      {/* Opportunity Header - Improved spacing */}
+      {/* Opportunity Header */}
       <div className="flex items-start justify-between mb-3 gap-2">
         <div className="flex items-start gap-3 min-w-0 flex-1">
           <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${getAvatarColor(opportunity.type, opportunity.leadScore?.totalScore)} transition-colors`}>
@@ -1447,7 +1467,7 @@ function OpportunityCard({
             <h4 className="font-semibold text-gray-800 text-sm truncate" title={opportunity.subject}>
               {opportunity.subject}
             </h4>
-            <p className="text-gray-500 text-xs truncate mt-0.5" title={`${opportunity.customer.name}${opportunity.customer.companyName ? ` · ${opportunity.customer.companyName}` : ''}`}>
+            <p className="text-gray-600 text-xs truncate mt-0.5" title={`${opportunity.customer.name}${opportunity.customer.companyName ? ` · ${opportunity.customer.companyName}` : ''}`}>
               {opportunity.customer.name}
               {opportunity.customer.companyName && ` · ${opportunity.customer.companyName}`}
             </p>
@@ -1463,38 +1483,38 @@ function OpportunityCard({
         </div>
       </div>
 
-      {/* Tags & Score - Better wrapping */}
+      {/* Tags & Score */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <span className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors hover:scale-105 whitespace-nowrap ${
-          opportunity.leadScore?.tier === 'hot' ? 'bg-red-100 text-red-600 hover:bg-red-200' :
-          opportunity.leadScore?.tier === 'warm' ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' :
-          'bg-blue-100 text-blue-600 hover:bg-blue-200'
+          opportunity.leadScore?.tier === 'hot' ? 'bg-red-100/80 text-red-600 hover:bg-red-200' :
+          opportunity.leadScore?.tier === 'warm' ? 'bg-amber-100/80 text-amber-600 hover:bg-amber-200' :
+          'bg-blue-100/80 text-blue-600 hover:bg-blue-200'
         }`}>
           {getLeadScoreTier(opportunity.leadScore?.totalScore)}
         </span>
         
         {opportunity.type === 'organization' && (
-          <span className="px-2 py-1 rounded-lg bg-purple-50 text-purple-600 text-xs transition-colors hover:bg-purple-100 whitespace-nowrap">
+          <span className="px-2 py-1 rounded-lg bg-purple-50/80 text-purple-600 text-xs transition-colors hover:bg-purple-100/80 whitespace-nowrap">
             Organization
           </span>
         )}
         
-        {/* Child item counts - Improved layout */}
+        {/* Child item counts */}
         <div className="flex items-center gap-1">
           {childCounts.vehicles > 0 && (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 text-blue-600 text-xs whitespace-nowrap">
+            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50/80 text-blue-600 text-xs whitespace-nowrap">
               <Car className="h-3 w-3 flex-shrink-0" />
               {childCounts.vehicles}
             </span>
           )}
           {childCounts.quotes > 0 && (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-green-50 text-green-600 text-xs whitespace-nowrap">
+            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-green-50/80 text-green-600 text-xs whitespace-nowrap">
               <FileText className="h-3 w-3 flex-shrink-0" />
               {childCounts.quotes}
             </span>
           )}
           {childCounts.jobCards > 0 && (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-50 text-orange-600 text-xs whitespace-nowrap">
+            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-50/80 text-orange-600 text-xs whitespace-nowrap">
               <ClipboardList className="h-3 w-3 flex-shrink-0" />
               {childCounts.jobCards}
             </span>
@@ -1502,11 +1522,11 @@ function OpportunityCard({
         </div>
       </div>
 
-      {/* Lead Score Info - Fixed width issues */}
+      {/* Lead Score Info */}
       {opportunity.leadScore && (
         <div className="mb-3">
           <div className="flex items-center justify-between text-xs mb-1">
-            <span className="text-gray-500 whitespace-nowrap">Lead Score</span>
+            <span className="text-gray-600 whitespace-nowrap">Lead Score</span>
             <div className="flex items-center gap-2">
               <span className="font-medium text-gray-700 whitespace-nowrap">
                 {opportunity.leadScore.totalScore}
@@ -1525,7 +1545,7 @@ function OpportunityCard({
               )}
             </div>
           </div>
-          <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+          <div className="h-1.5 w-full bg-gray-200/50 rounded-full overflow-hidden">
             <div 
               className={`h-full rounded-full transition-all duration-500 ${
                 opportunity.leadScore.totalScore >= 70 ? 'bg-green-500' :
@@ -1536,7 +1556,7 @@ function OpportunityCard({
             />
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs mt-1 gap-1">
-            <span className="text-gray-400 truncate">
+            <span className="text-gray-500 truncate">
               Priority: {opportunity.leadScore.priority}
             </span>
             <button 
@@ -1557,10 +1577,10 @@ function OpportunityCard({
         </div>
       )}
 
-      {/* Child items summary - Better wrapping */}
+      {/* Child items summary */}
       {(childCounts.vehicles > 0 || childCounts.jobCards > 0 || childCounts.quotes > 0 || 
         childCounts.invoices > 0 || childCounts.payments > 0) && (
-        <div className="flex flex-wrap items-center gap-2 mb-3 text-xs text-gray-500">
+        <div className="flex flex-wrap items-center gap-2 mb-3 text-xs text-gray-600">
           {childCounts.vehicles > 0 && (
             <span className="flex items-center gap-1 whitespace-nowrap">
               <Car className="h-3 w-3 flex-shrink-0" />
@@ -1594,9 +1614,9 @@ function OpportunityCard({
         </div>
       )}
 
-      {/* Opportunity Footer - Better spacing */}
+      {/* Opportunity Footer */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <div className="text-xs text-gray-500 truncate">
+        <div className="text-xs text-gray-600 truncate">
           <span className="font-medium">Updated:</span> {formatDate(opportunity.updatedAt)}
           {opportunity.assignedTo && (
             <span className="ml-1 sm:ml-2">• Assigned</span>
@@ -1604,19 +1624,19 @@ function OpportunityCard({
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
           <button 
-            className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-500 transition-all hover:scale-110"
+            className="p-1.5 hover:bg-blue-50/50 rounded-lg text-blue-500 transition-all hover:scale-110"
             title="Call"
           >
             <Phone className="h-4 w-4" />
           </button>
           <button 
-            className="p-1.5 hover:bg-green-50 rounded-lg text-green-500 transition-all hover:scale-110"
+            className="p-1.5 hover:bg-green-50/50 rounded-lg text-green-500 transition-all hover:scale-110"
             title="Message"
           >
             <MessageCircle className="h-4 w-4" />
           </button>
           <button 
-            className="p-1.5 hover:bg-gray-50 rounded-lg text-gray-500 transition-all hover:scale-110"
+            className="p-1.5 hover:bg-gray-50/50 rounded-lg text-gray-500 transition-all hover:scale-110"
             title="View details"
           >
             <Eye className="h-4 w-4" />

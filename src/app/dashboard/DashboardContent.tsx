@@ -364,541 +364,548 @@ function DashboardContent() {
 
   if (loading && !stats) {
     return (
-      <div className="min-h-screen p-4 md:p-6 space-y-6">
-        <div className="animate-pulse">
-          <div className="h-8 w-48 bg-gray-200 rounded mb-2" />
-          <div className="h-4 w-64 bg-gray-200 rounded" />
-        </div>
+      <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-hidden">
+        <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg" />
+        <div className="h-[calc(100vh-64px)] p-4 md:p-6 space-y-6 overflow-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-32 bg-white/50 backdrop-blur-sm rounded-2xl border border-white/30 animate-pulse" />
+            ))}
+          </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-32 bg-gray-200 rounded-2xl" />
-          ))}
-        </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 h-64 bg-white/50 backdrop-blur-sm rounded-2xl border border-white/30 animate-pulse" />
+            <div className="h-64 bg-white/50 backdrop-blur-sm rounded-2xl border border-white/30 animate-pulse" />
+          </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 h-64 bg-gray-200 rounded-2xl" />
-          <div className="h-64 bg-gray-200 rounded-2xl" />
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="h-64 bg-gray-200 rounded-2xl" />
-          <div className="h-64 bg-gray-200 rounded-2xl" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="h-64 bg-white/50 backdrop-blur-sm rounded-2xl border border-white/30 animate-pulse" />
+            <div className="h-64 bg-white/50 backdrop-blur-sm rounded-2xl border border-white/30 animate-pulse" />
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1">
-            Welcome back, <span className="font-semibold text-blue-600">{user?.firstName || 'Admin'}</span>! 
-            <span className="ml-2">Here's what's happening with your business today.</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl p-1">
-            {['today', 'week', 'month', 'quarter'].map((range) => (
-              <button
-                key={range}
-                onClick={() => setTimeRange(range as any)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  timeRange === range
-                    ? 'bg-blue-50 text-blue-600'
-                    : 'text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                {range.charAt(0).toUpperCase() + range.slice(1)}
-              </button>
-            ))}
-          </div>
-          <button 
-            onClick={() => fetchDashboardData(true)}
-            disabled={refreshing}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-colors ${
-              refreshing
-                ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
-                : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            {refreshing ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="hidden sm:inline">Refreshing...</span>
-              </>
-            ) : (
-              <>
-                <RefreshCw className="h-4 w-4" />
-                <span className="hidden sm:inline">Refresh</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Opportunities */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-all">
-          <div className="flex items-center justify-between mb-4">
-            <div className={`p-3 rounded-xl bg-blue-50`}>
-              <TargetIcon className="h-6 w-6 text-blue-600" />
+    <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-hidden">
+      {/* Fixed Header */}
+      <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg flex items-center px-6">
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white/20 rounded-xl">
+              <Sparkles className="h-6 w-6 text-white" />
             </div>
-            <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-green-50 text-green-600 text-xs font-medium">
-              <ArrowUp className="h-3 w-3" />
-              <span>+{safeStats.trends.weeklyGrowth}%</span>
-            </span>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 font-medium mb-1">Total Opportunities</p>
-            <p className="text-2xl font-bold text-gray-900">{formatNumber(safeStats.overview.totalOpportunities)}</p>
-          </div>
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500">Open / Closed</span>
-              <span className="text-sm font-medium text-gray-700">
-                {safeStats.overview.openOpportunities} / {safeStats.overview.closedOpportunities}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Hot Leads */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-all">
-          <div className="flex items-center justify-between mb-4">
-            <div className={`p-3 rounded-xl bg-red-50`}>
-              <Zap className="h-6 w-6 text-red-600" />
-            </div>
-            <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-red-50 text-red-600 text-xs font-medium">
-              <Activity className="h-3 w-3" />
-              <span>Hot</span>
-            </span>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 font-medium mb-1">Hot Leads</p>
-            <p className="text-2xl font-bold text-gray-900">{formatNumber(safeStats.overview.hotLeads)}</p>
-          </div>
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500">Warm / Cold</span>
-              <span className="text-sm font-medium text-gray-700">
-                {safeStats.performance.warmLeads} / {safeStats.performance.coldLeads}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Total Revenue */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-all">
-          <div className="flex items-center justify-between mb-4">
-            <div className={`p-3 rounded-xl bg-green-50`}>
-              <DollarSign className="h-6 w-6 text-green-600" />
-            </div>
-            <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-green-50 text-green-600 text-xs font-medium">
-              <ArrowUp className="h-3 w-3" />
-              <span>+{safeStats.trends.monthlyGrowth}%</span>
-            </span>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 font-medium mb-1">Total Revenue</p>
-            <p className="text-2xl font-bold text-gray-900">{formatCurrency(safeStats.overview.totalRevenue)}</p>
-          </div>
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500">Avg Deal Size</span>
-              <span className="text-sm font-medium text-gray-700">{formatCurrency(safeStats.trends.avgDealSize)}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Conversion Rate */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg transition-all">
-          <div className="flex items-center justify-between mb-4">
-            <div className={`p-3 rounded-xl bg-purple-50`}>
-              <Trophy className="h-6 w-6 text-purple-600" />
-            </div>
-            <span className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getTrendColor(safeStats.overview.winRate)}`}>
-              {getTrendIcon(safeStats.overview.winRate)}
-              <span>{Math.round(safeStats.overview.winRate)}%</span>
-            </span>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 font-medium mb-1">Win Rate</p>
-            <p className="text-2xl font-bold text-gray-900">{Math.round(safeStats.overview.winRate)}%</p>
-          </div>
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500">Conversion Rate</span>
-              <span className="text-sm font-medium text-gray-700">{Math.round(safeStats.overview.conversionRate)}%</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Charts & Performance */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Lead Distribution */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Lead Distribution</h2>
-              <p className="text-sm text-gray-500">Performance overview by lead temperature</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">Last {timeRange}</span>
-            </div>
-          </div>
-          <div className="space-y-4">
-            {/* Hot Leads */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-red-500" />
-                  <span className="text-sm font-medium text-gray-700">Hot Leads</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500">{safeStats.performance.hotLeads} leads</span>
-                  <span className="text-sm font-medium text-gray-900">
-                    {safeStats.performance.hotLeads ? Math.round((safeStats.performance.hotLeads / (safeStats.performance.hotLeads + safeStats.performance.warmLeads + safeStats.performance.coldLeads || 1)) * 100) : 0}%
-                  </span>
-                </div>
-              </div>
-              <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                <div 
-                  className="h-full rounded-full bg-gradient-to-r from-red-500 to-orange-500"
-                  style={{ width: `${safeStats.performance.hotLeads ? Math.round((safeStats.performance.hotLeads / (safeStats.performance.hotLeads + safeStats.performance.warmLeads + safeStats.performance.coldLeads || 1)) * 100) : 0}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Warm Leads */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-amber-500" />
-                  <span className="text-sm font-medium text-gray-700">Warm Leads</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500">{safeStats.performance.warmLeads} leads</span>
-                  <span className="text-sm font-medium text-gray-900">
-                    {safeStats.performance.warmLeads ? Math.round((safeStats.performance.warmLeads / (safeStats.performance.hotLeads + safeStats.performance.warmLeads + safeStats.performance.coldLeads || 1)) * 100) : 0}%
-                  </span>
-                </div>
-              </div>
-              <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                <div 
-                  className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-500"
-                  style={{ width: `${safeStats.performance.warmLeads ? Math.round((safeStats.performance.warmLeads / (safeStats.performance.hotLeads + safeStats.performance.warmLeads + safeStats.performance.coldLeads || 1)) * 100) : 0}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Cold Leads */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-blue-500" />
-                  <span className="text-sm font-medium text-gray-700">Cold Leads</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500">{safeStats.performance.coldLeads} leads</span>
-                  <span className="text-sm font-medium text-gray-900">
-                    {safeStats.performance.coldLeads ? Math.round((safeStats.performance.coldLeads / (safeStats.performance.hotLeads + safeStats.performance.warmLeads + safeStats.performance.coldLeads || 1)) * 100) : 0}%
-                  </span>
-                </div>
-              </div>
-              <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                <div 
-                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-500"
-                  style={{ width: `${safeStats.performance.coldLeads ? Math.round((safeStats.performance.coldLeads / (safeStats.performance.hotLeads + safeStats.performance.warmLeads + safeStats.performance.coldLeads || 1)) * 100) : 0}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Additional Metrics */}
-          <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-gray-200">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Clock4 className="h-4 w-4 text-gray-400" />
-                <span className="text-sm text-gray-600">Avg Response Time</span>
-              </div>
-              <p className="text-lg font-semibold text-gray-900">{safeStats.overview.avgResponseTime}h</p>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-gray-400" />
-                <span className="text-sm text-gray-600">Top Source</span>
-              </div>
-              <p className="text-lg font-semibold text-gray-900 capitalize">
-                {formatSourceName(safeStats.trends.topSource)} ({safeStats.trends.topSourceCount})
+              <h1 className="text-xl font-bold text-white">Dashboard</h1>
+              <p className="text-blue-100 text-sm">
+                Welcome back, <span className="font-semibold text-white">{user?.firstName || 'Admin'}</span>
               </p>
             </div>
           </div>
-        </div>
-
-        {/* Lead Sources */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Lead Sources</h2>
-              <p className="text-sm text-gray-500">Where your opportunities come from</p>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-xl p-1">
+              {['today', 'week', 'month', 'quarter'].map((range) => (
+                <button
+                  key={range}
+                  onClick={() => setTimeRange(range as any)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    timeRange === range
+                      ? 'bg-white/30 text-white'
+                      : 'text-blue-100 hover:bg-white/10'
+                  }`}
+                >
+                  {range.charAt(0).toUpperCase() + range.slice(1)}
+                </button>
+              ))}
             </div>
-            <PieChart className="h-5 w-5 text-gray-400" />
-          </div>
-          <div className="space-y-4">
-            {safeStats.performance.bySource.slice(0, 4).map((source, index) => {
-              const percentage = safeStats.overview.totalOpportunities > 0 
-                ? Math.round((source.count / safeStats.overview.totalOpportunities) * 100)
-                : 0;
-              
-              return (
-                <div key={index} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`p-2 rounded-lg ${getSourceColor(source._id || 'other')}`}>
-                        {getSourceIcon(source._id)}
-                      </div>
-                      <span className="text-sm font-medium text-gray-700">
-                        {formatSourceName(source._id || 'other')}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">{percentage}%</span>
-                      <span className="text-sm font-medium text-gray-900">{source.count}</span>
-                    </div>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full ${getSourceColor(source._id || 'other').split(' ')[1]}`}
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-            {safeStats.performance.bySource.length === 0 && (
-              <div className="text-center py-8">
-                <p className="text-gray-500">No source data available</p>
-              </div>
-            )}
-          </div>
-          {safeStats.performance.bySource.length > 4 && (
-            <button className="w-full mt-4 py-2 text-center text-sm text-blue-600 hover:text-blue-700 font-medium">
-              View all {safeStats.performance.bySource.length} sources
+            <button 
+              onClick={() => fetchDashboardData(true)}
+              disabled={refreshing}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                refreshing
+                  ? 'bg-white/20 text-white/60 cursor-not-allowed'
+                  : 'bg-white/10 hover:bg-white/20 text-white'
+              }`}
+            >
+              {refreshing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="hidden sm:inline">Refreshing...</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  <span className="hidden sm:inline">Refresh</span>
+                </>
+              )}
             </button>
-          )}
+          </div>
         </div>
       </div>
 
-      {/* Recent Activities & Top Opportunities */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Activities */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Recent Activities</h2>
-              <p className="text-sm text-gray-500">Latest updates from your pipeline</p>
+      {/* Scrollable Content */}
+      <div className="h-[calc(100vh-64px)] p-4 md:p-6 space-y-6 overflow-auto">
+        {/* Key Metrics */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Total Opportunities */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-5 hover:shadow-lg transition-all hover:scale-[1.02]">
+            <div className="flex items-center justify-between mb-4">
+              <div className={`p-3 rounded-xl bg-blue-100/50 backdrop-blur-sm`}>
+                <TargetIcon className="h-6 w-6 text-blue-600" />
+              </div>
+              <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-green-100/80 text-green-600 text-xs font-medium">
+                <ArrowUp className="h-3 w-3" />
+                <span>+{safeStats.trends.weeklyGrowth}%</span>
+              </span>
             </div>
-            <button className="text-sm font-medium text-blue-600 hover:text-blue-700">
-              View all
-            </button>
+            <div>
+              <p className="text-sm text-gray-600 font-medium mb-1">Total Opportunities</p>
+              <p className="text-2xl font-bold text-gray-900">{formatNumber(safeStats.overview.totalOpportunities)}</p>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-100/50">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Open / Closed</span>
+                <span className="text-sm font-medium text-gray-700">
+                  {safeStats.overview.openOpportunities} / {safeStats.overview.closedOpportunities}
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="space-y-4">
-            {safeStats.recentActivities.map((activity, index) => (
-              <div
-                key={index}
-                className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors"
-              >
-                <div className={`p-2 rounded-lg ${getOpportunityStatusColor(activity.status)}`}>
-                  {activity.status === 'won' ? (
-                    <Trophy className="h-4 w-4" />
-                  ) : activity.status === 'lost' ? (
-                    <AlertCircle className="h-4 w-4" />
-                  ) : (
-                    <Clock className="h-4 w-4" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h4 className="font-medium text-gray-900 truncate">{activity.subject}</h4>
-                      <p className="text-sm text-gray-500 truncate">
-                        {activity.customer?.name}
-                        {activity.customer?.companyName && ` · ${activity.customer.companyName}`}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">{formatTimeAgo(activity.updatedAt)}</span>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${getOpportunityStatusColor(activity.status)}`}>
-                        {activity.status}
-                      </span>
-                    </div>
-                  </div>
-                  {activity.leadScore?.totalScore && (
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-xs text-gray-600">Score: {activity.leadScore.totalScore}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                        activity.leadScore.tier === 'hot' ? 'bg-red-100 text-red-600' :
-                        activity.leadScore.tier === 'warm' ? 'bg-amber-100 text-amber-600' :
-                        'bg-blue-100 text-blue-600'
-                      }`}>
-                        {activity.leadScore.tier}
-                      </span>
-                    </div>
-                  )}
-                </div>
+
+          {/* Hot Leads */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-5 hover:shadow-lg transition-all hover:scale-[1.02]">
+            <div className="flex items-center justify-between mb-4">
+              <div className={`p-3 rounded-xl bg-red-100/50 backdrop-blur-sm`}>
+                <Zap className="h-6 w-6 text-red-600" />
               </div>
-            ))}
-            {safeStats.recentActivities.length === 0 && (
-              <div className="text-center py-8">
-                <p className="text-gray-500">No recent activities</p>
-                <p className="text-sm text-gray-400 mt-1">Activities will appear here as they happen</p>
+              <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-red-100/80 text-red-600 text-xs font-medium">
+                <Activity className="h-3 w-3" />
+                <span>Hot</span>
+              </span>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 font-medium mb-1">Hot Leads</p>
+              <p className="text-2xl font-bold text-gray-900">{formatNumber(safeStats.overview.hotLeads)}</p>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-100/50">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Warm / Cold</span>
+                <span className="text-sm font-medium text-gray-700">
+                  {safeStats.performance.warmLeads} / {safeStats.performance.coldLeads}
+                </span>
               </div>
-            )}
+            </div>
+          </div>
+
+          {/* Total Revenue */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-5 hover:shadow-lg transition-all hover:scale-[1.02]">
+            <div className="flex items-center justify-between mb-4">
+              <div className={`p-3 rounded-xl bg-green-100/50 backdrop-blur-sm`}>
+                <DollarSign className="h-6 w-6 text-green-600" />
+              </div>
+              <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-green-100/80 text-green-600 text-xs font-medium">
+                <ArrowUp className="h-3 w-3" />
+                <span>+{safeStats.trends.monthlyGrowth}%</span>
+              </span>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 font-medium mb-1">Total Revenue</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(safeStats.overview.totalRevenue)}</p>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-100/50">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Avg Deal Size</span>
+                <span className="text-sm font-medium text-gray-700">{formatCurrency(safeStats.trends.avgDealSize)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Conversion Rate */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-5 hover:shadow-lg transition-all hover:scale-[1.02]">
+            <div className="flex items-center justify-between mb-4">
+              <div className={`p-3 rounded-xl bg-purple-100/50 backdrop-blur-sm`}>
+                <Trophy className="h-6 w-6 text-purple-600" />
+              </div>
+              <span className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getTrendColor(safeStats.overview.winRate)}`}>
+                {getTrendIcon(safeStats.overview.winRate)}
+                <span>{Math.round(safeStats.overview.winRate)}%</span>
+              </span>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 font-medium mb-1">Win Rate</p>
+              <p className="text-2xl font-bold text-gray-900">{Math.round(safeStats.overview.winRate)}%</p>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-100/50">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Conversion Rate</span>
+                <span className="text-sm font-medium text-gray-700">{Math.round(safeStats.overview.conversionRate)}%</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Top Opportunities */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Top Opportunities</h2>
-              <p className="text-sm text-gray-500">High-value leads to focus on</p>
+        {/* Charts & Performance */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Lead Distribution */}
+          <div className="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-5">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Lead Distribution</h2>
+                <p className="text-sm text-gray-600">Performance overview by lead temperature</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Last {timeRange}</span>
+              </div>
             </div>
-            <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 text-xs font-medium">
-              Priority
-            </span>
-          </div>
-          <div className="space-y-4">
-            {safeStats.topOpportunities.map((opp, index) => (
-              <div
-                key={index}
-                className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex-shrink-0">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white font-semibold">
-                    #{index + 1}
+            <div className="space-y-4">
+              {/* Hot Leads */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-red-500" />
+                    <span className="text-sm font-medium text-gray-700">Hot Leads</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">{safeStats.performance.hotLeads} leads</span>
+                    <span className="text-sm font-medium text-gray-900">
+                      {safeStats.performance.hotLeads ? Math.round((safeStats.performance.hotLeads / (safeStats.performance.hotLeads + safeStats.performance.warmLeads + safeStats.performance.coldLeads || 1)) * 100) : 0}%
+                    </span>
                   </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h4 className="font-medium text-gray-900 truncate">{opp.subject}</h4>
-                      <p className="text-sm text-gray-500 truncate">
-                        {opp.customer?.name}
-                        {opp.customer?.companyName && ` · ${opp.customer.companyName}`}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${getOpportunityStatusColor(opp.status)}`}>
-                        {opp.status}
-                      </span>
-                    </div>
+                <div className="h-2 rounded-full bg-gray-100/50 overflow-hidden">
+                  <div 
+                    className="h-full rounded-full bg-gradient-to-r from-red-500 to-orange-500"
+                    style={{ width: `${safeStats.performance.hotLeads ? Math.round((safeStats.performance.hotLeads / (safeStats.performance.hotLeads + safeStats.performance.warmLeads + safeStats.performance.coldLeads || 1)) * 100) : 0}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Warm Leads */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-amber-500" />
+                    <span className="text-sm font-medium text-gray-700">Warm Leads</span>
                   </div>
-                  <div className="flex items-center gap-4 mt-2">
-                    {opp.leadScore?.totalScore && (
-                      <div className="flex items-center gap-1">
-                        <Target className="h-3 w-3 text-gray-400" />
-                        <span className="text-xs text-gray-600">Score: {opp.leadScore.totalScore}</span>
-                      </div>
-                    )}
-                    {opp.leadScore?.priority && (
-                      <div className="flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3 text-amber-400" />
-                        <span className="text-xs text-amber-600">Priority: {opp.leadScore.priority}</span>
-                      </div>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">{safeStats.performance.warmLeads} leads</span>
+                    <span className="text-sm font-medium text-gray-900">
+                      {safeStats.performance.warmLeads ? Math.round((safeStats.performance.warmLeads / (safeStats.performance.hotLeads + safeStats.performance.warmLeads + safeStats.performance.coldLeads || 1)) * 100) : 0}%
+                    </span>
                   </div>
-                  {opp.leadScore?.commercial?.dealValue && (
-                    <div className="mt-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500">Potential Value</span>
-                        <span className="text-sm font-semibold text-green-600">
-                          {formatCurrency(opp.leadScore.commercial.dealValue)}
+                </div>
+                <div className="h-2 rounded-full bg-gray-100/50 overflow-hidden">
+                  <div 
+                    className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-500"
+                    style={{ width: `${safeStats.performance.warmLeads ? Math.round((safeStats.performance.warmLeads / (safeStats.performance.hotLeads + safeStats.performance.warmLeads + safeStats.performance.coldLeads || 1)) * 100) : 0}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Cold Leads */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-blue-500" />
+                    <span className="text-sm font-medium text-gray-700">Cold Leads</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">{safeStats.performance.coldLeads} leads</span>
+                    <span className="text-sm font-medium text-gray-900">
+                      {safeStats.performance.coldLeads ? Math.round((safeStats.performance.coldLeads / (safeStats.performance.hotLeads + safeStats.performance.warmLeads + safeStats.performance.coldLeads || 1)) * 100) : 0}%
+                    </span>
+                  </div>
+                </div>
+                <div className="h-2 rounded-full bg-gray-100/50 overflow-hidden">
+                  <div 
+                    className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-500"
+                    style={{ width: `${safeStats.performance.coldLeads ? Math.round((safeStats.performance.coldLeads / (safeStats.performance.hotLeads + safeStats.performance.warmLeads + safeStats.performance.coldLeads || 1)) * 100) : 0}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Metrics */}
+            <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-gray-200/50">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Clock4 className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm text-gray-600">Avg Response Time</span>
+                </div>
+                <p className="text-lg font-semibold text-gray-900">{safeStats.overview.avgResponseTime}h</p>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm text-gray-600">Top Source</span>
+                </div>
+                <p className="text-lg font-semibold text-gray-900 capitalize">
+                  {formatSourceName(safeStats.trends.topSource)} ({safeStats.trends.topSourceCount})
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Lead Sources */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-5">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Lead Sources</h2>
+                <p className="text-sm text-gray-600">Where your opportunities come from</p>
+              </div>
+              <PieChart className="h-5 w-5 text-gray-500" />
+            </div>
+            <div className="space-y-4">
+              {safeStats.performance.bySource.slice(0, 4).map((source, index) => {
+                const percentage = safeStats.overview.totalOpportunities > 0 
+                  ? Math.round((source.count / safeStats.overview.totalOpportunities) * 100)
+                  : 0;
+                
+                return (
+                  <div key={index} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`p-2 rounded-lg ${getSourceColor(source._id || 'other')}`}>
+                          {getSourceIcon(source._id)}
+                        </div>
+                        <span className="text-sm font-medium text-gray-700">
+                          {formatSourceName(source._id || 'other')}
                         </span>
                       </div>
-                      <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden mt-1">
-                        <div 
-                          className="h-full rounded-full bg-gradient-to-r from-green-500 to-emerald-500"
-                          style={{ width: `${Math.min(opp.leadScore.totalScore || 0, 100)}%` }}
-                        />
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600">{percentage}%</span>
+                        <span className="text-sm font-medium text-gray-900">{source.count}</span>
                       </div>
                     </div>
-                  )}
+                    <div className="h-1.5 rounded-full bg-gray-100/50 overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full ${getSourceColor(source._id || 'other').split(' ')[1]}`}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+              {safeStats.performance.bySource.length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-gray-600">No source data available</p>
                 </div>
-              </div>
-            ))}
-            {safeStats.topOpportunities.length === 0 && (
-              <div className="text-center py-8">
-                <p className="text-gray-500">No top opportunities</p>
-                <p className="text-sm text-gray-400 mt-1">Create opportunities to see them here</p>
-              </div>
+              )}
+            </div>
+            {safeStats.performance.bySource.length > 4 && (
+              <button className="w-full mt-4 py-2 text-center text-sm text-blue-600 hover:text-blue-700 font-medium hover:bg-blue-50/50 rounded-lg">
+                View all {safeStats.performance.bySource.length} sources
+              </button>
             )}
           </div>
         </div>
-      </div>
 
-      {/* Quick Insights */}
-      <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl border border-blue-100 p-5">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Quick Insights</h2>
-            <p className="text-gray-600">Key takeaways from your performance data</p>
+        {/* Recent Activities & Top Opportunities */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Recent Activities */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-5">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Recent Activities</h2>
+                <p className="text-sm text-gray-600">Latest updates from your pipeline</p>
+              </div>
+              <button className="text-sm font-medium text-blue-600 hover:text-blue-700">
+                View all
+              </button>
+            </div>
+            <div className="space-y-4">
+              {safeStats.recentActivities.map((activity, index) => (
+                <div
+                  key={index}
+                  className="flex items-start gap-3 p-3 rounded-xl border border-gray-100/50 hover:bg-white/50 transition-colors"
+                >
+                  <div className={`p-2 rounded-lg ${getOpportunityStatusColor(activity.status)}`}>
+                    {activity.status === 'won' ? (
+                      <Trophy className="h-4 w-4" />
+                    ) : activity.status === 'lost' ? (
+                      <AlertCircle className="h-4 w-4" />
+                    ) : (
+                      <Clock className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h4 className="font-medium text-gray-900 truncate">{activity.subject}</h4>
+                        <p className="text-sm text-gray-600 truncate">
+                          {activity.customer?.name}
+                          {activity.customer?.companyName && ` · ${activity.customer.companyName}`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">{formatTimeAgo(activity.updatedAt)}</span>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${getOpportunityStatusColor(activity.status)}`}>
+                          {activity.status}
+                        </span>
+                      </div>
+                    </div>
+                    {activity.leadScore?.totalScore && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-xs text-gray-600">Score: {activity.leadScore.totalScore}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                          activity.leadScore.tier === 'hot' ? 'bg-red-100/80 text-red-600' :
+                          activity.leadScore.tier === 'warm' ? 'bg-amber-100/80 text-amber-600' :
+                          'bg-blue-100/80 text-blue-600'
+                        }`}>
+                          {activity.leadScore.tier}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {safeStats.recentActivities.length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-gray-600">No recent activities</p>
+                  <p className="text-sm text-gray-500 mt-1">Activities will appear here as they happen</p>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-blue-500" />
-            <span className="text-sm font-medium text-blue-600">AI Powered</span>
+
+          {/* Top Opportunities */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-5">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Top Opportunities</h2>
+                <p className="text-sm text-gray-600">High-value leads to focus on</p>
+              </div>
+              <span className="px-2.5 py-1 rounded-full bg-blue-100/80 text-blue-600 text-xs font-medium">
+                Priority
+              </span>
+            </div>
+            <div className="space-y-4">
+              {safeStats.topOpportunities.map((opp, index) => (
+                <div
+                  key={index}
+                  className="flex items-start gap-3 p-3 rounded-xl border border-gray-100/50 hover:bg-white/50 transition-colors"
+                >
+                  <div className="flex-shrink-0">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white font-semibold">
+                      #{index + 1}
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h4 className="font-medium text-gray-900 truncate">{opp.subject}</h4>
+                        <p className="text-sm text-gray-600 truncate">
+                          {opp.customer?.name}
+                          {opp.customer?.companyName && ` · ${opp.customer.companyName}`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${getOpportunityStatusColor(opp.status)}`}>
+                          {opp.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 mt-2">
+                      {opp.leadScore?.totalScore && (
+                        <div className="flex items-center gap-1">
+                          <Target className="h-3 w-3 text-gray-500" />
+                          <span className="text-xs text-gray-600">Score: {opp.leadScore.totalScore}</span>
+                        </div>
+                      )}
+                      {opp.leadScore?.priority && (
+                        <div className="flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3 text-amber-500" />
+                          <span className="text-xs text-amber-600">Priority: {opp.leadScore.priority}</span>
+                        </div>
+                      )}
+                    </div>
+                    {opp.leadScore?.commercial?.dealValue && (
+                      <div className="mt-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-600">Potential Value</span>
+                          <span className="text-sm font-semibold text-green-600">
+                            {formatCurrency(opp.leadScore.commercial.dealValue)}
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-gray-100/50 overflow-hidden mt-1">
+                          <div 
+                            className="h-full rounded-full bg-gradient-to-r from-green-500 to-emerald-500"
+                            style={{ width: `${Math.min(opp.leadScore.totalScore || 0, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {safeStats.topOpportunities.length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-gray-600">No top opportunities</p>
+                  <p className="text-sm text-gray-500 mt-1">Create opportunities to see them here</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-          <div className="bg-white rounded-xl p-4 border border-gray-200">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-1.5 rounded-lg bg-green-100">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-              </div>
-              <span className="text-sm font-medium text-gray-700">Conversion Tip</span>
+
+        {/* Quick Insights */}
+        <div className="bg-gradient-to-r from-blue-50/80 to-cyan-50/80 backdrop-blur-sm rounded-2xl border border-blue-100/50 p-5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Quick Insights</h2>
+              <p className="text-gray-700">Key takeaways from your performance data</p>
             </div>
-            <p className="text-sm text-gray-600">
-              Your win rate is {Math.round(safeStats.overview.winRate)}%. Focus on following up with warm leads within 24 hours to improve conversion.
-            </p>
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-blue-600" />
+              <span className="text-sm font-medium text-blue-700">AI Powered</span>
+            </div>
           </div>
-          <div className="bg-white rounded-xl p-4 border border-gray-200">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-1.5 rounded-lg bg-blue-100">
-                <Zap className="h-4 w-4 text-blue-600" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-white/30">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 rounded-lg bg-green-100/50">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                </div>
+                <span className="text-sm font-medium text-gray-700">Conversion Tip</span>
               </div>
-              <span className="text-sm font-medium text-gray-700">Hot Lead Alert</span>
+              <p className="text-sm text-gray-700">
+                Your win rate is {Math.round(safeStats.overview.winRate)}%. Focus on following up with warm leads within 24 hours to improve conversion.
+              </p>
             </div>
-            <p className="text-sm text-gray-600">
-              You have {safeStats.overview.hotLeads} hot leads. Prioritize contacting these leads today for highest conversion chance.
-            </p>
-          </div>
-          <div className="bg-white rounded-xl p-4 border border-gray-200">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-1.5 rounded-lg bg-amber-100">
-                <TrendingUp className="h-4 w-4 text-amber-600" />
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-white/30">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 rounded-lg bg-blue-100/50">
+                  <Zap className="h-4 w-4 text-blue-600" />
+                </div>
+                <span className="text-sm font-medium text-gray-700">Hot Lead Alert</span>
               </div>
-              <span className="text-sm font-medium text-gray-700">Growth Opportunity</span>
+              <p className="text-sm text-gray-700">
+                You have {safeStats.overview.hotLeads} hot leads. Prioritize contacting these leads today for highest conversion chance.
+              </p>
             </div>
-            <p className="text-sm text-gray-600">
-              Your top source is {formatSourceName(safeStats.trends.topSource)}. Consider allocating more resources to this channel.
-            </p>
-          </div>
-          <div className="bg-white rounded-xl p-4 border border-gray-200">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-1.5 rounded-lg bg-purple-100">
-                <Clock className="h-4 w-4 text-purple-600" />
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-white/30">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 rounded-lg bg-amber-100/50">
+                  <TrendingUp className="h-4 w-4 text-amber-600" />
+                </div>
+                <span className="text-sm font-medium text-gray-700">Growth Opportunity</span>
               </div>
-              <span className="text-sm font-medium text-gray-700">Response Time</span>
+              <p className="text-sm text-gray-700">
+                Your top source is {formatSourceName(safeStats.trends.topSource)}. Consider allocating more resources to this channel.
+              </p>
             </div>
-            <p className="text-sm text-gray-600">
-              Average response time is {safeStats.overview.avgResponseTime}h. Faster responses can increase conversion by up to 40%.
-            </p>
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-white/30">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 rounded-lg bg-purple-100/50">
+                  <Clock className="h-4 w-4 text-purple-600" />
+                </div>
+                <span className="text-sm font-medium text-gray-700">Response Time</span>
+              </div>
+              <p className="text-sm text-gray-700">
+                Average response time is {safeStats.overview.avgResponseTime}h. Faster responses can increase conversion by up to 40%.
+              </p>
+            </div>
           </div>
         </div>
       </div>
