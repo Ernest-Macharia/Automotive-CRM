@@ -367,21 +367,194 @@ function DashboardContent() {
       <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-hidden">
         <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg" />
         <div className="h-[calc(100vh-64px)] p-4 md:p-6 space-y-6 overflow-auto">
+          
+          {/* Header skeleton with better visibility */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gray-300 rounded-xl animate-pulse"></div>
+              <div className="space-y-2">
+                <div className="w-32 h-6 bg-gray-300 rounded-lg animate-pulse"></div>
+                <div className="w-48 h-4 bg-gray-200 rounded-lg animate-pulse"></div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-24 h-10 bg-gray-300 rounded-lg animate-pulse"></div>
+              <div className="w-20 h-10 bg-gray-300 rounded-lg animate-pulse"></div>
+            </div>
+          </div>
+
+          {/* Key Metrics - Better visible cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="h-32 bg-white/50 backdrop-blur-sm rounded-2xl border border-white/30 animate-pulse" />
+              <div key={i} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-gray-200 rounded-xl animate-pulse"></div>
+                  <div className="w-16 h-6 bg-gray-200 rounded-lg animate-pulse"></div>
+                </div>
+                <div className="space-y-2">
+                  <div className="w-3/4 h-4 bg-gray-200 rounded-lg animate-pulse"></div>
+                  <div className="w-1/2 h-8 bg-gray-300 rounded-lg animate-pulse"></div>
+                </div>
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <div className="w-20 h-3 bg-gray-200 rounded-lg animate-pulse"></div>
+                    <div className="w-16 h-4 bg-gray-300 rounded-lg animate-pulse"></div>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
 
+          {/* Charts & Performance - More distinct skeleton */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 h-64 bg-white/50 backdrop-blur-sm rounded-2xl border border-white/30 animate-pulse" />
-            <div className="h-64 bg-white/50 backdrop-blur-sm rounded-2xl border border-white/30 animate-pulse" />
+            <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-6">
+                <div className="space-y-2">
+                  <div className="w-40 h-6 bg-gray-300 rounded-lg animate-pulse"></div>
+                  <div className="w-60 h-4 bg-gray-200 rounded-lg animate-pulse"></div>
+                </div>
+                <div className="w-20 h-6 bg-gray-200 rounded-lg animate-pulse"></div>
+              </div>
+              
+              {/* Progress bars skeleton */}
+              <div className="space-y-6">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-gray-300 rounded-full animate-pulse"></div>
+                        <div className="w-24 h-4 bg-gray-300 rounded-lg animate-pulse"></div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 h-4 bg-gray-200 rounded-lg animate-pulse"></div>
+                        <div className="w-8 h-4 bg-gray-300 rounded-lg animate-pulse"></div>
+                      </div>
+                    </div>
+                    <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                      <div className="h-full bg-gray-300 rounded-full animate-pulse" style={{ width: `${i * 30}%` }}></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Additional metrics */}
+              <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-gray-200">
+                {[1, 2].map(i => (
+                  <div key={i} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-gray-300 rounded-lg animate-pulse"></div>
+                      <div className="w-24 h-4 bg-gray-200 rounded-lg animate-pulse"></div>
+                    </div>
+                    <div className="w-20 h-6 bg-gray-300 rounded-lg animate-pulse"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Lead Sources */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-6">
+                <div className="space-y-2">
+                  <div className="w-32 h-6 bg-gray-300 rounded-lg animate-pulse"></div>
+                  <div className="w-48 h-4 bg-gray-200 rounded-lg animate-pulse"></div>
+                </div>
+                <div className="w-8 h-8 bg-gray-300 rounded-lg animate-pulse"></div>
+              </div>
+              
+              <div className="space-y-4">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 bg-gray-300 rounded-lg animate-pulse"></div>
+                        <div className="w-24 h-4 bg-gray-300 rounded-lg animate-pulse"></div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-4 bg-gray-200 rounded-lg animate-pulse"></div>
+                        <div className="w-6 h-4 bg-gray-300 rounded-lg animate-pulse"></div>
+                      </div>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                      <div className="h-full bg-gray-300 rounded-full animate-pulse" style={{ width: `${i * 25}%` }}></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
+          {/* Recent Activities & Top Opportunities */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="h-64 bg-white/50 backdrop-blur-sm rounded-2xl border border-white/30 animate-pulse" />
-            <div className="h-64 bg-white/50 backdrop-blur-sm rounded-2xl border border-white/30 animate-pulse" />
+            {[1, 2].map(card => (
+              <div key={card} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="space-y-2">
+                    <div className="w-40 h-6 bg-gray-300 rounded-lg animate-pulse"></div>
+                    <div className="w-60 h-4 bg-gray-200 rounded-lg animate-pulse"></div>
+                  </div>
+                  <div className="w-16 h-8 bg-gray-300 rounded-lg animate-pulse"></div>
+                </div>
+                
+                <div className="space-y-4">
+                  {[1, 2, 3].map(item => (
+                    <div key={item} className="flex items-start gap-3 p-3 rounded-xl border border-gray-100">
+                      <div className="w-10 h-10 bg-gray-300 rounded-lg animate-pulse"></div>
+                      <div className="flex-1 space-y-2">
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                          <div className="space-y-2">
+                            <div className="w-48 h-4 bg-gray-300 rounded-lg animate-pulse"></div>
+                            <div className="w-36 h-3 bg-gray-200 rounded-lg animate-pulse"></div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-12 h-3 bg-gray-200 rounded-lg animate-pulse"></div>
+                            <div className="w-16 h-6 bg-gray-300 rounded-lg animate-pulse"></div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1">
+                            <div className="w-4 h-4 bg-gray-300 rounded-lg animate-pulse"></div>
+                            <div className="w-16 h-3 bg-gray-200 rounded-lg animate-pulse"></div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <div className="w-4 h-4 bg-gray-300 rounded-lg animate-pulse"></div>
+                            <div className="w-20 h-3 bg-gray-200 rounded-lg animate-pulse"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
+
+          {/* Quick Insights */}
+          <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl border border-blue-100 p-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+              <div className="space-y-2">
+                <div className="w-32 h-6 bg-gray-300 rounded-lg animate-pulse"></div>
+                <div className="w-48 h-4 bg-gray-200 rounded-lg animate-pulse"></div>
+              </div>
+              <div className="w-20 h-6 bg-blue-300 rounded-lg animate-pulse"></div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="bg-white/80 rounded-xl p-4 border border-blue-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-8 h-8 bg-gray-300 rounded-lg animate-pulse"></div>
+                    <div className="w-24 h-4 bg-gray-300 rounded-lg animate-pulse"></div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="w-full h-3 bg-gray-200 rounded-lg animate-pulse"></div>
+                    <div className="w-full h-3 bg-gray-200 rounded-lg animate-pulse"></div>
+                    <div className="w-3/4 h-3 bg-gray-200 rounded-lg animate-pulse"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
         </div>
       </div>
     );
