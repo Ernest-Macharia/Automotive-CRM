@@ -23,6 +23,7 @@ export interface Opportunity {
   createdAt: string;
   updatedAt: string;
   isNurturing: boolean;
+  notes?: string;
   leadScore?: {
     totalScore: number;
     tier: 'hot' | 'warm' | 'cold';
@@ -61,9 +62,26 @@ export interface CreateOpportunityData {
 
 export interface UpdateOpportunityData {
   subject?: string;
+  type?: 'individual' | 'organization';
   status?: 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost';
   source?: string;
   assignedTo?: string;
+  isNurturing?: boolean;
+  notes?: string;
+  customer?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    companyName?: string;
+  };
+  vehicles?: Array<{
+    vin?: string;
+    registrationNumber?: string;
+    make: string;
+    model: string;
+    year?: number | string;
+    color?: string;
+  }>;
 }
 
 export interface FilterParams {

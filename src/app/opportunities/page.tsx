@@ -1365,15 +1365,6 @@ function KanbanColumn({
         </button>
       </div>
 
-      <button 
-        className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white/50 py-2.5 text-sm text-gray-500 hover:bg-white hover:border-gray-400 transition-all duration-200 disabled:opacity-50 cursor-not-allowed"
-        disabled={true}
-        title="Use the main 'New Opportunity' button above"
-      >
-        <Plus className="h-4 w-4" />
-        <span className="hidden sm:inline">Add Opportunity</span>
-      </button>
-
       <div className="space-y-3 flex-1 overflow-y-auto pr-1">
         {loading && opportunities.length === 0 ? (
           [1, 2].map((i) => (
@@ -1428,15 +1419,26 @@ function OpportunityCard({
   onDragStart: () => void;
   onDragEnd: () => void;
 }) {
+  const router = useRouter();
   const [isRecalculating, setIsRecalculating] = useState(false);
   const childCounts = getChildCounts(opportunity);
+
+  const handleClick = (e: React.MouseEvent) => {
+    // Don't navigate if clicking on action buttons
+    if ((e.target as HTMLElement).closest('button')) {
+      return;
+    }
+    // Navigate to your details page - using the id as a query parameter
+    router.push(`/opportunities/details?id=${opportunity._id}`);
+  };
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('opportunityId', opportunity._id);
     onDragStart();
   };
 
-  const handleRecalculateClick = async () => {
+  const handleRecalculateClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     setIsRecalculating(true);
     try {
       await onRecalculateScore(opportunity._id);
@@ -1445,13 +1447,30 @@ function OpportunityCard({
     }
   };
 
+  const handleActionButtonClick = (e: React.MouseEvent, action: string) => {
+    e.stopPropagation();
+    // Handle different actions here
+    switch (action) {
+      case 'call':
+        console.log('Call customer:', opportunity.customer.phone);
+        break;
+      case 'message':
+        console.log('Message customer');
+        break;
+      case 'view':
+        handleClick(e);
+        break;
+    }
+  };
+
   return (
     <div 
       data-id={opportunity._id}
-      className="group bg-white/80 backdrop-blur-sm rounded-xl border border-white/30 p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-move active:cursor-grabbing hover:-translate-y-0.5"
+      className="group bg-white/80 backdrop-blur-sm rounded-xl border border-white/30 p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
       draggable
       onDragStart={handleDragStart}
       onDragEnd={onDragEnd}
+      onClick={handleClick}
     >
       {/* Opportunity Header */}
       <div className="flex items-start justify-between mb-3 gap-2">
@@ -1624,18 +1643,21 @@ function OpportunityCard({
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
           <button 
+            onClick={(e) => handleActionButtonClick(e, 'call')}
             className="p-1.5 hover:bg-blue-50/50 rounded-lg text-blue-500 transition-all hover:scale-110"
             title="Call"
           >
             <Phone className="h-4 w-4" />
           </button>
           <button 
+            onClick={(e) => handleActionButtonClick(e, 'message')}
             className="p-1.5 hover:bg-green-50/50 rounded-lg text-green-500 transition-all hover:scale-110"
             title="Message"
           >
             <MessageCircle className="h-4 w-4" />
           </button>
           <button 
+            onClick={(e) => handleActionButtonClick(e, 'view')}
             className="p-1.5 hover:bg-gray-50/50 rounded-lg text-gray-500 transition-all hover:scale-110"
             title="View details"
           >
