@@ -142,17 +142,41 @@ export default function CreateOpportunityPage() {
         
         const formattedCountries = data
           .filter((country: any) => country.idd?.root && country.idd?.suffixes?.[0])
-          .map((country: any) => ({
-            code: country.cca2,
-            name: country.name.common,
-            flag: country.cca2.toLowerCase(),
-            dialCode: `${country.idd.root}${country.idd.suffixes[0]}`
-          }))
+          .map((country: any) => {
+            // Try to get the flag emoji from country code
+            const getFlagEmojiFromCode = (code: string) => {
+              return code
+                .toUpperCase()
+                .split('')
+                .map(char => String.fromCodePoint(127397 + char.charCodeAt(0)))
+                .join('');
+            };
+            
+            return {
+              code: country.cca2,
+              name: country.name.common,
+              flag: getFlagEmojiFromCode(country.cca2),
+              dialCode: `${country.idd.root}${country.idd.suffixes[0]}`
+            };
+          })
           .sort((a: CountryCode, b: CountryCode) => a.name.localeCompare(b.name));
         
         setCountryCodes(formattedCountries);
       } catch (error) {
         console.error('Error fetching countries:', error);
+        // Fallback to a few common countries
+        setCountryCodes([
+          { code: 'KE', name: 'Kenya', flag: '🇰🇪', dialCode: '+254' },
+          { code: 'US', name: 'United States', flag: '🇺🇸', dialCode: '+1' },
+          { code: 'GB', name: 'United Kingdom', flag: '🇬🇧', dialCode: '+44' },
+          { code: 'NG', name: 'Nigeria', flag: '🇳🇬', dialCode: '+234' },
+          { code: 'ZA', name: 'South Africa', flag: '🇿🇦', dialCode: '+27' },
+          { code: 'ET', name: 'Ethiopia', flag: '🇪🇹', dialCode: '+251' },
+          { code: 'EG', name: 'Egypt', flag: '🇪🇬', dialCode: '+20' },
+          { code: 'CN', name: 'China', flag: '🇨🇳', dialCode: '+86' },
+          { code: 'IN', name: 'India', flag: '🇮🇳', dialCode: '+91' },
+          { code: 'AE', name: 'United Arab Emirates', flag: '🇦🇪', dialCode: '+971' },
+        ]);
       } finally {
         setLoadingCountries(false);
       }
@@ -502,11 +526,26 @@ export default function CreateOpportunityPage() {
 
 
   const getFlagEmoji = (countryCode: string) => {
-    const codePoints = countryCode
-      .toUpperCase()
-      .split('')
-      .map(char => 127397 + char.charCodeAt(0));
-    return String.fromCodePoint(...codePoints);
+    // If it already looks like an emoji, return it
+    if (countryCode.includes('🇦') || countryCode.includes('🇧') || countryCode.includes('🇨') || countryCode.includes('🇩')) {
+      return countryCode;
+    }
+    
+    // Try to find in our countryCodes list
+    const country = countryCodes.find(c => c.dialCode === countryCode || c.code === countryCode.replace('+', ''));
+    if (country) {
+      return country.flag;
+    }
+    
+    // Fallback: try to convert code to emoji
+    try {
+      const code = countryCode.replace('+', '').toUpperCase().slice(0, 2);
+      const codePoints = Array.from(code)
+        .map(char => 127397 + char.charCodeAt(0));
+      return String.fromCodePoint(...codePoints);
+    } catch {
+      return '🏳️';
+    }
   };
 
   return (
@@ -745,7 +784,10 @@ export default function CreateOpportunityPage() {
                                 ) : (
                                   <>
                                     <span className="text-lg">
-                                      {getFlagEmoji(formData.phoneCode.replace('+', ''))}
+                                      {formData.phoneCode.startsWith('+') ? 
+                                        getFlagEmoji(formData.phoneCode) : 
+                                        getFlagEmoji(formData.phoneCode.replace('+', ''))
+                                      }
                                     </span>
                                     <span>{formData.phoneCode}</span>
                                   </>
