@@ -41,14 +41,12 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({
   const [permissionsList, setPermissionsList] = useState<string[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // Fetch available permissions
   useEffect(() => {
     fetchPermissions();
   }, []);
 
   const fetchPermissions = async () => {
     try {
-      // This would come from your permissions service
       const permissions = [
         'jobs.read', 'jobs.create', 'jobs.update', 'jobs.delete',
         'users.read', 'users.create', 'users.update', 'users.delete',
@@ -120,7 +118,6 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({
 
     setLoading(true);
     try {
-      // Prepare user data
       const userData = {
         name: formData.name || formData.email.split('@')[0],
         email: formData.email,
@@ -133,7 +130,6 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({
         ...(isAdminRegister && formData.permissions.length > 0 && { permissions: formData.permissions }),
       };
 
-      // Choose create or register based on mode
       let newUser;
       if (isAdminRegister) {
         newUser = await userService.registerUser(userData);
@@ -143,13 +139,10 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({
         toast.success('User created successfully!');
       }
 
-      // Redirect to the new user's profile
       router.push(`/clients/users/${newUser.id}`);
       
     } catch (error: any) {
       console.error('Error creating user:', error);
-      
-      // Enhanced error handling
       if (error.message.includes('409')) {
         toast.error('A user with this email already exists');
       } else if (error.message.includes('401') || error.message.includes('403')) {

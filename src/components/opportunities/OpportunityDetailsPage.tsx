@@ -325,7 +325,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
     } catch (err: any) {
       console.error('Error updating status:', err);
       
-      // Check if it's a lead validation error
       if (err.message && err.message.includes('Lead record not found')) {
         showToast(
           'Cannot move from "new" stage. Lead record is required. Would you like to create one now?',
@@ -407,7 +406,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
     return tierConfig[tier]?.label || tier;
   };
 
-  // Helper function to render lead score breakdown safely
   const renderLeadScoreBreakdown = (data: Record<string, number> | undefined, title: string, icon: React.ReactNode) => {
     if (!data) return null;
     

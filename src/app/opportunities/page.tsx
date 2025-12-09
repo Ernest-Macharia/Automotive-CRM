@@ -1424,11 +1424,9 @@ function OpportunityCard({
   const childCounts = getChildCounts(opportunity);
 
   const handleClick = (e: React.MouseEvent) => {
-    // Don't navigate if clicking on action buttons
     if ((e.target as HTMLElement).closest('button')) {
       return;
     }
-    // Navigate to your details page - using the id as a query parameter
     router.push(`/opportunities/details?id=${opportunity._id}`);
   };
 
@@ -1449,7 +1447,6 @@ function OpportunityCard({
 
   const handleActionButtonClick = (e: React.MouseEvent, action: string) => {
     e.stopPropagation();
-    // Handle different actions here
     switch (action) {
       case 'call':
         console.log('Call customer:', opportunity.customer.phone);

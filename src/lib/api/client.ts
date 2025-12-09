@@ -29,19 +29,13 @@ class ApiClient {
       credentials: 'include',
     };
 
-    console.log(`API Request: ${options.method || 'GET'} ${url}`);
-    console.log('Request headers:', headers);
-
     const response = await fetch(url, config);
-    
-    console.log(`API Response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('API Error Response:', errorText);
       
       if (response.status === 401) {
-        // Clear token and redirect to login
         sessionStorage.removeItem('accessToken');
         window.location.href = '/login';
       }

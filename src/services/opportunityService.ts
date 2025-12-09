@@ -230,7 +230,6 @@ class OpportunityService {
           stats: undefined
         };
       } else {
-        // If it's already in the right format
         return response;
       }
     } catch (error) {
@@ -394,9 +393,6 @@ class OpportunityService {
 
   async createOpportunity(data: CreateOpportunityData): Promise<Opportunity> {
     try {
-      console.log('Creating opportunity with data:', JSON.stringify(data, null, 2));
-
-      // Create a properly typed formattedData object
       const formattedData: FormattedOpportunityData = {
         type: data.type,
         subject: data.subject,
@@ -410,7 +406,6 @@ class OpportunityService {
         },
       };
 
-      // Add vehicles if provided - make sure year is a number
       if (data.vehicles && data.vehicles.length > 0) {
         formattedData.vehicles = data.vehicles.map(vehicle => ({
           ...(vehicle.vin && { vin: vehicle.vin }),
@@ -422,25 +417,20 @@ class OpportunityService {
         }));
       }
 
-      // Add notes if provided
       if (data.notes) {
         formattedData.notes = data.notes;
       }
-
-      console.log('Formatted data for API:', JSON.stringify(formattedData, null, 2));
       
       return await apiClient.post<FormattedOpportunityData, Opportunity>('/opportunities', formattedData);
     } catch (error) {
       console.error('Error creating opportunity:', error);
       
-      // Enhanced error messages
       if (error instanceof Error) {
         if (error.message.includes('CORS')) {
           throw new Error('CORS configuration issue. Please contact the backend team to allow requests from localhost:3000.');
         } else if (error.message.includes('502')) {
           throw new Error('Backend server is currently unavailable. Please try again later.');
         } else if (error.message.includes('401') || error.message.includes('403')) {
-          // Clear token and redirect
           sessionStorage.removeItem('accessToken');
           window.location.href = '/login';
           throw new Error('Session expired. Please log in again.');

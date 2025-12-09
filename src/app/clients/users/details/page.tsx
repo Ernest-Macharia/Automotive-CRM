@@ -6,7 +6,6 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import UserProfilePage from '@/components/users/UserProfilePage';
 import { Loader2 } from 'lucide-react';
 
-// Create a separate component that uses useSearchParams
 function UserDetailsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -14,7 +13,6 @@ function UserDetailsContent() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Wait for the component to mount and search params to be available
     const id = searchParams.get('id');
     
     if (!id) {

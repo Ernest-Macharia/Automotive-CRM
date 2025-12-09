@@ -35,15 +35,13 @@ interface StatsData {
   lastUpdated: string;
 }
 
-// Helper function to extract role name from role (string or object)
 const getRoleName = (role: string | Role): string => {
   if (!role) return 'Unknown';
   
   if (typeof role === 'string') {
     return role;
   }
-  
-  // If it's a Role object
+
   if (typeof role === 'object') {
     return role.name || role.display_name || role._id || 'Unknown';
   }

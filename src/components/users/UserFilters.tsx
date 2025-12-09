@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 interface UserFiltersProps {
-  roles: string[]; // This should be an array of role names (strings)
+  roles: string[];
   roleFilter: string;
   statusFilter: string;
   disabled?: boolean;

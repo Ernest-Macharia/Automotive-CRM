@@ -28,7 +28,7 @@ export interface User {
   canViewSummary?: boolean;
   createdAt?: string;
   updatedAt?: string;
-  password?: string; // Only for create/register
+  password?: string;
 }
 
 export interface CreateUserData {
@@ -53,33 +53,25 @@ export interface UpdateUserData {
 }
 
 export interface FilterParams {
-  // Basic filters
   role?: string;
   status?: 'active' | 'inactive' | string;
   department?: string;
-  
-  // Search
   search?: string;
-  
-  // Multiple values
+
   roles?: string[];
   statuses?: string[];
   departments?: string[];
-  
-  // Sorting
+
   sort?: string;
   sortBy?: 'name' | 'email' | 'role' | 'createdAt' | 'lastLogin';
   sortOrder?: 'asc' | 'desc';
   
-  // Pagination
   page?: number;
   limit?: number;
-  
-  // Permission filters
+
   hasPermission?: string;
   canViewSummary?: boolean;
-  
-  // Date filters
+
   fromDate?: string;
   toDate?: string;
   lastLoginAfter?: string;
@@ -327,8 +319,6 @@ class UserService {
   // Existing CRUD methods
   async getUserById(id: string): Promise<User> {
     try {
-      // Since the API might not have a GET /users/{id} endpoint,
-      // we'll fetch all users and filter, or handle differently
       const response = await this.getAllUsers();
       const user = response.data.find(u => u.id === id || u._id === id);
       
@@ -343,13 +333,10 @@ class UserService {
     }
   }
 
-  // Admin registration (Admin only)
   async registerUser(data: CreateUserData): Promise<User> {
     try {
-      console.log('Registering user with data:', JSON.stringify(data, null, 2));
-
       const formattedData = {
-        name: data.name || data.email.split('@')[0], // Use email prefix as default name
+        name: data.name || data.email.split('@')[0],
         email: data.email,
         password: data.password,
         role: data.role,
@@ -357,17 +344,13 @@ class UserService {
         ...(data.phone && { phone: data.phone }),
         ...(data.department && { department: data.department }),
       };
-
-      console.log('Formatted data for registration:', JSON.stringify(formattedData, null, 2));
       
       return await apiClient.post<any, User>('/users/register', formattedData);
     } catch (error) {
       console.error('Error registering user:', error);
       
-      // Enhanced error messages
       if (error instanceof Error) {
         if (error.message.includes('401') || error.message.includes('403')) {
-          // Clear token and redirect
           sessionStorage.removeItem('accessToken');
           window.location.href = '/login';
           throw new Error('Session expired or insufficient permissions. Please log in again.');
@@ -385,20 +368,16 @@ class UserService {
   // Create user (Admin or Management)
   async createUser(data: CreateUserData): Promise<User> {
     try {
-      console.log('Creating user with data:', JSON.stringify(data, null, 2));
 
       const formattedData = {
         ...data,
-        name: data.name || data.email.split('@')[0], // Use email prefix as default name
+        name: data.name || data.email.split('@')[0],
       };
-
-      console.log('Formatted data for creation:', JSON.stringify(formattedData, null, 2));
       
       return await apiClient.post<any, User>('/users', formattedData);
     } catch (error) {
       console.error('Error creating user:', error);
       
-      // Enhanced error messages
       if (error instanceof Error) {
         if (error.message.includes('401') || error.message.includes('403')) {
           throw new Error('Insufficient permissions to create users.');

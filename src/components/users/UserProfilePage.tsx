@@ -39,7 +39,6 @@ const UserProfilePage: React.FC<UserProfilePageProps> = ({
     Array<{ value: string; label: string; description?: string }>
   >([]);
 
-  // Fetch user data
   useEffect(() => {
     if (userId) {
       fetchUserData();
@@ -63,15 +62,6 @@ const UserProfilePage: React.FC<UserProfilePageProps> = ({
         String(u.id) === String(userId) || 
         String(u._id) === String(userId)
         );
-        
-        // Debug log
-        console.log('Looking for user with ID:', userId);
-        console.log('Available users:', response.data.map(u => ({ 
-        id: u.id, 
-        _id: u._id,
-        name: u.name 
-        })));
-        console.log('Found user:', foundUser);
         
         if (!foundUser) {
         toast.error('User not found');
@@ -129,7 +119,6 @@ const UserProfilePage: React.FC<UserProfilePageProps> = ({
     }
   };
 
-  // Helper functions
   const formatRoleName = (role: string | any): string => {
     if (!role) return 'Unknown';
     
@@ -255,7 +244,6 @@ const UserProfilePage: React.FC<UserProfilePageProps> = ({
     }
   };
 
-  // Handlers
   const handleInputChange = (field: string, value: any) => {
     setFormData((prev: any) => ({ ...prev, [field]: value }));
   };
@@ -338,7 +326,6 @@ const UserProfilePage: React.FC<UserProfilePageProps> = ({
     }
   };
 
-  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">

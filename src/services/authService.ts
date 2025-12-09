@@ -95,13 +95,9 @@ class AuthService {
   }
 
   private storeAuthData(accessToken: string, refreshToken: string, user: FrontendUser): void {
-    // Only store on client side
     if (typeof window === 'undefined') return;
     
     try {
-      console.log('🔍 Storing tokens and user...');
-      
-      // Store with consistent keys
       sessionStorage.setItem(this.TOKEN_KEY, accessToken);
       sessionStorage.setItem(this.REFRESH_TOKEN_KEY, refreshToken);
       sessionStorage.setItem(this.USER_KEY, JSON.stringify(user));
@@ -201,7 +197,7 @@ class AuthService {
       const frontendUser: FrontendUser = {
         id: response.user.sub,
         email: response.user.email,
-        firstName: response.user.email.split('@')[0], // Use email prefix as first name
+        firstName: response.user.email.split('@')[0],
         role: response.user.role,
         permissions: response.user.permissions,
         requiresPasswordChange: response.user.requiresPasswordChange,
@@ -216,7 +212,7 @@ class AuthService {
         token: response.accessToken,
         refreshToken: response.refreshToken,
         user: frontendUser,
-        expiresIn: 86400, // Default 24 hours since expires_in not provided
+        expiresIn: 86400,
       };
       
     } catch (error: any) {
@@ -254,11 +250,9 @@ class AuthService {
 
   setMockMode(enabled: boolean): void {
     this.useMock = enabled;
-    console.log(`🔄 Auth service mock mode: ${enabled ? 'ENABLED' : 'DISABLED'}`);
   }
 }
 
 export const authService = new AuthService();
 
-// Initialize with mock mode
 authService.setMockMode(false);

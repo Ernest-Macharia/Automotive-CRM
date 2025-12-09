@@ -359,7 +359,6 @@ function DashboardContent() {
     return `${Math.floor(diffHours / 24)}d ago`;
   };
 
-  // Helper to safely access stats
   const safeStats = stats || getDefaultStats();
 
   if (loading && !stats) {

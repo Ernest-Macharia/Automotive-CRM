@@ -257,7 +257,6 @@ const UsersTable: React.FC<UsersTableProps> = ({
     if (onViewDetails) {
         onViewDetails(user);
     } else {
-        // If no handler provided, navigate directly
         router.push(`/clients/users/details?id=${user.id || user._id}`);
     }
     };
@@ -266,7 +265,6 @@ const UsersTable: React.FC<UsersTableProps> = ({
     if (onEditUser) {
         onEditUser(user);
     } else {
-        // If no handler provided, navigate directly
         router.push(`/clients/users/edit?id=${user.id || user._id}`);
     }
     };

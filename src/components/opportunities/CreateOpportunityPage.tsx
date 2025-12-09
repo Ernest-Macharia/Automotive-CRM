@@ -132,7 +132,6 @@ export default function CreateOpportunityPage() {
 
   const totalSteps = 3;
 
-  // Fetch countries on mount
   useEffect(() => {
     const fetchCountries = async () => {
       try {
@@ -143,7 +142,6 @@ export default function CreateOpportunityPage() {
         const formattedCountries = data
           .filter((country: any) => country.idd?.root && country.idd?.suffixes?.[0])
           .map((country: any) => {
-            // Try to get the flag emoji from country code
             const getFlagEmojiFromCode = (code: string) => {
               return code
                 .toUpperCase()
@@ -164,19 +162,6 @@ export default function CreateOpportunityPage() {
         setCountryCodes(formattedCountries);
       } catch (error) {
         console.error('Error fetching countries:', error);
-        // Fallback to a few common countries
-        setCountryCodes([
-          { code: 'KE', name: 'Kenya', flag: '🇰🇪', dialCode: '+254' },
-          { code: 'US', name: 'United States', flag: '🇺🇸', dialCode: '+1' },
-          { code: 'GB', name: 'United Kingdom', flag: '🇬🇧', dialCode: '+44' },
-          { code: 'NG', name: 'Nigeria', flag: '🇳🇬', dialCode: '+234' },
-          { code: 'ZA', name: 'South Africa', flag: '🇿🇦', dialCode: '+27' },
-          { code: 'ET', name: 'Ethiopia', flag: '🇪🇹', dialCode: '+251' },
-          { code: 'EG', name: 'Egypt', flag: '🇪🇬', dialCode: '+20' },
-          { code: 'CN', name: 'China', flag: '🇨🇳', dialCode: '+86' },
-          { code: 'IN', name: 'India', flag: '🇮🇳', dialCode: '+91' },
-          { code: 'AE', name: 'United Arab Emirates', flag: '🇦🇪', dialCode: '+971' },
-        ]);
       } finally {
         setLoadingCountries(false);
       }
@@ -422,18 +407,13 @@ export default function CreateOpportunityPage() {
         };
 
         console.log('API form data:', apiFormData);
-
-        setShowSuccessModal(true);
         
-        // Submit to API
         const result = await opportunityService.createOpportunity(apiFormData);
-
-        setShowSuccessModal(true);
 
         console.log('Created opportunity:', result);
         
-        // Set the created opportunity and show success modal
         setCreatedOpportunity(result);
+        setShowSuccessModal(true);
         
         // Clear draft
         localStorage.removeItem('opportunityDraft');

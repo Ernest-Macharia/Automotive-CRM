@@ -1,5 +1,3 @@
-import { CLIENT_PUBLIC_FILES_PATH } from "next/dist/shared/lib/constants";
-
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export const API_ENDPOINTS = {

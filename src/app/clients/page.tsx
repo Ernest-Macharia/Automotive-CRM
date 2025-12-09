@@ -26,11 +26,9 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   
-  // Modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
-  
-  // Available roles for dropdowns
+
   const [availableRoles, setAvailableRoles] = useState<
     Array<{ value: string; label: string; description?: string }>
   >([]);
@@ -41,8 +39,7 @@ export default function UsersPage() {
       const response = await userService.getAllUsers();
       setUsers(response.data);
       setFilteredUsers(response.data);
-      
-      // Extract unique roles for filters
+
       const roles = Array.from(new Set(response.data.map(user => {
         const role = user.role;
         if (!role) return null;
@@ -172,7 +169,6 @@ export default function UsersPage() {
     }
   };
 
-  // Get unique roles for filters
   const roles = Array.from(new Set(users.map(user => {
     const role = user.role;
     
