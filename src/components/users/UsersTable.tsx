@@ -26,18 +26,21 @@ import {
   Handshake,
   MessageSquare,
   Ticket,
-  Package
+  Package,
+  Trash2
 } from 'lucide-react';
 import { User, Role } from '@/services/userService';
 import { getPermissionInfo, PERMISSION_CATEGORIES } from '@/lib/permissions/mapping';
+import { useRouter } from 'next/navigation';
 
 interface UsersTableProps {
   users: User[];
   loading: boolean;
   onToggleStatus: (id: string, active: boolean) => Promise<void>;
   onToggleSummaryAccess: (id: string, currentAccess: boolean) => Promise<void>;
-  onEditUser: (user: User) => Promise<void>;
-  onViewDetails?: (user: User) => Promise<void>;
+  onEditUser: (user: User) => void;
+  onViewDetails: (user: User) => void;
+  onDeleteUser: (user: User) => void;
 }
 
 // Helper function to extract role name from role (string or object)
@@ -205,7 +208,8 @@ const UsersTable: React.FC<UsersTableProps> = ({
   onToggleStatus,
   onToggleSummaryAccess,
   onEditUser,
-  onViewDetails
+  onViewDetails,
+  onDeleteUser
 }) => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -247,21 +251,31 @@ const UsersTable: React.FC<UsersTableProps> = ({
     }
   };
 
-  const handleEditUser = async (user: User) => {
-    try {
-      await onEditUser(user);
-    } catch (error) {
-      console.error('Error editing user:', error);
-    }
-  };
+  const router = useRouter();
 
-  const handleViewDetails = async (user: User) => {
-    if (!onViewDetails) return;
-    
-    try {
-      await onViewDetails(user);
-    } catch (error) {
-      console.error('Error viewing user details:', error);
+  const handleViewDetails = (user: User) => {
+    if (onViewDetails) {
+        onViewDetails(user);
+    } else {
+        // If no handler provided, navigate directly
+        router.push(`/clients/users/details?id=${user.id || user._id}`);
+    }
+    };
+
+    const handleEditUser = (user: User) => {
+    if (onEditUser) {
+        onEditUser(user);
+    } else {
+        // If no handler provided, navigate directly
+        router.push(`/clients/users/edit?id=${user.id || user._id}`);
+    }
+    };
+
+  const handleDeleteUser = (user: User) => {
+    if (onDeleteUser) {
+        onDeleteUser(user);
+    } else {
+        console.warn('onDeleteUser handler is not provided');
     }
   };
 
@@ -616,6 +630,13 @@ const UsersTable: React.FC<UsersTableProps> = ({
                         <Edit className="h-4 w-4 text-blue-600" />
                       </button>
                       <button
+                        onClick={() => handleDeleteUser(user)}
+                        className="p-1.5 hover:bg-red-50 rounded-lg transition-colors duration-200"
+                        title="Delete User"
+                        >
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                      </button>
+                      {/* <button
                         onClick={() => handleAction(
                           () => onToggleStatus(user.id, user.active),
                           user.id
@@ -632,7 +653,7 @@ const UsersTable: React.FC<UsersTableProps> = ({
                         ) : (
                           <Unlock className="h-4 w-4 text-green-600" />
                         )}
-                      </button>
+                      </button> */}
                     </div>
                   </td>
                 </tr>

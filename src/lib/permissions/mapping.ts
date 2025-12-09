@@ -69,7 +69,11 @@ export const PERMISSION_CATEGORIES = {
   TEAM: 'Team Management',
   TARGETS: 'Targets & Goals',
   MAINTENANCE: 'Maintenance & Service',
-  TICKETS: 'Support Tickets'
+  TICKETS: 'Support Tickets',
+  CHAT: 'Chat & Messaging',
+  NOTIFICATIONS: 'Notifications',
+  SYSTEM: 'System',
+  DATA: 'Data Management'
 } as const;
 
 export const PERMISSION_MAPPING: Record<string, PermissionInfo> = {

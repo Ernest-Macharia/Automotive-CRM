@@ -15,6 +15,7 @@ interface UserFiltersProps {
   roles: string[]; // This should be an array of role names (strings)
   roleFilter: string;
   statusFilter: string;
+  disabled?: boolean;
   onRoleFilterChange: (role: string) => void;
   onStatusFilterChange: (status: string) => void;
   onAdvancedFilterChange?: (filters: any) => void;
@@ -24,6 +25,7 @@ const UserFilters: React.FC<UserFiltersProps> = ({
   roles,
   roleFilter,
   statusFilter,
+  disabled,
   onRoleFilterChange,
   onStatusFilterChange,
   onAdvancedFilterChange
