@@ -24,7 +24,7 @@ export const API_ENDPOINTS = {
     RECALCULATE_ALL: '/opportunities/scoring/recalculate-all',
   },
   CLIENTS: {
-    BASE: '/clents',
+    BASE: '/clients',
   },
   VEHICLES: {
     BASE: '/vehicles',
