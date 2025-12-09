@@ -17,7 +17,7 @@ function UserEditContent() {
     
     if (!id) {
       console.error('No user ID provided in query parameters');
-      router.push('/clients/users');
+      router.push('/clients');
       return;
     }
     

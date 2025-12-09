@@ -185,7 +185,7 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({
     if (onBack) {
       onBack();
     } else {
-      router.push('/clients/users');
+      router.push('/clients');
     }
   };
 

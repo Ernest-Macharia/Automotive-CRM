@@ -376,6 +376,7 @@ export default function CreateOpportunityPage() {
   const handleSubmit = async () => {
     if (validateStep()) {
       setIsSubmitting(true);
+      console.log('Form data:', formData);
       try {
         const title = `${formData.firstName} ${formData.lastName}'s ${formData.opportunityType.toLowerCase()} request`;
 
@@ -419,13 +420,20 @@ export default function CreateOpportunityPage() {
           ...(formData.notes && { notes: formData.notes }),
           total: calculateTotal(),
         };
+
+        console.log('API form data:', apiFormData);
+
+        setShowSuccessModal(true);
         
         // Submit to API
         const result = await opportunityService.createOpportunity(apiFormData);
+
+        setShowSuccessModal(true);
+
+        console.log('Created opportunity:', result);
         
         // Set the created opportunity and show success modal
         setCreatedOpportunity(result);
-        setShowSuccessModal(true);
         
         // Clear draft
         localStorage.removeItem('opportunityDraft');

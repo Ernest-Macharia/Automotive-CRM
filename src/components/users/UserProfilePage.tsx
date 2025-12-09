@@ -76,7 +76,7 @@ const UserProfilePage: React.FC<UserProfilePageProps> = ({
         if (!foundUser) {
         toast.error('User not found');
         if (onBack) onBack();
-        else router.push('/clients/users');
+        else router.push('/clients');
         return;
         }
         
@@ -94,7 +94,7 @@ const UserProfilePage: React.FC<UserProfilePageProps> = ({
         toast.error('Failed to load user data');
         console.error('Error fetching user:', error);
         if (onBack) onBack();
-        else router.push('/clients/users');
+        else router.push('/clients');
     } finally {
         setLoading(false);
     }
@@ -309,7 +309,7 @@ const UserProfilePage: React.FC<UserProfilePageProps> = ({
       await userService.deleteUser(user.id);
       toast.success('User deleted successfully!');
       if (onBack) onBack();
-      else router.push('/clients/users');
+      else router.push('/clients');
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete user');
     }
@@ -334,7 +334,7 @@ const UserProfilePage: React.FC<UserProfilePageProps> = ({
     if (onBack) {
         onBack();
     } else {
-        router.push('/clients/users');
+        router.push('/clients');
     }
   };
 
@@ -393,7 +393,7 @@ const UserProfilePage: React.FC<UserProfilePageProps> = ({
           <h3 className="text-lg font-medium text-gray-900 mb-2">User not found</h3>
           <p className="text-gray-600 mb-6">The user you're looking for doesn't exist</p>
           <button
-            onClick={() => onBack ? onBack() : router.push('/clients/users')}
+            onClick={() => onBack ? onBack() : router.push('/clients')}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
