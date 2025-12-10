@@ -30,6 +30,26 @@ interface LeadScoreBreakdown {
 interface OpportunityWithDetails extends Opportunity {
   invoices?: any[];
   payments?: any[];
+  opportunityType?: 'SERVICE' | 'PRODUCT';
+  servicesProducts?: Array<{
+    id?: string;
+    title: string;
+    description?: string;
+    type: 'SERVICE' | 'PRODUCT';
+    quantity: number;
+    unitPrice: number;
+    discount: number;
+    subtotal: number;
+    total: number;
+  }>;
+  subtotal?: number;
+  totalDiscount?: number;
+  total?: number;
+  companyAddress?: string;
+  companyTaxId?: string;
+  companyPhone?: string;
+  companyEmail?: string;
+  
   leadScore?: {
     totalScore: number;
     tier: 'hot' | 'warm' | 'cold';
@@ -60,15 +80,23 @@ interface Vehicle {
   createdAt: string;
   updatedAt: string;
   active?: boolean;
+  // Add the new fields as optional
+  engineSize?: string;
+  fuelType?: string;
+  transmission?: string;
+  mileage?: string;
+  chassisNumber?: string;
+  bodyType?: string;
+  licensePlate?: string;
 }
 
-const statusConfig: Record<string, { label: string; color: string; pastel: string }> = {
-  new: { label: 'New', color: 'bg-blue-100 text-blue-600', pastel: 'bg-blue-50' },
-  contacted: { label: 'Contacted', color: 'bg-purple-100 text-purple-600', pastel: 'bg-purple-50' },
-  qualified: { label: 'Qualified', color: 'bg-amber-100 text-amber-600', pastel: 'bg-amber-50' },
-  quotation: { label: 'Quotation', color: 'bg-orange-100 text-orange-600', pastel: 'bg-orange-50' },
-  won: { label: 'Won', color: 'bg-green-100 text-green-600', pastel: 'bg-green-50' },
-  lost: { label: 'Lost', color: 'bg-red-100 text-red-600', pastel: 'bg-red-50' }
+const statusConfig: Record<string, { label: string; color: string; pastel: string; activeClass: string }> = {
+  new: { label: 'New', color: 'bg-blue-100 text-blue-600', pastel: 'bg-blue-50', activeClass: 'bg-blue-500 text-white' },
+  contacted: { label: 'Contacted', color: 'bg-purple-100 text-purple-600', pastel: 'bg-purple-50', activeClass: 'bg-purple-500 text-white' },
+  qualified: { label: 'Qualified', color: 'bg-amber-100 text-amber-600', pastel: 'bg-amber-50', activeClass: 'bg-amber-500 text-white' },
+  quotation: { label: 'Quotation', color: 'bg-orange-100 text-orange-600', pastel: 'bg-orange-50', activeClass: 'bg-orange-500 text-white' },
+  won: { label: 'Won', color: 'bg-green-100 text-green-600', pastel: 'bg-green-50', activeClass: 'bg-green-500 text-white' },
+  lost: { label: 'Lost', color: 'bg-red-100 text-red-600', pastel: 'bg-red-50', activeClass: 'bg-red-500 text-white' }
 };
 
 const tierConfig: Record<string, { label: string; color: string; gradient: string }> = {
@@ -93,25 +121,19 @@ function VehicleDetailsModal({
 }) {
   if (!isOpen || !vehicle) return null;
 
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-    } catch {
-      return 'Invalid date';
-    }
-  };
-
-  const getVehicleAge = (year: number) => {
+  const getVehicleAge = (year: string | number) => {
+    if (!year) return 'Unknown';
     const currentYear = new Date().getFullYear();
-    const age = currentYear - year;
+    const vehicleYear = typeof year === 'string' ? parseInt(year) : year;
+    if (isNaN(vehicleYear)) return 'Invalid year';
+    
+    const age = currentYear - vehicleYear;
     return age === 0 ? 'New' : `${age} year${age !== 1 ? 's' : ''} old`;
   };
 
   const getMakeLogo = (make: string) => {
+    if (!make) return `https://via.placeholder.com/60/3B82F6/FFFFFF?text=V`;
+    
     const logos: Record<string, string> = {
       'toyota': 'https://cdn.worldvectorlogo.com/logos/toyota-1.svg',
       'honda': 'https://cdn.worldvectorlogo.com/logos/honda-1.svg',
@@ -123,10 +145,87 @@ function VehicleDetailsModal({
       'hyundai': 'https://cdn.worldvectorlogo.com/logos/hyundai-2.svg',
       'kia': 'https://cdn.worldvectorlogo.com/logos/kia-motors-1.svg',
       'nissan': 'https://cdn.worldvectorlogo.com/logos/nissan-2.svg',
+      'mazda': 'https://cdn.worldvectorlogo.com/logos/mazda-6.svg',
+      'subaru': 'https://cdn.worldvectorlogo.com/logos/subaru-1.svg',
+      'mitsubishi': 'https://cdn.worldvectorlogo.com/logos/mitsubishi-4.svg',
+      'chevrolet': 'https://cdn.worldvectorlogo.com/logos/chevrolet-9.svg',
+      'lexus': 'https://cdn.worldvectorlogo.com/logos/lexus-2.svg',
+      'jeep': 'https://cdn.worldvectorlogo.com/logos/jeep-3.svg',
+      'land rover': 'https://cdn.worldvectorlogo.com/logos/land-rover-1.svg',
+      'porsche': 'https://cdn.worldvectorlogo.com/logos/porsche-1.svg',
+      'volvo': 'https://cdn.worldvectorlogo.com/logos/volvo-2.svg',
+      'tesla': 'https://cdn.worldvectorlogo.com/logos/tesla-motors-1.svg',
+      'suzuki': 'https://cdn.worldvectorlogo.com/logos/suzuki-1.svg',
+      'isuzu': 'https://cdn.worldvectorlogo.com/logos/isuzu-1.svg',
+      'peugeot': 'https://cdn.worldvectorlogo.com/logos/peugeot-1.svg',
+      'renault': 'https://cdn.worldvectorlogo.com/logos/renault-3.svg',
     };
     
     const lowerMake = make.toLowerCase();
     return logos[lowerMake] || `https://via.placeholder.com/60/3B82F6/FFFFFF?text=${make.charAt(0).toUpperCase()}`;
+  };
+
+  const hasTechnicalDetails = () => {
+    return vehicle.engineSize || vehicle.fuelType || vehicle.transmission || vehicle.bodyType;
+  };
+
+  const hasIdentification = () => {
+    return vehicle.vin || vehicle.registrationNumber || vehicle.chassisNumber || vehicle.licensePlate;
+  };
+
+  const hasMileageInfo = () => {
+    return vehicle.mileage;
+  };
+
+  // Calculate data completeness percentage
+  const calculateCompleteness = () => {
+    const fields = [
+      vehicle.make,
+      vehicle.model,
+      vehicle.year,
+      vehicle.color,
+      vehicle.vin,
+      vehicle.registrationNumber,
+      vehicle.engineSize,
+      vehicle.fuelType,
+      vehicle.transmission,
+      vehicle.mileage,
+      vehicle.chassisNumber,
+      vehicle.bodyType,
+      vehicle.licensePlate
+    ];
+    
+    const filledFields = fields.filter(field => {
+      if (field === null || field === undefined) {
+        return false;
+      }
+      
+      // Handle different types
+      if (typeof field === 'string') {
+        return field.trim() !== '';
+      }
+      
+      if (typeof field === 'number') {
+        return field !== 0; // Or use field > 0 if 0 is a valid value
+      }
+      
+      // For any other type, convert to string
+      return String(field).trim() !== '';
+    }).length;
+    
+    return Math.round((filledFields / fields.length) * 100);
+  };
+
+  const getCompletenessColor = (percentage: number) => {
+    if (percentage >= 80) return 'bg-green-100 text-green-600';
+    if (percentage >= 50) return 'bg-amber-100 text-amber-600';
+    return 'bg-red-100 text-red-600';
+  };
+
+  const getCompletenessLabel = (percentage: number) => {
+    if (percentage >= 80) return 'Complete';
+    if (percentage >= 50) return 'Moderate';
+    return 'Basic';
   };
 
   return (
@@ -162,25 +261,31 @@ function VehicleDetailsModal({
                         className="h-10 w-10 object-contain"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
-                          target.src = `https://via.placeholder.com/40/3B82F6/FFFFFF?text=${vehicle.make.charAt(0).toUpperCase()}`;
+                          target.src = `https://via.placeholder.com/40/3B82F6/FFFFFF?text=${vehicle.make?.charAt(0)?.toUpperCase() || 'V'}`;
                         }}
                       />
                     </div>
                   </div>
                   <div className="flex-1 min-w-0">
                     <h2 className="text-xl font-bold text-gray-900">
-                      {vehicle.year} {vehicle.make} {vehicle.model}
+                      {vehicle.year ? `${vehicle.year} ` : ''}{vehicle.make || 'Unknown Make'} {vehicle.model || 'Unknown Model'}
                     </h2>
-                    <p className="text-gray-600">{vehicle.color}</p>
+                    <p className="text-gray-600">
+                      {vehicle.color ? `${vehicle.color} • ` : ''}
+                      {getVehicleAge(vehicle.year)}
+                    </p>
                     <div className="flex items-center gap-2 mt-2">
-                      <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                        vehicle.active ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {vehicle.active ? 'Active' : 'Inactive'}
+                      <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getCompletenessColor(calculateCompleteness())}`}>
+                        {getCompletenessLabel(calculateCompleteness())} ({calculateCompleteness()}%)
                       </span>
                       <span className="px-2 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-100 to-blue-50 text-blue-600">
                         {getVehicleAge(vehicle.year)}
                       </span>
+                      {vehicle.bodyType && (
+                        <span className="px-2 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-purple-100 to-purple-50 text-purple-600">
+                          {vehicle.bodyType}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -190,79 +295,193 @@ function VehicleDetailsModal({
                   {/* Basic Information */}
                   <div className="space-y-4">
                     <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                      <Info className="h-4 w-4 text-blue-500" />
+                      <Car className="h-4 w-4 text-blue-500" />
                       Basic Information
                     </h3>
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">VIN</span>
-                        <span className="text-sm font-medium text-gray-800 font-mono">
-                          {vehicle.vin}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Registration</span>
-                        <span className="text-sm font-medium text-gray-800">
-                          {vehicle.registrationNumber}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Make</span>
-                        <span className="text-sm font-medium text-gray-800">
-                          {vehicle.make}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Model</span>
-                        <span className="text-sm font-medium text-gray-800">
-                          {vehicle.model}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Year</span>
-                        <span className="text-sm font-medium text-gray-800">
-                          {vehicle.year}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Color</span>
-                        <span className="text-sm font-medium text-gray-800">
-                          {vehicle.color}
-                        </span>
-                      </div>
+                      {vehicle.make && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">Make</span>
+                          <span className="text-sm font-medium text-gray-800">
+                            {vehicle.make}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {vehicle.model && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">Model</span>
+                          <span className="text-sm font-medium text-gray-800">
+                            {vehicle.model}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {vehicle.year && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">Year</span>
+                          <span className="text-sm font-medium text-gray-800">
+                            {vehicle.year}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {vehicle.color && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">Color</span>
+                          <span className="text-sm font-medium text-gray-800">
+                            {vehicle.color}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {vehicle.bodyType && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">Body Type</span>
+                          <span className="text-sm font-medium text-gray-800">
+                            {vehicle.bodyType}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Additional Details */}
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                      <Gauge className="h-4 w-4 text-green-500" />
-                      Vehicle Details
+                  {/* Technical Details (only show if any technical details exist) */}
+                  {hasTechnicalDetails() && (
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                        <Settings className="h-4 w-4 text-green-500" />
+                        Technical Details
+                      </h3>
+                      <div className="space-y-3">
+                        {vehicle.engineSize && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-600">Engine Size</span>
+                            <span className="text-sm font-medium text-gray-800">
+                              {vehicle.engineSize} CC
+                            </span>
+                          </div>
+                        )}
+                        
+                        {vehicle.fuelType && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-600">Fuel Type</span>
+                            <span className="text-sm font-medium text-gray-800">
+                              {vehicle.fuelType}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {vehicle.transmission && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-600">Transmission</span>
+                            <span className="text-sm font-medium text-gray-800">
+                              {vehicle.transmission}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {vehicle.mileage && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-600">Mileage</span>
+                            <span className="text-sm font-medium text-gray-800">
+                              {vehicle.mileage} KM
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Identification Details (only show if any identification exists) */}
+                {hasIdentification() && (
+                  <div className="mb-8">
+                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-3">
+                      <Shield className="h-4 w-4 text-purple-500" />
+                      Identification & Registration
                     </h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Vehicle Age</span>
-                        <span className="text-sm font-medium text-gray-800">
-                          {getVehicleAge(vehicle.year)}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {vehicle.vin && (
+                        <div className="p-3 rounded-lg bg-gradient-to-r from-blue-50 to-blue-100/50 border border-blue-100">
+                          <div className="text-xs font-medium text-gray-600 mb-1">VIN Number</div>
+                          <div className="text-sm font-medium text-gray-800 font-mono break-all">
+                            {vehicle.vin}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {vehicle.registrationNumber && (
+                        <div className="p-3 rounded-lg bg-gradient-to-r from-green-50 to-green-100/50 border border-green-100">
+                          <div className="text-xs font-medium text-gray-600 mb-1">Registration Number</div>
+                          <div className="text-sm font-medium text-gray-800 font-semibold">
+                            {vehicle.registrationNumber}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {vehicle.chassisNumber && (
+                        <div className="p-3 rounded-lg bg-gradient-to-r from-amber-50 to-amber-100/50 border border-amber-100">
+                          <div className="text-xs font-medium text-gray-600 mb-1">Chassis Number</div>
+                          <div className="text-sm font-medium text-gray-800 font-mono break-all">
+                            {vehicle.chassisNumber}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {vehicle.licensePlate && (
+                        <div className="p-3 rounded-lg bg-gradient-to-r from-purple-50 to-purple-100/50 border border-purple-100">
+                          <div className="text-xs font-medium text-gray-600 mb-1">License Plate</div>
+                          <div className="text-sm font-medium text-gray-800 font-semibold">
+                            {vehicle.licensePlate}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Data Completeness Summary */}
+                <div className="p-4 rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Data Summary</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Information Completeness</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${getCompletenessColor(calculateCompleteness())}`}>
+                          {getCompletenessLabel(calculateCompleteness())}
                         </span>
+                        <span className="text-sm font-medium text-gray-800">{calculateCompleteness()}%</span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Added On</span>
-                        <span className="text-sm font-medium text-gray-800">
-                          {formatDate(vehicle.createdAt)}
-                        </span>
+                    </div>
+                    
+                    <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full ${calculateCompleteness() >= 80 ? 'bg-green-500' : calculateCompleteness() >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                        style={{ width: `${calculateCompleteness()}%` }}
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                        <span className="text-gray-600">Basic Info:</span>
+                        <span className="font-medium">{vehicle.make && vehicle.model && vehicle.year && vehicle.color ? 'Complete' : 'Partial'}</span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Last Updated</span>
-                        <span className="text-sm font-medium text-gray-800">
-                          {formatDate(vehicle.updatedAt)}
-                        </span>
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                        <span className="text-gray-600">Technical:</span>
+                        <span className="font-medium">{hasTechnicalDetails() ? 'Available' : 'Not specified'}</span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Vehicle ID</span>
-                        <span className="text-sm font-medium text-gray-800 font-mono">
-                          {vehicle._id.slice(-8)}
-                        </span>
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                        <span className="text-gray-600">Identification:</span>
+                        <span className="font-medium">{hasIdentification() ? 'Available' : 'Not specified'}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+                        <span className="text-gray-600">Mileage:</span>
+                        <span className="font-medium">{vehicle.mileage ? 'Recorded' : 'Not recorded'}</span>
                       </div>
                     </div>
                   </div>
@@ -315,7 +534,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   };
 
   const handleStatusUpdate = async (newStatus: string) => {
-    if (!opportunity) return;
+    if (!opportunity || updatingStatus) return;
     
     try {
       setUpdatingStatus(true);
@@ -363,6 +582,11 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const handleEdit = () => {
+    if (!opportunity) return;
+    router.push(`/opportunities/edit?id=${opportunity._id}`);
   };
 
   const handleViewVehicleDetails = (vehicle: Vehicle) => {
@@ -538,71 +762,63 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
           </div>
           
           <div className="flex items-center gap-3">
-            {/* Status Selector */}
-            <div className="relative">
-              <select
-                value={opportunity.status || 'new'}
-                onChange={(e) => handleStatusUpdate(e.target.value)}
-                disabled={updatingStatus}
-                className="appearance-none pl-4 pr-10 py-2.5 rounded-lg border border-white/30 bg-white/10 backdrop-blur-sm text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50 disabled:opacity-50 cursor-pointer min-w-[140px]"
-              >
-                <option value="new" className="text-gray-900">New</option>
-                <option value="contacted" className="text-gray-900">Contacted</option>
-                <option value="qualified" className="text-gray-900">Qualified</option>
-                <option value="quotation" className="text-gray-900">Quotation</option>
-                <option value="won" className="text-gray-900">Won</option>
-                <option value="lost" className="text-gray-900">Lost</option>
-              </select>
-              <ChevronRight className="absolute right-3 top-1/2 transform -translate-y-1/2 rotate-90 h-4 w-4 text-white pointer-events-none" />
-            </div>
+            {/* Edit Button */}
+            <button
+              onClick={handleEdit}
+              className="p-2.5 bg-white/10 backdrop-blur-sm border border-white/30 rounded-lg hover:bg-white/20 transition-colors flex items-center gap-2"
+            >
+              <Edit className="h-5 w-5 text-white" />
+              <span className="text-white text-sm font-medium">Edit</span>
+            </button>
             
-            {/* Actions Menu */}
-            <div className="relative">
-              <button
-                onClick={() => setShowActionsMenu(!showActionsMenu)}
-                className="p-2.5 bg-white/10 backdrop-blur-sm border border-white/30 rounded-lg hover:bg-white/20 transition-colors"
-              >
-                <MoreVertical className="h-5 w-5 text-white" />
-              </button>
-              
-              {showActionsMenu && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-40"
-                    onClick={() => setShowActionsMenu(false)}
-                  />
-                  <div className="absolute right-0 mt-2 w-48 bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-white/30 z-50 py-2">
-                    <button
-                      onClick={() => {
-                        setShowActionsMenu(false);
-                        router.push(`/opportunities/edit?id=${opportunity._id}`);
-                      }}
-                      className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50/50 flex items-center gap-3"
-                    >
-                      <Edit className="h-4 w-4 text-gray-500" />
-                      Edit Opportunity
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowActionsMenu(false);
-                        handleDelete();
-                      }}
-                      disabled={isDeleting}
-                      className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50/50 flex items-center gap-3 disabled:opacity-50"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      {isDeleting ? 'Deleting...' : 'Delete Opportunity'}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+            {/* Delete Button */}
+            <button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="p-2.5 bg-white/10 backdrop-blur-sm border border-white/30 rounded-lg hover:bg-white/20 transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              <Trash2 className="h-5 w-5 text-white" />
+              <span className="text-white text-sm font-medium">{isDeleting ? 'Deleting...' : 'Delete'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Status Button Bar - Above the main content */}
+      <div className="border-b border-gray-200/50 bg-white/90 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-4 md:px-6">
+          <div className="flex items-center gap-1 py-3 overflow-x-auto">
+            {Object.entries(statusConfig).map(([status, config]) => {
+              const isActive = opportunity.status === status;
+              return (
+                <button
+                  key={status}
+                  onClick={() => handleStatusUpdate(status)}
+                  disabled={updatingStatus || isActive}
+                  className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap flex-shrink-0 ${
+                    isActive 
+                      ? config.activeClass
+                      : `bg-gray-100 text-gray-700 hover:bg-gray-200 ${updatingStatus ? 'opacity-50 cursor-not-allowed' : ''}`
+                  }`}
+                >
+                  {config.label}
+                  {isActive && (
+                    <CheckCircle className="inline-block ml-2 h-4 w-4" />
+                  )}
+                </button>
+              );
+            })}
+            {updatingStatus && (
+              <div className="ml-3 text-sm text-gray-500 italic">
+                Updating...
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Scrollable Content */}
-      <div className="h-[calc(100vh-64px)] p-4 md:p-6 overflow-auto">
+      <div className="h-[calc(100vh-64px-57px)] p-4 md:p-6 overflow-auto"> {/* Adjusted height for status bar */}
         <div className="max-w-7xl mx-auto">
           {/* Main Content */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -826,7 +1042,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {opportunity.vehicles.map((vehicle) => (
                       <div key={vehicle._id} className="border border-gray-200/50 rounded-xl p-4 hover:border-blue-300 transition-colors cursor-pointer group bg-white/50"
-                           onClick={() => handleViewVehicleDetails(vehicle)}>
+                          onClick={() => handleViewVehicleDetails(vehicle)}>
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-3">
                             <div className="p-2 bg-gradient-to-br from-blue-100 to-blue-50 rounded-lg group-hover:from-blue-200 group-hover:to-blue-100 transition-colors">
@@ -836,33 +1052,66 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                               <h3 className="font-semibold text-gray-800 group-hover:text-blue-600 transition-colors">
                                 {vehicle.year} {vehicle.make} {vehicle.model}
                               </h3>
-                              <p className="text-sm text-gray-600">{vehicle.color}</p>
+                              <p className="text-sm text-gray-600">
+                                {vehicle.color} • {vehicle.registrationNumber || 'No plate'}
+                                {vehicle.mileage && ` • ${vehicle.mileage} KM`}
+                              </p>
                             </div>
                           </div>
-                          <span className="px-2 py-1 bg-gradient-to-r from-green-100 to-green-50 text-green-600 text-xs font-medium rounded">
-                            Active
+                          <span className={`px-2 py-1 text-xs font-medium rounded ${
+                            vehicle.make && vehicle.model && vehicle.year ? 
+                            'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {vehicle.make && vehicle.model && vehicle.year ? 'Complete' : 'Basic'}
                           </span>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div>
-                            <p className="text-gray-600">VIN</p>
-                            <p className="font-medium text-gray-800 font-mono">{vehicle.vin}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-600">Registration</p>
-                            <p className="font-medium text-gray-800">{vehicle.registrationNumber}</p>
-                          </div>
+                        <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                          {vehicle.vin && (
+                            <div>
+                              <p className="text-gray-600">VIN</p>
+                              <p className="font-medium text-gray-800 font-mono text-xs truncate">
+                                {vehicle.vin}
+                              </p>
+                            </div>
+                          )}
+                          {vehicle.fuelType && (
+                            <div>
+                              <p className="text-gray-600">Fuel</p>
+                              <p className="font-medium text-gray-800">{vehicle.fuelType}</p>
+                            </div>
+                          )}
+                          {vehicle.engineSize && (
+                            <div>
+                              <p className="text-gray-600">Engine</p>
+                              <p className="font-medium text-gray-800">{vehicle.engineSize} CC</p>
+                            </div>
+                          )}
+                          {vehicle.transmission && (
+                            <div>
+                              <p className="text-gray-600">Transmission</p>
+                              <p className="font-medium text-gray-800">{vehicle.transmission}</p>
+                            </div>
+                          )}
                         </div>
                         
-                        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-2">
+                        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs px-2 py-1 rounded ${
+                              vehicle.make && vehicle.model && vehicle.year && vehicle.color && 
+                              (vehicle.vin || vehicle.registrationNumber) ? 'bg-blue-100 text-blue-600' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                              {vehicle.make && vehicle.model && vehicle.year && vehicle.color}
+                            </span>
+                          </div>
                           <button className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleViewVehicleDetails(vehicle);
                                   }}>
                             <Eye className="h-3 w-3" />
-                            View Details
+                            View Full Details
                           </button>
                         </div>
                       </div>

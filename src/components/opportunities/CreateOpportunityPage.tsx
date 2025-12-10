@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   X, User, Building, Mail, Phone, Car, Plus, Trash2, FileText, 
   DollarSign, Calendar, Tag, AlertCircle, Check, ChevronDown,
   Upload, Clock, Shield, Briefcase, Sparkles, ChevronRight,
   ArrowRight, ChevronLeft, Save, Package, Settings, ShoppingBag,
-  Layers, Box, Wrench, Zap, AlertTriangle, Search
+  Layers, Box, Wrench, Zap, AlertTriangle, Search, ChevronUp,
+  Globe, Settings as SettingsIcon
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { opportunityService } from '@/services/opportunityService';
@@ -23,6 +24,13 @@ interface Vehicle {
   model: string;
   year: string;
   color: string;
+  engineSize?: string;
+  fuelType?: string;
+  transmission?: string;
+  mileage?: string;
+  chassisNumber?: string;
+  bodyType?: string;
+  licensePlate?: string;
 }
 
 interface ServiceProduct {
@@ -33,13 +41,8 @@ interface ServiceProduct {
   quantity: number;
   unitPrice: number;
   discount: number;
+  subtotal: number;
   total: number;
-}
-
-interface Waiver {
-  id: string;
-  type: string;
-  description: string;
 }
 
 interface CountryCode {
@@ -60,16 +63,116 @@ interface OpportunityFormData {
   phoneCode: string;
   vehicles: Vehicle[];
   servicesProducts: ServiceProduct[];
-  waivers: Waiver[];
   notes: string;
   currentStep: number;
   opportunityType: 'SERVICE' | 'PRODUCT';
+  companyAddress?: string;
+  companyTaxId?: string;
+  companyPhone?: string;
+  companyEmail?: string;
 }
+
+interface UserPreferences {
+  useDropdowns: boolean;
+}
+
+const vehicleMakes = [
+  'Toyota', 'Honda', 'Ford', 'Mercedes-Benz', 'BMW', 'Volkswagen',
+  'Nissan', 'Mazda', 'Subaru', 'Mitsubishi', 'Hyundai', 'Kia',
+  'Chevrolet', 'Audi', 'Lexus', 'Jeep', 'Land Rover', 'Porsche',
+  'Volvo', 'Ferrari', 'Lamborghini', 'Tesla', 'Suzuki', 'Isuzu',
+  'Peugeot', 'Renault', 'Other'
+];
+
+const vehicleModels: Record<string, string[]> = {
+  'Toyota': ['Land Cruiser', 'Hilux', 'Corolla', 'Camry', 'RAV4', 'Prado', 'Fortuner', 'Hiace', 'Other'],
+  'Honda': ['Civic', 'Accord', 'CR-V', 'Fit', 'HR-V', 'Pilot', 'Odyssey', 'Other'],
+  'Ford': ['Ranger', 'Everest', 'F-150', 'Explorer', 'Focus', 'Fiesta', 'Mustang', 'Other'],
+  'Mercedes-Benz': ['C-Class', 'E-Class', 'S-Class', 'GLE', 'GLC', 'GLA', 'Other'],
+  'BMW': ['3 Series', '5 Series', '7 Series', 'X1', 'X3', 'X5', 'X7', 'Other'],
+  'Volkswagen': ['Golf', 'Passat', 'Tiguan', 'Polo', 'Jetta', 'Amarok', 'Other'],
+  'Nissan': ['Navara', 'X-Trail', 'Qashqai', 'Sunny', 'Patrol', 'Other'],
+  'Mazda': ['CX-5', 'CX-30', 'Mazda3', 'Mazda6', 'CX-9', 'Other'],
+  'Other': ['Custom Model']
+};
+
+const vehicleColors = [
+  'White', 'Black', 'Silver', 'Gray', 'Red', 'Blue', 'Green', 'Brown',
+  'Yellow', 'Orange', 'Purple', 'Gold', 'Beige', 'Maroon', 'Navy Blue',
+  'Pearl White', 'Metallic Gray', 'Other'
+];
+
+const vehicleFuelTypes = [
+  'Petrol', 'Diesel', 'Electric', 'Hybrid', 'CNG', 'LPG', 'Other'
+];
+
+const vehicleTransmissions = [
+  'Manual', 'Automatic', 'Semi-Automatic', 'CVT', 'DSG', 'Other'
+];
+
+const vehicleBodyTypes = [
+  'Sedan', 'SUV', 'Hatchback', 'Coupe', 'Convertible', 'Wagon',
+  'Pickup Truck', 'Van', 'Minivan', 'Truck', 'Bus', 'Motorcycle',
+  'Other'
+];
+
+const serviceSuggestions = [
+  'Oil Change Service',
+  'Brake System Repair',
+  'Engine Tune-up',
+  'Transmission Service',
+  'Suspension Repair',
+  'Wheel Alignment',
+  'AC Repair & Service',
+  'Electrical System Repair',
+  'Exhaust System Repair',
+  'Fuel System Service',
+  'Tire Replacement',
+  'Battery Replacement',
+  'Windshield Replacement',
+  'Paint Job & Body Work',
+  'Full Vehicle Service',
+  'Pre-purchase Inspection',
+  'Custom Service'
+];
+
+const productSuggestions = [
+  'Engine Oil',
+  'Brake Pads',
+  'Brake Discs',
+  'Air Filter',
+  'Oil Filter',
+  'Fuel Filter',
+  'Spark Plugs',
+  'Car Battery',
+  'Tires (Set of 4)',
+  'Wheel Rims',
+  'Shock Absorbers',
+  'Struts',
+  'AC Compressor',
+  'Alternator',
+  'Starter Motor',
+  'Radiator',
+  'Windshield',
+  'Headlights',
+  'Taillights',
+  'Custom Part'
+];
 
 export default function CreateOpportunityPage() {
   const router = useRouter();
   const { showToast } = useToast();
   const [step, setStep] = useState(1);
+  const [userPreferences, setUserPreferences] = useState<UserPreferences>(() => {
+    if (typeof window !== 'undefined') {
+      const savedPrefs = localStorage.getItem('userPreferences');
+      return savedPrefs ? JSON.parse(savedPrefs) : { useDropdowns: true };
+    }
+    return { useDropdowns: true };
+  });
+  
+  const [showPreferences, setShowPreferences] = useState(false);
+  
   const [formData, setFormData] = useState<OpportunityFormData>({
     accountType: 'individual',
     source: 'walk_in',
@@ -86,17 +189,23 @@ export default function CreateOpportunityPage() {
       make: '',
       model: '',
       year: '',
-      color: ''
+      color: '',
+      engineSize: '',
+      fuelType: '',
+      transmission: '',
+      mileage: '',
+      chassisNumber: '',
+      bodyType: '',
+      licensePlate: ''
     }],
     servicesProducts: [],
-    waivers: [{
-      id: '1',
-      type: 'Service Waiver',
-      description: ''
-    }],
     notes: '',
     currentStep: 1,
-    opportunityType: 'SERVICE'
+    opportunityType: 'SERVICE',
+    companyAddress: '',
+    companyTaxId: '',
+    companyPhone: '',
+    companyEmail: ''
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -108,10 +217,27 @@ export default function CreateOpportunityPage() {
   const [draftSaved, setDraftSaved] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdOpportunity, setCreatedOpportunity] = useState<Opportunity | null>(null);
+  
+  // Dropdown states
+  const [showMakeDropdown, setShowMakeDropdown] = useState<number | null>(null);
+  const [showModelDropdown, setShowModelDropdown] = useState<number | null>(null);
+  const [showColorDropdown, setShowColorDropdown] = useState<number | null>(null);
+  const [showFuelDropdown, setShowFuelDropdown] = useState<number | null>(null);
+  const [showTransmissionDropdown, setShowTransmissionDropdown] = useState<number | null>(null);
+  const [showBodyTypeDropdown, setShowBodyTypeDropdown] = useState<number | null>(null);
+  const [showServiceProductDropdown, setShowServiceProductDropdown] = useState<number | null>(null);
+  
+  const [makeSearch, setMakeSearch] = useState('');
+  const [modelSearch, setModelSearch] = useState('');
+  const [colorSearch, setColorSearch] = useState('');
+  const [fuelSearch, setFuelSearch] = useState('');
+  const [transmissionSearch, setTransmissionSearch] = useState('');
+  const [bodyTypeSearch, setBodyTypeSearch] = useState('');
+  const [serviceProductSearch, setServiceProductSearch] = useState('');
 
   const accountTypes = [
     { value: 'individual', label: 'Individual', icon: User },
-    { value: 'organization', label: 'Organization', icon: Building }
+    { value: 'organization', label: 'Company/Organization', icon: Building }
   ];
 
   const sources = [
@@ -132,28 +258,83 @@ export default function CreateOpportunityPage() {
 
   const totalSteps = 3;
 
+  // Refs for dropdown click outside detection
+  const makeDropdownRef = useRef<HTMLDivElement | null>(null);
+  const modelDropdownRef = useRef<HTMLDivElement | null>(null);
+  const colorDropdownRef = useRef<HTMLDivElement | null>(null);
+  const fuelDropdownRef = useRef<HTMLDivElement | null>(null);
+  const transmissionDropdownRef = useRef<HTMLDivElement | null>(null);
+  const bodyTypeDropdownRef = useRef<HTMLDivElement | null>(null);
+  const serviceProductDropdownRef = useRef<HTMLDivElement | null>(null);
+  const preferencesRef = useRef<HTMLDivElement | null>(null);
+
+  // Close dropdowns when clicking outside
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Check if ref.current exists before accessing its methods
+      if (makeDropdownRef.current && !makeDropdownRef.current.contains(event.target as Node)) {
+        setShowMakeDropdown(null);
+        setMakeSearch('');
+      }
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(event.target as Node)) {
+        setShowModelDropdown(null);
+        setModelSearch('');
+      }
+      if (colorDropdownRef.current && !colorDropdownRef.current.contains(event.target as Node)) {
+        setShowColorDropdown(null);
+        setColorSearch('');
+      }
+      if (fuelDropdownRef.current && !fuelDropdownRef.current.contains(event.target as Node)) {
+        setShowFuelDropdown(null);
+        setFuelSearch('');
+      }
+      if (transmissionDropdownRef.current && !transmissionDropdownRef.current.contains(event.target as Node)) {
+        setShowTransmissionDropdown(null);
+        setTransmissionSearch('');
+      }
+      if (bodyTypeDropdownRef.current && !bodyTypeDropdownRef.current.contains(event.target as Node)) {
+        setShowBodyTypeDropdown(null);
+        setBodyTypeSearch('');
+      }
+      if (serviceProductDropdownRef.current && !serviceProductDropdownRef.current.contains(event.target as Node)) {
+        setShowServiceProductDropdown(null);
+        setServiceProductSearch('');
+      }
+      if (preferencesRef.current && !preferencesRef.current.contains(event.target as Node)) {
+        setShowPreferences(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   useEffect(() => {
     const fetchCountries = async () => {
       try {
         setLoadingCountries(true);
-        const response = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2,flags,idd');
+        const response = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2,idd');
         const data = await response.json();
         
         const formattedCountries = data
           .filter((country: any) => country.idd?.root && country.idd?.suffixes?.[0])
           .map((country: any) => {
-            const getFlagEmojiFromCode = (code: string) => {
-              return code
+            // Use a different method to get flag emoji
+            const getFlagEmoji = (countryCode: string) => {
+              const codePoints = countryCode
                 .toUpperCase()
                 .split('')
-                .map(char => String.fromCodePoint(127397 + char.charCodeAt(0)))
-                .join('');
+                .map(char => 127397 + char.charCodeAt(0));
+              return String.fromCodePoint(...codePoints);
             };
             
             return {
               code: country.cca2,
               name: country.name.common,
-              flag: getFlagEmojiFromCode(country.cca2),
+              flag: getFlagEmoji(country.cca2),
               dialCode: `${country.idd.root}${country.idd.suffixes[0]}`
             };
           })
@@ -162,6 +343,20 @@ export default function CreateOpportunityPage() {
         setCountryCodes(formattedCountries);
       } catch (error) {
         console.error('Error fetching countries:', error);
+        // Use a static list with guaranteed flag emojis
+        const staticCountries: CountryCode[] = [
+          { code: 'KE', name: 'Kenya', flag: '🇰🇪', dialCode: '+254' },
+          { code: 'US', name: 'United States', flag: '🇺🇸', dialCode: '+1' },
+          { code: 'GB', name: 'United Kingdom', flag: '🇬🇧', dialCode: '+44' },
+          { code: 'IN', name: 'India', flag: '🇮🇳', dialCode: '+91' },
+          { code: 'CN', name: 'China', flag: '🇨🇳', dialCode: '+86' },
+          { code: 'ZA', name: 'South Africa', flag: '🇿🇦', dialCode: '+27' },
+          { code: 'NG', name: 'Nigeria', flag: '🇳🇬', dialCode: '+234' },
+          { code: 'ET', name: 'Ethiopia', flag: '🇪🇹', dialCode: '+251' },
+          { code: 'AE', name: 'United Arab Emirates', flag: '🇦🇪', dialCode: '+971' },
+          { code: 'SA', name: 'Saudi Arabia', flag: '🇸🇦', dialCode: '+966' }
+        ];
+        setCountryCodes(staticCountries);
       } finally {
         setLoadingCountries(false);
       }
@@ -169,6 +364,21 @@ export default function CreateOpportunityPage() {
 
     fetchCountries();
   }, []);
+
+  // Save preferences to localStorage
+  const savePreferences = (prefs: UserPreferences) => {
+    setUserPreferences(prefs);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('userPreferences', JSON.stringify(prefs));
+    }
+    showToast('Preferences saved!', 'success', 2000);
+  };
+
+  // Toggle dropdowns preference
+  const toggleDropdownsPreference = () => {
+    const newPrefs = { ...userPreferences, useDropdowns: !userPreferences.useDropdowns };
+    savePreferences(newPrefs);
+  };
 
   const handleInputChange = (field: keyof OpportunityFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -180,25 +390,37 @@ export default function CreateOpportunityPage() {
   const handleVehicleChange = (index: number, field: keyof Vehicle, value: string) => {
     const updatedVehicles = [...formData.vehicles];
     updatedVehicles[index] = { ...updatedVehicles[index], [field]: value };
+    
+    // If make changes, reset model
+    if (field === 'make') {
+      updatedVehicles[index].model = '';
+    }
+    
     setFormData(prev => ({ ...prev, vehicles: updatedVehicles }));
   };
 
   const handleServiceProductChange = (index: number, field: keyof ServiceProduct, value: any) => {
     const updatedServicesProducts = [...formData.servicesProducts];
-    updatedServicesProducts[index] = { 
-      ...updatedServicesProducts[index], 
-      [field]: value,
-      ...(field === 'quantity' || field === 'unitPrice' || field === 'discount' ? {
-        total: calculateServiceProductTotal(updatedServicesProducts[index], field, value)
-      } : {})
-    };
+    const item = { ...updatedServicesProducts[index], [field]: value };
+    
+    // Recalculate totals if quantity, unitPrice, or discount changes
+    if (field === 'quantity' || field === 'unitPrice' || field === 'discount') {
+      const subtotal = (item.quantity || 0) * (item.unitPrice || 0);
+      const discountAmount = subtotal * ((item.discount || 0) / 100);
+      item.subtotal = subtotal;
+      item.total = subtotal - discountAmount;
+    }
+    
+    updatedServicesProducts[index] = item;
     setFormData(prev => ({ ...prev, servicesProducts: updatedServicesProducts }));
   };
 
-  const handleWaiverChange = (index: number, field: keyof Waiver, value: string) => {
-    const updatedWaivers = [...formData.waivers];
-    updatedWaivers[index] = { ...updatedWaivers[index], [field]: value };
-    setFormData(prev => ({ ...prev, waivers: updatedWaivers }));
+  const selectServiceProductSuggestion = (index: number, suggestion: string) => {
+    const updatedServicesProducts = [...formData.servicesProducts];
+    updatedServicesProducts[index].title = suggestion;
+    setFormData(prev => ({ ...prev, servicesProducts: updatedServicesProducts }));
+    setShowServiceProductDropdown(null);
+    setServiceProductSearch('');
   };
 
   const addVehicle = () => {
@@ -211,7 +433,14 @@ export default function CreateOpportunityPage() {
         make: '',
         model: '',
         year: '',
-        color: ''
+        color: '',
+        engineSize: '',
+        fuelType: '',
+        transmission: '',
+        mileage: '',
+        chassisNumber: '',
+        bodyType: '',
+        licensePlate: ''
       }]
     }));
   };
@@ -234,6 +463,7 @@ export default function CreateOpportunityPage() {
         quantity: 1,
         unitPrice: 0,
         discount: 0,
+        subtotal: 0,
         total: 0
       }]
     }));
@@ -246,32 +476,16 @@ export default function CreateOpportunityPage() {
     }
   };
 
-  const addWaiver = () => {
-    setFormData(prev => ({
-      ...prev,
-      waivers: [...prev.waivers, {
-        id: Date.now().toString(),
-        type: 'Service Waiver',
-        description: ''
-      }]
-    }));
+  const calculateSubtotal = () => {
+    return formData.servicesProducts.reduce((total, item) => {
+      return total + (item.subtotal || 0);
+    }, 0);
   };
 
-  const removeWaiver = (index: number) => {
-    if (formData.waivers.length > 1) {
-      const updatedWaivers = formData.waivers.filter((_, i) => i !== index);
-      setFormData(prev => ({ ...prev, waivers: updatedWaivers }));
-    }
-  };
-
-  const calculateServiceProductTotal = (item: ServiceProduct, changedField?: keyof ServiceProduct, newValue?: any) => {
-    const quantity = changedField === 'quantity' ? (newValue || 1) : item.quantity;
-    const unitPrice = changedField === 'unitPrice' ? (newValue || 0) : item.unitPrice;
-    const discount = changedField === 'discount' ? (newValue || 0) : item.discount;
-    
-    const subtotal = quantity * unitPrice;
-    const discountAmount = subtotal * (discount / 100);
-    return subtotal - discountAmount;
+  const calculateTotalDiscount = () => {
+    return formData.servicesProducts.reduce((total, item) => {
+      return total + (item.subtotal * (item.discount / 100) || 0);
+    }, 0);
   };
 
   const calculateTotal = () => {
@@ -280,22 +494,82 @@ export default function CreateOpportunityPage() {
     }, 0);
   };
 
-  const selectCountryCode = (code: string) => {
-    setFormData(prev => ({ ...prev, phoneCode: code }));
+  const getFlagEmoji = (countryCode: string) => {
+    let country;
+    
+    // If it's a dial code (starts with +), find by dialCode
+    if (countryCode.startsWith('+')) {
+      country = countryCodes.find(c => c.dialCode === countryCode);
+    } else {
+      // It's a country code
+      country = countryCodes.find(c => c.code === countryCode);
+    }
+    
+    if (country) {
+      return country.flag;
+    }
+    
+    // Fallback: return globe emoji
+    return '🌍';
+  };
+
+  const selectCountryCode = (dialCode: string) => {
+    setFormData(prev => ({ ...prev, phoneCode: dialCode }));
     setShowCountryCodes(false);
     setCountrySearch('');
   };
 
   const filteredCountries = countryCodes.filter(country =>
     country.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
-    country.dialCode.includes(countrySearch)
+    country.dialCode.includes(countrySearch) ||
+    country.code.toLowerCase().includes(countrySearch.toLowerCase())
   );
+
+  // Filtered dropdown options
+  const filteredMakes = vehicleMakes.filter(make =>
+    make.toLowerCase().includes(makeSearch.toLowerCase())
+  );
+
+  const filteredModels = (make: string) => {
+    const models = vehicleModels[make] || [];
+    return models.filter(model =>
+      model.toLowerCase().includes(modelSearch.toLowerCase())
+    );
+  };
+
+  const filteredColors = vehicleColors.filter(color =>
+    color.toLowerCase().includes(colorSearch.toLowerCase())
+  );
+
+  const filteredFuelTypes = vehicleFuelTypes.filter(fuel =>
+    fuel.toLowerCase().includes(fuelSearch.toLowerCase())
+  );
+
+  const filteredTransmissions = vehicleTransmissions.filter(trans =>
+    trans.toLowerCase().includes(transmissionSearch.toLowerCase())
+  );
+
+  const filteredBodyTypes = vehicleBodyTypes.filter(body =>
+    body.toLowerCase().includes(bodyTypeSearch.toLowerCase())
+  );
+
+  const filteredServiceProducts = () => {
+    const suggestions = formData.opportunityType === 'SERVICE' ? serviceSuggestions : productSuggestions;
+    return suggestions.filter(item =>
+      item.toLowerCase().includes(serviceProductSearch.toLowerCase())
+    );
+  };
 
   const validateStep = () => {
     const newErrors: Record<string, string> = {};
 
     if (step === 1) {
-      if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
+      if (formData.accountType === 'individual') {
+        if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
+      } else if (formData.accountType === 'organization') {
+        if (!formData.companyName.trim()) newErrors.companyName = 'Company name is required';
+      }
+      
       if (!formData.email.trim()) newErrors.email = 'Email is required';
       if (!formData.phone.trim()) newErrors.phone = 'Phone is required';
       
@@ -323,10 +597,10 @@ export default function CreateOpportunityPage() {
       if (formData.servicesProducts.length === 0) {
         newErrors.servicesProducts = 'At least one service or product is required';
       } else {
-        const hasValidItem = formData.servicesProducts.some(item => 
-          item.title.trim() && item.type
+        const hasInvalidItem = formData.servicesProducts.some(item => 
+          !item.title.trim() || !item.type
         );
-        if (!hasValidItem) {
+        if (hasInvalidItem) {
           newErrors.servicesProducts = 'Each service/product must have a title and valid type';
         }
       }
@@ -361,9 +635,11 @@ export default function CreateOpportunityPage() {
   const handleSubmit = async () => {
     if (validateStep()) {
       setIsSubmitting(true);
-      console.log('Form data:', formData);
+      
       try {
-        const title = `${formData.firstName} ${formData.lastName}'s ${formData.opportunityType.toLowerCase()} request`;
+        const title = formData.accountType === 'individual' 
+          ? `${formData.firstName} ${formData.lastName}'s ${formData.opportunityType.toLowerCase()} request`
+          : `${formData.companyName}'s ${formData.opportunityType.toLowerCase()} request`;
 
         const apiFormData = {
           type: formData.accountType,
@@ -372,19 +648,34 @@ export default function CreateOpportunityPage() {
           subject: title,
           opportunityType: formData.opportunityType,
           customer: {
-            name: `${formData.firstName} ${formData.lastName}`.trim(),
+            name: formData.accountType === 'individual' 
+              ? `${formData.firstName} ${formData.lastName}`.trim()
+              : formData.companyName,
             ...(formData.email && { email: formData.email }),
             phone: `${formData.phoneCode}${formData.phone}`,
-            ...(formData.companyName && { companyName: formData.companyName }),
+            ...(formData.accountType === 'organization' && {
+              companyName: formData.companyName,
+              companyAddress: formData.companyAddress,
+              companyTaxId: formData.companyTaxId,
+              companyPhone: formData.companyPhone,
+              companyEmail: formData.companyEmail
+            })
           },
           ...(formData.vehicles.length > 0 && {
             vehicles: formData.vehicles.map(vehicle => ({
               ...(vehicle.vin && { vin: vehicle.vin }),
               ...(vehicle.registrationNumber && { registrationNumber: vehicle.registrationNumber }),
+              ...(vehicle.licensePlate && { licensePlate: vehicle.licensePlate }),
               make: vehicle.make,
               model: vehicle.model,
               ...(vehicle.year && { year: vehicle.year }),
               ...(vehicle.color && { color: vehicle.color }),
+              ...(vehicle.engineSize && { engineSize: vehicle.engineSize }),
+              ...(vehicle.fuelType && { fuelType: vehicle.fuelType }),
+              ...(vehicle.transmission && { transmission: vehicle.transmission }),
+              ...(vehicle.mileage && { mileage: vehicle.mileage }),
+              ...(vehicle.chassisNumber && { chassisNumber: vehicle.chassisNumber }),
+              ...(vehicle.bodyType && { bodyType: vehicle.bodyType })
             }))
           }),
           servicesProducts: formData.servicesProducts.map(item => ({
@@ -394,28 +685,20 @@ export default function CreateOpportunityPage() {
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             discount: item.discount,
+            subtotal: item.subtotal,
             total: item.total
           })),
-          ...(formData.waivers.length > 0 && {
-            waivers: formData.waivers.map(waiver => ({
-              type: waiver.type,
-              description: waiver.description
-            }))
-          }),
           ...(formData.notes && { notes: formData.notes }),
+          subtotal: calculateSubtotal(),
+          totalDiscount: calculateTotalDiscount(),
           total: calculateTotal(),
         };
 
-        console.log('API form data:', apiFormData);
-        
         const result = await opportunityService.createOpportunity(apiFormData);
-
-        console.log('Created opportunity:', result);
         
         setCreatedOpportunity(result);
         setShowSuccessModal(true);
         
-        // Clear draft
         localStorage.removeItem('opportunityDraft');
         
         showToast('Opportunity created successfully!', 'success', 3000);
@@ -443,7 +726,6 @@ export default function CreateOpportunityPage() {
 
   const handleCreateAnother = () => {
     setShowSuccessModal(false);
-    // Reset form for new opportunity
     setFormData({
       accountType: 'individual',
       source: 'walk_in',
@@ -460,29 +742,28 @@ export default function CreateOpportunityPage() {
         make: '',
         model: '',
         year: '',
-        color: ''
+        color: '',
+        engineSize: '',
+        fuelType: '',
+        transmission: '',
+        mileage: '',
+        chassisNumber: '',
+        bodyType: '',
+        licensePlate: ''
       }],
       servicesProducts: [],
-      waivers: [{
-        id: '1',
-        type: 'Service Waiver',
-        description: ''
-      }],
       notes: '',
       currentStep: 1,
-      opportunityType: 'SERVICE'
+      opportunityType: 'SERVICE',
+      companyAddress: '',
+      companyTaxId: '',
+      companyPhone: '',
+      companyEmail: ''
     });
     setStep(1);
     setErrors({});
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-
-  // const handleAssignToTeam = () => {
-  //   if (createdOpportunity) {
-  //     showToast(`Assigning opportunity to team...`, 'info', 2000);
-  //     setShowSuccessModal(false);
-  //   }
-  // };
 
   const handleCloseSuccessModal = () => {
     setShowSuccessModal(false);
@@ -512,27 +793,100 @@ export default function CreateOpportunityPage() {
     'Select services, products, and create quotes'
   ];
 
-
-  const getFlagEmoji = (countryCode: string) => {
-    // If it already looks like an emoji, return it
-    if (countryCode.includes('🇦') || countryCode.includes('🇧') || countryCode.includes('🇨') || countryCode.includes('🇩')) {
-      return countryCode;
-    }
-    
-    // Try to find in our countryCodes list
-    const country = countryCodes.find(c => c.dialCode === countryCode || c.code === countryCode.replace('+', ''));
-    if (country) {
-      return country.flag;
-    }
-    
-    // Fallback: try to convert code to emoji
-    try {
-      const code = countryCode.replace('+', '').toUpperCase().slice(0, 2);
-      const codePoints = Array.from(code)
-        .map(char => 127397 + char.charCodeAt(0));
-      return String.fromCodePoint(...codePoints);
-    } catch {
-      return '🏳️';
+  // Render dropdown or regular input based on user preference
+  const renderVehicleFieldWithDropdown = (
+    index: number,
+    field: keyof Vehicle,
+    label: string,
+    placeholder: string,
+    options: string[],
+    showDropdown: number | null,
+    setShowDropdown: (index: number | null) => void,
+    searchValue: string,
+    setSearchValue: (value: string) => void,
+    filteredOptions: string[],
+    dropdownRef?: React.RefObject<HTMLDivElement | null>
+  ) => {
+    if (userPreferences.useDropdowns) {
+      return (
+        <div className="relative" ref={dropdownRef}>
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            {label}
+          </label>
+          <div className="relative">
+            <input
+              type="text"
+              value={formData.vehicles[index][field] || ''}
+              onChange={(e) => {
+                handleVehicleChange(index, field, e.target.value);
+                setSearchValue(e.target.value);
+              }}
+              onFocus={() => setShowDropdown(index)}
+              placeholder={placeholder}
+              className={`pl-3 pr-8 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowDropdown(showDropdown === index ? null : index)}
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              {showDropdown === index ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+          
+          {showDropdown === index && (
+            <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+              <div className="sticky top-0 bg-white p-2 border-b">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchValue}
+                    onChange={(e) => setSearchValue(e.target.value)}
+                    placeholder={`Search ${label.toLowerCase()}...`}
+                    className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="max-h-48 overflow-y-auto">
+                {filteredOptions.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => {
+                      handleVehicleChange(index, field, option);
+                      setShowDropdown(null);
+                      setSearchValue('');
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
+                  >
+                    <span>{option}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    } else {
+      return (
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            {label}
+          </label>
+          <input
+            type="text"
+            value={formData.vehicles[index][field] || ''}
+            onChange={(e) => handleVehicleChange(index, field, e.target.value)}
+            placeholder={placeholder}
+            className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+          />
+        </div>
+      );
     }
   };
 
@@ -553,12 +907,56 @@ export default function CreateOpportunityPage() {
                   <p className="text-blue-200 text-xs mt-1">{stepDescriptions[step - 1]}</p>
                 </div>
               </div>
-              <button
-                onClick={() => router.push('/opportunities')}
-                className="p-2 hover:bg-white/20 rounded-xl transition-colors"
-              >
-                <X className="h-5 w-5 text-white" />
-              </button>
+              
+              <div className="flex items-center gap-2">
+                {/* Settings Button */}
+                <div className="relative" ref={preferencesRef}>
+                  <button
+                    onClick={() => setShowPreferences(!showPreferences)}
+                    className="p-2 hover:bg-white/20 rounded-xl transition-colors flex items-center gap-2"
+                  >
+                    <SettingsIcon className="h-5 w-5 text-white" />
+                  </button>
+                  
+                  {showPreferences && (
+                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 z-50">
+                      <div className="p-4">
+                        <h3 className="font-semibold text-gray-800 mb-3">Form Settings</h3>
+                        
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-700">Use dropdowns for vehicle fields</span>
+                            <button
+                              onClick={toggleDropdownsPreference}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                userPreferences.useDropdowns ? 'bg-blue-500' : 'bg-gray-300'
+                              }`}
+                            >
+                              <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                  userPreferences.useDropdowns ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                              />
+                            </button>
+                          </div>
+                          
+                          <div className="text-xs text-gray-500 pt-2 border-t">
+                            <p>When enabled, vehicle fields will show dropdowns with suggestions.</p>
+                            <p>When disabled, you can type freely in all fields.</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <button
+                  onClick={() => router.push('/opportunities')}
+                  className="p-2 hover:bg-white/20 rounded-xl transition-colors"
+                >
+                  <X className="h-5 w-5 text-white" />
+                </button>
+              </div>
             </div>
             
             {/* Progress Steps */}
@@ -670,63 +1068,130 @@ export default function CreateOpportunityPage() {
 
                   {/* Personal/Company Information */}
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          First Name *
-                        </label>
-                        <div className="relative">
-                          <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    {formData.accountType === 'individual' ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            First Name *
+                          </label>
+                          <div className="relative">
+                            <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <input
+                              type="text"
+                              value={formData.firstName}
+                              onChange={(e) => handleInputChange('firstName', e.target.value)}
+                              placeholder="e.g., John"
+                              className={`pl-10 pr-4 py-3 w-full rounded-xl border ${
+                                errors.firstName ? 'border-red-300' : 'border-gray-200'
+                              } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors`}
+                            />
+                          </div>
+                          {errors.firstName && (
+                            <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                              <AlertCircle className="h-3 w-3" />
+                              {errors.firstName}
+                            </p>
+                          )}
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Last Name
+                          </label>
                           <input
                             type="text"
-                            value={formData.firstName}
-                            onChange={(e) => handleInputChange('firstName', e.target.value)}
-                            placeholder="e.g., John"
-                            className={`pl-10 pr-4 py-3 w-full rounded-xl border ${
-                              errors.firstName ? 'border-red-300' : 'border-gray-200'
-                            } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors`}
+                            value={formData.lastName}
+                            onChange={(e) => handleInputChange('lastName', e.target.value)}
+                            placeholder="e.g., Doe"
+                            className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                           />
                         </div>
-                        {errors.firstName && (
-                          <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                            <AlertCircle className="h-3 w-3" />
-                            {errors.firstName}
-                          </p>
-                        )}
                       </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Last Name
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.lastName}
-                          onChange={(e) => handleInputChange('lastName', e.target.value)}
-                          placeholder="e.g., Doe"
-                          className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                        />
-                      </div>
-                    </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Company Name *
+                          </label>
+                          <div className="relative">
+                            <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <input
+                              type="text"
+                              value={formData.companyName}
+                              onChange={(e) => handleInputChange('companyName', e.target.value)}
+                              placeholder="e.g., Doe Enterprises Ltd."
+                              className={`pl-10 pr-4 py-3 w-full rounded-xl border ${
+                                errors.companyName ? 'border-red-300' : 'border-gray-200'
+                              } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors`}
+                            />
+                          </div>
+                          {errors.companyName && (
+                            <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                              <AlertCircle className="h-3 w-3" />
+                              {errors.companyName}
+                            </p>
+                          )}
+                        </div>
 
-                    {formData.accountType === 'organization' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Company Name
-                        </label>
-                        <div className="relative">
-                          <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                          <input
-                            type="text"
-                            value={formData.companyName}
-                            onChange={(e) => handleInputChange('companyName', e.target.value)}
-                            placeholder="e.g., Doe Enterprises"
-                            className="pl-10 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                          />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Company Address
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.companyAddress}
+                              onChange={(e) => handleInputChange('companyAddress', e.target.value)}
+                              placeholder="e.g., 123 Business Street, Nairobi"
+                              className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Tax ID/VAT Number
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.companyTaxId}
+                              onChange={(e) => handleInputChange('companyTaxId', e.target.value)}
+                              placeholder="e.g., P12345678X"
+                              className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Company Phone
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.companyPhone}
+                              onChange={(e) => handleInputChange('companyPhone', e.target.value)}
+                              placeholder="e.g., 712345678"
+                              className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Company Email
+                            </label>
+                            <input
+                              type="email"
+                              value={formData.companyEmail}
+                              onChange={(e) => handleInputChange('companyEmail', e.target.value)}
+                              placeholder="e.g., info@company.com"
+                              className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                            />
+                          </div>
                         </div>
                       </div>
                     )}
 
+                    {/* Email and Phone (common to both account types) */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -772,10 +1237,7 @@ export default function CreateOpportunityPage() {
                                 ) : (
                                   <>
                                     <span className="text-lg">
-                                      {formData.phoneCode.startsWith('+') ? 
-                                        getFlagEmoji(formData.phoneCode) : 
-                                        getFlagEmoji(formData.phoneCode.replace('+', ''))
-                                      }
+                                      {getFlagEmoji(formData.phoneCode)}
                                     </span>
                                     <span>{formData.phoneCode}</span>
                                   </>
@@ -785,7 +1247,7 @@ export default function CreateOpportunityPage() {
                             </button>
                             
                             {showCountryCodes && (
-                              <div className="absolute bottom-full mb-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                              <div className="absolute z-10 bottom-full mb-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
                                 <div className="sticky top-0 bg-white p-2 border-b">
                                   <div className="relative">
                                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -811,7 +1273,7 @@ export default function CreateOpportunityPage() {
                                         onClick={() => selectCountryCode(country.dialCode)}
                                         className="w-full px-3 py-2 text-left hover:bg-gray-50 flex items-center gap-3"
                                       >
-                                        <span className="text-lg">{getFlagEmoji(country.code)}</span>
+                                        <span className="text-lg">{country.flag}</span>
                                         <div className="flex-1">
                                           <div className="text-sm font-medium">{country.name}</div>
                                           <div className="text-xs text-gray-500">{country.dialCode}</div>
@@ -852,7 +1314,7 @@ export default function CreateOpportunityPage() {
               {step === 2 && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-bold text-gray-800 mb-6">Vehicle Details</h2>
-                  <p className="text-gray-500 text-sm mb-6">Add vehicle(s) for this opportunity</p>
+                  <p className="text-gray-500 text-sm mb-6">Add comprehensive vehicle information</p>
 
                   {errors.vehicles && (
                     <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200">
@@ -862,6 +1324,22 @@ export default function CreateOpportunityPage() {
                       </p>
                     </div>
                   )}
+
+                  {/* Settings Indicator */}
+                  <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <SettingsIcon className="h-4 w-4 text-blue-600" />
+                      <span className="text-sm text-blue-600">
+                        {userPreferences.useDropdowns ? 'Dropdown mode: Type or select from suggestions' : 'Free text mode: Type anything in all fields'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setShowPreferences(true)}
+                      className="text-xs text-blue-500 hover:text-blue-600 underline"
+                    >
+                      Change
+                    </button>
+                  </div>
 
                   {/* Vehicles Section */}
                   <div className="space-y-4">
@@ -886,7 +1364,7 @@ export default function CreateOpportunityPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">
-                              VIN
+                              VIN (Vehicle Identification Number)
                             </label>
                             <input
                               type="text"
@@ -905,40 +1383,123 @@ export default function CreateOpportunityPage() {
                               type="text"
                               value={vehicle.registrationNumber}
                               onChange={(e) => handleVehicleChange(index, 'registrationNumber', e.target.value)}
-                              placeholder="e.g., ABC123"
+                              placeholder="e.g., KCA 123A"
                               className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
                             />
                           </div>
                           
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">
-                              Make *
+                              License Plate
                             </label>
                             <input
                               type="text"
-                              value={vehicle.make}
-                              onChange={(e) => handleVehicleChange(index, 'make', e.target.value)}
-                              placeholder="e.g., Honda"
-                              className={`pl-3 pr-3 py-2 w-full rounded-lg border ${
-                                errors.vehicles && !vehicle.make.trim() ? 'border-red-300' : 'border-gray-200'
-                              } focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors`}
+                              value={vehicle.licensePlate}
+                              onChange={(e) => handleVehicleChange(index, 'licensePlate', e.target.value)}
+                              placeholder="e.g., KDL 456B"
+                              className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
                             />
                           </div>
                           
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">
-                              Model *
-                            </label>
-                            <input
-                              type="text"
-                              value={vehicle.model}
-                              onChange={(e) => handleVehicleChange(index, 'model', e.target.value)}
-                              placeholder="e.g., Civic"
-                              className={`pl-3 pr-3 py-2 w-full rounded-lg border ${
-                                errors.vehicles && !vehicle.model.trim() ? 'border-red-300' : 'border-gray-200'
-                              } focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors`}
-                            />
-                          </div>
+                          {/* Make with dropdown/regular input */}
+                          {renderVehicleFieldWithDropdown(
+                            index,
+                            'make',
+                            'Make *',
+                            'Type or select vehicle make',
+                            vehicleMakes,
+                            showMakeDropdown,
+                            setShowMakeDropdown,
+                            makeSearch,
+                            setMakeSearch,
+                            filteredMakes,
+                            makeDropdownRef
+                          )}
+                          
+                          {/* Model with dropdown/regular input */}
+                          {userPreferences.useDropdowns ? (
+                            <div className="relative" ref={modelDropdownRef}>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">
+                                Model *
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={vehicle.model}
+                                  onChange={(e) => {
+                                    handleVehicleChange(index, 'model', e.target.value);
+                                    setModelSearch(e.target.value);
+                                  }}
+                                  onFocus={() => setShowModelDropdown(index)}
+                                  disabled={!vehicle.make}
+                                  placeholder={vehicle.make ? `Type or select ${vehicle.make} model` : "Select make first"}
+                                  className={`pl-3 pr-8 py-2 w-full rounded-lg border ${
+                                    errors.vehicles && !vehicle.model.trim() ? 'border-red-300' : 'border-gray-200'
+                                  } focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors ${!vehicle.make ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => vehicle.make && setShowModelDropdown(showModelDropdown === index ? null : index)}
+                                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                  disabled={!vehicle.make}
+                                >
+                                  {showModelDropdown === index ? (
+                                    <ChevronUp className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4" />
+                                  )}
+                                </button>
+                              </div>
+                              
+                              {showModelDropdown === index && vehicle.make && (
+                                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                  <div className="sticky top-0 bg-white p-2 border-b">
+                                    <div className="relative">
+                                      <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
+                                      <input
+                                        type="text"
+                                        value={modelSearch}
+                                        onChange={(e) => setModelSearch(e.target.value)}
+                                        placeholder={`Search ${vehicle.make} models...`}
+                                        className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="max-h-48 overflow-y-auto">
+                                    {filteredModels(vehicle.make).map((model) => (
+                                      <button
+                                        key={model}
+                                        type="button"
+                                        onClick={() => {
+                                          handleVehicleChange(index, 'model', model);
+                                          setShowModelDropdown(null);
+                                          setModelSearch('');
+                                        }}
+                                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
+                                      >
+                                        <span>{model}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">
+                                Model *
+                              </label>
+                              <input
+                                type="text"
+                                value={vehicle.model}
+                                onChange={(e) => handleVehicleChange(index, 'model', e.target.value)}
+                                placeholder="e.g., Land Cruiser V8"
+                                className={`pl-3 pr-3 py-2 w-full rounded-lg border ${
+                                  errors.vehicles && !vehicle.model.trim() ? 'border-red-300' : 'border-gray-200'
+                                } focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors`}
+                              />
+                            </div>
+                          )}
                           
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -948,23 +1509,109 @@ export default function CreateOpportunityPage() {
                               type="text"
                               value={vehicle.year}
                               onChange={(e) => handleVehicleChange(index, 'year', e.target.value)}
-                              placeholder="e.g., 2025"
+                              placeholder="e.g., 2023"
                               className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
                             />
                           </div>
                           
+                          {/* Color with dropdown/regular input */}
+                          {renderVehicleFieldWithDropdown(
+                            index,
+                            'color',
+                            'Color',
+                            'Type or select color',
+                            vehicleColors,
+                            showColorDropdown,
+                            setShowColorDropdown,
+                            colorSearch,
+                            setColorSearch,
+                            filteredColors,
+                            colorDropdownRef
+                          )}
+
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">
-                              Color
+                              Engine Size (CC)
                             </label>
                             <input
                               type="text"
-                              value={vehicle.color}
-                              onChange={(e) => handleVehicleChange(index, 'color', e.target.value)}
-                              placeholder="e.g., Blue"
+                              value={vehicle.engineSize}
+                              onChange={(e) => handleVehicleChange(index, 'engineSize', e.target.value)}
+                              placeholder="e.g., 4500"
                               className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
                             />
                           </div>
+
+                          {/* Fuel Type with dropdown/regular input */}
+                          {renderVehicleFieldWithDropdown(
+                            index,
+                            'fuelType',
+                            'Fuel Type',
+                            'Type or select fuel type',
+                            vehicleFuelTypes,
+                            showFuelDropdown,
+                            setShowFuelDropdown,
+                            fuelSearch,
+                            setFuelSearch,
+                            filteredFuelTypes,
+                            fuelDropdownRef
+                          )}
+
+                          {/* Transmission with dropdown/regular input */}
+                          {renderVehicleFieldWithDropdown(
+                            index,
+                            'transmission',
+                            'Transmission',
+                            'Type or select transmission',
+                            vehicleTransmissions,
+                            showTransmissionDropdown,
+                            setShowTransmissionDropdown,
+                            transmissionSearch,
+                            setTransmissionSearch,
+                            filteredTransmissions,
+                            transmissionDropdownRef
+                          )}
+
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              Mileage (KM)
+                            </label>
+                            <input
+                              type="text"
+                              value={vehicle.mileage}
+                              onChange={(e) => handleVehicleChange(index, 'mileage', e.target.value)}
+                              placeholder="e.g., 45000"
+                              className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              Chassis Number
+                            </label>
+                            <input
+                              type="text"
+                              value={vehicle.chassisNumber}
+                              onChange={(e) => handleVehicleChange(index, 'chassisNumber', e.target.value)}
+                              placeholder="e.g., JTEHT05J402123456"
+                              className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+                            />
+                          </div>
+
+                          {/* Body Type with dropdown/regular input */}
+                          {renderVehicleFieldWithDropdown(
+                            index,
+                            'bodyType',
+                            'Body Type',
+                            'Type or select body type',
+                            vehicleBodyTypes,
+                            showBodyTypeDropdown,
+                            setShowBodyTypeDropdown,
+                            bodyTypeSearch,
+                            setBodyTypeSearch,
+                            filteredBodyTypes,
+                            bodyTypeDropdownRef
+                          )}
                         </div>
                       </div>
                     ))}
@@ -986,7 +1633,7 @@ export default function CreateOpportunityPage() {
                   <h2 className="text-xl font-bold text-gray-800 mb-6">Services & Products</h2>
                   <p className="text-gray-500 text-sm mb-6">Select services or products and create quotes</p>
 
-                  {/* Opportunity Type Selection - MOVED HERE */}
+                  {/* Opportunity Type Selection */}
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-3">
                       Opportunity Type *
@@ -1071,13 +1718,17 @@ export default function CreateOpportunityPage() {
                       <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-xl bg-gradient-to-r from-gray-50/50 to-gray-100/50">
                         <div className="max-w-md mx-auto">
                           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 mb-4">
-                            <Package className="h-8 w-8 text-gray-600" />
+                            {formData.opportunityType === 'SERVICE' ? (
+                              <Settings className="h-8 w-8 text-gray-600" />
+                            ) : (
+                              <Package className="h-8 w-8 text-gray-600" />
+                            )}
                           </div>
                           <h3 className="text-lg font-semibold text-gray-800 mb-2">
                             No {formData.opportunityType.toLowerCase()} items added yet
                           </h3>
                           <p className="text-gray-500 mb-6 max-w-sm mx-auto">
-                            Start by adding custom items to build your quote.
+                            Start by adding {formData.opportunityType === 'SERVICE' ? 'services' : 'products'} to build your quote.
                           </p>
                           <button
                             type="button"
@@ -1135,17 +1786,68 @@ export default function CreateOpportunityPage() {
                           </div>
 
                           <div className="space-y-4">
-                            <div>
+                            {/* Title with suggestions dropdown */}
+                            <div className="relative" ref={serviceProductDropdownRef}>
                               <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Title/Description *
                               </label>
-                              <input
-                                type="text"
-                                value={item.title}
-                                onChange={(e) => handleServiceProductChange(index, 'title', e.target.value)}
-                                placeholder="e.g., Oil Change Service, Brake Pads, Fog Light Installation"
-                                className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                              />
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={item.title}
+                                  onChange={(e) => {
+                                    handleServiceProductChange(index, 'title', e.target.value);
+                                    setServiceProductSearch(e.target.value);
+                                  }}
+                                  onFocus={() => setShowServiceProductDropdown(index)}
+                                  placeholder={
+                                    formData.opportunityType === 'SERVICE' 
+                                      ? "e.g., Oil Change Service, Brake System Repair..." 
+                                      : "e.g., Engine Oil, Brake Pads, Car Battery..."
+                                  }
+                                  className="pl-4 pr-10 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowServiceProductDropdown(showServiceProductDropdown === index ? null : index)}
+                                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                >
+                                  {showServiceProductDropdown === index ? (
+                                    <ChevronUp className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4" />
+                                  )}
+                                </button>
+                              </div>
+                              
+                              {showServiceProductDropdown === index && (
+                                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                  <div className="sticky top-0 bg-white p-2 border-b">
+                                    <div className="relative">
+                                      <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                      <input
+                                        type="text"
+                                        value={serviceProductSearch}
+                                        onChange={(e) => setServiceProductSearch(e.target.value)}
+                                        placeholder={`Search ${formData.opportunityType.toLowerCase()} suggestions...`}
+                                        className="w-full pl-9 pr-2 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="max-h-48 overflow-y-auto">
+                                    {filteredServiceProducts().map((suggestion) => (
+                                      <button
+                                        key={suggestion}
+                                        type="button"
+                                        onClick={() => selectServiceProductSuggestion(index, suggestion)}
+                                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
+                                      >
+                                        <span>{suggestion}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                             
                             <div>
@@ -1155,95 +1857,109 @@ export default function CreateOpportunityPage() {
                               <textarea
                                 value={item.description}
                                 onChange={(e) => handleServiceProductChange(index, 'description', e.target.value)}
-                                placeholder="e.g., Full synthetic oil change and filter replacement, including labor..."
+                                placeholder={
+                                  formData.opportunityType === 'SERVICE'
+                                    ? "e.g., Full synthetic oil change and filter replacement, including labor and inspection..."
+                                    : "e.g., High-quality brake pads for improved stopping power, compatible with most models..."
+                                }
                                 rows={2}
                                 className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-colors"
                               />
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Quantity
-                                </label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={item.quantity}
-                                  onChange={(e) => {
-                                    const value = e.target.value;
-                                    // Allow empty value or numbers
-                                    if (value === '') {
-                                      handleServiceProductChange(index, 'quantity', 0);
-                                    } else {
-                                      const numValue = parseInt(value);
-                                      handleServiceProductChange(index, 'quantity', isNaN(numValue) ? 0 : numValue);
-                                    }
-                                  }}
-                                  className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                                />
-                              </div>
-                              
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Unit Price (KES)
-                                </label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={item.unitPrice}
-                                  onChange={(e) => {
-                                    const value = e.target.value;
-                                    // Allow empty value or numbers
-                                    if (value === '') {
-                                      handleServiceProductChange(index, 'unitPrice', 0);
-                                    } else {
-                                      const numValue = parseFloat(value);
-                                      handleServiceProductChange(index, 'unitPrice', isNaN(numValue) ? 0 : numValue);
-                                    }
-                                  }}
-                                  className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                                />
-                              </div>
-                              
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Discount (%)
-                                </label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  value={item.discount}
-                                  onChange={(e) => {
-                                    const value = e.target.value;
-                                    if (value === '') {
-                                      handleServiceProductChange(index, 'discount', 0);
-                                    } else {
-                                      const numValue = parseFloat(value);
-                                      handleServiceProductChange(index, 'discount', isNaN(numValue) ? 0 : numValue);
-                                    }
-                                  }}
-                                  className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                                />
+                            {/* Pricing Section in one row */}
+                            <div className="p-4 rounded-lg bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200">
+                              <h4 className="text-sm font-medium text-gray-700 mb-3">Pricing Details</h4>
+                              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                                    Quantity
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={item.quantity}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      handleServiceProductChange(index, 'quantity', value === '' ? 0 : parseInt(value) || 0);
+                                    }}
+                                    className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-colors"
+                                  />
+                                </div>
+                                
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                                    Unit Price (KES)
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={item.unitPrice}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      handleServiceProductChange(index, 'unitPrice', value === '' ? 0 : parseFloat(value) || 0);
+                                    }}
+                                    className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-colors"
+                                  />
+                                </div>
+                                
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                                    Discount (%)
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={item.discount}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      handleServiceProductChange(index, 'discount', value === '' ? 0 : parseFloat(value) || 0);
+                                    }}
+                                    className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-colors"
+                                  />
+                                </div>
+                                
+                                <div className="p-2 rounded-lg bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100">
+                                  <div className="text-center">
+                                    <div className="text-xs font-medium text-gray-600 mb-1">
+                                      Subtotal
+                                    </div>
+                                    <div className="text-lg font-bold text-gray-800">
+                                      KES {(item.subtotal || 0).toLocaleString(undefined, {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2
+                                      })}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      {item.quantity} × KES {item.unitPrice.toLocaleString()}
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
                             </div>
                             
+                            {/* Line Item Total */}
                             <div className="p-3 rounded-lg bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100">
                               <div className="flex items-center justify-between">
-                                <span className="text-gray-600">Item Total</span>
+                                <div>
+                                  <span className="font-medium text-gray-800">Line Item Total</span>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Subtotal: KES {(item.subtotal || 0).toLocaleString()}
+                                    {item.discount > 0 && ` - ${item.discount}% discount: KES ${(item.subtotal * item.discount / 100).toLocaleString()}`}
+                                  </p>
+                                </div>
                                 <div className="text-right">
-                                  <div className="font-medium text-gray-800">
+                                  <div className="text-lg font-bold text-gray-800">
                                     KES {(item.total || 0).toLocaleString(undefined, {
                                       minimumFractionDigits: 2,
                                       maximumFractionDigits: 2
                                     })}
                                   </div>
-                                  <div className="text-xs text-gray-500">
-                                    {item.quantity} × KES {item.unitPrice.toLocaleString()}
-                                    {item.discount > 0 && ` - ${item.discount}% discount`}
-                                  </div>
+                                  <p className="text-xs text-gray-500">
+                                    After discount
+                                  </p>
                                 </div>
                               </div>
                             </div>
@@ -1253,55 +1969,49 @@ export default function CreateOpportunityPage() {
                     </div>
                   </div>
 
-                  {/* Waivers Section */}
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-800">Waivers</h3>
-                      <button
-                        type="button"
-                        onClick={addWaiver}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 hover:from-blue-100 hover:to-blue-200 text-sm font-medium transition-all"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Add Waiver
-                      </button>
-                    </div>
-
-                    <div className="space-y-4">
-                      {formData.waivers.map((waiver, index) => (
-                        <div key={waiver.id} className="p-4 rounded-xl border border-gray-200 bg-gradient-to-r from-blue-50/50 to-purple-50/50">
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-2">
-                              <Shield className="h-5 w-5 text-gray-600" />
-                              <span className="font-medium text-gray-800">{waiver.type}</span>
-                            </div>
-                            {formData.waivers.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => removeWaiver(index)}
-                                className="p-2 hover:bg-red-50 rounded-lg text-red-500 transition-colors"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            )}
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Waiver Description
-                            </label>
-                            <textarea
-                              value={waiver.description}
-                              onChange={(e) => handleWaiverChange(index, 'description', e.target.value)}
-                              placeholder="e.g., Standard service waiver for maintenance work..."
-                              rows={3}
-                              className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-colors"
-                            />
-                          </div>
+                  {/* Overall Totals Section */}
+                  {formData.servicesProducts.length > 0 && (
+                    <div className="p-6 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 border border-green-100">
+                      <h3 className="text-lg font-semibold text-gray-800 mb-4">Overall Totals</h3>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center py-2 border-b border-gray-200">
+                          <span className="text-gray-600">Subtotal</span>
+                          <span className="font-medium text-gray-800">
+                            KES {calculateSubtotal().toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            })}
+                          </span>
                         </div>
-                      ))}
+                        
+                        <div className="flex justify-between items-center py-2 border-b border-gray-200">
+                          <span className="text-gray-600">Total Discount</span>
+                          <span className="font-medium text-red-600">
+                            - KES {calculateTotalDiscount().toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            })}
+                          </span>
+                        </div>
+                        
+                        <div className="flex justify-between items-center py-2 border-t border-gray-300">
+                          <span className="text-lg font-semibold text-gray-800">Grand Total</span>
+                          <span className="text-2xl font-bold text-green-600">
+                            KES {calculateTotal().toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            })}
+                          </span>
+                        </div>
+                        
+                        <div className="text-xs text-gray-500 mt-2">
+                          {formData.servicesProducts.length} item{formData.servicesProducts.length !== 1 ? 's' : ''} | 
+                          {formData.servicesProducts.filter(item => item.type === 'SERVICE').length} service{formData.servicesProducts.filter(item => item.type === 'SERVICE').length !== 1 ? 's' : ''} | 
+                          {formData.servicesProducts.filter(item => item.type === 'PRODUCT').length} product{formData.servicesProducts.filter(item => item.type === 'PRODUCT').length !== 1 ? 's' : ''}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Notes Section */}
                   <div>
@@ -1322,22 +2032,59 @@ export default function CreateOpportunityPage() {
                       <div>
                         <h4 className="text-sm font-medium text-gray-600 mb-2">Customer Information</h4>
                         <div className="space-y-1">
-                          <p className="text-sm"><span className="font-medium">Name:</span> {formData.firstName} {formData.lastName}</p>
-                          <p className="text-sm"><span className="font-medium">Email:</span> {formData.email}</p>
-                          <p className="text-sm"><span className="font-medium">Phone:</span> {formData.phoneCode}{formData.phone}</p>
-                          {formData.companyName && (
-                            <p className="text-sm"><span className="font-medium">Company:</span> {formData.companyName}</p>
+                          <p className="text-sm">
+                            <span className="font-medium">Account Type:</span> {formData.accountType === 'individual' ? 'Individual' : 'Company'}
+                          </p>
+                          {formData.accountType === 'individual' ? (
+                            <>
+                              <p className="text-sm">
+                                <span className="font-medium">Name:</span> {formData.firstName} {formData.lastName}
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-sm">
+                                <span className="font-medium">Company:</span> {formData.companyName}
+                              </p>
+                              {formData.companyAddress && (
+                                <p className="text-sm">
+                                  <span className="font-medium">Address:</span> {formData.companyAddress}
+                                </p>
+                              )}
+                            </>
                           )}
+                          <p className="text-sm">
+                            <span className="font-medium">Email:</span> {formData.email}
+                          </p>
+                          <p className="text-sm">
+                            <span className="font-medium">Phone:</span> {formData.phoneCode}{formData.phone}
+                          </p>
                         </div>
                       </div>
                       <div>
                         <h4 className="text-sm font-medium text-gray-600 mb-2">Opportunity Details</h4>
                         <div className="space-y-1">
-                          <p className="text-sm"><span className="font-medium">Type:</span> {formData.opportunityType}</p>
-                          <p className="text-sm"><span className="font-medium">Source:</span> {sources.find(s => s.value === formData.source)?.label}</p>
-                          <p className="text-sm"><span className="font-medium">Vehicles:</span> {formData.vehicles.length}</p>
-                          <p className="text-sm"><span className="font-medium">Items:</span> {formData.servicesProducts.length}</p>
-                          <p className="text-sm"><span className="font-medium">Total Value:</span> KES {calculateTotal().toLocaleString()}</p>
+                          <p className="text-sm">
+                            <span className="font-medium">Type:</span> {formData.opportunityType}
+                          </p>
+                          <p className="text-sm">
+                            <span className="font-medium">Source:</span> {sources.find(s => s.value === formData.source)?.label}
+                          </p>
+                          <p className="text-sm">
+                            <span className="font-medium">Vehicles:</span> {formData.vehicles.length}
+                          </p>
+                          <p className="text-sm">
+                            <span className="font-medium">Items:</span> {formData.servicesProducts.length}
+                          </p>
+                          <p className="text-sm">
+                            <span className="font-medium">Subtotal:</span> KES {calculateSubtotal().toLocaleString()}
+                          </p>
+                          <p className="text-sm">
+                            <span className="font-medium">Total Discount:</span> KES {calculateTotalDiscount().toLocaleString()}
+                          </p>
+                          <p className="text-sm font-semibold">
+                            <span className="font-medium">Grand Total:</span> KES {calculateTotal().toLocaleString()}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -1428,17 +2175,7 @@ export default function CreateOpportunityPage() {
         opportunity={createdOpportunity}
         onViewDetails={handleViewOpportunityDetails}
         onCreateAnother={handleCreateAnother}
-        // onAssignToTeam={handleAssignToTeam}
       />
     </>
-  );
-}
-
-// Circle icon component
-function Circle({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="10" strokeWidth="2" />
-    </svg>
   );
 }

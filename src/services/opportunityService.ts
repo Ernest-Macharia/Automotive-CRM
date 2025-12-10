@@ -29,13 +29,37 @@ export interface Opportunity {
     tier: 'hot' | 'warm' | 'cold';
     priority: number;
     lastCalculated: string;
+    scoreChange?: number;
+    autoAssigned?: boolean;
   };
   scoreHistory?: Array<{
     date: string;
     score: number;
     tier: string;
     reason: string;
+    triggeredBy?: string;
   }>;
+  
+  // New properties for opportunity types
+  opportunityType?: 'SERVICE' | 'PRODUCT';
+  servicesProducts?: Array<{
+    id?: string;
+    title: string;
+    description?: string;
+    type: 'SERVICE' | 'PRODUCT';
+    quantity: number;
+    unitPrice: number;
+    discount: number;
+    subtotal: number;
+    total: number;
+  }>;
+  subtotal?: number;
+  totalDiscount?: number;
+  total?: number;
+  companyAddress?: string;
+  companyTaxId?: string;
+  companyPhone?: string;
+  companyEmail?: string;
 }
 
 export interface CreateOpportunityData {
@@ -48,16 +72,41 @@ export interface CreateOpportunityData {
     email?: string;
     phone?: string;
     companyName?: string;
+    companyAddress?: string;
+    companyTaxId?: string;
+    companyPhone?: string;
+    companyEmail?: string;
   };
   vehicles?: Array<{
     vin?: string;
     registrationNumber?: string;
+    licensePlate?: string;
     make: string;
     model: string;
-    year?: string;
+    year?: string | number;
     color?: string;
+    engineSize?: string;
+    fuelType?: string;
+    transmission?: string;
+    mileage?: string;
+    chassisNumber?: string;
+    bodyType?: string;
   }>;
   notes?: string;
+  opportunityType?: 'SERVICE' | 'PRODUCT';
+  servicesProducts?: Array<{
+    title: string;
+    description?: string;
+    type: 'SERVICE' | 'PRODUCT';
+    quantity: number;
+    unitPrice: number;
+    discount: number;
+    subtotal: number;
+    total: number;
+  }>;
+  subtotal?: number;
+  totalDiscount?: number;
+  total?: number;
 }
 
 export interface UpdateOpportunityData {
@@ -73,15 +122,40 @@ export interface UpdateOpportunityData {
     email?: string;
     phone?: string;
     companyName?: string;
+    companyAddress?: string;
+    companyTaxId?: string;
+    companyPhone?: string;
+    companyEmail?: string;
   };
   vehicles?: Array<{
     vin?: string;
     registrationNumber?: string;
+    licensePlate?: string;
     make: string;
     model: string;
     year?: number | string;
     color?: string;
+    engineSize?: string;
+    fuelType?: string;
+    transmission?: string;
+    mileage?: string;
+    chassisNumber?: string;
+    bodyType?: string;
   }>;
+  opportunityType?: 'SERVICE' | 'PRODUCT';
+  servicesProducts?: Array<{
+    title: string;
+    description?: string;
+    type: 'SERVICE' | 'PRODUCT';
+    quantity: number;
+    unitPrice: number;
+    discount: number;
+    subtotal: number;
+    total: number;
+  }>;
+  subtotal?: number;
+  totalDiscount?: number;
+  total?: number;
 }
 
 export interface FilterParams {
@@ -90,6 +164,7 @@ export interface FilterParams {
   source?: string;
   type?: string;
   tier?: string;
+  opportunityType?: 'SERVICE' | 'PRODUCT';
   
   // Advanced filters
   search?: string;
@@ -98,11 +173,15 @@ export interface FilterParams {
   fromDate?: string;
   toDate?: string;
   assignedTo?: string | null;
+  minTotal?: number;
+  maxTotal?: number;
+  hasServicesProducts?: boolean;
   
   // Multiple values
   statuses?: string[];
   sources?: string[];
   types?: string[];
+  opportunityTypes?: ('SERVICE' | 'PRODUCT')[];
   
   // Sorting
   sort?: string;
@@ -119,6 +198,8 @@ export interface FilterParams {
   hasQuotes?: boolean;
   hasJobCards?: boolean;
   isNurturing?: boolean;
+  vehicleMake?: string;
+  vehicleModel?: string;
 }
 
 export interface OpportunitiesResponse {
@@ -136,6 +217,12 @@ export interface OpportunitiesResponse {
     hot: number;
     warm: number;
     cold: number;
+    service: number;
+    product: number;
+    byOpportunityType?: {
+      SERVICE: number;
+      PRODUCT: number;
+    };
   };
 }
 
@@ -156,6 +243,12 @@ export interface OpportunityStats {
     _id: string | null;
     count: number;
   }>;
+  byOpportunityType?: Array<{
+    _id: 'SERVICE' | 'PRODUCT' | null;
+    count: number;
+  }>;
+  totalRevenue?: number;
+  averageDealSize?: number;
   lastUpdated?: string;
 }
 
@@ -169,16 +262,41 @@ interface FormattedOpportunityData {
     email?: string;
     phone?: string;
     companyName?: string;
+    companyAddress?: string;
+    companyTaxId?: string;
+    companyPhone?: string;
+    companyEmail?: string;
   };
   vehicles?: Array<{
     vin?: string;
     registrationNumber?: string;
+    licensePlate?: string;
     make: string;
     model: string;
     year?: number | string;
     color?: string;
+    engineSize?: string;
+    fuelType?: string;
+    transmission?: string;
+    mileage?: string;
+    chassisNumber?: string;
+    bodyType?: string;
   }>;
   notes?: string;
+  opportunityType?: 'SERVICE' | 'PRODUCT';
+  servicesProducts?: Array<{
+    title: string;
+    description?: string;
+    type: 'SERVICE' | 'PRODUCT';
+    quantity: number;
+    unitPrice: number;
+    discount: number;
+    subtotal: number;
+    total: number;
+  }>;
+  subtotal?: number;
+  totalDiscount?: number;
+  total?: number;
 }
 
 class OpportunityService {
@@ -250,6 +368,66 @@ class OpportunityService {
       search: params?.search
     };
     return this.getAllOpportunities(filterParams);
+  }
+
+  // Get opportunities by opportunity type
+  async getOpportunitiesByType(opportunityType: 'SERVICE' | 'PRODUCT'): Promise<OpportunitiesResponse> {
+    return this.getAllOpportunities({
+      opportunityType,
+      sort: 'createdAt:desc',
+      limit: 50
+    });
+  }
+
+  // Get service opportunities
+  async getServiceOpportunities(): Promise<OpportunitiesResponse> {
+    return this.getOpportunitiesByType('SERVICE');
+  }
+
+  // Get product opportunities
+  async getProductOpportunities(): Promise<OpportunitiesResponse> {
+    return this.getOpportunitiesByType('PRODUCT');
+  }
+
+  // Get opportunities with services/products
+  async getOpportunitiesWithServicesProducts(): Promise<OpportunitiesResponse> {
+    return this.getAllOpportunities({
+      hasServicesProducts: true,
+      sort: 'createdAt:desc',
+      limit: 50
+    });
+  }
+
+  // Get opportunities by total range
+  async getOpportunitiesByTotalRange(minTotal: number, maxTotal: number): Promise<OpportunitiesResponse> {
+    return this.getAllOpportunities({
+      minTotal,
+      maxTotal,
+      sort: 'total:desc',
+      limit: 50
+    });
+  }
+
+  // Get high-value opportunities (total > certain amount)
+  async getHighValueOpportunities(minTotal: number = 100000): Promise<OpportunitiesResponse> {
+    return this.getAllOpportunities({
+      minTotal,
+      sort: 'total:desc',
+      limit: 50
+    });
+  }
+
+  // Get opportunities by vehicle make/model
+  async getOpportunitiesByVehicle(make?: string, model?: string): Promise<OpportunitiesResponse> {
+    const params: FilterParams = {
+      sort: 'createdAt:desc',
+      limit: 50
+    };
+    
+    if (make) params.vehicleMake = make;
+    if (model) params.vehicleModel = model;
+    
+    return this.getAllOpportunities(params);
   }
 
   // Common filter presets from documentation
@@ -403,6 +581,10 @@ class OpportunityService {
           ...(data.customer.email && { email: data.customer.email }),
           ...(data.customer.phone && { phone: data.customer.phone }),
           ...(data.customer.companyName && { companyName: data.customer.companyName }),
+          ...(data.customer.companyAddress && { companyAddress: data.customer.companyAddress }),
+          ...(data.customer.companyTaxId && { companyTaxId: data.customer.companyTaxId }),
+          ...(data.customer.companyPhone && { companyPhone: data.customer.companyPhone }),
+          ...(data.customer.companyEmail && { companyEmail: data.customer.companyEmail }),
         },
       };
 
@@ -410,15 +592,42 @@ class OpportunityService {
         formattedData.vehicles = data.vehicles.map(vehicle => ({
           ...(vehicle.vin && { vin: vehicle.vin }),
           ...(vehicle.registrationNumber && { registrationNumber: vehicle.registrationNumber }),
+          ...(vehicle.licensePlate && { licensePlate: vehicle.licensePlate }),
           make: vehicle.make,
           model: vehicle.model,
           ...(vehicle.year && { year: parseInt(vehicle.year as string) || vehicle.year }),
           ...(vehicle.color && { color: vehicle.color }),
+          ...(vehicle.engineSize && { engineSize: vehicle.engineSize }),
+          ...(vehicle.fuelType && { fuelType: vehicle.fuelType }),
+          ...(vehicle.transmission && { transmission: vehicle.transmission }),
+          ...(vehicle.mileage && { mileage: vehicle.mileage }),
+          ...(vehicle.chassisNumber && { chassisNumber: vehicle.chassisNumber }),
+          ...(vehicle.bodyType && { bodyType: vehicle.bodyType }),
         }));
       }
 
       if (data.notes) {
         formattedData.notes = data.notes;
+      }
+
+      if (data.opportunityType) {
+        formattedData.opportunityType = data.opportunityType;
+      }
+
+      if (data.servicesProducts && data.servicesProducts.length > 0) {
+        formattedData.servicesProducts = data.servicesProducts;
+      }
+
+      if (data.subtotal !== undefined) {
+        formattedData.subtotal = data.subtotal;
+      }
+
+      if (data.totalDiscount !== undefined) {
+        formattedData.totalDiscount = data.totalDiscount;
+      }
+
+      if (data.total !== undefined) {
+        formattedData.total = data.total;
       }
       
       return await apiClient.post<FormattedOpportunityData, Opportunity>('/opportunities', formattedData);
@@ -492,8 +701,6 @@ class OpportunityService {
     }
   }
 
-  
-
   async recalculateLeadScore(id: string) {
     try {
       return await apiClient.post(`/opportunities/${id}/recalculate-score`, {});
@@ -530,6 +737,36 @@ class OpportunityService {
     }
   }
 
+  // Get revenue statistics
+  async getRevenueStats() {
+    try {
+      return await apiClient.get('/opportunities/stats/revenue');
+    } catch (error) {
+      console.error('Error fetching revenue stats:', error);
+      throw error;
+    }
+  }
+
+  // Get opportunity type statistics
+  async getOpportunityTypeStats() {
+    try {
+      return await apiClient.get('/opportunities/stats/types');
+    } catch (error) {
+      console.error('Error fetching opportunity type stats:', error);
+      throw error;
+    }
+  }
+
+  // Get top performing opportunities
+  async getTopOpportunities(limit: number = 10) {
+    try {
+      return await apiClient.get(`/opportunities/stats/top?limit=${limit}`);
+    } catch (error) {
+      console.error('Error fetching top opportunities:', error);
+      throw error;
+    }
+  }
+
   // Utility method to build filter query
   buildFilterQuery(params: FilterParams): string {
     const queryParams = new URLSearchParams();
@@ -550,9 +787,10 @@ class OpportunityService {
   // Get all available filter options (for UI dropdowns)
   async getFilterOptions() {
     try {
-      const [overview, scoringStats] = await Promise.all([
+      const [overview, scoringStats, typeStats] = await Promise.all([
         this.getOpportunitiesOverview(),
-        this.getScoringStats()
+        this.getScoringStats(),
+        this.getOpportunityTypeStats()
       ]);
       
       return {
@@ -560,7 +798,9 @@ class OpportunityService {
         tiers: Object.keys(overview.byTier || {}),
         sources: (overview.bySource || []).map((source: any) => source._id).filter(Boolean),
         types: (overview.byType || []).map((type: any) => type._id).filter(Boolean),
-        scoringStats
+        opportunityTypes: (overview.byOpportunityType || []).map((type: any) => type._id).filter(Boolean),
+        scoringStats,
+        typeStats
       };
     } catch (error) {
       console.error('Error fetching filter options:', error);
@@ -569,7 +809,9 @@ class OpportunityService {
         tiers: [],
         sources: [],
         types: [],
-        scoringStats: null
+        opportunityTypes: [],
+        scoringStats: null,
+        typeStats: null
       };
     }
   }
