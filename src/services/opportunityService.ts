@@ -60,6 +60,7 @@ export interface Opportunity {
   companyTaxId?: string;
   companyPhone?: string;
   companyEmail?: string;
+  hasLead?: boolean;
 }
 
 export interface CreateOpportunityData {

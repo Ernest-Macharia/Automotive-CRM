@@ -2,6 +2,8 @@
 
 import { opportunityService, Opportunity } from '@/services/opportunityService';
 import DeleteConfirmationModal from '@/components/opportunities/DeleteConfirmationModal';
+import CreateLeadModal from '@/components/opportunities/CreateLeadModal';
+import { leadService } from '@/services/leadService'; 
 import { useToast } from '@/contexts/ToastContext';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -509,6 +511,8 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showCreateLeadModal, setShowCreateLeadModal] = useState(false);
+  const [targetStatus, setTargetStatus] = useState<string>('');
 
   useEffect(() => {
     if (opportunityId) {
@@ -536,6 +540,42 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   const handleStatusUpdate = async (newStatus: string) => {
     if (!opportunity || updatingStatus) return;
     
+    // For "new" to "contacted" transition, check if lead exists
+    if (opportunity.status === 'new' && newStatus === 'contacted') {
+      try {
+        // Check if lead exists for this opportunity
+        const hasLead = await checkIfLeadExists(opportunity._id);
+        
+        if (!hasLead) {
+          // Show create lead modal
+          setTargetStatus(newStatus);
+          setShowCreateLeadModal(true);
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking lead:', error);
+        // Continue with status update even if check fails
+      }
+    }
+    
+    // Proceed with status update
+    await updateOpportunityStatus(newStatus);
+  };
+
+  const checkIfLeadExists = async (opportunityId: string): Promise<boolean> => {
+    try {
+      // Call your API to check if lead exists
+      const leads = await leadService.getOpportunityLeads(opportunityId);
+      return leads && leads.length > 0;
+    } catch (error) {
+      console.error('Error checking lead existence:', error);
+      return false;
+    }
+  };
+
+  const updateOpportunityStatus = async (newStatus: string) => {
+    if (!opportunity) return;
+    
     try {
       setUpdatingStatus(true);
       await opportunityService.updateOpportunity(opportunity._id, { status: newStatus as any });
@@ -543,18 +583,33 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
       showToast('Status updated successfully', 'success', 2000);
     } catch (err: any) {
       console.error('Error updating status:', err);
-      
-      if (err.message && err.message.includes('Lead record not found')) {
-        showToast(
-          'Cannot move from "new" stage. Lead record is required. Would you like to create one now?',
-          'warning',
-          5000
-        );
-      } else {
-        showToast('Failed to update status', 'error', 3000);
-      }
+      showToast('Failed to update status', 'error', 3000);
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const handleCreateLeadAndMove = async (leadData: any) => {
+    if (!opportunity) return;
+    
+    try {
+      // Create lead
+      await leadService.createLead({
+        ...leadData,
+        opportunityId: opportunity._id
+      });
+      
+      // Update opportunity status
+      await updateOpportunityStatus(targetStatus);
+      
+      // Close modal
+      setShowCreateLeadModal(false);
+      setTargetStatus('');
+      
+      showToast('Lead created and opportunity moved successfully', 'success', 3000);
+    } catch (error: any) {
+      console.error('Error creating lead:', error);
+      showToast(error.message || 'Failed to create lead', 'error', 3000);
     }
   };
 
@@ -1291,6 +1346,15 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
         onConfirm={handleDeleteConfirm}
         itemName={opportunity?.subject}
         type="opportunity"
+      />
+      <CreateLeadModal
+        isOpen={showCreateLeadModal}
+        onClose={() => {
+          setShowCreateLeadModal(false);
+          setTargetStatus('');
+        }}
+        onConfirm={handleCreateLeadAndMove}
+        opportunity={opportunity}
       />
     </div>
   );
