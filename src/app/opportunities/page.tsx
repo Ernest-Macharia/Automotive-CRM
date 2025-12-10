@@ -165,6 +165,7 @@ function KanbanColumn({
   const [showLeadModal, setShowLeadModal] = useState(false);
   const [draggedOpportunity, setDraggedOpportunity] = useState<ExtendedOpportunity | null>(null);
   const [targetStage, setTargetStage] = useState<StageId | null>(null);
+  const router = useRouter();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -241,8 +242,9 @@ function KanbanColumn({
   };
 
   const handleConfirmation = () => {
+    if (!draggedOpportunity) return;
     setShowConfirmationModal(false);
-    setShowLeadModal(true);
+    router.push(`/lead/create?opportunityId=${draggedOpportunity._id}`);
   };
 
   const handleCreateLeadAndMove = async (leadData: CreateLeadData) => {

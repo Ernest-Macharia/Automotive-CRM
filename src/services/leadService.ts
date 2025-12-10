@@ -1,6 +1,7 @@
 // services/leadService.ts
 import { apiClient } from '@/lib/api/client';
 
+// In your leadService.ts, update the CreateLeadData interface
 export interface CreateLeadData {
   name: string;
   email: string;
@@ -10,6 +11,17 @@ export interface CreateLeadData {
   source: string;
   notes?: string;
   opportunityId?: string;
+  address?: string;
+  city?: string;
+  stage?: string;
+  sourceDetails?: string;
+  prospectingReason?: string;
+  gender?: string;
+  firstName?: string;
+  lastName?: string;
+  productsInterested?: string[];
+  vehicleInfo?: any;
+  leadOwner?: string;
 }
 
 export interface Lead {
