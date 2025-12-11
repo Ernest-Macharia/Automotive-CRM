@@ -14,6 +14,10 @@ export interface Opportunity {
     phone?: string;
     _id: string;
     id: string;
+    companyAddress?: string;
+    companyTaxId?: string;
+    companyPhone?: string;
+    companyEmail?: string;
   };
   vehicles: any[];
   jobCards: any[];
@@ -44,6 +48,7 @@ export interface Opportunity {
   opportunityType?: 'SERVICE' | 'PRODUCT';
   servicesProducts?: Array<{
     id?: string;
+    _id?: string;
     title: string;
     description?: string;
     type: 'SERVICE' | 'PRODUCT';

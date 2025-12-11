@@ -1,76 +1,166 @@
 'use client';
 
-import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import { opportunityService } from '@/services/opportunityService';
-import { useToast } from '@/contexts/ToastContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  ArrowLeft, Save, X, Building, User, Phone, Mail, Globe,
-  Users, Heart, Calendar, Target, Briefcase, Car, FileText,
-  DollarSign, Shield, CheckCircle, AlertCircle, Loader2,
-  Plus, Trash2, Eye, EyeOff, MapPin, MessageSquare, ExternalLink,
-  Clock, ChevronDown, ChevronUp, Tag, Hash, Award, Sparkles,
-  PhoneCall, Mail as MailIcon, MessageCircle, Upload, Download
+  ArrowLeft, Save, X, Building, User, Phone, Mail, Car,
+  Trash2, Plus, Search, ChevronDown, ChevronUp, AlertCircle,
+  Loader2, FileText, DollarSign, Tag, Check, Sparkles,
+  Settings as SettingsIcon, Package, Settings
 } from 'lucide-react';
+import { opportunityService, Opportunity as ApiOpportunity } from '@/services/opportunityService';
+import { useToast } from '@/contexts/ToastContext';
 
-interface Customer {
-  name: string;
-  email: string;
-  phone: string;
-  companyName?: string;
-}
-
-interface Vehicle {
+// Define interfaces for form data
+interface VehicleForm {
   _id?: string;
   vin: string;
   registrationNumber: string;
+  licensePlate: string;
   make: string;
   model: string;
-  year: number;
+  year: string;
   color: string;
+  engineSize: string;
+  fuelType: string;
+  transmission: string;
+  mileage: string;
+  chassisNumber: string;
+  bodyType: string;
 }
 
-interface ExtendedOpportunity {
-  _id: string;
-  subject: string;
-  type: 'individual' | 'organization';
-  source: string;
-  status: 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost';
-  customer: Customer;
-  vehicles?: Vehicle[];
-  assignedTo?: string;
-  isNurturing?: boolean;
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
+interface ServiceProductForm {
+  _id?: string;
+  id?: string;
+  title: string;
+  description: string;
+  type: 'SERVICE' | 'PRODUCT';
+  quantity: number;
+  unitPrice: number;
+  discount: number;
+  subtotal: number;
+  total: number;
 }
 
-const statusOptions = [
-  { value: 'new', label: 'New', color: 'bg-blue-100 text-blue-600' },
-  { value: 'attempted_to_contact', label: 'Attempted to Contact', color: 'bg-purple-100 text-purple-600' },
-  { value: 'prospecting', label: 'Prospecting', color: 'bg-amber-100 text-amber-600' },
-  { value: 'appointment_scheduled', label: 'Appointment Scheduled', color: 'bg-orange-100 text-orange-600' },
-  { value: 'non_progressive', label: 'Non Progressive', color: 'bg-gray-100 text-gray-600' },
-  { value: 'lost', label: 'Lost', color: 'bg-red-100 text-red-600' }
+interface CustomerForm {
+  name: string;
+  email: string;
+  phone: string;
+  companyName: string;
+  companyAddress: string;
+  companyTaxId: string;
+  companyPhone: string;
+  companyEmail: string;
+}
+
+interface UserPreferences {
+  useDropdowns: boolean;
+}
+
+// Helper function to safely get nested properties
+const getSafeCustomerField = (customer: any, field: string): string => {
+  if (!customer) return '';
+  return customer[field as keyof typeof customer] || '';
+};
+
+const vehicleMakes = [
+  'Toyota', 'Honda', 'Ford', 'Mercedes-Benz', 'BMW', 'Volkswagen',
+  'Nissan', 'Mazda', 'Subaru', 'Mitsubishi', 'Hyundai', 'Kia',
+  'Chevrolet', 'Audi', 'Lexus', 'Jeep', 'Land Rover', 'Porsche',
+  'Volvo', 'Ferrari', 'Lamborghini', 'Tesla', 'Suzuki', 'Isuzu',
+  'Peugeot', 'Renault', 'Other'
 ];
 
-const sourceOptions = [
-  { value: 'walk_in', label: 'Walk In', icon: Users },
-  { value: 'website', label: 'Website', icon: Globe },
-  { value: 'referral', label: 'Referral', icon: Heart },
-  { value: 'manual', label: 'Manual', icon: User },
-  { value: 'phone', label: 'Phone', icon: Phone },
-  { value: 'email', label: 'Email', icon: MailIcon }
+const vehicleModels: Record<string, string[]> = {
+  'Toyota': ['Land Cruiser', 'Hilux', 'Corolla', 'Camry', 'RAV4', 'Prado', 'Fortuner', 'Hiace', 'Other'],
+  'Honda': ['Civic', 'Accord', 'CR-V', 'Fit', 'HR-V', 'Pilot', 'Odyssey', 'Other'],
+  'Ford': ['Ranger', 'Everest', 'F-150', 'Explorer', 'Focus', 'Fiesta', 'Mustang', 'Other'],
+  'Mercedes-Benz': ['C-Class', 'E-Class', 'S-Class', 'GLE', 'GLC', 'GLA', 'Other'],
+  'BMW': ['3 Series', '5 Series', '7 Series', 'X1', 'X3', 'X5', 'X7', 'Other'],
+  'Volkswagen': ['Golf', 'Passat', 'Tiguan', 'Polo', 'Jetta', 'Amarok', 'Other'],
+  'Nissan': ['Navara', 'X-Trail', 'Qashqai', 'Sunny', 'Patrol', 'Other'],
+  'Mazda': ['CX-5', 'CX-30', 'Mazda3', 'Mazda6', 'CX-9', 'Other'],
+  'Other': ['Custom Model']
+};
+
+const vehicleColors = [
+  'White', 'Black', 'Silver', 'Gray', 'Red', 'Blue', 'Green', 'Brown',
+  'Yellow', 'Orange', 'Purple', 'Gold', 'Beige', 'Maroon', 'Navy Blue',
+  'Pearl White', 'Metallic Gray', 'Other'
 ];
 
-const typeOptions = [
-  { value: 'individual' as 'individual' | 'organization', label: 'Individual' },
-  { value: 'organization' as 'individual' | 'organization', label: 'Organization' }
+const vehicleFuelTypes = [
+  'Petrol', 'Diesel', 'Electric', 'Hybrid', 'CNG', 'LPG', 'Other'
 ];
 
-// Define the status type
-type StatusType = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost';
+const vehicleTransmissions = [
+  'Manual', 'Automatic', 'Semi-Automatic', 'CVT', 'DSG', 'Other'
+];
+
+const vehicleBodyTypes = [
+  'Sedan', 'SUV', 'Hatchback', 'Coupe', 'Convertible', 'Wagon',
+  'Pickup Truck', 'Van', 'Minivan', 'Truck', 'Bus', 'Motorcycle',
+  'Other'
+];
+
+const serviceSuggestions = [
+  'Oil Change Service',
+  'Brake System Repair',
+  'Engine Tune-up',
+  'Transmission Service',
+  'Suspension Repair',
+  'Wheel Alignment',
+  'AC Repair & Service',
+  'Electrical System Repair',
+  'Exhaust System Repair',
+  'Fuel System Service',
+  'Tire Replacement',
+  'Battery Replacement',
+  'Windshield Replacement',
+  'Paint Job & Body Work',
+  'Full Vehicle Service',
+  'Pre-purchase Inspection',
+  'Custom Service'
+];
+
+const productSuggestions = [
+  'Engine Oil',
+  'Brake Pads',
+  'Brake Discs',
+  'Air Filter',
+  'Oil Filter',
+  'Fuel Filter',
+  'Spark Plugs',
+  'Car Battery',
+  'Tires (Set of 4)',
+  'Wheel Rims',
+  'Shock Absorbers',
+  'Struts',
+  'AC Compressor',
+  'Alternator',
+  'Starter Motor',
+  'Radiator',
+  'Windshield',
+  'Headlights',
+  'Taillights',
+  'Custom Part'
+];
+
+const sources = [
+  { value: 'walk_in', label: 'Walk In' },
+  { value: 'website', label: 'Website' },
+  { value: 'referral', label: 'Referral' },
+  { value: 'manual', label: 'Manual' },
+  { value: 'test', label: 'Test' },
+  { value: 'phone', label: 'Phone Call' },
+  { value: 'email', label: 'Email' },
+  { value: 'social_media', label: 'Social Media' }
+];
+
+const opportunityTypes = [
+  { value: 'SERVICE', label: 'Service', icon: Settings, color: 'bg-blue-100 text-blue-600' },
+  { value: 'PRODUCT', label: 'Product', icon: Package, color: 'bg-green-100 text-green-600' }
+];
 
 export default function EditOpportunityPage() {
   const router = useRouter();
@@ -82,34 +172,61 @@ export default function EditOpportunityPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [opportunity, setOpportunity] = useState<ExtendedOpportunity | null>(null);
+  const [opportunity, setOpportunity] = useState<ApiOpportunity | null>(null);
+  
+  const [userPreferences, setUserPreferences] = useState<UserPreferences>(() => {
+    if (typeof window !== 'undefined') {
+      const savedPrefs = localStorage.getItem('userPreferences');
+      return savedPrefs ? JSON.parse(savedPrefs) : { useDropdowns: true };
+    }
+    return { useDropdowns: true };
+  });
   
   const [formData, setFormData] = useState({
-    subject: '',
     type: 'individual' as 'individual' | 'organization',
-    source: 'website',
-    status: 'new' as StatusType,
+    source: 'walk_in',
+    subject: '',
+    opportunityType: 'SERVICE' as 'SERVICE' | 'PRODUCT',
     customer: {
       name: '',
       email: '',
       phone: '',
-      companyName: ''
-    } as Customer,
-    vehicles: [] as Vehicle[],
-    assignedTo: '',
-    isNurturing: false,
-    notes: ''
+      companyName: '',
+      companyAddress: '',
+      companyTaxId: '',
+      companyPhone: '',
+      companyEmail: ''
+    },
+    vehicles: [] as VehicleForm[],
+    servicesProducts: [] as ServiceProductForm[],
+    notes: '',
+    subtotal: 0,
+    totalDiscount: 0,
+    total: 0
   });
+
+  const [errors, setErrors] = useState<Record<string, string>>({});
   
-  const [showVehicleForm, setShowVehicleForm] = useState(false);
-  const [newVehicle, setNewVehicle] = useState<Vehicle>({
-    vin: '',
-    registrationNumber: '',
-    make: '',
-    model: '',
-    year: new Date().getFullYear(),
-    color: ''
-  });
+  // Dropdown states
+  const [showMakeDropdown, setShowMakeDropdown] = useState<number | null>(null);
+  const [showModelDropdown, setShowModelDropdown] = useState<number | null>(null);
+  const [showColorDropdown, setShowColorDropdown] = useState<number | null>(null);
+  const [showFuelDropdown, setShowFuelDropdown] = useState<number | null>(null);
+  const [showTransmissionDropdown, setShowTransmissionDropdown] = useState<number | null>(null);
+  const [showBodyTypeDropdown, setShowBodyTypeDropdown] = useState<number | null>(null);
+  const [showServiceProductDropdown, setShowServiceProductDropdown] = useState<number | null>(null);
+  
+  const [makeSearch, setMakeSearch] = useState('');
+  const [modelSearch, setModelSearch] = useState('');
+  const [colorSearch, setColorSearch] = useState('');
+  const [fuelSearch, setFuelSearch] = useState('');
+  const [transmissionSearch, setTransmissionSearch] = useState('');
+  const [bodyTypeSearch, setBodyTypeSearch] = useState('');
+  const [serviceProductSearch, setServiceProductSearch] = useState('');
+
+  // Split name into firstName and lastName for individual accounts
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
 
   useEffect(() => {
     if (opportunityId) {
@@ -128,23 +245,97 @@ export default function EditOpportunityPage() {
       setError(null);
       
       const data = await opportunityService.getOpportunityById(opportunityId!);
-      setOpportunity(data as ExtendedOpportunity);
+      setOpportunity(data);
+      
+      // Split name into firstName and lastName for individual accounts
+      let firstName = '';
+      let lastName = '';
+      if (data.type === 'individual' && data.customer?.name) {
+        const nameParts = data.customer.name.split(' ');
+        firstName = nameParts[0] || '';
+        lastName = nameParts.slice(1).join(' ') || '';
+      }
+      setFirstName(firstName);
+      setLastName(lastName);
+      
+      // Format phone for display
+      let phoneCode = '+254';
+      let phoneNumber = data.customer?.phone || '';
+      
+      // Try to extract country code
+      if (data.customer?.phone) {
+        if (data.customer.phone.startsWith('+254')) {
+          phoneCode = '+254';
+          phoneNumber = data.customer.phone.substring(4);
+        } else if (data.customer.phone.startsWith('254')) {
+          phoneCode = '+254';
+          phoneNumber = data.customer.phone.substring(3);
+        } else if (data.customer.phone.startsWith('+')) {
+          // Extract first 3-4 digits after +
+          const match = data.customer.phone.match(/^\+(\d{1,4})(\d+)/);
+          if (match) {
+            phoneCode = '+' + match[1];
+            phoneNumber = match[2];
+          }
+        }
+      }
+      
+      // Prepare vehicles data - safely handle the API response
+      const vehicles: VehicleForm[] = (data.vehicles || []).map((v: any) => ({
+        _id: v._id,
+        vin: v.vin || '',
+        registrationNumber: v.registrationNumber || '',
+        licensePlate: v.licensePlate || '',
+        make: v.make || '',
+        model: v.model || '',
+        year: v.year?.toString() || '',
+        color: v.color || '',
+        engineSize: v.engineSize || '',
+        fuelType: v.fuelType || '',
+        transmission: v.transmission || '',
+        mileage: v.mileage || '',
+        chassisNumber: v.chassisNumber || '',
+        bodyType: v.bodyType || ''
+      }));
+      
+      // Prepare services/products data - safely handle the API response
+      const servicesProducts: ServiceProductForm[] = (data.servicesProducts || []).map((sp: any) => ({
+        _id: sp._id || sp.id,
+        id: sp.id,
+        title: sp.title || '',
+        description: sp.description || '',
+        type: sp.type || 'SERVICE',
+        quantity: sp.quantity || 1,
+        unitPrice: sp.unitPrice || 0,
+        discount: sp.discount || 0,
+        subtotal: sp.subtotal || 0,
+        total: sp.total || 0
+      }));
+      
+      // Get customer fields safely
+      const customer = data.customer || {};
       
       setFormData({
+        type: data.type || 'individual',
+        source: data.source || 'walk_in',
         subject: data.subject || '',
-        type: (data.type as 'individual' | 'organization') || 'individual',
-        source: data.source || 'website',
-        status: (data.status as StatusType) || 'new',
+        opportunityType: data.opportunityType || 'SERVICE',
         customer: {
-          name: data.customer?.name || '',
-          email: data.customer?.email || '',
-          phone: data.customer?.phone || '',
-          companyName: data.customer?.companyName || ''
+          name: customer.name || '',
+          email: customer.email || '',
+          phone: phoneNumber,
+          companyName: getSafeCustomerField(customer, 'companyName'),
+          companyAddress: getSafeCustomerField(customer, 'companyAddress'),
+          companyTaxId: getSafeCustomerField(customer, 'companyTaxId'),
+          companyPhone: getSafeCustomerField(customer, 'companyPhone'),
+          companyEmail: getSafeCustomerField(customer, 'companyEmail')
         },
-        vehicles: data.vehicles || [],
-        assignedTo: data.assignedTo || '',
-        isNurturing: data.isNurturing || false,
-        notes: data.notes || ''
+        vehicles,
+        servicesProducts,
+        notes: data.notes || '',
+        subtotal: data.subtotal || 0,
+        totalDiscount: data.totalDiscount || 0,
+        total: data.total || 0
       });
       
     } catch (err: any) {
@@ -157,99 +348,219 @@ export default function EditOpportunityPage() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
+  const handleInputChange = (field: keyof typeof formData, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (errors[field as string]) {
+      setErrors(prev => ({ ...prev, [field as string]: '' }));
+    }
+  };
+
+  const handleCustomerChange = (field: keyof CustomerForm, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      customer: {
+        ...prev.customer,
+        [field]: value
+      }
+    }));
+  };
+
+  const handleVehicleChange = (index: number, field: keyof VehicleForm, value: string) => {
+    const updatedVehicles = [...formData.vehicles];
+    updatedVehicles[index] = { ...updatedVehicles[index], [field]: value };
     
-    if (name.startsWith('customer.')) {
-      const field = name.split('.')[1];
-      setFormData(prev => ({
-        ...prev,
-        customer: {
-          ...prev.customer,
-          [field]: value
-        }
-      }));
-    } else if (type === 'checkbox') {
-      const target = e.target as HTMLInputElement;
-      setFormData(prev => ({
-        ...prev,
-        [name]: target.checked
-      }));
-    } else if (name === 'type') {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value as 'individual' | 'organization'
-      }));
-    } else if (name === 'status') {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value as StatusType
-      }));
+    // If make changes, reset model
+    if (field === 'make') {
+      updatedVehicles[index].model = '';
+    }
+    
+    setFormData(prev => ({ ...prev, vehicles: updatedVehicles }));
+  };
+
+  const handleServiceProductChange = (index: number, field: keyof ServiceProductForm, value: any) => {
+    const updatedServicesProducts = [...formData.servicesProducts];
+    const item = { ...updatedServicesProducts[index], [field]: value };
+    
+    // Recalculate totals if quantity, unitPrice, or discount changes
+    if (field === 'quantity' || field === 'unitPrice' || field === 'discount') {
+      const subtotal = (item.quantity || 0) * (item.unitPrice || 0);
+      const discountAmount = subtotal * ((item.discount || 0) / 100);
+      item.subtotal = subtotal;
+      item.total = subtotal - discountAmount;
+    }
+    
+    updatedServicesProducts[index] = item;
+    setFormData(prev => ({ ...prev, servicesProducts: updatedServicesProducts }));
+  };
+
+  const addVehicle = () => {
+    setFormData(prev => ({
+      ...prev,
+      vehicles: [...prev.vehicles, {
+        vin: '',
+        registrationNumber: '',
+        licensePlate: '',
+        make: '',
+        model: '',
+        year: '',
+        color: '',
+        engineSize: '',
+        fuelType: '',
+        transmission: '',
+        mileage: '',
+        chassisNumber: '',
+        bodyType: ''
+      }]
+    }));
+  };
+
+  const removeVehicle = (index: number) => {
+    if (formData.vehicles.length > 0) {
+      const updatedVehicles = formData.vehicles.filter((_, i) => i !== index);
+      setFormData(prev => ({ ...prev, vehicles: updatedVehicles }));
+    }
+  };
+
+  const addServiceProduct = () => {
+    setFormData(prev => ({
+      ...prev,
+      servicesProducts: [...prev.servicesProducts, {
+        title: '',
+        description: '',
+        type: formData.opportunityType,
+        quantity: 1,
+        unitPrice: 0,
+        discount: 0,
+        subtotal: 0,
+        total: 0
+      }]
+    }));
+  };
+
+  const removeServiceProduct = (index: number) => {
+    if (formData.servicesProducts.length > 0) {
+      const updatedServicesProducts = formData.servicesProducts.filter((_, i) => i !== index);
+      setFormData(prev => ({ ...prev, servicesProducts: updatedServicesProducts }));
+    }
+  };
+
+  const calculateSubtotal = () => {
+    return formData.servicesProducts.reduce((total, item) => {
+      return total + (item.subtotal || 0);
+    }, 0);
+  };
+
+  const calculateTotalDiscount = () => {
+    return formData.servicesProducts.reduce((total, item) => {
+      return total + (item.subtotal * (item.discount / 100) || 0);
+    }, 0);
+  };
+
+  const calculateTotal = () => {
+    return formData.servicesProducts.reduce((total, item) => {
+      return total + (item.total || 0);
+    }, 0);
+  };
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    // Validate customer
+    if (formData.type === 'individual') {
+      if (!firstName.trim()) newErrors.firstName = 'First name is required';
     } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
+      if (!formData.customer.companyName?.trim()) newErrors.companyName = 'Company name is required';
     }
-  };
-
-  const handleAddVehicle = () => {
-    if (!newVehicle.vin || !newVehicle.registrationNumber || !newVehicle.make || !newVehicle.model) {
-      showToast('Please fill in all required vehicle fields', 'warning', 3000);
-      return;
+    
+    if (!formData.customer.email?.trim()) newErrors.email = 'Email is required';
+    if (!formData.customer.phone?.trim()) newErrors.phone = 'Phone is required';
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (formData.customer.email && !emailRegex.test(formData.customer.email)) {
+      newErrors.email = 'Please enter a valid email address';
     }
 
-    setFormData(prev => ({
-      ...prev,
-      vehicles: [...prev.vehicles, { ...newVehicle }]
-    }));
+    // Validate subject
+    if (!formData.subject.trim()) newErrors.subject = 'Subject is required';
 
-    setNewVehicle({
-      vin: '',
-      registrationNumber: '',
-      make: '',
-      model: '',
-      year: new Date().getFullYear(),
-      color: ''
-    });
-    setShowVehicleForm(false);
-    showToast('Vehicle added successfully', 'success', 2000);
-  };
-
-  const handleRemoveVehicle = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      vehicles: prev.vehicles.filter((_, i) => i !== index)
-    }));
-    showToast('Vehicle removed', 'info', 2000);
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.customer.name || !formData.subject) {
-      showToast('Please fill in all required fields', 'warning', 3000);
+    if (!validateForm()) {
+      showToast('Please fix the errors in the form', 'warning', 3000);
       return;
     }
 
     try {
       setSaving(true);
       
+      // Prepare customer name based on account type
+      let customerName = formData.customer.name;
+      if (formData.type === 'individual') {
+        customerName = `${firstName} ${lastName}`.trim();
+      } else {
+        customerName = formData.customer.companyName || '';
+      }
+
+      // Prepare update data according to UpdateOpportunityData interface
       const updateData = {
-        subject: formData.subject,
         type: formData.type,
         source: formData.source,
-        status: formData.status,
-        customer: formData.customer,
-        vehicles: formData.vehicles,
-        assignedTo: formData.assignedTo || undefined,
-        isNurturing: formData.isNurturing,
-        notes: formData.notes
+        subject: formData.subject,
+        opportunityType: formData.opportunityType,
+        customer: {
+          name: customerName,
+          email: formData.customer.email,
+          phone: `+254${formData.customer.phone}`, // Default to Kenya
+          ...(formData.type === 'organization' && {
+            companyName: formData.customer.companyName,
+            companyAddress: formData.customer.companyAddress,
+            companyTaxId: formData.customer.companyTaxId,
+            companyPhone: formData.customer.companyPhone,
+            companyEmail: formData.customer.companyEmail
+          })
+        },
+        vehicles: formData.vehicles.map(vehicle => ({
+          vin: vehicle.vin,
+          registrationNumber: vehicle.registrationNumber,
+          licensePlate: vehicle.licensePlate,
+          make: vehicle.make,
+          model: vehicle.model,
+          year: vehicle.year,
+          color: vehicle.color,
+          engineSize: vehicle.engineSize,
+          fuelType: vehicle.fuelType,
+          transmission: vehicle.transmission,
+          mileage: vehicle.mileage,
+          chassisNumber: vehicle.chassisNumber,
+          bodyType: vehicle.bodyType
+        })),
+        servicesProducts: formData.servicesProducts.map(item => ({
+          title: item.title,
+          description: item.description,
+          type: item.type,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: item.discount,
+          subtotal: item.subtotal,
+          total: item.total
+        })),
+        notes: formData.notes,
+        subtotal: calculateSubtotal(),
+        totalDiscount: calculateTotalDiscount(),
+        total: calculateTotal(),
+        status: opportunity?.status as 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost' | undefined
       };
 
-      await opportunityService.updateOpportunity(opportunityId!, updateData);
+      console.log('Updating opportunity with data:', updateData);
+
+      const result = await opportunityService.updateOpportunity(opportunityId!, updateData);
       
-      showToast('Opportunity updated successfully', 'success', 3000);
+      showToast('Opportunity updated successfully!', 'success', 3000);
       router.push(`/opportunities/details?id=${opportunityId}`);
       
     } catch (err: any) {
@@ -265,6 +576,147 @@ export default function EditOpportunityPage() {
   const handleCancel = () => {
     if (confirm('Are you sure you want to discard changes?')) {
       router.push(`/opportunities/details?id=${opportunityId}`);
+    }
+  };
+
+  // Filtered dropdown options
+  const filteredMakes = vehicleMakes.filter(make =>
+    make.toLowerCase().includes(makeSearch.toLowerCase())
+  );
+
+  const filteredModels = (make: string) => {
+    const models = vehicleModels[make] || [];
+    return models.filter(model =>
+      model.toLowerCase().includes(modelSearch.toLowerCase())
+    );
+  };
+
+  const filteredColors = vehicleColors.filter(color =>
+    color.toLowerCase().includes(colorSearch.toLowerCase())
+  );
+
+  const filteredFuelTypes = vehicleFuelTypes.filter(fuel =>
+    fuel.toLowerCase().includes(fuelSearch.toLowerCase())
+  );
+
+  const filteredTransmissions = vehicleTransmissions.filter(trans =>
+    trans.toLowerCase().includes(transmissionSearch.toLowerCase())
+  );
+
+  const filteredBodyTypes = vehicleBodyTypes.filter(body =>
+    body.toLowerCase().includes(bodyTypeSearch.toLowerCase())
+  );
+
+  const filteredServiceProducts = () => {
+    const suggestions = formData.opportunityType === 'SERVICE' ? serviceSuggestions : productSuggestions;
+    return suggestions.filter(item =>
+      item.toLowerCase().includes(serviceProductSearch.toLowerCase())
+    );
+  };
+
+  const selectServiceProductSuggestion = (index: number, suggestion: string) => {
+    const updatedServicesProducts = [...formData.servicesProducts];
+    updatedServicesProducts[index].title = suggestion;
+    setFormData(prev => ({ ...prev, servicesProducts: updatedServicesProducts }));
+    setShowServiceProductDropdown(null);
+    setServiceProductSearch('');
+  };
+
+  // Render dropdown or regular input based on user preference
+  const renderVehicleFieldWithDropdown = (
+    index: number,
+    field: keyof VehicleForm,
+    label: string,
+    placeholder: string,
+    options: string[],
+    showDropdown: number | null,
+    setShowDropdown: (index: number | null) => void,
+    searchValue: string,
+    setSearchValue: (value: string) => void,
+    filteredOptions: string[]
+  ) => {
+    const vehicleValue = formData.vehicles[index]?.[field] || '';
+    
+    if (userPreferences.useDropdowns) {
+      return (
+        <div className="relative">
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            {label}
+          </label>
+          <div className="relative">
+            <input
+              type="text"
+              value={vehicleValue}
+              onChange={(e) => {
+                handleVehicleChange(index, field, e.target.value);
+                setSearchValue(e.target.value);
+              }}
+              onFocus={() => setShowDropdown(index)}
+              placeholder={placeholder}
+              className="pl-3 pr-8 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+            />
+            <button
+              type="button"
+              onClick={() => setShowDropdown(showDropdown === index ? null : index)}
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              {showDropdown === index ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+          
+          {showDropdown === index && (
+            <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+              <div className="sticky top-0 bg-white p-2 border-b">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchValue}
+                    onChange={(e) => setSearchValue(e.target.value)}
+                    placeholder={`Search ${label.toLowerCase()}...`}
+                    className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="max-h-48 overflow-y-auto">
+                {filteredOptions.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => {
+                      handleVehicleChange(index, field, option);
+                      setShowDropdown(null);
+                      setSearchValue('');
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
+                  >
+                    <span>{option}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    } else {
+      return (
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            {label}
+          </label>
+          <input
+            type="text"
+            value={vehicleValue}
+            onChange={(e) => handleVehicleChange(index, field, e.target.value)}
+            placeholder={placeholder}
+            className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+          />
+        </div>
+      );
     }
   };
 
@@ -352,7 +804,7 @@ export default function EditOpportunityPage() {
             <div>
               <h1 className="text-xl font-bold text-white">Edit Opportunity</h1>
               <p className="text-blue-100 text-sm mt-1">
-                Update opportunity details for {opportunity.subject}
+                Update opportunity: {opportunity.subject}
               </p>
             </div>
           </div>
@@ -387,202 +839,302 @@ export default function EditOpportunityPage() {
 
       {/* Scrollable Content */}
       <div className="h-[calc(100vh-64px)] p-4 md:p-6 overflow-auto">
-        <div className="max-w-4xl mx-auto">
-          {/* Form */}
+        <div className="max-w-7xl mx-auto">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Basic Information Card */}
+            
+            {/* Basic Information */}
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 shadow-lg">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <Target className="h-5 w-5 text-blue-500" />
+              <h2 className="text-lg font-semibold text-gray-800 mb-6 flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-blue-500" />
                 Basic Information
               </h2>
               
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Opportunity Subject <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="subject"
-                    value={formData.subject}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="e.g., Car Service Request - Honda Civic"
-                    required
-                  />
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Type <span className="text-red-500">*</span>
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {typeOptions.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, type: option.value }))}
-                          className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                            formData.type === option.value
-                              ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white border border-transparent'
-                              : 'bg-white/50 text-gray-600 hover:bg-white border border-gray-200'
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
+              {/* Account Type */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Account Type
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleInputChange('type', 'individual')}
+                    className={`p-4 rounded-xl border transition-all duration-200 ${
+                      formData.type === 'individual'
+                        ? 'border-blue-500 bg-gradient-to-r from-blue-50 to-blue-100 ring-2 ring-blue-200'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${
+                        formData.type === 'individual'
+                          ? 'bg-blue-100 text-blue-600'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        <User className="h-5 w-5" />
+                      </div>
+                      <span className="font-medium text-gray-800">Individual</span>
                     </div>
-                  </div>
+                  </button>
                   
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Status <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      name="status"
-                      value={formData.status}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
-                    >
-                      {statusOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Source <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      name="source"
-                      value={formData.source}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
-                    >
-                      {sourceOptions.map((option) => {
-                        const Icon = option.icon;
-                        return (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Assigned To
-                  </label>
-                  <input
-                    type="text"
-                    name="assignedTo"
-                    value={formData.assignedTo}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter team member name"
-                  />
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="isNurturing"
-                    name="isNurturing"
-                    checked={formData.isNurturing}
-                    onChange={handleInputChange}
-                    className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                  />
-                  <label htmlFor="isNurturing" className="text-sm text-gray-700">
-                    Mark as nurturing lead (requires follow-up)
-                  </label>
+                  <button
+                    type="button"
+                    onClick={() => handleInputChange('type', 'organization')}
+                    className={`p-4 rounded-xl border transition-all duration-200 ${
+                      formData.type === 'organization'
+                        ? 'border-blue-500 bg-gradient-to-r from-blue-50 to-blue-100 ring-2 ring-blue-200'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${
+                        formData.type === 'organization'
+                          ? 'bg-blue-100 text-blue-600'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        <Building className="h-5 w-5" />
+                      </div>
+                      <span className="font-medium text-gray-800">Company/Organization</span>
+                    </div>
+                  </button>
                 </div>
               </div>
-            </div>
 
-            {/* Customer Information Card */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 shadow-lg">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <User className="h-5 w-5 text-purple-500" />
-                Customer Information
-              </h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Customer Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="customer.name"
-                    value={formData.customer.name}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Enter customer full name"
-                    required
-                  />
+              {/* Source */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Where did this lead come from?
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {sources.map((source) => (
+                    <button
+                      key={source.value}
+                      type="button"
+                      onClick={() => handleInputChange('source', source.value)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                        formData.source === source.value
+                          ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-sm'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {source.label}
+                    </button>
+                  ))}
                 </div>
-                
+              </div>
+
+              {/* Subject */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Opportunity Subject *
+                </label>
+                <input
+                  type="text"
+                  value={formData.subject}
+                  onChange={(e) => handleInputChange('subject', e.target.value)}
+                  className={`w-full px-4 py-3 rounded-xl border ${
+                    errors.subject ? 'border-red-300' : 'border-gray-200'
+                  } bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                  placeholder="e.g., Car Service Request - Honda Civic"
+                  required
+                />
+                {errors.subject && (
+                  <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {errors.subject}
+                  </p>
+                )}
+              </div>
+
+              {/* Customer Information */}
+              <div className="space-y-4">
+                {formData.type === 'individual' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        First Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        className={`w-full px-4 py-3 rounded-xl border ${
+                          errors.firstName ? 'border-red-300' : 'border-gray-200'
+                        } bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                        placeholder="e.g., John"
+                        required
+                      />
+                      {errors.firstName && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          {errors.firstName}
+                        </p>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Last Name
+                      </label>
+                      <input
+                        type="text"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        placeholder="e.g., Doe"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Company Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.customer.companyName}
+                        onChange={(e) => handleCustomerChange('companyName', e.target.value)}
+                        className={`w-full px-4 py-3 rounded-xl border ${
+                          errors.companyName ? 'border-red-300' : 'border-gray-200'
+                        } bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                        placeholder="e.g., Doe Enterprises Ltd."
+                        required
+                      />
+                      {errors.companyName && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          {errors.companyName}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Company Address
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.customer.companyAddress}
+                          onChange={(e) => handleCustomerChange('companyAddress', e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                          placeholder="e.g., 123 Business Street, Nairobi"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Tax ID/VAT Number
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.customer.companyTaxId}
+                          onChange={(e) => handleCustomerChange('companyTaxId', e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                          placeholder="e.g., P12345678X"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Company Phone
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.customer.companyPhone}
+                          onChange={(e) => handleCustomerChange('companyPhone', e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                          placeholder="e.g., 712345678"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Company Email
+                        </label>
+                        <input
+                          type="email"
+                          value={formData.customer.companyEmail}
+                          onChange={(e) => handleCustomerChange('companyEmail', e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                          placeholder="e.g., info@company.com"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Email and Phone (common to both account types) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email Address
+                      Email *
                     </label>
                     <input
                       type="email"
-                      name="customer.email"
                       value={formData.customer.email}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="customer@example.com"
+                      onChange={(e) => handleCustomerChange('email', e.target.value)}
+                      className={`w-full px-4 py-3 rounded-xl border ${
+                        errors.email ? 'border-red-300' : 'border-gray-200'
+                      } bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                      placeholder="e.g., john.doe@example.com"
+                      required
                     />
+                    {errors.email && (
+                      <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.email}
+                      </p>
+                    )}
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Phone Number
+                      Phone *
                     </label>
-                    <input
-                      type="tel"
-                      name="customer.phone"
-                      value={formData.customer.phone}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="+1234567890"
-                    />
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <div className="flex items-center justify-between w-full px-3 py-3 rounded-xl border border-gray-200 bg-white/50">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">🇰🇪</span>
+                            <span>+254</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <input
+                        type="tel"
+                        value={formData.customer.phone}
+                        onChange={(e) => handleCustomerChange('phone', e.target.value)}
+                        className={`flex-1 px-4 py-3 rounded-xl border ${
+                          errors.phone ? 'border-red-300' : 'border-gray-200'
+                        } bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                        placeholder="700123456"
+                        required
+                      />
+                    </div>
+                    {errors.phone && (
+                      <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.phone}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Phone: +254{formData.customer.phone || '_______'}
+                    </p>
                   </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Company Name
-                  </label>
-                  <input
-                    type="text"
-                    name="customer.companyName"
-                    value={formData.customer.companyName}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter company name (if applicable)"
-                  />
                 </div>
               </div>
             </div>
 
             {/* Vehicles Section */}
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 shadow-lg">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
                   <Car className="h-5 w-5 text-green-500" />
-                  Vehicles
+                  Vehicle Details
                   {formData.vehicles.length > 0 && (
                     <span className="px-2 py-1 bg-gradient-to-r from-blue-100 to-purple-100 text-gray-600 text-xs font-medium rounded">
                       {formData.vehicles.length} vehicle(s)
@@ -592,7 +1144,7 @@ export default function EditOpportunityPage() {
                 
                 <button
                   type="button"
-                  onClick={() => setShowVehicleForm(!showVehicleForm)}
+                  onClick={addVehicle}
                   className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-medium rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors flex items-center gap-2"
                 >
                   <Plus className="h-4 w-4" />
@@ -600,156 +1152,269 @@ export default function EditOpportunityPage() {
                 </button>
               </div>
               
-              {/* Vehicle Form */}
-              {showVehicleForm && (
-                <div className="mb-6 p-4 bg-gradient-to-br from-blue-50/50 to-purple-50/50 border border-blue-200/30 rounded-xl">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-blue-800">Add New Vehicle</h3>
-                    <button
-                      type="button"
-                      onClick={() => setShowVehicleForm(false)}
-                      className="p-1 hover:bg-white/50 rounded-lg transition-colors"
-                    >
-                      <X className="h-4 w-4 text-blue-600" />
-                    </button>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        VIN <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={newVehicle.vin}
-                        onChange={(e) => setNewVehicle(prev => ({ ...prev, vin: e.target.value }))}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Vehicle Identification Number"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Registration Number <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={newVehicle.registrationNumber}
-                        onChange={(e) => setNewVehicle(prev => ({ ...prev, registrationNumber: e.target.value }))}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="e.g., ABC123"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Make <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={newVehicle.make}
-                        onChange={(e) => setNewVehicle(prev => ({ ...prev, make: e.target.value }))}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="e.g., Honda"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Model <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={newVehicle.model}
-                        onChange={(e) => setNewVehicle(prev => ({ ...prev, model: e.target.value }))}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="e.g., Civic"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Year
-                      </label>
-                      <input
-                        type="number"
-                        value={newVehicle.year}
-                        onChange={(e) => setNewVehicle(prev => ({ ...prev, year: parseInt(e.target.value) || new Date().getFullYear() }))}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="2023"
-                        min="1900"
-                        max={new Date().getFullYear() + 1}
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Color
-                      </label>
-                      <input
-                        type="text"
-                        value={newVehicle.color}
-                        onChange={(e) => setNewVehicle(prev => ({ ...prev, color: e.target.value }))}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="e.g., Blue"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-3 mt-4">
-                    <button
-                      type="button"
-                      onClick={handleAddVehicle}
-                      className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg text-sm font-medium hover:from-blue-600 hover:to-purple-700 transition-all"
-                    >
-                      Add Vehicle
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowVehicleForm(false)}
-                      className="flex-1 px-4 py-2 bg-white/50 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-white transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-              
               {/* Vehicles List */}
               {formData.vehicles.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {formData.vehicles.map((vehicle, index) => (
-                    <div key={index} className="border border-gray-200/50 rounded-xl p-4 bg-white/50 backdrop-blur-sm">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-gradient-to-br from-blue-100 to-blue-50 rounded-lg">
-                            <Car className="h-5 w-5 text-blue-600" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-gray-800">
-                              {vehicle.year} {vehicle.make} {vehicle.model}
-                            </h3>
-                            <p className="text-sm text-gray-600">{vehicle.color}</p>
-                          </div>
+                    <div key={index} className="p-4 rounded-xl border border-gray-200 bg-gradient-to-r from-blue-50/50 to-purple-50/50">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <Car className="h-5 w-5 text-gray-600" />
+                          <span className="font-medium text-gray-800">Vehicle {index + 1}</span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveVehicle(index)}
-                          className="p-2 hover:bg-red-50 text-red-500 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {formData.vehicles.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeVehicle(index)}
+                            className="p-2 hover:bg-red-50 rounded-lg text-red-500 transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
-                      
-                      <div className="grid grid-cols-2 gap-3 text-sm">
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div>
-                          <p className="text-gray-600">VIN</p>
-                          <p className="font-medium text-gray-800">{vehicle.vin}</p>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            VIN (Vehicle Identification Number)
+                          </label>
+                          <input
+                            type="text"
+                            value={vehicle.vin}
+                            onChange={(e) => handleVehicleChange(index, 'vin', e.target.value)}
+                            placeholder="e.g., 1HGCM82633A123456"
+                            className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+                          />
                         </div>
+                        
                         <div>
-                          <p className="text-gray-600">Registration</p>
-                          <p className="font-medium text-gray-800">{vehicle.registrationNumber}</p>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Registration Number
+                          </label>
+                          <input
+                            type="text"
+                            value={vehicle.registrationNumber}
+                            onChange={(e) => handleVehicleChange(index, 'registrationNumber', e.target.value)}
+                            placeholder="e.g., KCA 123A"
+                            className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+                          />
                         </div>
+                        
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            License Plate
+                          </label>
+                          <input
+                            type="text"
+                            value={vehicle.licensePlate}
+                            onChange={(e) => handleVehicleChange(index, 'licensePlate', e.target.value)}
+                            placeholder="e.g., KDL 456B"
+                            className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+                          />
+                        </div>
+                        
+                        {/* Make */}
+                        {renderVehicleFieldWithDropdown(
+                          index,
+                          'make',
+                          'Make',
+                          'Type or select vehicle make',
+                          vehicleMakes,
+                          showMakeDropdown,
+                          setShowMakeDropdown,
+                          makeSearch,
+                          setMakeSearch,
+                          filteredMakes
+                        )}
+                        
+                        {/* Model */}
+                        {userPreferences.useDropdowns ? (
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              Model
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={vehicle.model}
+                                onChange={(e) => {
+                                  handleVehicleChange(index, 'model', e.target.value);
+                                  setModelSearch(e.target.value);
+                                }}
+                                onFocus={() => setShowModelDropdown(index)}
+                                disabled={!vehicle.make}
+                                placeholder={vehicle.make ? `Type or select ${vehicle.make} model` : "Select make first"}
+                                className="pl-3 pr-8 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => vehicle.make && setShowModelDropdown(showModelDropdown === index ? null : index)}
+                                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                disabled={!vehicle.make}
+                              >
+                                {showModelDropdown === index ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                )}
+                              </button>
+                            </div>
+                            
+                            {showModelDropdown === index && vehicle.make && (
+                              <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                <div className="sticky top-0 bg-white p-2 border-b">
+                                  <div className="relative">
+                                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
+                                    <input
+                                      type="text"
+                                      value={modelSearch}
+                                      onChange={(e) => setModelSearch(e.target.value)}
+                                      placeholder={`Search ${vehicle.make} models...`}
+                                      className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="max-h-48 overflow-y-auto">
+                                  {filteredModels(vehicle.make).map((model) => (
+                                    <button
+                                      key={model}
+                                      type="button"
+                                      onClick={() => {
+                                        handleVehicleChange(index, 'model', model);
+                                        setShowModelDropdown(null);
+                                        setModelSearch('');
+                                      }}
+                                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
+                                    >
+                                      <span>{model}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              Model
+                            </label>
+                            <input
+                              type="text"
+                              value={vehicle.model}
+                              onChange={(e) => handleVehicleChange(index, 'model', e.target.value)}
+                              placeholder="e.g., Land Cruiser V8"
+                              className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+                            />
+                          </div>
+                        )}
+                        
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Year
+                          </label>
+                          <input
+                            type="text"
+                            value={vehicle.year}
+                            onChange={(e) => handleVehicleChange(index, 'year', e.target.value)}
+                            placeholder="e.g., 2023"
+                            className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+                          />
+                        </div>
+                        
+                        {/* Color */}
+                        {renderVehicleFieldWithDropdown(
+                          index,
+                          'color',
+                          'Color',
+                          'Type or select color',
+                          vehicleColors,
+                          showColorDropdown,
+                          setShowColorDropdown,
+                          colorSearch,
+                          setColorSearch,
+                          filteredColors
+                        )}
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Engine Size (CC)
+                          </label>
+                          <input
+                            type="text"
+                            value={vehicle.engineSize}
+                            onChange={(e) => handleVehicleChange(index, 'engineSize', e.target.value)}
+                            placeholder="e.g., 4500"
+                            className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+                          />
+                        </div>
+
+                        {/* Fuel Type */}
+                        {renderVehicleFieldWithDropdown(
+                          index,
+                          'fuelType',
+                          'Fuel Type',
+                          'Type or select fuel type',
+                          vehicleFuelTypes,
+                          showFuelDropdown,
+                          setShowFuelDropdown,
+                          fuelSearch,
+                          setFuelSearch,
+                          filteredFuelTypes
+                        )}
+
+                        {/* Transmission */}
+                        {renderVehicleFieldWithDropdown(
+                          index,
+                          'transmission',
+                          'Transmission',
+                          'Type or select transmission',
+                          vehicleTransmissions,
+                          showTransmissionDropdown,
+                          setShowTransmissionDropdown,
+                          transmissionSearch,
+                          setTransmissionSearch,
+                          filteredTransmissions
+                        )}
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Mileage (KM)
+                          </label>
+                          <input
+                            type="text"
+                            value={vehicle.mileage}
+                            onChange={(e) => handleVehicleChange(index, 'mileage', e.target.value)}
+                            placeholder="e.g., 45000"
+                            className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Chassis Number
+                          </label>
+                          <input
+                            type="text"
+                            value={vehicle.chassisNumber}
+                            onChange={(e) => handleVehicleChange(index, 'chassisNumber', e.target.value)}
+                            placeholder="e.g., JTEHT05J402123456"
+                            className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+                          />
+                        </div>
+
+                        {/* Body Type */}
+                        {renderVehicleFieldWithDropdown(
+                          index,
+                          'bodyType',
+                          'Body Type',
+                          'Type or select body type',
+                          vehicleBodyTypes,
+                          showBodyTypeDropdown,
+                          setShowBodyTypeDropdown,
+                          bodyTypeSearch,
+                          setBodyTypeSearch,
+                          filteredBodyTypes
+                        )}
                       </div>
                     </div>
                   ))}
@@ -765,7 +1430,330 @@ export default function EditOpportunityPage() {
               )}
             </div>
 
-            {/* Additional Notes Card */}
+            {/* Services & Products Section */}
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 shadow-lg">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                  <Settings className="h-5 w-5 text-blue-500" />
+                  Services & Products
+                </h2>
+                
+                <div className="flex items-center gap-3">
+                  {/* Opportunity Type */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {opportunityTypes.map((type) => {
+                      const Icon = type.icon;
+                      return (
+                        <button
+                          key={type.value}
+                          type="button"
+                          onClick={() => {
+                            handleInputChange('opportunityType', type.value);
+                            // Update all items to match the selected type
+                            const updatedItems = formData.servicesProducts.map(item => ({
+                              ...item,
+                              type: type.value as 'SERVICE' | 'PRODUCT'
+                            }));
+                            setFormData(prev => ({ ...prev, servicesProducts: updatedItems }));
+                          }}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1 ${
+                            formData.opportunityType === type.value
+                              ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          <Icon className="h-4 w-4" />
+                          {type.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  
+                  <button
+                    type="button"
+                    onClick={addServiceProduct}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-medium rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors flex items-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Item
+                  </button>
+                </div>
+              </div>
+              
+              {/* Services/Products List */}
+              {formData.servicesProducts.length > 0 ? (
+                <div className="space-y-4">
+                  {formData.servicesProducts.map((item, index) => (
+                    <div key={index} className="p-4 rounded-xl border border-gray-200 bg-gradient-to-r from-blue-50/50 to-purple-50/50">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <div className={`p-2 rounded-lg ${
+                            item.type === 'SERVICE' ? 'bg-blue-100 text-blue-600' : 
+                            'bg-green-100 text-green-600'
+                          }`}>
+                            {item.type === 'SERVICE' ? (
+                              <Settings className="h-4 w-4" />
+                            ) : (
+                              <Package className="h-4 w-4" />
+                            )}
+                          </div>
+                          <span className="font-medium text-gray-800">Item {index + 1}</span>
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            item.type === 'SERVICE' ? 'bg-blue-100 text-blue-600' : 
+                            'bg-green-100 text-green-600'
+                          }`}>
+                            {item.type}
+                          </span>
+                        </div>
+                        {formData.servicesProducts.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => removeServiceProduct(index)}
+                            className="p-2 hover:bg-red-50 rounded-lg text-red-500 transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="space-y-4">
+                        {/* Title with suggestions dropdown */}
+                        <div className="relative">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Title/Description
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={item.title}
+                              onChange={(e) => {
+                                handleServiceProductChange(index, 'title', e.target.value);
+                                setServiceProductSearch(e.target.value);
+                              }}
+                              onFocus={() => setShowServiceProductDropdown(index)}
+                              placeholder={
+                                formData.opportunityType === 'SERVICE' 
+                                  ? "e.g., Oil Change Service, Brake System Repair..." 
+                                  : "e.g., Engine Oil, Brake Pads, Car Battery..."
+                              }
+                              className="pl-4 pr-10 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowServiceProductDropdown(showServiceProductDropdown === index ? null : index)}
+                              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                              {showServiceProductDropdown === index ? (
+                                <ChevronUp className="h-4 w-4" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+                          
+                          {showServiceProductDropdown === index && (
+                            <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                              <div className="sticky top-0 bg-white p-2 border-b">
+                                <div className="relative">
+                                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                  <input
+                                    type="text"
+                                    value={serviceProductSearch}
+                                    onChange={(e) => setServiceProductSearch(e.target.value)}
+                                    placeholder={`Search ${formData.opportunityType.toLowerCase()} suggestions...`}
+                                    className="w-full pl-9 pr-2 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  />
+                                </div>
+                              </div>
+                              <div className="max-h-48 overflow-y-auto">
+                                {filteredServiceProducts().map((suggestion) => (
+                                  <button
+                                    key={suggestion}
+                                    type="button"
+                                    onClick={() => selectServiceProductSuggestion(index, suggestion)}
+                                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
+                                  >
+                                    <span>{suggestion}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Detailed Description
+                          </label>
+                          <textarea
+                            value={item.description}
+                            onChange={(e) => handleServiceProductChange(index, 'description', e.target.value)}
+                            placeholder={
+                              formData.opportunityType === 'SERVICE'
+                                ? "e.g., Full synthetic oil change and filter replacement, including labor and inspection..."
+                                : "e.g., High-quality brake pads for improved stopping power, compatible with most models..."
+                            }
+                            rows={2}
+                            className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-colors"
+                          />
+                        </div>
+                        
+                        {/* Pricing Section */}
+                        <div className="p-4 rounded-lg bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200">
+                          <h4 className="text-sm font-medium text-gray-700 mb-3">Pricing Details</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">
+                                Quantity
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  handleServiceProductChange(index, 'quantity', value === '' ? 0 : parseInt(value) || 0);
+                                }}
+                                className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-colors"
+                              />
+                            </div>
+                            
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">
+                                Unit Price (KES)
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.unitPrice}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  handleServiceProductChange(index, 'unitPrice', value === '' ? 0 : parseFloat(value) || 0);
+                                }}
+                                className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-colors"
+                              />
+                            </div>
+                            
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">
+                                Discount (%)
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={item.discount}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  handleServiceProductChange(index, 'discount', value === '' ? 0 : parseFloat(value) || 0);
+                                }}
+                                className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-colors"
+                              />
+                            </div>
+                            
+                            <div className="p-2 rounded-lg bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100">
+                              <div className="text-center">
+                                <div className="text-xs font-medium text-gray-600 mb-1">
+                                  Subtotal
+                                </div>
+                                <div className="text-lg font-bold text-gray-800">
+                                  KES {(item.subtotal || 0).toLocaleString(undefined, {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                  })}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {item.quantity} × KES {item.unitPrice.toLocaleString()}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Line Item Total */}
+                        <div className="p-3 rounded-lg bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="font-medium text-gray-800">Line Item Total</span>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Subtotal: KES {(item.subtotal || 0).toLocaleString()}
+                                {item.discount > 0 && ` - ${item.discount}% discount: KES ${(item.subtotal * item.discount / 100).toLocaleString()}`}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-lg font-bold text-gray-800">
+                                KES {(item.total || 0).toLocaleString(undefined, {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2
+                                })}
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                After discount
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Settings className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-600">No items added yet</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Add {formData.opportunityType.toLowerCase()} items to build your quote
+                  </p>
+                </div>
+              )}
+
+              {/* Overall Totals */}
+              {formData.servicesProducts.length > 0 && (
+                <div className="mt-6 p-6 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 border border-green-100">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Overall Totals</h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
+                      <span className="text-gray-600">Subtotal</span>
+                      <span className="font-medium text-gray-800">
+                        KES {calculateSubtotal().toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
+                        })}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
+                      <span className="text-gray-600">Total Discount</span>
+                      <span className="font-medium text-red-600">
+                        - KES {calculateTotalDiscount().toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
+                        })}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center py-2 border-t border-gray-300">
+                      <span className="text-lg font-semibold text-gray-800">Grand Total</span>
+                      <span className="text-2xl font-bold text-green-600">
+                        KES {calculateTotal().toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
+                        })}
+                      </span>
+                    </div>
+                    
+                    <div className="text-xs text-gray-500 mt-2">
+                      {formData.servicesProducts.length} item{formData.servicesProducts.length !== 1 ? 's' : ''} | 
+                      {formData.servicesProducts.filter(item => item.type === 'SERVICE').length} service{formData.servicesProducts.filter(item => item.type === 'SERVICE').length !== 1 ? 's' : ''} | 
+                      {formData.servicesProducts.filter(item => item.type === 'PRODUCT').length} product{formData.servicesProducts.filter(item => item.type === 'PRODUCT').length !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Notes Section */}
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 shadow-lg">
               <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <FileText className="h-5 w-5 text-amber-500" />
@@ -777,16 +1765,78 @@ export default function EditOpportunityPage() {
                   Notes & Comments
                 </label>
                 <textarea
-                  name="notes"
                   value={formData.notes}
-                  onChange={handleInputChange}
+                  onChange={(e) => handleInputChange('notes', e.target.value)}
                   rows={4}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   placeholder="Add any additional notes, comments, or special instructions..."
                 />
-                <p className="text-xs text-gray-500 mt-2">
-                  These notes will be visible to team members working on this opportunity
-                </p>
+              </div>
+            </div>
+
+            {/* Summary Section */}
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 shadow-lg">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">Opportunity Summary</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-600 mb-3">Customer Information</h3>
+                  <div className="space-y-2">
+                    <p className="text-sm">
+                      <span className="font-medium">Account Type:</span> {formData.type === 'individual' ? 'Individual' : 'Company'}
+                    </p>
+                    {formData.type === 'individual' ? (
+                      <>
+                        <p className="text-sm">
+                          <span className="font-medium">Name:</span> {firstName} {lastName}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm">
+                          <span className="font-medium">Company:</span> {formData.customer.companyName}
+                        </p>
+                        {formData.customer.companyAddress && (
+                          <p className="text-sm">
+                            <span className="font-medium">Address:</span> {formData.customer.companyAddress}
+                          </p>
+                        )}
+                      </>
+                    )}
+                    <p className="text-sm">
+                      <span className="font-medium">Email:</span> {formData.customer.email}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-medium">Phone:</span> +254{formData.customer.phone}
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="text-sm font-medium text-gray-600 mb-3">Opportunity Details</h3>
+                  <div className="space-y-2">
+                    <p className="text-sm">
+                      <span className="font-medium">Type:</span> {formData.opportunityType}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-medium">Source:</span> {sources.find(s => s.value === formData.source)?.label}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-medium">Vehicles:</span> {formData.vehicles.length}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-medium">Items:</span> {formData.servicesProducts.length}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-medium">Subtotal:</span> KES {calculateSubtotal().toLocaleString()}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-medium">Total Discount:</span> KES {calculateTotalDiscount().toLocaleString()}
+                    </p>
+                    <p className="text-sm font-semibold">
+                      <span className="font-medium">Grand Total:</span> KES {calculateTotal().toLocaleString()}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -796,7 +1846,7 @@ export default function EditOpportunityPage() {
                 <div className="text-sm text-gray-600">
                   <p>Make sure all required fields are filled before saving</p>
                   <p className="mt-1 text-xs">
-                    Last updated: {new Date(opportunity.updatedAt).toLocaleDateString()}
+                    Last updated: {opportunity?.updatedAt ? new Date(opportunity.updatedAt).toLocaleDateString() : 'N/A'}
                   </p>
                 </div>
                 

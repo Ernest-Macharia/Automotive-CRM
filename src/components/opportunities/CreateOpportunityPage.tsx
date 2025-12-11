@@ -633,14 +633,26 @@ export default function CreateOpportunityPage() {
   };
 
   const handleSubmit = async () => {
+    console.log('=== OPPORTUNITY SUBMISSION STARTED ===');
+    console.log('Step validation initiated...');
+    
     if (validateStep()) {
+      console.log('✅ Step validation passed');
+      console.log('Setting isSubmitting to true');
       setIsSubmitting(true);
       
       try {
+        console.log('\n--- Creating Title ---');
         const title = formData.accountType === 'individual' 
           ? `${formData.firstName} ${formData.lastName}'s ${formData.opportunityType.toLowerCase()} request`
           : `${formData.companyName}'s ${formData.opportunityType.toLowerCase()} request`;
+        console.log('Generated title:', title);
 
+        console.log('\n--- Building API Form Data Structure ---');
+        console.log('Account type:', formData.accountType);
+        console.log('Source:', formData.source);
+        console.log('Opportunity type:', formData.opportunityType);
+        
         const apiFormData = {
           type: formData.accountType,
           source: formData.source,
@@ -662,57 +674,110 @@ export default function CreateOpportunityPage() {
             })
           },
           ...(formData.vehicles.length > 0 && {
-            vehicles: formData.vehicles.map(vehicle => ({
-              ...(vehicle.vin && { vin: vehicle.vin }),
-              ...(vehicle.registrationNumber && { registrationNumber: vehicle.registrationNumber }),
-              ...(vehicle.licensePlate && { licensePlate: vehicle.licensePlate }),
-              make: vehicle.make,
-              model: vehicle.model,
-              ...(vehicle.year && { year: vehicle.year }),
-              ...(vehicle.color && { color: vehicle.color }),
-              ...(vehicle.engineSize && { engineSize: vehicle.engineSize }),
-              ...(vehicle.fuelType && { fuelType: vehicle.fuelType }),
-              ...(vehicle.transmission && { transmission: vehicle.transmission }),
-              ...(vehicle.mileage && { mileage: vehicle.mileage }),
-              ...(vehicle.chassisNumber && { chassisNumber: vehicle.chassisNumber }),
-              ...(vehicle.bodyType && { bodyType: vehicle.bodyType })
-            }))
+            vehicles: formData.vehicles.map((vehicle, index) => {
+              console.log(`Vehicle ${index + 1}: ${vehicle.make} ${vehicle.model}`);
+              return {
+                ...(vehicle.vin && { vin: vehicle.vin }),
+                ...(vehicle.registrationNumber && { registrationNumber: vehicle.registrationNumber }),
+                ...(vehicle.licensePlate && { licensePlate: vehicle.licensePlate }),
+                make: vehicle.make,
+                model: vehicle.model,
+                ...(vehicle.year && { year: vehicle.year }),
+                ...(vehicle.color && { color: vehicle.color }),
+                ...(vehicle.engineSize && { engineSize: vehicle.engineSize }),
+                ...(vehicle.fuelType && { fuelType: vehicle.fuelType }),
+                ...(vehicle.transmission && { transmission: vehicle.transmission }),
+                ...(vehicle.mileage && { mileage: vehicle.mileage }),
+                ...(vehicle.chassisNumber && { chassisNumber: vehicle.chassisNumber }),
+                ...(vehicle.bodyType && { bodyType: vehicle.bodyType })
+              };
+            })
           }),
-          servicesProducts: formData.servicesProducts.map(item => ({
-            title: item.title,
-            description: item.description,
-            type: item.type,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            discount: item.discount,
-            subtotal: item.subtotal,
-            total: item.total
-          })),
+          servicesProducts: formData.servicesProducts.map((item, index) => {
+            console.log(`Service/Product ${index + 1}: ${item.title}, Quantity: ${item.quantity}`);
+            return {
+              title: item.title,
+              description: item.description,
+              type: item.type,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              discount: item.discount,
+              subtotal: item.subtotal,
+              total: item.total
+            };
+          }),
           ...(formData.notes && { notes: formData.notes }),
           subtotal: calculateSubtotal(),
           totalDiscount: calculateTotalDiscount(),
           total: calculateTotal(),
         };
 
-        const result = await opportunityService.createOpportunity(apiFormData);
+        console.log('\n--- Calculated Values ---');
+        console.log('Subtotal:', calculateSubtotal());
+        console.log('Total Discount:', calculateTotalDiscount());
+        console.log('Total:', calculateTotal());
         
+        console.log('\n--- Final API Form Data Structure ---');
+        console.log('API Form Data:', JSON.stringify(apiFormData, null, 2));
+        
+        console.log('\n--- Sending API Request ---');
+        console.log('Calling opportunityService.createOpportunity()');
+        console.time('API Request Duration');
+        
+        const result = await opportunityService.createOpportunity(apiFormData);
+
+        console.timeEnd('API Request Duration');
+        console.log('✅ API request completed successfully');
+        console.log('API Response:', result);
+        
+        console.log('\n--- Post-Submission Actions ---');
+        console.log('Setting created opportunity in state');
         setCreatedOpportunity(result);
+        
+        console.log('Showing success modal');
         setShowSuccessModal(true);
         
+        console.log('Removing draft from localStorage');
         localStorage.removeItem('opportunityDraft');
         
+        console.log('Showing success toast notification');
         showToast('Opportunity created successfully!', 'success', 3000);
         
+        console.log('\n=== OPPORTUNITY SUBMISSION COMPLETED SUCCESSFULLY ===');
+        
       } catch (error: any) {
-        console.error('Error creating opportunity:', error);
-        showToast(
-          error.message || 'Failed to create opportunity. Please try again.', 
-          'error', 
-          5000
-        );
+        console.error('\n❌ ERROR IN OPPORTUNITY SUBMISSION ❌');
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        console.error('Full error object:', error);
+        
+        if (error.response) {
+          console.error('Server response:', error.response);
+          console.error('Status code:', error.response.status);
+          console.error('Response data:', error.response.data);
+          console.error('Response headers:', error.response.headers);
+        } else if (error.request) {
+          console.error('No response received. Request details:', error.request);
+        } else {
+          console.error('Error setting up request:', error.message);
+        }
+        
+        console.log('\n--- Error Handling Actions ---');
+        const errorMessage = error.message || 'Failed to create opportunity. Please try again.';
+        console.log('Displaying error message:', errorMessage);
+        
+        showToast(errorMessage, 'error', 5000);
+        
       } finally {
+        console.log('\n--- Cleanup Phase ---');
+        console.log('Setting isSubmitting to false');
         setIsSubmitting(false);
+        console.log('=== HANDLE SUBMIT FUNCTION FINISHED ===');
       }
+    } else {
+      console.log('❌ Step validation failed - submission aborted');
+      console.log('Current form data:', formData);
     }
   };
 
