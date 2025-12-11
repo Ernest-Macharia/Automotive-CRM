@@ -5,7 +5,7 @@ export interface Opportunity {
   id: string;
   type: 'individual' | 'organization';
   subject: string;
-  status: 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost';
+  status: 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost';
   source?: string;
   customer: {
     name: string;
@@ -66,7 +66,7 @@ export interface Opportunity {
 export interface CreateOpportunityData {
   type: 'individual' | 'organization';
   subject: string;
-  status?: 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost';
+  status?: 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost';
   source?: string;
   customer: {
     name: string;
@@ -113,7 +113,7 @@ export interface CreateOpportunityData {
 export interface UpdateOpportunityData {
   subject?: string;
   type?: 'individual' | 'organization';
-  status?: 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost';
+  status?: 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost';
   source?: string;
   assignedTo?: string;
   isNurturing?: boolean;
@@ -256,7 +256,7 @@ export interface OpportunityStats {
 interface FormattedOpportunityData {
   type: 'individual' | 'organization';
   subject: string;
-  status: 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost';
+  status: 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost';
   source: string;
   customer: {
     name: string;

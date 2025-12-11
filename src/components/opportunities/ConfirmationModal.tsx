@@ -113,7 +113,7 @@ export default function ConfirmationModal({
               <p>This action will:</p>
               <ul className="list-disc pl-5 space-y-1">
                 <li>Create a new lead record for this customer</li>
-                <li>Move the opportunity to the "Contacted" stage</li>
+                <li>Move the opportunity to the "Attempeted to Contact" stage</li>
                 <li>Allow you to track detailed customer interactions</li>
               </ul>
               <p className="mt-3 font-medium">

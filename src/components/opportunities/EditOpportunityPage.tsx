@@ -36,7 +36,7 @@ interface ExtendedOpportunity {
   subject: string;
   type: 'individual' | 'organization';
   source: string;
-  status: 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost';
+  status: 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost';
   customer: Customer;
   vehicles?: Vehicle[];
   assignedTo?: string;
@@ -48,10 +48,10 @@ interface ExtendedOpportunity {
 
 const statusOptions = [
   { value: 'new', label: 'New', color: 'bg-blue-100 text-blue-600' },
-  { value: 'contacted', label: 'Contacted', color: 'bg-purple-100 text-purple-600' },
-  { value: 'qualified', label: 'Qualified', color: 'bg-amber-100 text-amber-600' },
-  { value: 'quotation', label: 'Quotation', color: 'bg-orange-100 text-orange-600' },
-  { value: 'won', label: 'Won', color: 'bg-green-100 text-green-600' },
+  { value: 'attempted_to_contact', label: 'Attempted to Contact', color: 'bg-purple-100 text-purple-600' },
+  { value: 'prospecting', label: 'Prospecting', color: 'bg-amber-100 text-amber-600' },
+  { value: 'appointment_scheduled', label: 'Appointment Scheduled', color: 'bg-orange-100 text-orange-600' },
+  { value: 'non_progressive', label: 'Non Progressive', color: 'bg-gray-100 text-gray-600' },
   { value: 'lost', label: 'Lost', color: 'bg-red-100 text-red-600' }
 ];
 
@@ -69,6 +69,9 @@ const typeOptions = [
   { value: 'organization' as 'individual' | 'organization', label: 'Organization' }
 ];
 
+// Define the status type
+type StatusType = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost';
+
 export default function EditOpportunityPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -85,7 +88,7 @@ export default function EditOpportunityPage() {
     subject: '',
     type: 'individual' as 'individual' | 'organization',
     source: 'website',
-    status: 'new' as 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost',
+    status: 'new' as StatusType,
     customer: {
       name: '',
       email: '',
@@ -131,7 +134,7 @@ export default function EditOpportunityPage() {
         subject: data.subject || '',
         type: (data.type as 'individual' | 'organization') || 'individual',
         source: data.source || 'website',
-        status: (data.status as 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost') || 'new',
+        status: (data.status as StatusType) || 'new',
         customer: {
           name: data.customer?.name || '',
           email: data.customer?.email || '',
@@ -180,7 +183,7 @@ export default function EditOpportunityPage() {
     } else if (name === 'status') {
       setFormData(prev => ({
         ...prev,
-        [name]: value as 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost'
+        [name]: value as StatusType
       }));
     } else {
       setFormData(prev => ({

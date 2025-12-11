@@ -94,10 +94,10 @@ interface Vehicle {
 
 const statusConfig: Record<string, { label: string; color: string; pastel: string; activeClass: string }> = {
   new: { label: 'New', color: 'bg-blue-100 text-blue-600', pastel: 'bg-blue-50', activeClass: 'bg-blue-500 text-white' },
-  contacted: { label: 'Contacted', color: 'bg-purple-100 text-purple-600', pastel: 'bg-purple-50', activeClass: 'bg-purple-500 text-white' },
-  qualified: { label: 'Qualified', color: 'bg-amber-100 text-amber-600', pastel: 'bg-amber-50', activeClass: 'bg-amber-500 text-white' },
-  quotation: { label: 'Quotation', color: 'bg-orange-100 text-orange-600', pastel: 'bg-orange-50', activeClass: 'bg-orange-500 text-white' },
-  won: { label: 'Won', color: 'bg-green-100 text-green-600', pastel: 'bg-green-50', activeClass: 'bg-green-500 text-white' },
+  attempted_to_contact: { label: 'Attempted to Contact', color: 'bg-purple-100 text-purple-600', pastel: 'bg-purple-50', activeClass: 'bg-purple-500 text-white' },
+  prospecting: { label: 'Prospecting', color: 'bg-amber-100 text-amber-600', pastel: 'bg-amber-50', activeClass: 'bg-amber-500 text-white' },
+  appointment_scheduled: { label: 'Appointment Scheduled', color: 'bg-orange-100 text-orange-600', pastel: 'bg-orange-50', activeClass: 'bg-orange-500 text-white' },
+  non_progressive: { label: 'Non Progressive', color: 'bg-gray-100 text-gray-600', pastel: 'bg-gray-50', activeClass: 'bg-gray-500 text-white' },
   lost: { label: 'Lost', color: 'bg-red-100 text-red-600', pastel: 'bg-red-50', activeClass: 'bg-red-500 text-white' }
 };
 
@@ -537,9 +537,8 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
 
   const handleStatusUpdate = async (newStatus: string) => {
     if (!opportunity || updatingStatus) return;
-    
-    // For "new" to "contacted" transition, check if lead exists
-    if (opportunity.status === 'new' && newStatus === 'contacted') {
+
+    if (opportunity.status === 'new' && newStatus === 'attempted_to_contact') {
       try {
         const hasLead = await checkIfLeadExists(opportunity._id);
         

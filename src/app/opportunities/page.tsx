@@ -18,14 +18,14 @@ import { leadService, CreateLeadData } from '@/services/leadService';
 import CreateLeadModal from '@/components/opportunities/CreateLeadModal';
 import ConfirmationModal from '@/components/opportunities/ConfirmationModal';
 
-type StageId = 'new' | 'contacted' | 'qualified' | 'quotation' | 'won' | 'lost';
+type StageId = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost';
 
 const stages: { id: StageId; label: string; pastelClass: string; borderColor: string }[] = [
   { id: 'new', label: 'New', pastelClass: 'bg-blue-50', borderColor: 'border-blue-200' },
-  { id: 'contacted', label: 'Contacted', pastelClass: 'bg-purple-50', borderColor: 'border-purple-200' },
-  { id: 'qualified', label: 'Qualified', pastelClass: 'bg-amber-50', borderColor: 'border-amber-200' },
-  { id: 'quotation', label: 'Quotation', pastelClass: 'bg-orange-50', borderColor: 'border-orange-200' },
-  { id: 'won', label: 'Won', pastelClass: 'bg-green-50', borderColor: 'border-green-200' },
+  { id: 'attempted_to_contact', label: 'Attempted to Contact', pastelClass: 'bg-purple-50', borderColor: 'border-purple-200' },
+  { id: 'prospecting', label: 'Prospecting', pastelClass: 'bg-amber-50', borderColor: 'border-amber-200' },
+  { id: 'appointment_scheduled', label: 'Appointment Scheduled', pastelClass: 'bg-orange-50', borderColor: 'border-orange-200' },
+  { id: 'non_progressive', label: 'Non Progressive', pastelClass: 'bg-gray-50', borderColor: 'border-gray-200' },
   { id: 'lost', label: 'Lost', pastelClass: 'bg-rose-50', borderColor: 'border-rose-200' },
 ];
 
@@ -199,8 +199,8 @@ function KanbanColumn({
         return;
       }
       
-      // For "new" to "contacted" transition, check if lead exists
-      if (currentStatus === 'new' && stage.id === 'contacted') {
+
+      if (currentStatus === 'new' && stage.id === 'attempted_to_contact') {
         try {
           // Check if lead exists for this opportunity
           const hasLead = await checkIfLeadExists(opportunityId);
@@ -1020,10 +1020,10 @@ function OpportunitiesContent() {
   const getStageColor = (stage: StageId) => {
     switch (stage) {
       case 'new': return 'bg-gradient-to-r from-blue-400 to-blue-500';
-      case 'contacted': return 'bg-gradient-to-r from-purple-400 to-purple-500';
-      case 'qualified': return 'bg-gradient-to-r from-amber-400 to-amber-500';
-      case 'quotation': return 'bg-gradient-to-r from-orange-400 to-orange-500';
-      case 'won': return 'bg-gradient-to-r from-green-400 to-green-500';
+      case 'attempted_to_contact': return 'bg-gradient-to-r from-purple-400 to-purple-500';
+      case 'prospecting': return 'bg-gradient-to-r from-amber-400 to-amber-500';
+      case 'appointment_scheduled': return 'bg-gradient-to-r from-orange-400 to-orange-500';
+      case 'non_progressive': return 'bg-gradient-to-r from-gray-400 to-gray-500';
       case 'lost': return 'bg-gradient-to-r from-rose-400 to-rose-500';
     }
   };
@@ -1062,15 +1062,15 @@ function OpportunitiesContent() {
 
   const calculateLeadScoreStats = () => {
     if (!opportunities.length) return { hot: 0, warm: 0, cold: 0 };
-    
+
     const leadScores = opportunities
       .filter(opp => opp.leadScore?.totalScore)
       .map(opp => opp.leadScore?.totalScore || 0);
-    
+
     const hot = leadScores.filter(score => score >= 70).length;
     const warm = leadScores.filter(score => score >= 50 && score < 70).length;
     const cold = leadScores.filter(score => score < 50).length;
-    
+
     return { hot, warm, cold };
   };
 
@@ -1627,7 +1627,7 @@ function OpportunitiesContent() {
                 <p className="text-sm text-gray-600">Win Rate</p>
                 <p className="text-lg font-bold text-gray-900">
                   {opportunities.length > 0 
-                    ? Math.round((opportunities.filter(o => o.status === 'won').length / opportunities.length) * 100)
+                    ? Math.round((opportunities.filter(o => o.status === 'appointment_scheduled').length / opportunities.length) * 100)
                     : 0
                   }%
                 </p>
