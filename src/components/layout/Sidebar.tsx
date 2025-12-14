@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Users, Building, FileText, Receipt, Wallet,
-  Truck, ClipboardList, MessageSquare, Settings, LogOut, X, ChevronRight
+  Truck, ClipboardList, MessageSquare, Settings, LogOut, X, ChevronRight,
+  Target
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -53,6 +54,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     { href: '/vehicles',       label: 'Vehicles',      icon: Truck },
     { href: '/jobcards',       label: 'Job Cards',     icon: ClipboardList },
     { href: '/tickets',        label: 'Tickets',       icon: MessageSquare },
+    { href: '/kpi',           label: 'KPI Reports',   icon: Target },
     { href: '/settings',       label: 'Settings',      icon: Settings },
   ];
 
