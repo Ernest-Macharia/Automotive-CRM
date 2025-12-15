@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Users, Building, FileText, Receipt, Wallet,
   Truck, ClipboardList, MessageSquare, Settings, LogOut, X, ChevronRight,
-  Target
+  Target, UserPlus, ListFilter
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -46,15 +46,16 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
 
   const navItems = [
     { href: '/dashboard',      label: 'Dashboard',     icon: LayoutDashboard },
-    { href: '/opportunities',  label: 'Opportunities', icon: Users },
+    { href: '/opportunities',  label: 'Opportunities', icon: Target },
+    { href: '/leads',          label: 'Leads',         icon: ListFilter },
     { href: '/clients',        label: 'Customers',     icon: Building },
+    { href: '/kpi',           label: 'KPI Reports',   icon: Settings },
     { href: '/quotes',         label: 'Quotes',        icon: FileText },
     { href: '/invoices',       label: 'Invoices',      icon: Receipt },
     { href: '/payments',       label: 'Payments',      icon: Wallet },
     { href: '/vehicles',       label: 'Vehicles',      icon: Truck },
     { href: '/jobcards',       label: 'Job Cards',     icon: ClipboardList },
     { href: '/tickets',        label: 'Tickets',       icon: MessageSquare },
-    { href: '/kpi',           label: 'KPI Reports',   icon: Target },
     { href: '/settings',       label: 'Settings',      icon: Settings },
   ];
 

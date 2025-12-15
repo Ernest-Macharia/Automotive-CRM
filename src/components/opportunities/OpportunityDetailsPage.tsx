@@ -559,14 +559,13 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
     if (!opportunity) return;
     
     setShowConfirmationModal(false);
-    router.push(`/lead/create?opportunityId=${opportunity._id}`);
+    router.push(`/leads/create?opportunityId=${opportunity._id}`);
   };
 
   const checkIfLeadExists = async (opportunityId: string): Promise<boolean> => {
     try {
-      // Call your API to check if lead exists
-      const leads = await leadService.getOpportunityLeads(opportunityId);
-      return leads && leads.length > 0;
+      const response = await leadService.getLeadsByOpportunity(opportunityId, 1, 1);
+      return response.data && response.data.length > 0;
     } catch (error) {
       console.error('Error checking lead existence:', error);
       return false;

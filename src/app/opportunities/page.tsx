@@ -15,7 +15,6 @@ import {
   Trophy
 } from 'lucide-react';
 import { leadService, CreateLeadData } from '@/services/leadService';
-import CreateLeadModal from '@/components/opportunities/CreateLeadModal';
 import ConfirmationModal from '@/components/opportunities/ConfirmationModal';
 
 type StageId = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost';
@@ -58,15 +57,6 @@ const sortOptions = [
   { id: 'customer.name:asc', label: 'Customer Name (A-Z)' },
   { id: 'customer.name:desc', label: 'Customer Name (Z-A)' },
   { id: 'updatedAt:desc', label: 'Recently Updated' },
-];
-
-const quickFilters = [
-  { id: 'hot_leads', label: 'Hot Leads', icon: Zap, color: 'bg-red-500' },
-  { id: 'new_web', label: 'New Web Leads', icon: Globe, color: 'bg-blue-500' },
-  { id: 'unassigned', label: 'Unassigned', icon: User, color: 'bg-amber-500' },
-  { id: 'with_vehicles', label: 'With Vehicles', icon: Car, color: 'bg-green-500' },
-  { id: 'this_month', label: 'This Month', icon: Calendar, color: 'bg-purple-500' },
-  { id: 'high_priority', label: 'High Priority', icon: Target, color: 'bg-orange-500' },
 ];
 
 interface ExtendedOpportunity extends Opportunity {
@@ -206,12 +196,10 @@ function KanbanColumn({
           const hasLead = await checkIfLeadExists(opportunityId);
           
           if (!hasLead) {
-            // Show create lead modal
-            // setShowLeadModal(true);
             setDraggedOpportunity(opportunity);
             setTargetStage(stage.id);
             setShowConfirmationModal(true);
-            return; // Don't update status yet, wait for modal
+            return;
           }
         } catch (error) {
           console.error('Error checking lead:', error);
@@ -233,8 +221,8 @@ function KanbanColumn({
   const checkIfLeadExists = async (opportunityId: string): Promise<boolean> => {
     try {
       // Call your API to check if lead exists
-      const leads = await leadService.getOpportunityLeads(opportunityId);
-      return leads && leads.length > 0;
+      const leads = await leadService.getLeadsByOpportunity(opportunityId);
+      return leads.data && leads.data.length > 0;
     } catch (error) {
       console.error('Error checking lead existence:', error);
       return false;
@@ -244,14 +232,13 @@ function KanbanColumn({
   const handleConfirmation = () => {
     if (!draggedOpportunity) return;
     setShowConfirmationModal(false);
-    router.push(`/lead/create?opportunityId=${draggedOpportunity._id}`);
+    router.push(`/leads/create?opportunityId=${draggedOpportunity._id}`);
   };
 
   const handleCreateLeadAndMove = async (leadData: CreateLeadData) => {
     if (!draggedOpportunity || !targetStage) return;
     
     try {
-      // Create lead
       await leadService.createLead({
         ...leadData,
         opportunityId: draggedOpportunity._id
@@ -355,18 +342,6 @@ function KanbanColumn({
         confirmText="Create Lead"
         type="info"
       />
-      {draggedOpportunity && (
-        <CreateLeadModal
-          isOpen={showLeadModal}
-          onClose={() => {
-            setShowLeadModal(false);
-            setDraggedOpportunity(null);
-            setTargetStage(null);
-          }}
-          onConfirm={handleCreateLeadAndMove}
-          opportunity={draggedOpportunity}
-        />
-      )}
     </>
   );
 }
@@ -768,7 +743,7 @@ function OpportunitiesContent() {
       const opportunitiesWithLeadInfo = await Promise.all(
         response.data.map(async (opp: ExtendedOpportunity) => {
           try {
-            const hasLead = await leadService.checkLeadExists(opp._id);
+            const hasLead = await leadService.checkLeadExistsForOpportunity(opp._id);
             return {
               ...opp,
               hasLead
@@ -1305,26 +1280,6 @@ function OpportunitiesContent() {
 
           {/* Quick Filters */}
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-4">
-            {quickFilters.map((filter) => {
-              const Icon = filter.icon;
-              const isActive = activeQuickFilter === filter.id;
-              
-              return (
-                <button
-                  key={filter.id}
-                  onClick={() => handleQuickFilter(filter.id)}
-                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium shadow-sm transition-all hover:scale-105 flex items-center gap-1 sm:gap-2 ${
-                    isActive 
-                      ? `bg-gradient-to-r ${filter.color} text-white` 
-                      : 'bg-white/50 border border-gray-200/50 text-gray-600 hover:bg-white'
-                  }`}
-                >
-                  <Icon className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span>{filter.label}</span>
-                </button>
-              );
-            })}
-            
             {hasActiveFilters && (
               <button 
                 onClick={handleClearFilters}

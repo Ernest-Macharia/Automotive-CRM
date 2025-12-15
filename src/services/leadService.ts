@@ -4,10 +4,11 @@ export interface CreateLeadData {
   name: string;
   email: string;
   phone: string;
-  type: 'individual' | 'organization';
-  companyName?: string;
   source: string;
+  type: 'individual' | 'organization';
+  productsInterested?: string[];
   status?: string;
+  companyName?: string;
   notes?: string;
   opportunityId?: string;
   address?: string;
@@ -18,45 +19,57 @@ export interface CreateLeadData {
   gender?: string;
   firstName?: string;
   lastName?: string;
-  productsInterested?: string[];
   vehicleInfo?: any;
   leadOwner?: string;
-  customerName?: string;
-  customerEmail?: string;
-  customerPhone?: string;
 }
 
 export interface Lead {
   _id: string;
-  id: string;
   name: string;
   email: string;
   phone: string;
-  type: 'individual' | 'organization';
-  companyName?: string;
   source: string;
+  type: 'individual' | 'organization';
+  productsInterested: string[];
   status: string;
-  notes?: string;
-  opportunityId?: string;
+  lisStatus: 'red' | 'yellow' | 'green';
+  assignedTo: {
+    _id: string;
+    email: string;
+    role: string;
+    name?: string;
+  };
+  active: boolean;
+  firstContactSLA: string;
+  failedContactAttempts: number;
+  contactAttempts: Array<{
+    timestamp: string;
+    method: string;
+    outcome: string;
+  }>;
   createdAt: string;
   updatedAt: string;
-  firstName?: string;
-  lastName?: string;
-  customerName?: string;
-  customerEmail?: string;
-  customerPhone?: string;
-  leadScore?: {
-    totalScore: number;
-    tier: 'hot' | 'warm' | 'cold';
-    priority: number;
+  __v: number;
+  lisValidation: {
+    identityValidated: boolean;
+    intentValidated: boolean;
+    contactValidated: boolean;
+    coreDataValidated: boolean;
+    missingFields: string[];
+    lastValidation: string;
   };
+  // Additional optional fields
+  companyName?: string;
+  notes?: string;
+  opportunityId?: string;
   address?: string;
   city?: string;
   stage?: string;
   sourceDetails?: string;
   prospectingReason?: string;
   gender?: string;
-  productsInterested?: string[];
+  firstName?: string;
+  lastName?: string;
   vehicleInfo?: any;
   leadOwner?: string;
 }
@@ -102,9 +115,9 @@ class LeadService {
 
       const leadData = {
         ...data,
-        name: data.name || data.customerName || '',
-        email: data.email || data.customerEmail || '',
-        phone: data.phone || data.customerPhone || '',
+        name: data.name || '',
+        email: data.email || '',
+        phone: data.phone || '',
         status: data.status || 'new',
       };
       
