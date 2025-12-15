@@ -68,18 +68,18 @@ export default function LeadDetail({ leadId, onBack }: LeadDetailProps) {
     });
   };
 
-  const getStatusColor = (status: string) => {
+    const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
-      case 'new': return 'bg-blue-100 text-blue-800';
-      case 'contacted': return 'bg-purple-100 text-purple-800';
-      case 'qualified': return 'bg-green-100 text-green-800';
-      case 'proposal': return 'bg-yellow-100 text-yellow-800';
-      case 'negotiation': return 'bg-orange-100 text-orange-800';
-      case 'won': return 'bg-emerald-100 text-emerald-800';
-      case 'lost': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+        case 'new': return 'bg-blue-100 text-blue-800 border border-blue-200';
+        case 'attempted_to_contact': return 'bg-purple-100 text-purple-800 border border-purple-200';
+        case 'prospecting': return 'bg-amber-100 text-amber-800 border border-amber-200';
+        case 'appointment_scheduled': return 'bg-orange-100 text-orange-800 border border-orange-200';
+        case 'non_progressive': return 'bg-gray-100 text-gray-800 border border-gray-200';
+        case 'lost': return 'bg-red-100 text-red-800 border border-red-200';
+        case 'won': return 'bg-green-100 text-green-800 border border-green-200';
+        default: return 'bg-gray-100 text-gray-800 border border-gray-200';
     }
-  };
+    };
 
   if (loading) {
     return (

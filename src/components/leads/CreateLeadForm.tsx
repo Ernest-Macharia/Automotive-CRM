@@ -330,12 +330,12 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                     className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   >
                     <option value="new">New</option>
-                    <option value="contacted">Contacted</option>
-                    <option value="qualified">Qualified</option>
-                    <option value="proposal">Proposal</option>
-                    <option value="negotiation">Negotiation</option>
-                    <option value="won">Won</option>
+                    <option value="attempted_to_contact">Attempted to Contact</option>
+                    <option value="prospecting">Prospecting</option>
+                    <option value="appointment_scheduled">Appointment Scheduled</option>
+                    <option value="non_progressive">Non Progressive</option>
                     <option value="lost">Lost</option>
+                    <option value="won">Won</option>
                   </select>
                 </div>
                 
@@ -354,22 +354,23 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                 </div>
                 
                 {/* Stage */}
+                {/* Status */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">
                     Stage
                   </label>
                   <select
-                    value={formData.stage}
-                    onChange={(e) => handleInputChange('stage', e.target.value)}
+                    value={formData.status}
+                    onChange={(e) => handleInputChange('status', e.target.value)}
                     className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   >
-                    <option value="New Inquiry">New Inquiry</option>
-                    <option value="Contacted">Contacted</option>
-                    <option value="Qualified">Qualified</option>
-                    <option value="Proposal">Proposal</option>
-                    <option value="Negotiation">Negotiation</option>
-                    <option value="Closed Won">Closed Won</option>
-                    <option value="Closed Lost">Closed Lost</option>
+                    <option value="new">New</option>
+                    <option value="attempted_to_contact">Attempted to Contact</option>
+                    <option value="prospecting">Prospecting</option>
+                    <option value="appointment_scheduled">Appointment Scheduled</option>
+                    <option value="non_progressive">Non Progressive</option>
+                    <option value="lost">Lost</option>
+                    <option value="won">Won</option>
                   </select>
                 </div>
               </div>

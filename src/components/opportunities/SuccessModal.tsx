@@ -89,27 +89,31 @@ export default function SuccessModal({
   };
 
   const getStatusColor = (status: string | undefined) => {
-    if (!status) return 'bg-gray-100 text-gray-600';
+    if (!status) return 'bg-gray-100 text-gray-600 border border-gray-200';
+    
     switch (status) {
-      case 'new': return 'bg-blue-100 text-blue-600';
-      case 'contacted': return 'bg-purple-100 text-purple-600';
-      case 'qualified': return 'bg-amber-100 text-amber-600';
-      case 'quotation': return 'bg-orange-100 text-orange-600';
-      case 'won': return 'bg-green-100 text-green-600';
-      case 'lost': return 'bg-red-100 text-red-600';
-      default: return 'bg-gray-100 text-gray-600';
+      case 'new': return 'bg-blue-100 text-blue-600 border border-blue-200';
+      case 'attempted_to_contact': return 'bg-purple-100 text-purple-600 border border-purple-200';
+      case 'prospecting': return 'bg-amber-100 text-amber-600 border border-amber-200';
+      case 'appointment_scheduled': return 'bg-orange-100 text-orange-600 border border-orange-200';
+      case 'non_progressive': return 'bg-gray-100 text-gray-600 border border-gray-200';
+      case 'lost': return 'bg-red-100 text-red-600 border border-red-200';
+      case 'won': return 'bg-green-100 text-green-600 border border-green-200';
+      default: return 'bg-gray-100 text-gray-600 border border-gray-200';
     }
   };
 
   const getStatusIcon = (status: string | undefined) => {
     if (!status) return '📋';
+    
     switch (status) {
       case 'new': return '🆕';
-      case 'contacted': return '📞';
-      case 'qualified': return '✅';
-      case 'quotation': return '💰';
-      case 'won': return '🏆';
+      case 'attempted_to_contact': return '📞';
+      case 'prospecting': return '🔍';
+      case 'appointment_scheduled': return '📅';
+      case 'non_progressive': return '⏸️';
       case 'lost': return '📉';
+      case 'won': return '🏆';
       default: return '📋';
     }
   };

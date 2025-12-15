@@ -22,6 +22,19 @@ export default function LeadList({ leads, loading, onDelete, onRefresh }: LeadLi
     });
   };
 
+  const getStatusClasses = (status: string) => {
+    switch (status) {
+      case 'new': return 'bg-blue-100 text-blue-600 border border-blue-200';
+      case 'attempted_to_contact': return 'bg-purple-100 text-purple-600 border border-purple-200';
+      case 'prospecting': return 'bg-amber-100 text-amber-600 border border-amber-200';
+      case 'appointment_scheduled': return 'bg-orange-100 text-orange-600 border border-orange-200';
+      case 'non_progressive': return 'bg-gray-100 text-gray-600 border border-gray-200';
+      case 'lost': return 'bg-red-100 text-red-600 border border-red-200';
+      case 'won': return 'bg-green-100 text-green-600 border border-green-200';
+      default: return 'bg-gray-100 text-gray-600 border border-gray-200';
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -114,13 +127,19 @@ export default function LeadList({ leads, loading, onDelete, onRefresh }: LeadLi
               </td>
               
               <td className="px-6 py-4">
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                  lead.status === 'new' ? 'bg-blue-100 text-blue-800' :
-                  lead.status === 'contacted' ? 'bg-yellow-100 text-yellow-800' :
-                  lead.status === 'qualified' ? 'bg-green-100 text-green-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>
-                  {lead.status.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                <span className={`px-3 py-1 text-xs font-medium rounded-full ${getStatusClasses(lead.status)}`}>
+                  {(() => {
+                    const statusMap: Record<string, string> = {
+                      'new': 'New',
+                      'attempted_to_contact': 'Attempted Contact',
+                      'prospecting': 'Prospecting',
+                      'appointment_scheduled': 'Appointment Scheduled',
+                      'non_progressive': 'Non Progressive',
+                      'lost': 'Lost',
+                      'won': 'Won'
+                    };
+                    return statusMap[lead.status] || lead.status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                  })()}
                 </span>
               </td>
               

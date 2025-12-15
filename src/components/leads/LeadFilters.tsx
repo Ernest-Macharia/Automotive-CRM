@@ -57,12 +57,12 @@ export default function LeadFilters({ filters, onFilterChange, onApply }: LeadFi
         >
           <option value="">All Status</option>
           <option value="new">New</option>
-          <option value="contacted">Contacted</option>
-          <option value="qualified">Qualified</option>
-          <option value="proposal-sent">Proposal Sent</option>
-          <option value="negotiation">Negotiation</option>
-          <option value="closed-won">Closed Won</option>
-          <option value="closed-lost">Closed Lost</option>
+          <option value="attempted_to_contact">Attempted to Contact</option>
+          <option value="prospecting">Prospecting</option>
+          <option value="appointment_scheduled">Appointment Scheduled</option>
+          <option value="non_progressive">Non Progressive</option>
+          <option value="lost">Lost</option>
+          <option value="won">Won</option>
         </select>
         
         <select

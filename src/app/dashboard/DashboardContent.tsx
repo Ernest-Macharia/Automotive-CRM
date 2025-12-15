@@ -215,11 +215,17 @@ function DashboardContent() {
     const coldLeads = timeRangeData.filter(opp => opp.leadScore?.tier === 'cold').length;
     
     // Calculate win rate
-    const contactedOpps = timeRangeData.filter(opp => ['contacted', 'qualified', 'quotation'].includes(opp.status));
-    const wonCount = wonOpps.length;
-    const winRate = contactedOpps.length > 0 ? (wonCount / contactedOpps.length) * 100 : 0;
+    // In the processDashboardStats function, update the wonOpps filter
+    // const lostOpps = timeRangeData.filter(opp => opp.status === 'lost');
+    // const newOpps = timeRangeData.filter(opp => opp.status === 'new');
 
-    // Get conversion rate
+    // Update win rate calculation for new statuses
+    const activeStatuses = ['attempted_to_contact', 'prospecting', 'appointment_scheduled'];
+    const progressedOpps = timeRangeData.filter(opp => activeStatuses.includes(opp.status));
+    const wonCount = wonOpps.length;
+    const winRate = progressedOpps.length > 0 ? (wonCount / progressedOpps.length) * 100 : 0;
+
+    // Update conversion rate
     const conversionRate = timeRangeData.length > 0 ? (wonCount / timeRangeData.length) * 100 : 0;
 
     return {
@@ -339,11 +345,12 @@ function DashboardContent() {
   const getOpportunityStatusColor = (status: string) => {
     switch (status) {
       case 'new': return 'text-blue-600 bg-blue-100';
-      case 'contacted': return 'text-purple-600 bg-purple-100';
-      case 'qualified': return 'text-amber-600 bg-amber-100';
-      case 'quotation': return 'text-orange-600 bg-orange-100';
-      case 'won': return 'text-green-600 bg-green-100';
+      case 'attempted_to_contact': return 'text-purple-600 bg-purple-100';
+      case 'prospecting': return 'text-amber-600 bg-amber-100';
+      case 'appointment_scheduled': return 'text-orange-600 bg-orange-100';
+      case 'non_progressive': return 'text-gray-600 bg-gray-100';
       case 'lost': return 'text-red-600 bg-red-100';
+      case 'won': return 'text-green-600 bg-green-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };

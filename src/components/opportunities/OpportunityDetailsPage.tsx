@@ -1351,7 +1351,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
         }}
         onConfirm={handleConfirmation}
         title="Create Lead Required"
-        message="A lead record is required to move this opportunity to 'Contacted'. Would you like to create a lead now?"
+        message="A lead record is required to move this opportunity to 'Attempted to Contact'. Would you like to create a lead now?"
         confirmText="Create Lead"
         type="info"
       />

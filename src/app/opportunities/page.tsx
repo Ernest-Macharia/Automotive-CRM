@@ -20,12 +20,42 @@ import ConfirmationModal from '@/components/opportunities/ConfirmationModal';
 type StageId = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost';
 
 const stages: { id: StageId; label: string; pastelClass: string; borderColor: string }[] = [
-  { id: 'new', label: 'New', pastelClass: 'bg-blue-50', borderColor: 'border-blue-200' },
-  { id: 'attempted_to_contact', label: 'Attempted to Contact', pastelClass: 'bg-purple-50', borderColor: 'border-purple-200' },
-  { id: 'prospecting', label: 'Prospecting', pastelClass: 'bg-amber-50', borderColor: 'border-amber-200' },
-  { id: 'appointment_scheduled', label: 'Appointment Scheduled', pastelClass: 'bg-orange-50', borderColor: 'border-orange-200' },
-  { id: 'non_progressive', label: 'Non Progressive', pastelClass: 'bg-gray-50', borderColor: 'border-gray-200' },
-  { id: 'lost', label: 'Lost', pastelClass: 'bg-rose-50', borderColor: 'border-rose-200' },
+  { 
+    id: 'new', 
+    label: 'New', 
+    pastelClass: 'bg-blue-50/80 backdrop-blur-sm', 
+    borderColor: 'border-blue-100' 
+  },
+  { 
+    id: 'attempted_to_contact', 
+    label: 'Attempted to Contact', 
+    pastelClass: 'bg-indigo-50/80 backdrop-blur-sm', 
+    borderColor: 'border-indigo-100' 
+  },
+  { 
+    id: 'prospecting', 
+    label: 'Prospecting', 
+    pastelClass: 'bg-violet-50/80 backdrop-blur-sm', 
+    borderColor: 'border-violet-100' 
+  },
+  { 
+    id: 'appointment_scheduled', 
+    label: 'Appointment Scheduled', 
+    pastelClass: 'bg-purple-50/80 backdrop-blur-sm', 
+    borderColor: 'border-purple-100' 
+  },
+  { 
+    id: 'non_progressive', 
+    label: 'Non Progressive', 
+    pastelClass: 'bg-slate-50/80 backdrop-blur-sm', 
+    borderColor: 'border-slate-100' 
+  },
+  { 
+    id: 'lost', 
+    label: 'Lost', 
+    pastelClass: 'bg-rose-50/80 backdrop-blur-sm', 
+    borderColor: 'border-rose-100' 
+  },
 ];
 
 const leadTiers = [
@@ -338,7 +368,7 @@ function KanbanColumn({
         }}
         onConfirm={handleConfirmation}
         title="Create Lead Required"
-        message="A lead record is required to move this opportunity to 'Contacted'. Would you like to create a lead now?"
+        message="A lead record is required to move this opportunity to 'Attempted to Contact'. Would you like to create a lead now?"
         confirmText="Create Lead"
         type="info"
       />
