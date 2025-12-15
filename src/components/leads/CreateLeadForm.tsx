@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, User, Mail, Phone, Building, Target, Briefcase, MessageSquare, Check, Loader2, Sparkles } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, Building, Target, MapPin, Calendar, FileText, Check, Loader2, Sparkles, CreditCard, Tag, Users } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { leadService, CreateLeadData } from '@/services/leadService';
 import CreateLeadConfirmationModal from '@/components/leads/CreateLeadConfirmationModal';
@@ -19,24 +19,34 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
   const [showConfirmation, setShowConfirmation] = useState(false);
   
   const [formData, setFormData] = useState<CreateLeadData>({
+    // Required fields
     name: '',
     email: '',
     phone: '',
     source: 'website',
     type: 'individual',
-    productsInterested: [],
     status: 'new',
+    
+    // Optional but important fields
     firstName: '',
     lastName: '',
     company: '',
     notes: '',
     address: '',
     city: '',
+    stage: 'new',
     sourceDetails: '',
     prospectingReason: '',
     gender: '',
-    leadOwner: 'current-user-id',
-    ...(opportunityId && { opportunityId, notes: `Created from opportunity: ${opportunityId}` }),
+    purposeOfEnquiry: '',
+    interestLevel: 'medium',
+    vehicleOfInterest: '',
+    budgetRange: '',
+    customerSegment: 'b2c',
+    branch: '',
+    nationalId: '',
+    
+    ...(opportunityId && { opportunityId }),
   });
   
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -48,6 +58,7 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
     
+    // Auto-generate full name from first and last name
     if (field === 'firstName' || field === 'lastName') {
       const firstName = field === 'firstName' ? value : formData.firstName;
       const lastName = field === 'lastName' ? value : formData.lastName;
@@ -61,12 +72,13 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     
-    if (!formData.name && !(formData.firstName && formData.lastName)) {
-      newErrors.name = 'Name is required (or fill First & Last name)';
+    // Backend required fields validation
+    if (!formData.name.trim()) {
+      newErrors.name = 'Full name is required';
     }
     
-    if (!formData.email) {
-      newErrors.email = 'Email is required';
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email address is required';
     } else {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(formData.email)) {
@@ -74,12 +86,20 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
       }
     }
     
-    if (!formData.phone) {
+    if (!formData.phone.trim()) {
       newErrors.phone = 'Phone number is required';
     }
     
     if (!formData.source) {
       newErrors.source = 'Lead source is required';
+    }
+    
+    if (!formData.type) {
+      newErrors.type = 'Lead type is required';
+    }
+    
+    if (!formData.status) {
+      newErrors.status = 'Status is required';
     }
     
     setErrors(newErrors);
@@ -94,7 +114,7 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
       return;
     }
     
-    // Show confirmation modal instead of directly submitting
+    // Show confirmation modal
     setShowConfirmation(true);
   };
 
@@ -104,23 +124,40 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
     try {
       const finalData: CreateLeadData = {
         ...formData,
-        name: formData.name || `${formData.firstName} ${formData.lastName}`.trim(),
-        status: formData.status || 'new',
-        type: formData.type || 'individual',
-        company: formData.company || formData.companyName,
+        // Ensure required fields have values
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        source: formData.source,
+        type: formData.type,
+        status: formData.status,
+        // Clean up optional fields
+        company: formData.company?.trim() || undefined,
+        notes: formData.notes?.trim() || undefined,
+        address: formData.address?.trim() || undefined,
+        city: formData.city?.trim() || undefined,
+        stage: formData.stage || 'new',
+        sourceDetails: formData.sourceDetails?.trim() || undefined,
+        prospectingReason: formData.prospectingReason?.trim() || undefined,
+        gender: formData.gender?.trim() || undefined,
+        purposeOfEnquiry: formData.purposeOfEnquiry?.trim() || undefined,
+        interestLevel: formData.interestLevel || 'medium',
+        vehicleOfInterest: formData.vehicleOfInterest?.trim() || undefined,
+        budgetRange: formData.budgetRange?.trim() || undefined,
+        customerSegment: formData.customerSegment || 'b2c',
+        branch: formData.branch?.trim() || undefined,
+        nationalId: formData.nationalId?.trim() || undefined,
       };
       
-      const cleanedData = Object.fromEntries(
-        Object.entries(finalData).filter(([_, value]) => value !== undefined)
-      );
+      console.log('Creating lead with data:', finalData);
       
-      const createdLead = await leadService.createLead(cleanedData as CreateLeadData);
+      const createdLead = await leadService.createLead(finalData);
       
       setShowConfirmation(false);
       showToast('Lead created successfully!', 'success');
       
       // Redirect to the new lead's page
-      router.push(`/leads/${createdLead._id}`);
+      router.push(`/leads/details?id=${createdLead._id}`);
     } catch (error: any) {
       console.error('Error creating lead:', error);
       showToast(
@@ -140,7 +177,7 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      {/* Enhanced Gradient Header */}
+      {/* Header */}
       <div className="relative bg-gradient-to-r from-blue-500 via-blue-600 to-purple-600 shadow-lg overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-purple-500/20" />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -173,51 +210,38 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
       {/* Main Form */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Basic Information Card */}
+          {/* Required Information Card */}
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 shadow-lg overflow-hidden">
             <div className="p-6 border-b border-gray-100/50 bg-gradient-to-r from-blue-50/50 via-blue-100/30 to-purple-50/20">
               <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
                 <User className="h-5 w-5 text-blue-500" />
-                Basic Information
+                Required Information *
               </h2>
-              <p className="text-sm text-gray-600 mt-1">Primary contact details</p>
+              <p className="text-sm text-gray-600 mt-1">These fields are required for lead creation</p>
             </div>
             
             <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* First Name */}
+                {/* Full Name */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">
-                    First Name
+                    Full Name *
                   </label>
                   <input
                     type="text"
-                    value={formData.firstName}
-                    onChange={(e) => handleInputChange('firstName', e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="John"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    className={`w-full px-4 py-2.5 bg-white border rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                      errors.name ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    placeholder="John Doe"
                     disabled={loading}
                   />
-                  {errors.firstName && (
-                    <p className="text-sm text-red-600">{errors.firstName}</p>
-                  )}
-                </div>
-                
-                {/* Last Name */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    Last Name
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.lastName}
-                    onChange={(e) => handleInputChange('lastName', e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Doe"
-                    disabled={loading}
-                  />
-                  {errors.lastName && (
-                    <p className="text-sm text-red-600">{errors.lastName}</p>
+                  <div className="text-xs text-gray-500">
+                    Or fill first & last name below
+                  </div>
+                  {errors.name && (
+                    <p className="text-sm text-red-600">{errors.name}</p>
                   )}
                 </div>
                 
@@ -225,7 +249,7 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                     <Mail className="h-4 w-4 text-blue-500" />
-                    Email Address
+                    Email Address *
                   </label>
                   <input
                     type="email"
@@ -246,7 +270,7 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                     <Phone className="h-4 w-4 text-blue-500" />
-                    Phone Number
+                    Phone Number *
                   </label>
                   <input
                     type="tel"
@@ -255,7 +279,7 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                     className={`w-full px-4 py-2.5 bg-white border rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                       errors.phone ? 'border-red-300' : 'border-gray-300'
                     }`}
-                    placeholder="+1 (555) 123-4567"
+                    placeholder="+254712345678"
                     disabled={loading}
                   />
                   {errors.phone && (
@@ -263,26 +287,40 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                   )}
                 </div>
                 
-                {/* Company Name */}
+                {/* Lead Source */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <Building className="h-4 w-4 text-blue-500" />
-                    Company
+                    <Target className="h-4 w-4 text-blue-500" />
+                    Lead Source *
                   </label>
-                  <input
-                    type="text"
-                    value={formData.company || formData.companyName || ''}
-                    onChange={(e) => handleInputChange('company', e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Acme Corporation"
+                  <select
+                    value={formData.source}
+                    onChange={(e) => handleInputChange('source', e.target.value)}
+                    className={`w-full px-4 py-2.5 bg-white border rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                      errors.source ? 'border-red-300' : 'border-gray-300'
+                    }`}
                     disabled={loading}
-                  />
+                  >
+                    <option value="website">Website</option>
+                    <option value="referral">Referral</option>
+                    <option value="social_media">Social Media</option>
+                    <option value="email">Email Campaign</option>
+                    <option value="event">Event/Trade Show</option>
+                    <option value="advertisement">Advertisement</option>
+                    <option value="cold_call">Cold Call</option>
+                    <option value="walk_in">Walk-in</option>
+                    <option value="phone_call">Phone Call</option>
+                    <option value="other">Other</option>
+                  </select>
+                  {errors.source && (
+                    <p className="text-sm text-red-600">{errors.source}</p>
+                  )}
                 </div>
                 
                 {/* Type */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">
-                    Type
+                    Lead Type *
                   </label>
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -310,59 +348,22 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                       <span className="text-gray-700">Organization</span>
                     </label>
                   </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Lead Details Card */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 shadow-lg overflow-hidden">
-            <div className="p-6 border-b border-gray-100/50 bg-gradient-to-r from-purple-50/50 via-purple-100/30 to-blue-50/20">
-              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                <Target className="h-5 w-5 text-purple-500" />
-                Lead Details
-              </h2>
-              <p className="text-sm text-gray-600 mt-1">Classification and source information</p>
-            </div>
-            
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Lead Source */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    Lead Source
-                  </label>
-                  <select
-                    value={formData.source}
-                    onChange={(e) => handleInputChange('source', e.target.value)}
-                    className={`w-full px-4 py-2.5 bg-white border rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                      errors.source ? 'border-red-300' : 'border-gray-300'
-                    }`}
-                    disabled={loading}
-                  >
-                    <option value="website">Website</option>
-                    <option value="referral">Referral</option>
-                    <option value="social_media">Social Media</option>
-                    <option value="email">Email Campaign</option>
-                    <option value="event">Event/Trade Show</option>
-                    <option value="advertisement">Advertisement</option>
-                    <option value="cold_call">Cold Call</option>
-                    <option value="other">Other</option>
-                  </select>
-                  {errors.source && (
-                    <p className="text-sm text-red-600">{errors.source}</p>
+                  {errors.type && (
+                    <p className="text-sm text-red-600">{errors.type}</p>
                   )}
                 </div>
                 
                 {/* Status */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">
-                    Status
+                    Status *
                   </label>
                   <select
                     value={formData.status}
                     onChange={(e) => handleInputChange('status', e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className={`w-full px-4 py-2.5 bg-white border rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                      errors.status ? 'border-red-300' : 'border-gray-300'
+                    }`}
                     disabled={loading}
                   >
                     <option value="new">New</option>
@@ -373,85 +374,247 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                     <option value="lost">Lost</option>
                     <option value="won">Won</option>
                   </select>
+                  {errors.status && (
+                    <p className="text-sm text-red-600">{errors.status}</p>
+                  )}
                 </div>
-                
-                {/* Source Details */}
+              </div>
+            </div>
+          </div>
+
+          {/* Additional Information Card */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 shadow-lg overflow-hidden">
+            <div className="p-6 border-b border-gray-100/50 bg-gradient-to-r from-purple-50/50 via-purple-100/30 to-blue-50/20">
+              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <Users className="h-5 w-5 text-purple-500" />
+                Additional Information
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">Optional but helpful details for better lead management</p>
+            </div>
+            
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* First Name */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">
-                    Source Details
+                    First Name
                   </label>
                   <input
                     type="text"
-                    value={formData.sourceDetails}
-                    onChange={(e) => handleInputChange('sourceDetails', e.target.value)}
+                    value={formData.firstName}
+                    onChange={(e) => handleInputChange('firstName', e.target.value)}
                     className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="e.g., LinkedIn Ad, Google Search"
+                    placeholder="John"
                     disabled={loading}
                   />
                 </div>
                 
-                {/* Stage */}
+                {/* Last Name */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">
-                    Stage
+                    Last Name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.lastName}
+                    onChange={(e) => handleInputChange('lastName', e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    placeholder="Doe"
+                    disabled={loading}
+                  />
+                </div>
+                
+                {/* Company */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                    <Building className="h-4 w-4 text-blue-500" />
+                    Company
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.company || ''}
+                    onChange={(e) => handleInputChange('company', e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    placeholder="Acme Corporation"
+                    disabled={loading}
+                  />
+                </div>
+                
+                {/* Gender */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Gender
                   </label>
                   <select
-                    value={formData.stage}
-                    onChange={(e) => handleInputChange('stage', e.target.value)}
+                    value={formData.gender || ''}
+                    onChange={(e) => handleInputChange('gender', e.target.value)}
                     className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     disabled={loading}
                   >
-                    <option value="new">New</option>
-                    <option value="attempted_to_contact">Attempted to Contact</option>
-                    <option value="prospecting">Prospecting</option>
-                    <option value="appointment_scheduled">Appointment Scheduled</option>
-                    <option value="non_progressive">Non Progressive</option>
-                    <option value="lost">Lost</option>
-                    <option value="won">Won</option>
+                    <option value="">Select Gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
                   </select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Purpose of Enquiry */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    Purpose of Enquiry
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.purposeOfEnquiry || ''}
-                    onChange={(e) => handleInputChange('purposeOfEnquiry', e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="e.g., Personal use, Business fleet"
-                    disabled={loading}
-                  />
+              {/* Contact Information */}
+              <div className="mt-6">
+                <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-gray-500" />
+                  Contact Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Address */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Address
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.address || ''}
+                      onChange={(e) => handleInputChange('address', e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      placeholder="123 Main Street"
+                      disabled={loading}
+                    />
+                  </div>
+                  
+                  {/* City */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      City
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.city || ''}
+                      onChange={(e) => handleInputChange('city', e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      placeholder="Nairobi"
+                      disabled={loading}
+                    />
+                  </div>
                 </div>
-                
-                {/* Budget Range */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    Budget Range
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.budgetRange || ''}
-                    onChange={(e) => handleInputChange('budgetRange', e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="e.g., $30,000 - $40,000"
-                    disabled={loading}
-                  />
+              </div>
+
+              {/* Lead Details */}
+              <div className="mt-6">
+                <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-gray-500" />
+                  Lead Details
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Source Details */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Source Details
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.sourceDetails || ''}
+                      onChange={(e) => handleInputChange('sourceDetails', e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      placeholder="e.g., Google Ads, LinkedIn Post"
+                      disabled={loading}
+                    />
+                  </div>
+                  
+                  {/* Prospecting Reason */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Prospecting Reason
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.prospectingReason || ''}
+                      onChange={(e) => handleInputChange('prospectingReason', e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      placeholder="Why are you prospecting this lead?"
+                      disabled={loading}
+                    />
+                  </div>
+                  
+                  {/* Purpose of Enquiry */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Purpose of Enquiry
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.purposeOfEnquiry || ''}
+                      onChange={(e) => handleInputChange('purposeOfEnquiry', e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      placeholder="e.g., Personal use, Business fleet"
+                      disabled={loading}
+                    />
+                  </div>
+                  
+                  {/* Vehicle of Interest */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Vehicle of Interest
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.vehicleOfInterest || ''}
+                      onChange={(e) => handleInputChange('vehicleOfInterest', e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      placeholder="e.g., Toyota Camry 2023"
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Financial Information */}
+              <div className="mt-6">
+                <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-gray-500" />
+                  Financial Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Budget Range */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Budget Range
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.budgetRange || ''}
+                      onChange={(e) => handleInputChange('budgetRange', e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      placeholder="e.g., $30,000 - $40,000"
+                      disabled={loading}
+                    />
+                  </div>
+                  
+                  {/* Interest Level */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Interest Level
+                    </label>
+                    <select
+                      value={formData.interestLevel || 'medium'}
+                      onChange={(e) => handleInputChange('interestLevel', e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      disabled={loading}
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
                 </div>
               </div>
               
               {/* Notes */}
               <div className="mt-6 space-y-2">
-                <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-blue-500" />
+                <label className="text-sm font-medium text-gray-700">
                   Notes
                 </label>
                 <textarea
-                  value={formData.notes}
+                  value={formData.notes || ''}
                   onChange={(e) => handleInputChange('notes', e.target.value)}
                   rows={3}
                   className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
@@ -485,7 +648,7 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
               ) : (
                 <>
                   <Check className="h-4 w-4" />
-                  Review & Create Lead
+                  Create Lead
                 </>
               )}
             </button>
