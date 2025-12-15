@@ -46,7 +46,7 @@ export default function EditLeadForm({ leadId, onBack, onSave }: EditLeadFormPro
         source: data.source,
         type: data.type,
         status: data.status,
-        companyName: data.companyName,
+        company: data.company || data.companyName,
         notes: data.notes,
         address: data.address,
         city: data.city,
@@ -55,6 +55,16 @@ export default function EditLeadForm({ leadId, onBack, onSave }: EditLeadFormPro
         prospectingReason: data.prospectingReason,
         gender: data.gender,
         leadOwner: data.leadOwner,
+        purposeOfEnquiry: data.purposeOfEnquiry,
+        interestLevel: data.interestLevel,
+        vehicleOfInterest: data.vehicleOfInterest,
+        budgetRange: data.budgetRange,
+        customerSegment: data.customerSegment,
+        branch: data.branch,
+        nationalId: data.nationalId,
+        followUpDate: data.followUpDate,
+        internalNotes: data.internalNotes,
+        tags: data.tags,
       });
     } catch (error) {
       console.error('Failed to fetch lead:', error);
@@ -95,7 +105,16 @@ export default function EditLeadForm({ leadId, onBack, onSave }: EditLeadFormPro
     setSaving(true);
     
     try {
-      await leadService.updateLead(leadId, formData);
+      const updateData = {
+        ...formData,
+        company: formData.company || formData.companyName,
+      };
+
+      if (updateData.companyName) {
+        delete updateData.companyName;
+      }
+
+      await leadService.updateLead(leadId, updateData);
       showToast('Lead updated successfully!', 'success');
       onSave();
     } catch (error: any) {
@@ -268,12 +287,12 @@ export default function EditLeadForm({ leadId, onBack, onSave }: EditLeadFormPro
                 {/* Company Name */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">
-                    Company Name
+                    Company
                   </label>
                   <input
                     type="text"
-                    value={formData.companyName || ''}
-                    onChange={(e) => handleInputChange('companyName', e.target.value)}
+                    value={formData.company || ''}
+                    onChange={(e) => handleInputChange('company', e.target.value)}
                     className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     placeholder="Acme Corporation"
                   />
@@ -369,8 +388,8 @@ export default function EditLeadForm({ leadId, onBack, onSave }: EditLeadFormPro
                     Stage
                 </label>
                 <select
-                    value={formData.status || ''}
-                    onChange={(e) => handleInputChange('status', e.target.value)}
+                    value={formData.stage || ''}
+                    onChange={(e) => handleInputChange('stage', e.target.value)}
                     className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 >
                     <option value="new">New</option>
@@ -395,6 +414,34 @@ export default function EditLeadForm({ leadId, onBack, onSave }: EditLeadFormPro
                     className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     placeholder="e.g., LinkedIn Ad, Google Search"
                   />
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-4">
+                <h3 className="text-sm font-semibold text-gray-800">Additional Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Purpose of Enquiry
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.purposeOfEnquiry || ''}
+                      onChange={(e) => handleInputChange('purposeOfEnquiry', e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Budget Range
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.budgetRange || ''}
+                      onChange={(e) => handleInputChange('budgetRange', e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    />
+                  </div>
                 </div>
               </div>
               

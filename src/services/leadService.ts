@@ -8,6 +8,7 @@ export interface CreateLeadData {
   type: 'individual' | 'organization';
   productsInterested?: string[];
   status?: string;
+  company?: string;
   companyName?: string;
   notes?: string;
   opportunityId?: string;
@@ -21,6 +22,25 @@ export interface CreateLeadData {
   lastName?: string;
   vehicleInfo?: any;
   leadOwner?: string;
+  assignedTo?: {
+    _id: string;
+    email: string;
+    role: string;
+    name?: string;
+  };
+  purposeOfEnquiry?: string;
+  interestLevel?: string;
+  vehicleOfInterest?: string;
+  budgetRange?: string;
+  customerSegment?: string;
+  branch?: string;
+  nationalId?: string;
+  followUpDate?: string;
+  internalNotes?: string;
+  tags?: string[];
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
 }
 
 export interface Lead {
@@ -32,8 +52,8 @@ export interface Lead {
   type: 'individual' | 'organization';
   productsInterested: string[];
   status: string;
-  lisStatus: 'red' | 'yellow' | 'green';
-  assignedTo: {
+  lisStatus: 'red' | 'yellow' | 'green' | 'amber';
+  assignedTo?: {
     _id: string;
     email: string;
     role: string;
@@ -46,6 +66,7 @@ export interface Lead {
     timestamp: string;
     method: string;
     outcome: string;
+    notes?: string;
   }>;
   createdAt: string;
   updatedAt: string;
@@ -58,10 +79,13 @@ export interface Lead {
     missingFields: string[];
     lastValidation: string;
   };
-  // Additional optional fields
+  company?: string;
   companyName?: string;
   notes?: string;
-  opportunityId?: string;
+  opportunity?: {
+    _id: string;
+    name: string;
+  };
   address?: string;
   city?: string;
   stage?: string;
@@ -72,6 +96,16 @@ export interface Lead {
   lastName?: string;
   vehicleInfo?: any;
   leadOwner?: string;
+  followUpDate?: string;
+  internalNotes?: string;
+  tags?: string[];
+  purposeOfEnquiry?: string;
+  interestLevel?: string;
+  vehicleOfInterest?: string;
+  budgetRange?: string;
+  customerSegment?: string;
+  branch?: string;
+  nationalId?: string;
 }
 
 export interface LeadFilterParams {
@@ -87,6 +121,7 @@ export interface LeadFilterParams {
   toDate?: string;
   sort?: string;
   leadOwner?: string;
+  lisStatus?: string;
 }
 
 export interface LeadsResponse {
@@ -108,6 +143,44 @@ export interface LeadsResponse {
   };
 }
 
+export interface ContactAttemptData {
+  method: string;
+  outcome: string;
+  notes?: string;
+  timestamp?: string;
+}
+
+export interface LISValidationResponse {
+  _id: string;
+  lisStatus: 'red' | 'amber' | 'green';
+  missingFields: string[];
+}
+
+export interface BulkValidateResponse {
+  success: boolean;
+  processed: number;
+  validated: number;
+  failed: number;
+}
+
+export interface LISConfig {
+  validationRules: {
+    identityFields: string[];
+    contactFields: string[];
+    intentFields: string[];
+    coreFields: string[];
+  };
+  slaConfig: {
+    firstContactHours: number;
+    followUpHours: number;
+  };
+  statusThresholds: {
+    green: number;
+    amber: number;
+    red: number;
+  };
+}
+
 class LeadService {
   async createLead(data: CreateLeadData): Promise<Lead> {
     try {
@@ -119,6 +192,7 @@ class LeadService {
         email: data.email || '',
         phone: data.phone || '',
         status: data.status || 'new',
+        company: data.company || data.companyName || '',
       };
       
       return await apiClient.post<typeof leadData, Lead>('/leads', leadData);
@@ -139,16 +213,16 @@ class LeadService {
 
   async updateLead(id: string, data: Partial<CreateLeadData>): Promise<Lead> {
     try {
-      return await apiClient.patch<Partial<CreateLeadData>, Lead>(`/leads/${id}`, data);
+      return await apiClient.put<Partial<CreateLeadData>, Lead>(`/leads/${id}`, data);
     } catch (error) {
       console.error(`Error updating lead ${id}:`, error);
       throw error;
     }
   }
 
-  async deleteLead(id: string): Promise<void> {
+  async deleteLead(id: string): Promise<{ message: string }> {
     try {
-      await apiClient.delete(`/leads/${id}`);
+      return await apiClient.delete<{ message: string }>(`/leads/${id}`);
     } catch (error) {
       console.error(`Error deleting lead ${id}:`, error);
       throw error;
@@ -167,20 +241,23 @@ class LeadService {
         });
       }
       
-      // Set default pagination if not provided
-      if (!params?.page) {
-        queryParams.append('page', '1');
-      }
-      if (!params?.limit) {
-        queryParams.append('limit', '10');
-      }
-      
       const queryString = queryParams.toString();
       const endpoint = `/leads${queryString ? `?${queryString}` : ''}`;
       
       const response = await apiClient.get<any>(endpoint);
+
+      if (Array.isArray(response)) {
+        return {
+          data: response,
+          pagination: {
+            total: response.length,
+            page: 1,
+            limit: response.length,
+            totalPages: 1
+          }
+        };
+      }
       
-      // Handle paginated response
       return {
         data: response.data || response,
         pagination: response.pagination,
@@ -208,13 +285,45 @@ class LeadService {
 
   async getLeadsByOpportunity(opportunityId: string, page?: number, limit?: number): Promise<LeadsResponse> {
     try {
-      const params: LeadFilterParams = {
-        opportunityId,
-        page,
-        limit
+      const response = await apiClient.get<Lead | Lead[]>(`/leads/opportunity/${opportunityId}`);
+      
+      if (Array.isArray(response)) {
+        return {
+          data: response,
+          pagination: {
+            total: response.length,
+            page: 1,
+            limit: response.length,
+            totalPages: 1
+          }
+        };
+      }
+      
+      return {
+        data: [response],
+        pagination: {
+          total: 1,
+          page: 1,
+          limit: 1,
+          totalPages: 1
+        }
       };
-      return await this.getAllLeads(params);
-    } catch (error) {
+    } catch (error: any) {
+      // Handle 404 error specifically - means no lead exists for this opportunity
+      if (error.message?.includes('404') || error.message?.includes('not found') || 
+          (error.statusCode === 404) || error.message?.includes('Lead not found')) {
+        console.log(`No lead found for opportunity ${opportunityId}`);
+        return {
+          data: [],
+          pagination: {
+            total: 0,
+            page: 1,
+            limit: 1,
+            totalPages: 0
+          }
+        };
+      }
+      
       console.error(`Error fetching leads for opportunity ${opportunityId}:`, error);
       throw error;
     }
@@ -222,7 +331,7 @@ class LeadService {
 
   async checkLeadExistsForOpportunity(opportunityId: string): Promise<boolean> {
     try {
-      const response = await this.getLeadsByOpportunity(opportunityId, 1, 1);
+      const response = await this.getLeadsByOpportunity(opportunityId);
       return response.data && response.data.length > 0;
     } catch (error) {
       console.error('Error checking lead existence:', error);
@@ -282,6 +391,15 @@ class LeadService {
       return await this.getAllLeads(params);
     } catch (error) {
       console.error(`Error fetching leads by type ${type}:`, error);
+      throw error;
+    }
+  }
+
+  async getLeadsByLISStatus(status: 'red' | 'amber' | 'green', page?: number, limit?: number): Promise<Lead[]> {
+    try {
+      return await apiClient.get<Lead[]>(`/leads/lis/status/${status}`);
+    } catch (error) {
+      console.error(`Error fetching leads by LIS status ${status}:`, error);
       throw error;
     }
   }
@@ -348,6 +466,7 @@ class LeadService {
         email: opportunity.customer?.email || '',
         phone: phoneNumber,
         type: opportunity.type || 'individual',
+        company: opportunity.customer?.companyName || '',
         companyName: opportunity.customer?.companyName || '',
         source: opportunity.source || 'manual',
         notes: `Created from opportunity: ${opportunity.subject || ''}`,
@@ -364,6 +483,87 @@ class LeadService {
       return await this.createLead(leadData);
     } catch (error) {
       console.error('Error creating lead from opportunity:', error);
+      throw error;
+    }
+  }
+
+  async createLeadFromOpportunityId(opportunityId: string): Promise<Lead> {
+    try {
+      return await apiClient.post<{ opportunityId: string }, Lead>('/leads/from-opportunity', {
+        opportunityId
+      });
+    } catch (error) {
+      console.error('Error creating lead from opportunity ID:', error);
+      throw error;
+    }
+  }
+
+  async validateLeadLIS(id: string): Promise<LISValidationResponse> {
+    try {
+      return await apiClient.get<LISValidationResponse>(`/leads/lis/validate/${id}`);
+    } catch (error) {
+      console.error(`Error validating lead LIS ${id}:`, error);
+      throw error;
+    }
+  }
+
+  async bulkValidateLeads(leadIds: string[]): Promise<BulkValidateResponse> {
+    try {
+      return await apiClient.post<{ leadIds: string[] }, BulkValidateResponse>('/leads/lis/bulk-validate', {
+        leadIds
+      });
+    } catch (error) {
+      console.error('Error bulk validating leads:', error);
+      throw error;
+    }
+  }
+
+  async addContactAttempt(id: string, data: ContactAttemptData): Promise<Lead> {
+    try {
+      return await apiClient.post<ContactAttemptData, Lead>(`/leads/${id}/contact-attempt`, {
+        ...data,
+        timestamp: data.timestamp || new Date().toISOString()
+      });
+    } catch (error) {
+      console.error(`Error adding contact attempt to lead ${id}:`, error);
+      throw error;
+    }
+  }
+
+  async getLeadsNeedingAttention(): Promise<Lead[]> {
+    try {
+      return await apiClient.get<Lead[]>('/leads/lis/needing-attention');
+    } catch (error) {
+      console.error('Error fetching leads needing attention:', error);
+      throw error;
+    }
+  }
+
+  async getLeadsWithMissedSLA(): Promise<Lead[]> {
+    try {
+      return await apiClient.get<Lead[]>('/leads/lis/missed-sla');
+    } catch (error) {
+      console.error('Error fetching leads with missed SLA:', error);
+      throw error;
+    }
+  }
+
+  async checkOpportunityCanProgress(opportunityId: string): Promise<{ canProgress: boolean; reasons?: string[] }> {
+    try {
+      return await apiClient.get<{ canProgress: boolean; reasons?: string[] }>(
+        `/leads/opportunity/${opportunityId}/can-progress`
+      );
+    } catch (error) {
+      console.error(`Error checking if opportunity can progress ${opportunityId}:`, error);
+      throw error;
+    }
+  }
+
+  async getLISConfigs(): Promise<LISConfig> {
+    try {
+      return await apiClient.get<LISConfig>('/leads/lis/configs');
+    } catch (error) {
+      console.error('Error fetching LIS configs:', error);
       throw error;
     }
   }
@@ -394,6 +594,7 @@ class LeadService {
         sources: Object.keys(stats?.bySource || {}),
         stages: Object.keys(stats?.byStage || {}),
         types: ['individual', 'organization'],
+        lisStatuses: ['red', 'amber', 'green'],
         stats,
         overview
       };
@@ -404,6 +605,7 @@ class LeadService {
         sources: [],
         stages: [],
         types: ['individual', 'organization'],
+        lisStatuses: ['red', 'amber', 'green'],
         stats: null,
         overview: null
       };

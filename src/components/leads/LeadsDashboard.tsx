@@ -29,6 +29,7 @@ export default function LeadsDashboard({
     status: '',
     source: '',
     type: '',
+    lisStatus: '',
   });
 
   const fetchLeads = async () => {
@@ -74,9 +75,9 @@ export default function LeadsDashboard({
     }
     
     try {
-      await leadService.deleteLead(leadId);
-      showToast('Lead deleted successfully', 'success');
-      fetchLeads(); // Refresh the list
+      const response = await leadService.deleteLead(leadId);
+      showToast(response.message || 'Lead deleted successfully', 'success');
+      fetchLeads();
     } catch (error) {
       console.error('Failed to delete lead:', error);
       showToast('Failed to delete lead', 'error');

@@ -154,6 +154,7 @@ const SkeletonColumn = () => (
 interface KanbanColumnProps {
   stage: typeof stages[0];
   opportunities: ExtendedOpportunity[];
+  allOpportunities: ExtendedOpportunity[];
   onStatusChange: (id: string, status: StageId) => Promise<void>;
   onRecalculateScore: (id: string) => Promise<void>;
   getAvatarColor: (type: string, score?: number) => string;
@@ -169,6 +170,7 @@ interface KanbanColumnProps {
 function KanbanColumn({
   stage,
   opportunities,
+  allOpportunities,
   onStatusChange,
   onRecalculateScore,
   getAvatarColor,
@@ -178,11 +180,10 @@ function KanbanColumn({
   getChildCounts,
   loading,
   setIsDragging,
-  showToast
+  showToast,
   }: KanbanColumnProps) {
   const [dropping, setDropping] = useState(false);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
-  const [showLeadModal, setShowLeadModal] = useState(false);
   const [draggedOpportunity, setDraggedOpportunity] = useState<ExtendedOpportunity | null>(null);
   const [targetStage, setTargetStage] = useState<StageId | null>(null);
   const router = useRouter();
@@ -204,6 +205,7 @@ function KanbanColumn({
     
     const opportunityId = e.dataTransfer.getData('opportunityId');
     const currentStatus = e.dataTransfer.getData('currentStatus') as StageId;
+    const cachedHasLead = e.dataTransfer.getData('hasLead') === 'true';
     
     if (!opportunityId) {
       console.error('No opportunity ID in drag data');
@@ -211,34 +213,28 @@ function KanbanColumn({
     }
 
     try {
-      // Find the opportunity being dragged
-      const opportunity = opportunities.find(opp => opp._id === opportunityId);
+      const opportunity = allOpportunities.find(opp => opp._id === opportunityId);
       
       if (!opportunity) {
         console.error('Opportunity not found:', opportunityId);
         return;
       }
-      
 
-      if (currentStatus === 'new' && stage.id === 'attempted_to_contact') {
-        try {
-          // Check if lead exists for this opportunity
-          const hasLead = await checkIfLeadExists(opportunityId);
-          
-          if (!hasLead) {
-            setDraggedOpportunity(opportunity);
-            setTargetStage(stage.id);
-            setShowConfirmationModal(true);
-            return;
-          }
-        } catch (error) {
-          console.error('Error checking lead:', error);
-          showToast('Error checking lead status', 'error', 3000);
-          // Continue with status update even if check fails
-        }
+      if (opportunity.status === stage.id) {
+        showToast('Opportunity is already in this stage', 'info', 2000);
+        return;
       }
+
+      // Check if lead exists by making a fresh API call
+      const hasLead = await checkIfLeadExists(opportunityId);
       
-      // Proceed with status update
+      if (currentStatus === 'new' && stage.id === 'attempted_to_contact' && !hasLead) {
+        setDraggedOpportunity(opportunity);
+        setTargetStage(stage.id);
+        setShowConfirmationModal(true);
+        return;
+      }
+
       await onStatusChange(opportunityId, stage.id);
       
     } catch (error) {
@@ -247,12 +243,10 @@ function KanbanColumn({
     }
   };
 
-  // Add this helper function to check lead existence
   const checkIfLeadExists = async (opportunityId: string): Promise<boolean> => {
     try {
-      // Call your API to check if lead exists
-      const leads = await leadService.getLeadsByOpportunity(opportunityId);
-      return leads.data && leads.data.length > 0;
+      const response = await leadService.getLeadsByOpportunity(opportunityId);
+      return response.data && response.data.length > 0;
     } catch (error) {
       console.error('Error checking lead existence:', error);
       return false;
@@ -265,29 +259,32 @@ function KanbanColumn({
     router.push(`/leads/create?opportunityId=${draggedOpportunity._id}`);
   };
 
-  const handleCreateLeadAndMove = async (leadData: CreateLeadData) => {
-    if (!draggedOpportunity || !targetStage) return;
-    
-    try {
-      await leadService.createLead({
-        ...leadData,
-        opportunityId: draggedOpportunity._id
-      });
-      
-      showToast('Lead created successfully', 'success', 2000);
-      
-      // Update opportunity status
-      await onStatusChange(draggedOpportunity._id, targetStage);
-      
-      // Close modal
-      setShowLeadModal(false);
-      setDraggedOpportunity(null);
-      setTargetStage(null);
-    } catch (error: any) {
-      console.error('Error creating lead:', error);
-      showToast(error.message || 'Failed to create lead', 'error', 3000);
-    }
+  const handleConfirmationCancel = () => {
+    setShowConfirmationModal(false);
+    setDraggedOpportunity(null);
+    setTargetStage(null);
   };
+
+  // const handleCreateLeadAndMove = async (leadData: CreateLeadData) => {
+  //   if (!draggedOpportunity || !targetStage) return;
+    
+  //   try {
+  //     await leadService.createLead({
+  //       ...leadData,
+  //       opportunityId: draggedOpportunity._id
+  //     });
+      
+  //     showToast('Lead created successfully', 'success', 2000);
+      
+  //     // Update opportunity status
+  //     await onStatusChange(draggedOpportunity._id, targetStage);
+  //     setDraggedOpportunity(null);
+  //     setTargetStage(null);
+  //   } catch (error: any) {
+  //     console.error('Error creating lead:', error);
+  //     showToast(error.message || 'Failed to create lead', 'error', 3000);
+  //   }
+  // };
 
   const handleDragStart = () => {
     setIsDragging(true);
@@ -337,7 +334,7 @@ function KanbanColumn({
           ) : opportunities.length === 0 ? (
             <div className="text-center py-8">
               <div className="text-gray-400 mb-2">No opportunities in this stage</div>
-              <div className="text-sm text-gray-500">Create opportunities using the button above</div>
+              <div className="text-sm text-gray-500">Drag opportunities here or create new ones</div>
             </div>
           ) : (
             opportunities.map((opportunity) => (
@@ -361,11 +358,7 @@ function KanbanColumn({
       {/* Create Lead Modal for Kanban */}
       <ConfirmationModal
         isOpen={showConfirmationModal}
-        onClose={() => {
-          setShowConfirmationModal(false);
-          setDraggedOpportunity(null);
-          setTargetStage(null);
-        }}
+        onClose={handleConfirmationCancel}
         onConfirm={handleConfirmation}
         title="Create Lead Required"
         message="A lead record is required to move this opportunity to 'Attempted to Contact'. Would you like to create a lead now?"
@@ -413,7 +406,12 @@ function OpportunityCard({
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('opportunityId', opportunity._id);
     e.dataTransfer.setData('currentStatus', opportunity.status);
+    e.dataTransfer.effectAllowed = 'move';
     onDragStart();
+  };
+
+  const handleDragEnd = () => {
+    onDragEnd();
   };
 
   const handleRecalculateClick = async (e: React.MouseEvent) => {
@@ -447,7 +445,7 @@ function OpportunityCard({
       className="group bg-white/80 backdrop-blur-sm rounded-xl border border-white/30 p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
       draggable
       onDragStart={handleDragStart}
-      onDragEnd={onDragEnd}
+      onDragEnd={handleDragEnd}
       onClick={handleClick}
     >
       {/* Opportunity Header */}
@@ -740,7 +738,7 @@ function OpportunitiesContent() {
       setError(null);
       
       const params: FilterParams = { ...filters };
-      
+
       if (advancedFilters.multipleStatuses.length > 0) {
         params.statuses = advancedFilters.multipleStatuses;
         delete params.status;
@@ -769,18 +767,23 @@ function OpportunitiesContent() {
       
       const response = await opportunityService.getAllOpportunities(params);
 
-      // Fetch lead status for each opportunity
       const opportunitiesWithLeadInfo = await Promise.all(
         response.data.map(async (opp: ExtendedOpportunity) => {
-          try {
-            const hasLead = await leadService.checkLeadExistsForOpportunity(opp._id);
-            return {
-              ...opp,
-              hasLead
-            };
-          } catch {
-            return { ...opp, hasLead: false };
+          if (opp.status === 'new' || opp.status === 'attempted_to_contact') {
+            try {
+              const leadResponse = await leadService.getLeadsByOpportunity(opp._id);
+              return {
+                ...opp,
+                hasLead: leadResponse.data && leadResponse.data.length > 0
+              };
+            } catch (error) {
+              return { 
+                ...opp, 
+                hasLead: false 
+              };
+            }
           }
+          return { ...opp, hasLead: undefined };
         })
       );
       
@@ -1699,6 +1702,7 @@ function OpportunitiesContent() {
                     <KanbanColumn
                       stage={stage}
                       opportunities={stageOpportunities}
+                      allOpportunities={opportunities}
                       onStatusChange={handleStatusChange}
                       onRecalculateScore={handleRecalculateScore}
                       getAvatarColor={getAvatarColor}

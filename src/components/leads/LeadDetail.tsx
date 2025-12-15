@@ -189,17 +189,17 @@ export default function LeadDetail({ leadId, onBack }: LeadDetailProps) {
                     </div>
                   </div>
                   
-                  {lead.companyName && (
+                  {lead.company && (
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <div className="p-2 bg-blue-100 rounded-lg">
                         <Building className="h-5 w-5 text-blue-600" />
-                      </div>
-                      <div>
+                        </div>
+                        <div>
                         <p className="text-sm text-gray-500">Company</p>
-                        <p className="text-gray-800 font-medium">{lead.companyName}</p>
-                      </div>
+                        <p className="text-gray-800 font-medium">{lead.company}</p>
+                        </div>
                     </div>
-                  )}
+                   )}
                   
                   {lead.address && (
                     <div className="flex items-center gap-3">
@@ -257,13 +257,51 @@ export default function LeadDetail({ leadId, onBack }: LeadDetailProps) {
                   
                   <div className="space-y-2">
                     <p className="text-sm text-gray-500">Stage</p>
-                    <p className="text-gray-800 font-medium">{lead.stage}</p>
+                    <p className="text-gray-800 font-medium">{lead.stage || lead.status}</p>
                   </div>
                   
                   <div className="space-y-2">
                     <p className="text-sm text-gray-500">Type</p>
                     <p className="text-gray-800 font-medium capitalize">{lead.type}</p>
                   </div>
+
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-500">LIS Status</p>
+                    <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                        lead.lisStatus === 'red' ? 'bg-red-100 text-red-800' :
+                        lead.lisStatus === 'yellow' ? 'bg-yellow-100 text-yellow-800' :
+                        lead.lisStatus === 'green' ? 'bg-green-100 text-green-800' :
+                        lead.lisStatus === 'amber' ? 'bg-amber-100 text-amber-800' :
+                        'bg-gray-100 text-gray-800'
+                    }`}>
+                        {lead.lisStatus?.toUpperCase() || 'Not Set'}
+                    </span>
+                   </div>
+                   {lead.contactAttempts && lead.contactAttempts.length > 0 && (
+                    <div className="mt-6">
+                        <h3 className="text-sm font-semibold text-gray-700 mb-3">Contact History</h3>
+                        <div className="space-y-3">
+                        {lead.contactAttempts.map((attempt, index) => (
+                            <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                            <div className="flex-1">
+                                <div className="flex items-center justify-between mb-1">
+                                <span className="text-sm font-medium text-gray-700 capitalize">
+                                    {attempt.method}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                    {formatDate(attempt.timestamp)}
+                                </span>
+                                </div>
+                                <p className="text-sm text-gray-600">{attempt.outcome}</p>
+                                {attempt.notes && (
+                                <p className="text-sm text-gray-500 mt-1">{attempt.notes}</p>
+                                )}
+                            </div>
+                            </div>
+                        ))}
+                        </div>
+                    </div>
+                    )}
                 </div>
               </div>
             </div>

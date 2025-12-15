@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, User, Mail, Phone, Building, Target, Briefcase, MessageSquare, Check, Loader2, Sparkles } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { leadService, CreateLeadData } from '@/services/leadService';
+import CreateLeadConfirmationModal from '@/components/leads/CreateLeadConfirmationModal';
 
 interface CreateLeadFormProps {
   opportunityId?: string;
@@ -15,6 +16,7 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
   const { showToast } = useToast();
   
   const [loading, setLoading] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   
   const [formData, setFormData] = useState<CreateLeadData>({
     name: '',
@@ -26,11 +28,10 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
     status: 'new',
     firstName: '',
     lastName: '',
-    companyName: '',
+    company: '',
     notes: '',
     address: '',
     city: '',
-    stage: 'New Inquiry',
     sourceDetails: '',
     prospectingReason: '',
     gender: '',
@@ -93,6 +94,11 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
       return;
     }
     
+    // Show confirmation modal instead of directly submitting
+    setShowConfirmation(true);
+  };
+
+  const handleCreateLead = async () => {
     setLoading(true);
     
     try {
@@ -101,11 +107,19 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
         name: formData.name || `${formData.firstName} ${formData.lastName}`.trim(),
         status: formData.status || 'new',
         type: formData.type || 'individual',
+        company: formData.company || formData.companyName,
       };
       
-      const createdLead = await leadService.createLead(finalData);
+      const cleanedData = Object.fromEntries(
+        Object.entries(finalData).filter(([_, value]) => value !== undefined)
+      );
       
+      const createdLead = await leadService.createLead(cleanedData as CreateLeadData);
+      
+      setShowConfirmation(false);
       showToast('Lead created successfully!', 'success');
+      
+      // Redirect to the new lead's page
       router.push(`/leads/${createdLead._id}`);
     } catch (error: any) {
       console.error('Error creating lead:', error);
@@ -115,6 +129,12 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCloseConfirmation = () => {
+    if (!loading) {
+      setShowConfirmation(false);
     }
   };
 
@@ -129,6 +149,7 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
               <button
                 onClick={() => router.back()}
                 className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                disabled={loading}
               >
                 <ArrowLeft className="h-5 w-5 text-white" />
               </button>
@@ -175,6 +196,7 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                     onChange={(e) => handleInputChange('firstName', e.target.value)}
                     className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     placeholder="John"
+                    disabled={loading}
                   />
                   {errors.firstName && (
                     <p className="text-sm text-red-600">{errors.firstName}</p>
@@ -192,6 +214,7 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                     onChange={(e) => handleInputChange('lastName', e.target.value)}
                     className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     placeholder="Doe"
+                    disabled={loading}
                   />
                   {errors.lastName && (
                     <p className="text-sm text-red-600">{errors.lastName}</p>
@@ -208,8 +231,11 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                     type="email"
                     value={formData.email}
                     onChange={(e) => handleInputChange('email', e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className={`w-full px-4 py-2.5 bg-white border rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                      errors.email ? 'border-red-300' : 'border-gray-300'
+                    }`}
                     placeholder="john.doe@example.com"
+                    disabled={loading}
                   />
                   {errors.email && (
                     <p className="text-sm text-red-600">{errors.email}</p>
@@ -226,8 +252,11 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => handleInputChange('phone', e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className={`w-full px-4 py-2.5 bg-white border rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                      errors.phone ? 'border-red-300' : 'border-gray-300'
+                    }`}
                     placeholder="+1 (555) 123-4567"
+                    disabled={loading}
                   />
                   {errors.phone && (
                     <p className="text-sm text-red-600">{errors.phone}</p>
@@ -238,14 +267,15 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                     <Building className="h-4 w-4 text-blue-500" />
-                    Company Name
+                    Company
                   </label>
                   <input
                     type="text"
-                    value={formData.companyName}
-                    onChange={(e) => handleInputChange('companyName', e.target.value)}
+                    value={formData.company || formData.companyName || ''}
+                    onChange={(e) => handleInputChange('company', e.target.value)}
                     className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     placeholder="Acme Corporation"
+                    disabled={loading}
                   />
                 </div>
                 
@@ -263,6 +293,7 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                         checked={formData.type === 'individual'}
                         onChange={(e) => handleInputChange('type', e.target.value)}
                         className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                        disabled={loading}
                       />
                       <span className="text-gray-700">Individual</span>
                     </label>
@@ -274,6 +305,7 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                         checked={formData.type === 'organization'}
                         onChange={(e) => handleInputChange('type', e.target.value)}
                         className="h-4 w-4 text-purple-600 focus:ring-purple-500"
+                        disabled={loading}
                       />
                       <span className="text-gray-700">Organization</span>
                     </label>
@@ -303,7 +335,10 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                   <select
                     value={formData.source}
                     onChange={(e) => handleInputChange('source', e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className={`w-full px-4 py-2.5 bg-white border rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                      errors.source ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    disabled={loading}
                   >
                     <option value="website">Website</option>
                     <option value="referral">Referral</option>
@@ -328,6 +363,7 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                     value={formData.status}
                     onChange={(e) => handleInputChange('status', e.target.value)}
                     className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    disabled={loading}
                   >
                     <option value="new">New</option>
                     <option value="attempted_to_contact">Attempted to Contact</option>
@@ -350,19 +386,20 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                     onChange={(e) => handleInputChange('sourceDetails', e.target.value)}
                     className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     placeholder="e.g., LinkedIn Ad, Google Search"
+                    disabled={loading}
                   />
                 </div>
                 
                 {/* Stage */}
-                {/* Status */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">
                     Stage
                   </label>
                   <select
-                    value={formData.status}
-                    onChange={(e) => handleInputChange('status', e.target.value)}
+                    value={formData.stage}
+                    onChange={(e) => handleInputChange('stage', e.target.value)}
                     className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    disabled={loading}
                   >
                     <option value="new">New</option>
                     <option value="attempted_to_contact">Attempted to Contact</option>
@@ -372,6 +409,38 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                     <option value="lost">Lost</option>
                     <option value="won">Won</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Purpose of Enquiry */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Purpose of Enquiry
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.purposeOfEnquiry || ''}
+                    onChange={(e) => handleInputChange('purposeOfEnquiry', e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    placeholder="e.g., Personal use, Business fleet"
+                    disabled={loading}
+                  />
+                </div>
+                
+                {/* Budget Range */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Budget Range
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.budgetRange || ''}
+                    onChange={(e) => handleInputChange('budgetRange', e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    placeholder="e.g., $30,000 - $40,000"
+                    disabled={loading}
+                  />
                 </div>
               </div>
               
@@ -387,6 +456,7 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
                   rows={3}
                   className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   placeholder="Add any additional notes about this lead..."
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -397,7 +467,8 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
             <button
               type="button"
               onClick={() => router.back()}
-              className="px-6 py-3 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              className="px-6 py-3 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              disabled={loading}
             >
               Cancel
             </button>
@@ -409,18 +480,27 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Creating Lead...
+                  Processing...
                 </>
               ) : (
                 <>
                   <Check className="h-4 w-4" />
-                  Create Lead
+                  Review & Create Lead
                 </>
               )}
             </button>
           </div>
         </form>
       </div>
+
+      {/* Confirmation Modal */}
+      <CreateLeadConfirmationModal
+        isOpen={showConfirmation}
+        onClose={handleCloseConfirmation}
+        onConfirm={handleCreateLead}
+        formData={formData}
+        loading={loading}
+      />
     </div>
   );
 }
