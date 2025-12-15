@@ -35,29 +35,29 @@ export default function LeadFilters({ filters, onFilterChange, onApply }: LeadFi
   };
 
   return (
-    <div className="flex flex-col md:flex-row md:items-center gap-4">
+    <div className="flex flex-col md:flex-row md:items-center gap-3">
       <form onSubmit={handleSubmit} className="flex-1">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 md:h-4 md:w-4 text-gray-400" />
           <input
             type="text"
             value={localSearch}
             onChange={(e) => setLocalSearch(e.target.value)}
             placeholder="Search leads by name, email, phone..."
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-9 md:pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
           />
         </div>
       </form>
       
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-2">
         <select
           value={filters.status}
           onChange={(e) => onFilterChange({ ...filters, status: e.target.value })}
-          className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-2 py-1.5 md:px-3 md:py-2 border border-gray-300 rounded-lg text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All Status</option>
           <option value="new">New</option>
-          <option value="attempted_to_contact">Attempted to Contact</option>
+          <option value="attempted_to_contact">Attempted Contact</option>
           <option value="prospecting">Prospecting</option>
           <option value="appointment_scheduled">Appointment Scheduled</option>
           <option value="non_progressive">Non Progressive</option>
@@ -68,7 +68,7 @@ export default function LeadFilters({ filters, onFilterChange, onApply }: LeadFi
         <select
           value={filters.source}
           onChange={(e) => onFilterChange({ ...filters, source: e.target.value })}
-          className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-2 py-1.5 md:px-3 md:py-2 border border-gray-300 rounded-lg text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All Sources</option>
           <option value="website">Website</option>
@@ -82,17 +82,17 @@ export default function LeadFilters({ filters, onFilterChange, onApply }: LeadFi
         
         <button
           onClick={handleSubmit}
-          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+          className="flex items-center gap-1 px-3 py-1.5 md:px-4 md:py-2.5 bg-blue-600 text-white rounded-lg text-xs md:text-sm font-medium hover:bg-blue-700 transition-colors"
         >
-          <Filter className="h-4 w-4" />
-          Apply Filters
+          <Filter className="h-3 w-3 md:h-4 md:w-4" />
+          Apply
         </button>
         
         <button
           onClick={handleClear}
-          className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+          className="flex items-center gap-1 px-3 py-1.5 md:px-4 md:py-2.5 border border-gray-300 text-gray-700 rounded-lg text-xs md:text-sm font-medium hover:bg-gray-50 transition-colors"
         >
-          <XCircle className="h-4 w-4" />
+          <XCircle className="h-3 w-3 md:h-4 md:w-4" />
           Clear
         </button>
       </div>

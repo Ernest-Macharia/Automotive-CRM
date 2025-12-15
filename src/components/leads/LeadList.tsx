@@ -1,6 +1,6 @@
 'use client';
 
-import { Eye, Edit, Trash2, Phone, Mail, User, Building, Target, Users, Loader2 } from 'lucide-react';
+import { Eye, Edit, Trash2, Phone, Mail, User, Building, Target, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Lead } from '@/services/leadService';
 
@@ -36,24 +36,20 @@ export default function LeadList({ leads, loading, onDelete, onRefresh }: LeadLi
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center p-12">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    );
+    return <LeadListSkeleton />;
   }
 
   if (leads.length === 0) {
     return (
-      <div className="text-center py-12">
-        <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No leads found</h3>
-        <p className="text-gray-600 mb-6">
+      <div className="text-center py-8 md:py-12">
+        <Users className="h-10 w-10 md:h-12 md:w-12 text-gray-400 mx-auto mb-3 md:mb-4" />
+        <h3 className="text-base md:text-lg font-medium text-gray-900 mb-1 md:mb-2">No leads found</h3>
+        <p className="text-gray-600 text-sm mb-4 md:mb-6">
           Try changing your filters or create a new lead
         </p>
         <button
           onClick={() => router.push('/leads/create')}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+          className="inline-flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm md:text-base"
         >
           Create Lead
         </button>
@@ -66,25 +62,25 @@ export default function LeadList({ leads, loading, onDelete, onRefresh }: LeadLi
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Lead
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Contact
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Status
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Source
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               LIS Status
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Created
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Actions
             </th>
           </tr>
@@ -92,20 +88,20 @@ export default function LeadList({ leads, loading, onDelete, onRefresh }: LeadLi
         <tbody className="bg-white divide-y divide-gray-200">
           {leads.map((lead) => (
             <tr key={lead._id} className="hover:bg-gray-50 transition-colors">
-              <td className="px-6 py-4">
+              <td className="px-4 md:px-6 py-3 md:py-4">
                 <div className="flex items-center">
-                  <div className="h-10 w-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-medium flex-shrink-0">
+                  <div className="h-8 w-8 md:h-10 md:w-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-medium flex-shrink-0">
                     {lead.name?.charAt(0).toUpperCase() || 'L'}
                   </div>
-                  <div className="ml-4">
+                  <div className="ml-3">
                     <div className="text-sm font-medium text-gray-900">
                       {lead.name}
                     </div>
-                    <div className="text-sm text-gray-500 flex items-center gap-1">
+                    <div className="text-xs text-gray-500 flex items-center gap-1">
                       {lead.type === 'individual' ? (
-                        <User className="h-3 w-3" />
+                        <User className="h-2.5 w-2.5" />
                       ) : (
-                        <Building className="h-3 w-3" />
+                        <Building className="h-2.5 w-2.5" />
                       )}
                       {lead.type === 'individual' ? 'Individual' : 'Organization'}
                     </div>
@@ -113,7 +109,7 @@ export default function LeadList({ leads, loading, onDelete, onRefresh }: LeadLi
                 </div>
               </td>
               
-              <td className="px-6 py-4">
+              <td className="px-4 md:px-6 py-3 md:py-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 text-sm text-gray-900">
                     <Mail className="h-3 w-3 text-gray-400" />
@@ -126,8 +122,8 @@ export default function LeadList({ leads, loading, onDelete, onRefresh }: LeadLi
                 </div>
               </td>
               
-              <td className="px-6 py-4">
-                <span className={`px-3 py-1 text-xs font-medium rounded-full ${getStatusClasses(lead.status)}`}>
+              <td className="px-4 md:px-6 py-3 md:py-4">
+                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusClasses(lead.status)}`}>
                   {(() => {
                     const statusMap: Record<string, string> = {
                       'new': 'New',
@@ -143,14 +139,14 @@ export default function LeadList({ leads, loading, onDelete, onRefresh }: LeadLi
                 </span>
               </td>
               
-              <td className="px-6 py-4">
+              <td className="px-4 md:px-6 py-3 md:py-4">
                 <div className="text-sm text-gray-900">
                   {lead.source.charAt(0).toUpperCase() + lead.source.slice(1).replace('-', ' ')}
                 </div>
               </td>
               
-              <td className="px-6 py-4">
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+              <td className="px-4 md:px-6 py-3 md:py-4">
+                <span className={`px-1.5 py-0.5 text-xs font-medium rounded-full ${
                   lead.lisStatus === 'red' ? 'bg-red-100 text-red-800' :
                   lead.lisStatus === 'yellow' ? 'bg-yellow-100 text-yellow-800' :
                   'bg-green-100 text-green-800'
@@ -159,47 +155,100 @@ export default function LeadList({ leads, loading, onDelete, onRefresh }: LeadLi
                 </span>
               </td>
               
-              <td className="px-6 py-4">
+              <td className="px-4 md:px-6 py-3 md:py-4">
                 <div className="text-sm text-gray-900">
                   {formatDate(lead.createdAt)}
                 </div>
               </td>
               
-              <td className="px-6 py-4">
-                <div className="flex items-center gap-2">
+              <td className="px-4 md:px-6 py-3 md:py-4">
+                <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => router.push(`/leads/details?id=${lead._id}`)}
-                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     title="View"
                   >
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-3.5 w-3.5" />
                   </button>
                   
                   <button
                     onClick={() => router.push(`/leads/edit?id=${lead._id}`)}
-                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                    className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                     title="Edit"
                   >
-                    <Edit className="h-4 w-4" />
+                    <Edit className="h-3.5 w-3.5" />
                   </button>
                   
                   <button
                     onClick={() => onDelete(lead._id, lead.name)}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     title="Delete"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                   
                   <button
                     onClick={() => router.push(`/opportunities/create?leadId=${lead._id}`)}
-                    className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                    className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
                     title="Convert to Opportunity"
                   >
-                    <Target className="h-4 w-4" />
+                    <Target className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Skeletal Loading for Lead List
+function LeadListSkeleton() {
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            {[...Array(7)].map((_, index) => (
+              <th key={index} className="px-4 md:px-6 py-3">
+                <div className="h-3 bg-gray-200 rounded animate-pulse w-20"></div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {[...Array(5)].map((_, rowIndex) => (
+            <tr key={rowIndex}>
+              {[...Array(7)].map((_, colIndex) => (
+                <td key={colIndex} className="px-4 md:px-6 py-3 md:py-4">
+                  {colIndex === 0 ? (
+                    <div className="flex items-center">
+                      <div className="h-8 w-8 md:h-10 md:w-10 bg-gray-200 rounded-full animate-pulse"></div>
+                      <div className="ml-3 space-y-1.5">
+                        <div className="h-3 bg-gray-200 rounded animate-pulse w-32"></div>
+                        <div className="h-2 bg-gray-200 rounded animate-pulse w-24"></div>
+                      </div>
+                    </div>
+                  ) : colIndex === 6 ? (
+                    <div className="flex items-center gap-1.5">
+                      {[...Array(4)].map((_, btnIndex) => (
+                        <div key={btnIndex} className="h-8 w-8 bg-gray-200 rounded-lg animate-pulse"></div>
+                      ))}
+                    </div>
+                  ) : colIndex === 2 || colIndex === 4 ? (
+                    <div className="h-6 w-16 bg-gray-200 rounded-full animate-pulse"></div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="h-3 bg-gray-200 rounded animate-pulse w-24"></div>
+                      {colIndex === 1 && (
+                        <div className="h-2 bg-gray-200 rounded animate-pulse w-20"></div>
+                      )}
+                    </div>
+                  )}
+                </td>
+              ))}
             </tr>
           ))}
         </tbody>
