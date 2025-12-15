@@ -1,3 +1,4 @@
+// components/auth/ProtectedRoute.tsx (updated version)
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -7,9 +8,14 @@ import { authService } from '@/services/authService';
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredRole?: string[];
+  requiredPermissions?: string[];
 }
 
-export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+export default function ProtectedRoute({ 
+  children, 
+  requiredRole,
+  requiredPermissions 
+}: ProtectedRouteProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const router = useRouter();
@@ -29,9 +35,35 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
         if (!user) {
           router.push('/auth/login');
         } else {
+          // Check role if required
           if (requiredRole && !requiredRole.includes(user.role)) {
             router.push('/unauthorized');
             return;
+          }
+          
+          // Check permissions if required
+          if (requiredPermissions && user.permissions) {
+            const hasPermission = requiredPermissions.some(permission => 
+              user.permissions?.includes(permission)
+            );
+            
+            if (!hasPermission) {
+              router.push('/unauthorized');
+              return;
+            }
+          }
+          
+          // If both role and permissions are required, check both
+          if (requiredRole && requiredPermissions) {
+            const hasRole = requiredRole.includes(user.role);
+            const hasPermission = requiredPermissions.some(permission => 
+              user.permissions?.includes(permission)
+            );
+            
+            if (!hasRole && !hasPermission) {
+              router.push('/unauthorized');
+              return;
+            }
           }
         }
 
@@ -45,7 +77,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
     };
 
     checkAuth();
-  }, [router, requiredRole]);
+  }, [router, requiredRole, requiredPermissions]);
 
   if (isLoading) {
     return (
