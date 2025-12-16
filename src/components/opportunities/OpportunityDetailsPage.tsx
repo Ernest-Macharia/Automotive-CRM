@@ -497,10 +497,17 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   
   const {
     updatingStatus,
-    showConfirmationModal,
-    handleStatusUpdate,
-    handleConfirmation,
-    handleConfirmationCancel
+    // Generic confirmation for ANY status change
+    showGenericConfirm,
+    genericMessage,
+    onGenericConfirm,
+    onGenericCancel,
+    // Special "Create Lead" modal (only when needed)
+    showCreateLeadModal,
+    onCreateLeadConfirm,
+    onCreateLeadCancel,
+    // The main entry point
+    handleStatusUpdate
   } = useOpportunityStatusUpdate();
 
   useEffect(() => {
@@ -527,32 +534,8 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   };
 
   const handleStatusUpdateClick = async (newStatus: string) => {
-    if (!opportunity) return;
-    
-    try {
-      // Use the hook to handle status update
-      const result = await handleStatusUpdate(opportunity, newStatus);
-      
-      // Check the result
-      if (result.success) {
-        // If status was updated successfully, refresh the data
-        await fetchOpportunityDetails();
-        showToast('Status updated successfully', 'success', 2000);
-      } else if (result.needsLead) {
-        // The hook showed a modal, no need to show toast here
-        // The modal will handle the redirect to create lead
-        return;
-      }
-    } catch (err: any) {
-      console.error('Error updating status:', err);
-      
-      // Check if it's the LIS validation error
-      if (err.message?.includes('LIS validation failed') && err.message?.includes('Missing fields: contact')) {
-        showToast('Cannot move opportunity: Lead is missing contact information. Please add contact details to the lead first.', 'error', 4000);
-      } else {
-        showToast('Failed to update status', 'error', 3000);
-      }
-    }
+    if (!opportunity || opportunity.status === newStatus) return;
+    await handleStatusUpdate(opportunity, newStatus);
   };
 
   const handleDelete = async () => {
@@ -1269,13 +1252,27 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
         itemName={opportunity?.subject}
         type="opportunity"
       />
+      {/* Generic Confirmation */}
       <ConfirmationModal
-        isOpen={showConfirmationModal}
-        onClose={handleConfirmationCancel}
-        onConfirm={handleConfirmation}
+        isOpen={showGenericConfirm}
+        onClose={onGenericCancel}
+        onConfirm={onGenericConfirm}
+        title="Confirm Status Change"
+        message={genericMessage}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        type="warning"
+      />
+
+      {/* Create Lead Modal */}
+      <ConfirmationModal
+        isOpen={showCreateLeadModal}
+        onClose={onCreateLeadCancel}
+        onConfirm={onCreateLeadConfirm}
         title="Create Lead Required"
         message="A lead record is required to move this opportunity to 'Attempted to Contact'. Would you like to create a lead now?"
         confirmText="Create Lead"
+        cancelText="Cancel"
         type="info"
       />
     </div>

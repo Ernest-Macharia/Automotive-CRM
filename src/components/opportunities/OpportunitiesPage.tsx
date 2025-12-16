@@ -183,11 +183,18 @@ function KanbanColumn({
   // Use the hook for status updates
   const {
     updatingStatus,
-    showConfirmationModal,
-    handleStatusUpdate,
-    handleConfirmation,
-    handleConfirmationCancel
-  } = useOpportunityStatusUpdate();
+    // Generic confirmation for ANY status change
+    showGenericConfirm,
+    genericMessage,
+    onGenericConfirm,
+    onGenericCancel,
+    // Special "Create Lead" modal (only when needed)
+    showCreateLeadModal,
+    onCreateLeadConfirm,
+    onCreateLeadCancel,
+    // The main entry point
+    handleStatusUpdate
+    } = useOpportunityStatusUpdate();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -203,51 +210,17 @@ function KanbanColumn({
     e.preventDefault();
     setDropping(false);
     setIsDragging(false);
-    
     const opportunityId = e.dataTransfer.getData('opportunityId');
-    
-    if (!opportunityId) {
-        console.error('No opportunity ID in drag data');
+    if (!opportunityId) return;
+
+    const opportunity = allOpportunities.find(opp => opp._id === opportunityId);
+    if (!opportunity || opportunity.status === stage.id) {
+        if (opportunity) showToast('Already in this stage', 'info', 2000);
         return;
     }
 
-    try {
-        const opportunity = allOpportunities.find(opp => opp._id === opportunityId);
-        
-        if (!opportunity) {
-        console.error('Opportunity not found:', opportunityId);
-        return;
-        }
-
-        if (opportunity.status === stage.id) {
-        showToast('Opportunity is already in this stage', 'info', 2000);
-        return;
-        }
-
-        // Use the hook to handle status update
-        const result = await handleStatusUpdate(opportunity, stage.id);
-        
-        // Check the result
-        if (result.success) {
-        // If status was updated successfully, refresh the opportunities
-        await refreshOpportunities();
-        showToast('Opportunity moved successfully', 'success', 2000);
-        } else if (result.needsLead) {
-        // The hook showed a modal, no need to show toast here
-        // The modal will handle the redirect to create lead
-        return;
-        }
-        
-    } catch (error: any) {
-        console.error('Error during drop:', error);
-        
-        // Check if it's the LIS validation error
-        if (error.message?.includes('LIS validation failed') && error.message?.includes('Missing fields: contact')) {
-        showToast('Cannot move: Lead is missing contact information. Please update the lead first.', 'error', 4000);
-        } else {
-        showToast('Failed to move opportunity', 'error', 3000);
-        }
-    }
+    // This will trigger the generic confirmation modal
+        await handleStatusUpdate(opportunity, stage.id);
     };
 
   const handleDragStart = () => {
@@ -319,17 +292,29 @@ function KanbanColumn({
         </div>
       </div>
 
-      {/* Confirmation Modal for Kanban */}
+      {/* Generic Status Change Confirmation */}
       <ConfirmationModal
-        isOpen={showConfirmationModal}
-        onClose={handleConfirmationCancel}
-        onConfirm={handleConfirmation}
-        title="Create Lead Required"
-        message="A lead record is required to move this opportunity to 'Attempted to Contact'. Would you like to create a lead now?"
-        confirmText="Create Lead"
-        cancelText="Cancel"
-        type="info"
-      />
+            isOpen={showGenericConfirm}
+            onClose={onGenericCancel}
+            onConfirm={onGenericConfirm}
+            title="Confirm Status Change"
+            message={genericMessage}
+            confirmText="Confirm"
+            cancelText="Cancel"
+            type="warning"
+       />
+
+        {/* Special "Create Lead" Modal */}
+       <ConfirmationModal
+            isOpen={showCreateLeadModal}
+            onClose={onCreateLeadCancel}
+            onConfirm={onCreateLeadConfirm}
+            title="Create Lead Required"
+            message="A lead record is required to move this opportunity to 'Attempted to Contact'. Would you like to create a lead now?"
+            confirmText="Create Lead"
+            cancelText="Cancel"
+            type="info"
+       />
     </>
   );
 }
