@@ -604,13 +604,15 @@ class OpportunityService {
     }
   }
 
+  // In opportunityService.ts, update the createOpportunity method:
   async createOpportunity(data: CreateOpportunityData): Promise<Opportunity> {
     try {
-      const formattedData: FormattedOpportunityData = {
+      const formattedData: any = {
         type: data.type,
         subject: data.subject,
         status: data.status || 'new',
         source: data.source || 'walk_in',
+        opportunityType: data.opportunityType,
         customer: {
           name: data.customer.name,
           ...(data.customer.email && { email: data.customer.email }),
@@ -623,6 +625,7 @@ class OpportunityService {
         },
       };
 
+      // Add vehicles if they exist
       if (data.vehicles && data.vehicles.length > 0) {
         formattedData.vehicles = data.vehicles.map(vehicle => ({
           ...(vehicle.vin && { vin: vehicle.vin }),
@@ -630,7 +633,7 @@ class OpportunityService {
           ...(vehicle.licensePlate && { licensePlate: vehicle.licensePlate }),
           make: vehicle.make,
           model: vehicle.model,
-          ...(vehicle.year && { year: parseInt(vehicle.year as string) || vehicle.year }),
+          ...(vehicle.year && { year: vehicle.year }),
           ...(vehicle.color && { color: vehicle.color }),
           ...(vehicle.engineSize && { engineSize: vehicle.engineSize }),
           ...(vehicle.fuelType && { fuelType: vehicle.fuelType }),
@@ -641,37 +644,45 @@ class OpportunityService {
         }));
       }
 
-      if (data.notes) {
-        formattedData.notes = data.notes;
-      }
-
-      if (data.opportunityType) {
-        formattedData.opportunityType = data.opportunityType;
-      }
-
+      // Add services/products if they exist
       if (data.servicesProducts && data.servicesProducts.length > 0) {
         formattedData.servicesProducts = data.servicesProducts;
       }
 
+      // Add notes if it exists
+      if (data.notes) {
+        formattedData.notes = data.notes;
+      }
+
+      // Add financial data if they exist
       if (data.subtotal !== undefined) {
         formattedData.subtotal = data.subtotal;
       }
-
+      
       if (data.totalDiscount !== undefined) {
         formattedData.totalDiscount = data.totalDiscount;
       }
-
+      
       if (data.total !== undefined) {
         formattedData.total = data.total;
       }
+
+      console.log('Sending data to backend:', JSON.stringify(formattedData, null, 2));
       
-      return await apiClient.post<FormattedOpportunityData, Opportunity>('/opportunities', formattedData);
+      return await apiClient.post<any, Opportunity>('/opportunities', formattedData);
     } catch (error) {
       console.error('Error creating opportunity:', error);
       
+      // Enhanced error handling
       if (error instanceof Error) {
+        console.error('Error details:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        });
+        
         if (error.message.includes('CORS')) {
-          throw new Error('CORS configuration issue. Please contact the backend team to allow requests from localhost:3000.');
+          throw new Error('CORS configuration issue. Please contact the backend team.');
         } else if (error.message.includes('502')) {
           throw new Error('Backend server is currently unavailable. Please try again later.');
         } else if (error.message.includes('401') || error.message.includes('403')) {
@@ -679,7 +690,7 @@ class OpportunityService {
           window.location.href = '/login';
           throw new Error('Session expired. Please log in again.');
         } else if (error.message.includes('NetworkError')) {
-          throw new Error('Network error. Please check your internet connection and try again.');
+          throw new Error('Network error. Please check your internet connection.');
         }
       }
       
