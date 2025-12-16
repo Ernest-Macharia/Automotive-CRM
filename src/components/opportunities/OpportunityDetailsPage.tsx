@@ -3,10 +3,10 @@
 import { opportunityService, Opportunity } from '@/services/opportunityService';
 import DeleteConfirmationModal from '@/components/opportunities/DeleteConfirmationModal';
 import ConfirmationModal from '@/components/opportunities/ConfirmationModal';
-import { leadService } from '@/services/leadService'; 
 import { useToast } from '@/contexts/ToastContext';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useOpportunityStatusUpdate } from '@/hooks/useOpportunityStatusUpdate';
 import {
   ArrowLeft, Phone, Mail, MapPin, Building, User, Calendar, 
   Car, FileText, DollarSign, CheckCircle, XCircle, Clock,
@@ -82,7 +82,6 @@ interface Vehicle {
   createdAt: string;
   updatedAt: string;
   active?: boolean;
-  // Add the new fields as optional
   engineSize?: string;
   fuelType?: string;
   transmission?: string;
@@ -179,7 +178,6 @@ function VehicleDetailsModal({
     return vehicle.mileage;
   };
 
-  // Calculate data completeness percentage
   const calculateCompleteness = () => {
     const fields = [
       vehicle.make,
@@ -202,16 +200,14 @@ function VehicleDetailsModal({
         return false;
       }
       
-      // Handle different types
       if (typeof field === 'string') {
         return field.trim() !== '';
       }
       
       if (typeof field === 'number') {
-        return field !== 0; // Or use field > 0 if 0 is a valid value
+        return field !== 0;
       }
       
-      // For any other type, convert to string
       return String(field).trim() !== '';
     }).length;
     
@@ -232,17 +228,14 @@ function VehicleDetailsModal({
 
   return (
     <>
-      {/* Backdrop */}
       <div 
         className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 transition-opacity"
         onClick={onClose}
       />
       
-      {/* Modal */}
       <div className="fixed inset-0 z-50 overflow-y-auto">
         <div className="min-h-full flex items-center justify-center p-4">
           <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden border border-white/30">
-            {/* Close Button */}
             <button
               onClick={onClose}
               className="absolute top-4 right-4 z-10 p-2 bg-white/80 backdrop-blur-sm rounded-lg hover:bg-gray-100 transition-colors"
@@ -250,10 +243,8 @@ function VehicleDetailsModal({
               <X className="h-5 w-5 text-gray-600" />
             </button>
             
-            {/* Content */}
             <div className="h-full overflow-y-auto">
               <div className="p-6">
-                {/* Vehicle Header */}
                 <div className="flex items-start gap-4 mb-6">
                   <div className="flex-shrink-0">
                     <div className="h-16 w-16 rounded-xl bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
@@ -292,9 +283,7 @@ function VehicleDetailsModal({
                   </div>
                 </div>
 
-                {/* Vehicle Details Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                  {/* Basic Information */}
                   <div className="space-y-4">
                     <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                       <Car className="h-4 w-4 text-blue-500" />
@@ -348,7 +337,6 @@ function VehicleDetailsModal({
                     </div>
                   </div>
 
-                  {/* Technical Details (only show if any technical details exist) */}
                   {hasTechnicalDetails() && (
                     <div className="space-y-4">
                       <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -396,7 +384,6 @@ function VehicleDetailsModal({
                   )}
                 </div>
 
-                {/* Identification Details (only show if any identification exists) */}
                 {hasIdentification() && (
                   <div className="mb-8">
                     <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-3">
@@ -443,7 +430,6 @@ function VehicleDetailsModal({
                   </div>
                 )}
 
-                {/* Data Completeness Summary */}
                 <div className="p-4 rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200">
                   <h3 className="text-sm font-semibold text-gray-700 mb-3">Data Summary</h3>
                   <div className="space-y-3">
@@ -504,13 +490,18 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   const [opportunity, setOpportunity] = useState<OpportunityWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [updatingStatus, setUpdatingStatus] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [targetStatus, setTargetStatus] = useState<string>('');
-  const [showConfirmationModal, setShowConfirmationModal] = useState(false)
+  
+  const {
+    updatingStatus,
+    showConfirmationModal,
+    handleStatusUpdate,
+    handleConfirmation,
+    handleConfirmationCancel
+  } = useOpportunityStatusUpdate();
 
   useEffect(() => {
     if (opportunityId) {
@@ -535,77 +526,32 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
     }
   };
 
-  const handleStatusUpdate = async (newStatus: string) => {
-    if (!opportunity || updatingStatus) return;
-
-    if (opportunity.status === 'new' && newStatus === 'attempted_to_contact') {
-      try {
-        const hasLead = await checkIfLeadExists(opportunity._id);
-        
-        if (!hasLead) {
-          setTargetStatus(newStatus);
-          setShowConfirmationModal(true);
-          return;
-        }
-      } catch (error) {
-        console.error('Error checking lead:', error);
+  const handleStatusUpdateClick = async (newStatus: string) => {
+    if (!opportunity) return;
+    
+    try {
+      // Use the hook to handle status update
+      const result = await handleStatusUpdate(opportunity, newStatus);
+      
+      // Check the result
+      if (result.success) {
+        // If status was updated successfully, refresh the data
+        await fetchOpportunityDetails();
+        showToast('Status updated successfully', 'success', 2000);
+      } else if (result.needsLead) {
+        // The hook showed a modal, no need to show toast here
+        // The modal will handle the redirect to create lead
+        return;
       }
-    }
-    
-    await updateOpportunityStatus(newStatus);
-  };
-
-  const handleConfirmation = () => {
-    if (!opportunity) return;
-    
-    setShowConfirmationModal(false);
-    router.push(`/leads/create?opportunityId=${opportunity._id}`);
-  };
-
-  const checkIfLeadExists = async (opportunityId: string): Promise<boolean> => {
-    try {
-      const response = await leadService.getLeadsByOpportunity(opportunityId, 1, 1);
-      return response.data && response.data.length > 0;
-    } catch (error) {
-      console.error('Error checking lead existence:', error);
-      return false;
-    }
-  };
-
-  const updateOpportunityStatus = async (newStatus: string) => {
-    if (!opportunity) return;
-    
-    try {
-      setUpdatingStatus(true);
-      await opportunityService.updateOpportunity(opportunity._id, { status: newStatus as any });
-      await fetchOpportunityDetails();
-      showToast('Status updated successfully', 'success', 2000);
     } catch (err: any) {
       console.error('Error updating status:', err);
-      showToast('Failed to update status', 'error', 3000);
-    } finally {
-      setUpdatingStatus(false);
-    }
-  };
-
-  const handleCreateLeadAndMove = async (leadData: any) => {
-    if (!opportunity) return;
-    
-    try {
-      // Create lead
-      await leadService.createLead({
-        ...leadData,
-        opportunityId: opportunity._id
-      });
       
-      // Update opportunity status
-      await updateOpportunityStatus(targetStatus);
-      setTargetStatus('');
-      
-      showToast('Lead created and opportunity moved successfully', 'success', 3000);
-    } catch (error: any) {
-      console.error('Error creating lead:', error);
-      showToast(error.message || 'Failed to create lead', 'error', 3000);
+      // Check if it's the LIS validation error
+      if (err.message?.includes('LIS validation failed') && err.message?.includes('Missing fields: contact')) {
+        showToast('Cannot move opportunity: Lead is missing contact information. Please add contact details to the lead first.', 'error', 4000);
+      } else {
+        showToast('Failed to update status', 'error', 3000);
+      }
     }
   };
 
@@ -721,7 +667,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
         <div className="h-[calc(100vh-64px)] p-4 md:p-6 overflow-auto">
           <div className="max-w-7xl mx-auto">
             <div className="animate-pulse space-y-6">
-              {/* Main Content Skeleton */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                   <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6">
@@ -794,7 +739,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
 
   return (
     <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-hidden">
-      {/* Fixed Header */}
       <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg flex items-center px-6">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
@@ -813,7 +757,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
           </div>
           
           <div className="flex items-center gap-3">
-            {/* Edit Button */}
             <button
               onClick={handleEdit}
               className="p-2.5 bg-white/10 backdrop-blur-sm border border-white/30 rounded-lg hover:bg-white/20 transition-colors flex items-center gap-2"
@@ -822,7 +765,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
               <span className="text-white text-sm font-medium">Edit</span>
             </button>
             
-            {/* Delete Button */}
             <button
               onClick={handleDelete}
               disabled={isDeleting}
@@ -835,7 +777,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
         </div>
       </div>
 
-      {/* Status Button Bar - Above the main content */}
       <div className="border-b border-gray-200/50 bg-white/90 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 md:px-6">
           <div className="flex items-center gap-1 py-3 overflow-x-auto">
@@ -844,7 +785,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
               return (
                 <button
                   key={status}
-                  onClick={() => handleStatusUpdate(status)}
+                  onClick={() => handleStatusUpdateClick(status)}
                   disabled={updatingStatus || isActive}
                   className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap flex-shrink-0 ${
                     isActive 
@@ -868,14 +809,10 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
         </div>
       </div>
 
-      {/* Scrollable Content */}
-      <div className="h-[calc(100vh-64px-57px)] p-4 md:p-6 overflow-auto"> {/* Adjusted height for status bar */}
+      <div className="h-[calc(100vh-64px-57px)] p-4 md:p-6 overflow-auto">
         <div className="max-w-7xl mx-auto">
-          {/* Main Content */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column - Main Info */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Customer & Opportunity Info Card */}
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 shadow-lg overflow-hidden">
                 <div className="p-6">
                   <div className="flex items-start justify-between mb-6">
@@ -889,7 +826,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Customer Details */}
                     <div className="space-y-4">
                       <div className="flex items-center gap-3">
                         <div className={`p-2 rounded-lg ${opportunity.type === 'organization' ? 'bg-gradient-to-br from-purple-100 to-purple-50' : 'bg-gradient-to-br from-blue-100 to-blue-50'}`}>
@@ -929,7 +865,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                       </div>
                     </div>
                     
-                    {/* Opportunity Details */}
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -970,7 +905,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                   </div>
                 </div>
                 
-                {/* Action Buttons */}
                 <div className="border-t border-gray-100/50 p-4 bg-gradient-to-r from-gray-50/50 to-gray-100/50">
                   <div className="flex items-center gap-3">
                     <button 
@@ -1005,7 +939,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                 </div>
               </div>
 
-              {/* Lead Score & Analytics Card */}
               {opportunity.leadScore && (
                 <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 shadow-lg">
                   <div className="flex items-center justify-between mb-6">
@@ -1025,7 +958,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                     </div>
                   </div>
                   
-                  {/* Score Progress */}
                   <div className="mb-8">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-gray-700">Lead Score</span>
@@ -1057,7 +989,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                     </div>
                   </div>
                   
-                  {/* Score Breakdown */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {renderLeadScoreBreakdown(
                       opportunity.leadScore.behavioral,
@@ -1080,7 +1011,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                 </div>
               )}
 
-              {/* Vehicles Section */}
               {opportunity.vehicles && opportunity.vehicles.length > 0 && (
                 <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 shadow-lg">
                   <div className="flex items-center justify-between mb-6">
@@ -1172,9 +1102,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
               )}
             </div>
 
-            {/* Right Column - Sidebar */}
             <div className="space-y-6">
-              {/* Quick Stats Card */}
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 shadow-lg">
                 <h3 className="font-semibold text-gray-800 mb-4">Quick Stats</h3>
                 
@@ -1241,7 +1169,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                 </div>
               </div>
 
-              {/* Timeline & History Card */}
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 shadow-lg">
                 <h3 className="font-semibold text-gray-800 mb-4">Recent Activity</h3>
                 
@@ -1277,7 +1204,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                 </div>
               </div>
 
-              {/* Related Actions Card */}
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 shadow-lg">
                 <h3 className="font-semibold text-gray-800 mb-4">Quick Actions</h3>
                 
@@ -1345,10 +1271,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
       />
       <ConfirmationModal
         isOpen={showConfirmationModal}
-        onClose={() => {
-          setShowConfirmationModal(false);
-          setTargetStatus('');
-        }}
+        onClose={handleConfirmationCancel}
         onConfirm={handleConfirmation}
         title="Create Lead Required"
         message="A lead record is required to move this opportunity to 'Attempted to Contact'. Would you like to create a lead now?"

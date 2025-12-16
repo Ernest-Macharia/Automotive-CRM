@@ -575,6 +575,35 @@ class OpportunityService {
     }
   }
 
+  async getLeadByOpportunityId(opportunityId: string) {
+    try {
+      return await apiClient.get(`/leads/opportunity/${opportunityId}`);
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async createLeadFromOpportunity(opportunityId: string) {
+    try {
+      return await apiClient.post('/leads/from-opportunity', { opportunityId });
+    } catch (error) {
+      console.error('Error creating lead from opportunity:', error);
+      throw error;
+    }
+  }
+
+  async checkOpportunityCanProgress(opportunityId: string) {
+    try {
+      return await apiClient.get(`/leads/opportunity/${opportunityId}/can-progress`);
+    } catch (error) {
+      console.error('Error checking if opportunity can progress:', error);
+      throw error;
+    }
+  }
+
   async createOpportunity(data: CreateOpportunityData): Promise<Opportunity> {
     try {
       const formattedData: FormattedOpportunityData = {
