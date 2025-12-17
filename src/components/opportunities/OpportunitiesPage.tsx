@@ -122,7 +122,7 @@ function useDebounce<T extends (...args: any[]) => any>(
 // Simple caching mechanism
 const createCache = () => {
   const cache = new Map<string, { data: any; timestamp: number }>();
-  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  const CACHE_DURATION = 60 * 60 * 1000;
 
   return {
     get: (key: string) => {
@@ -208,7 +208,7 @@ interface KanbanColumnProps {
   setIsDragging: (dragging: boolean) => void;
   showToast: (message: string, type: 'success' | 'error' | 'info' | 'warning', duration?: number) => void;
   refreshOpportunities: () => Promise<void>;
-  onStatusUpdate: (opportunity: ExtendedOpportunity, newStatus: string) => Promise<void>;
+  onStatusUpdate: (opportunity: ExtendedOpportunity, newStatus: string) => Promise<{ success: boolean; needsLead?: boolean }>;
 }
 
 function KanbanColumn({
@@ -229,34 +229,31 @@ function KanbanColumn({
 }: KanbanColumnProps) {
   const router = useRouter();
   const [dropping, setDropping] = useState(false);
-  
-  const {
-    updatingStatus,
-    showGenericConfirm,
-    genericMessage,
-    onGenericConfirm,
-    onGenericCancel,
-    showCreateLeadModal,
-    onCreateLeadConfirm,
-    onCreateLeadCancel,
-    handleStatusUpdate
-  } = useOpportunityStatusUpdate();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setDropping(true);
+    if (!dropping) {
+      setDropping(true);
+    }
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    setDropping(false);
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    // Only set dropping to false if we're actually leaving the column
+    if (!e.currentTarget.contains(relatedTarget)) {
+      setDropping(false);
+    }
   };
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+
     setDropping(false);
-    setIsDragging(false);
+    
     const opportunityId = e.dataTransfer.getData('opportunityId');
+    
     if (!opportunityId) return;
 
     const opportunity = allOpportunities.find(opp => opp._id === opportunityId);
@@ -265,24 +262,41 @@ function KanbanColumn({
       return;
     }
 
-    await handleStatusUpdate(opportunity, stage.id, async (success: boolean) => {
-      if (success) {
+    try {
+      // Call the status update handler which will show the confirmation modal
+      const result = await onStatusUpdate(opportunity, stage.id);
+      
+      // The modal will handle the rest, but we can refresh if successful
+      if (result.success) {
         showToast(`Opportunity moved to ${stage.label}`, 'success', 2000);
         await refreshOpportunities();
-      } else {
-        showToast('Failed to move opportunity', 'error', 3000);
       }
-    });
+    } catch (error) {
+      console.error('Error in drop handler:', error);
+      // Ensure dragging state is cleared even on error
+      setIsDragging(false);
+    }
   };
 
   const handleDragStart = () => {
     setIsDragging(true);
   };
 
-  const handleDragEnd = () => {
-    setIsDragging(false);
+  // This is the key fix: Don't clear dragging state in handleDragEnd
+  const handleDragEnd = useCallback(() => {
+    // Only clear dropping state, not dragging state
+    // Dragging state will be cleared after modal completes
     setDropping(false);
-  };
+  }, []);
+
+  // Effect to clean up if component unmounts during drag
+  useEffect(() => {
+    return () => {
+      if (dropping) {
+        setDropping(false);
+      }
+    };
+  }, [dropping]);
 
   // Virtualized list for opportunities
   const VirtualizedOpportunityList = memo(({ opportunities: opps }: { opportunities: ExtendedOpportunity[] }) => {
@@ -367,71 +381,47 @@ function KanbanColumn({
   VirtualizedOpportunityList.displayName = 'VirtualizedOpportunityList';
 
   return (
-    <>
-      <div 
-        className={`flex flex-col rounded-2xl transition-all duration-300 ${
-          dropping 
-            ? `${stage.pastelClass} border-2 ${stage.borderColor} scale-[1.02] shadow-lg` 
-            : `${stage.pastelClass} border ${stage.borderColor}`
-        } p-4 h-auto md:h-[calc(100vh-250px)] min-h-[400px] md:min-h-[500px]`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className={`h-3 w-3 rounded-full ${getStageColor(stage.id)}`} />
-            <h3 className="font-semibold text-gray-800">{stage.label}</h3>
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-medium text-gray-600 transition-all hover:scale-110">
-              {loading ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                opportunities.length
-              )}
-            </span>
-          </div>
-          <button className="p-1 hover:bg-white/50 rounded-lg transition-colors" disabled={loading}>
-            <MoreVertical className="h-4 w-4 text-gray-400" />
-          </button>
+    <div 
+      className={`flex flex-col rounded-2xl transition-all duration-300 ${
+        dropping 
+          ? `${stage.pastelClass} border-2 ${stage.borderColor} scale-[1.02] shadow-lg` 
+          : `${stage.pastelClass} border ${stage.borderColor}`
+      } p-4 h-auto md:h-[calc(100vh-250px)] min-h-[400px] md:min-h-[500px]`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <div className={`h-3 w-3 rounded-full ${getStageColor(stage.id)}`} />
+          <h3 className="font-semibold text-gray-800">{stage.label}</h3>
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-medium text-gray-600 transition-all hover:scale-110">
+            {loading ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              opportunities.length
+            )}
+          </span>
         </div>
-
-        <div className="flex-1">
-          {loading && opportunities.length === 0 ? (
-            <div className="space-y-3">
-              {[1, 2].map((i) => (
-                <div key={i} className="opacity-70">
-                  <SkeletonCard />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <VirtualizedOpportunityList opportunities={opportunities} />
-          )}
-        </div>
+        <button className="p-1 hover:bg-white/50 rounded-lg transition-colors" disabled={loading}>
+          <MoreVertical className="h-4 w-4 text-gray-400" />
+        </button>
       </div>
 
-      <ConfirmationModal
-        isOpen={showGenericConfirm}
-        onClose={onGenericCancel}
-        onConfirm={onGenericConfirm}
-        title="Confirm Status Change"
-        message={genericMessage}
-        confirmText="Confirm"
-        cancelText="Cancel"
-        type="warning"
-      />
-
-      <ConfirmationModal
-        isOpen={showCreateLeadModal}
-        onClose={onCreateLeadCancel}
-        onConfirm={onCreateLeadConfirm}
-        title="Create Lead Required"
-        message="A lead record is required to move this opportunity to 'Attempted to Contact'. Would you like to create a lead now?"
-        confirmText="Create Lead"
-        cancelText="Cancel"
-        type="info"
-      />
-    </>
+      <div className="flex-1">
+        {loading && opportunities.length === 0 ? (
+          <div className="space-y-3">
+            {[1, 2].map((i) => (
+              <div key={i} className="opacity-70">
+                <SkeletonCard />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <VirtualizedOpportunityList opportunities={opportunities} />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -570,8 +560,6 @@ const OpportunityCard = memo(function OpportunityCard({
             Organization
           </span>
         )}
-
-        {/* Removed "Needs Lead" badge since leads are created automatically */}
       </div>
 
       {opportunity.leadScore && (
@@ -752,6 +740,16 @@ export default function OpportunitiesContent() {
   // Create cache instance
   const cacheRef = useRef(createCache());
   
+  // Use the opportunity status update hook at the top level
+  const {
+    updatingStatus,
+    showGenericConfirm,
+    genericMessage,
+    onGenericConfirm,
+    onGenericCancel,
+    handleStatusUpdate
+  } = useOpportunityStatusUpdate();
+
   // Memoize filter dependencies
   const memoizedFilters = useMemo(() => filters, [
     filters.status, filters.tier, filters.source, filters.type, 
@@ -825,52 +823,6 @@ export default function OpportunitiesContent() {
     };
   }, []);
 
-  const handleStatusUpdate = async (opportunity: ExtendedOpportunity, newStatus: string) => {
-    try {
-      await opportunityService.updateOpportunity(opportunity._id, {
-        status: newStatus as any
-      });
-
-      setOpportunities(prev => 
-        prev.map(opp => 
-          opp._id === opportunity._id 
-            ? { ...opp, status: newStatus as any } 
-            : opp
-        )
-      );
-
-      showToast(`Opportunity moved to ${getStatusLabel(newStatus)}`, 'success', 2000);
-
-      // Invalidate cache for this opportunity
-      const cacheKey = `opportunities-${JSON.stringify(memoizedFilters)}`;
-      cacheRef.current.set(cacheKey, null);
-
-      setTimeout(() => {
-        fetchOpportunities();
-      }, 500);
-
-    } catch (error: any) {
-      console.error('Error updating status:', error);
-      
-      setOpportunities(prev => 
-        prev.map(opp => 
-          opp._id === opportunity._id 
-            ? { ...opp, status: opportunity.status } 
-            : opp
-        )
-      );
-
-      let errorMessage = 'Failed to update opportunity status';
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      showToast(errorMessage, 'error', 3000);
-    }
-  };
-
   const getStatusLabel = useCallback((status: string) => {
     const labels: Record<string, string> = {
       new: 'New',
@@ -882,6 +834,53 @@ export default function OpportunitiesContent() {
     };
     return labels[status] || status;
   }, []);
+
+  // Wrapper function for status updates that works with the hook
+  // Wrapper function for status updates that works with the hook
+  const handleStatusUpdateWrapper = async (opportunity: ExtendedOpportunity, newStatus: string): Promise<{ success: boolean; needsLead?: boolean }> => {
+    try {
+      const result = await handleStatusUpdate(opportunity, newStatus, async (success: boolean) => {
+        if (success) {
+          showToast(`Opportunity moved to ${getStatusLabel(newStatus)}`, 'success', 2000);
+          
+          // IMMEDIATELY update local state - more aggressive update
+          setOpportunities(prev => 
+            prev.map(opp => 
+              opp._id === opportunity._id 
+                ? { 
+                    ...opp, 
+                    status: newStatus as any,
+                    // Also update computed values immediately
+                    computedStageColor: getStageColor(newStatus as StageId),
+                    computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
+                    computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
+                    computedChildCounts: getChildCounts(opp)
+                  } 
+                : opp
+            )
+          );
+
+          // Clear dragging state AFTER successful update
+          setIsDragging(false);
+
+          // FORCE clear ALL cache entries related to opportunities
+          cacheRef.current.clear();
+
+          // Refresh data immediately - no delay
+          await fetchOpportunities();
+        } else {
+          // If modal was cancelled, clear dragging state
+          setIsDragging(false);
+        }
+      });
+
+      return result;
+    } catch (error) {
+      // Handle any errors and ensure dragging state is cleared
+      setIsDragging(false);
+      return { success: false };
+    }
+  };
 
   // Debounced search
   const debouncedSetSearch = useDebounce((search: string) => {
@@ -912,7 +911,7 @@ export default function OpportunitiesContent() {
   }, [searchQuery, debouncedSetSearch]);
 
   // Optimized fetch opportunities WITHOUT lead checking
-  const fetchOpportunities = useCallback(async (isRefresh = false) => {
+  const fetchOpportunities = useCallback(async (isRefresh = false, forceRefresh = false) => {
     try {
       if (!isRefresh) {
         setLoading(true);
@@ -950,11 +949,11 @@ export default function OpportunitiesContent() {
         params.isNurturing = memoizedAdvancedFilters.isNurturing;
       }
       
-      // Check cache first
+      // Check cache first - but skip if forceRefresh is true
       const cacheKey = `opportunities-${JSON.stringify(params)}`;
-      const cachedData = cacheRef.current.get(cacheKey);
+      const cachedData = !forceRefresh ? cacheRef.current.get(cacheKey) : null;
       
-      if (cachedData && !isRefresh) {
+      if (cachedData && !isRefresh && !forceRefresh) {
         const { data, pagination: cachedPagination, stats: cachedStats } = cachedData;
         
         // Pre-compute all values for opportunities
@@ -996,12 +995,14 @@ export default function OpportunitiesContent() {
         setStats(response.stats);
       }
       
-      // Cache the response
-      cacheRef.current.set(cacheKey, {
-        data: response.data,
-        pagination: response.pagination,
-        stats: response.stats
-      });
+      // Cache the response (unless forceRefresh)
+      if (!forceRefresh) {
+        cacheRef.current.set(cacheKey, {
+          data: response.data,
+          pagination: response.pagination,
+          stats: response.stats
+        });
+      }
       
     } catch (err: any) {
       console.error('Error fetching opportunities:', err);
@@ -1836,7 +1837,9 @@ export default function OpportunitiesContent() {
           )}
 
           {isDragging && (
-            <div className="absolute inset-0 border-4 border-dashed border-blue-400 bg-blue-50/20 z-10 rounded-2xl flex items-center justify-center pointer-events-none">
+            <div 
+              className="absolute inset-0 border-4 border-dashed border-blue-400 bg-blue-50/20 z-10 rounded-2xl flex items-center justify-center pointer-events-none"
+            >
               <div className="bg-white/80 backdrop-blur-sm px-6 py-4 rounded-xl shadow-lg border border-blue-200/50">
                 <div className="flex items-center gap-3">
                   <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
@@ -1868,7 +1871,7 @@ export default function OpportunitiesContent() {
                     setIsDragging={setIsDragging}
                     showToast={showToast}
                     refreshOpportunities={fetchOpportunities}
-                    onStatusUpdate={handleStatusUpdate}
+                    onStatusUpdate={handleStatusUpdateWrapper}
                   />
                 </div>
               ))}
@@ -1949,6 +1952,18 @@ export default function OpportunitiesContent() {
           )}
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showGenericConfirm}
+        onClose={onGenericCancel}
+        onConfirm={onGenericConfirm}
+        title="Confirm Status Change"
+        message={genericMessage}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        type="warning"
+      />
     </div>
   );
 }

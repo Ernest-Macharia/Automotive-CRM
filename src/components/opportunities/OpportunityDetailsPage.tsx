@@ -8,19 +8,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOpportunityStatusUpdate } from '@/hooks/useOpportunityStatusUpdate';
 import {
-  ArrowLeft, Phone, Mail, MapPin, Building, User, Calendar, 
-  Car, FileText, DollarSign, CheckCircle, XCircle, Clock,
-  TrendingUp, TrendingDown, Target, Shield, Users, Globe,
-  MessageCircle, Edit, Trash2, MoreVertical, ChevronRight,
-  Smartphone, PhoneCall, Mail as MailIcon, MessageSquare,
-  Award, Star, Hash, Briefcase, Wallet, Receipt, ClipboardList,
-  BarChart3, Activity, History, Zap, AlertCircle, ExternalLink,
-  Download, Printer, Share2, Copy, Eye, EyeOff, Lock, Unlock,
-  PhoneIncoming, PhoneOutgoing, MailCheck, CalendarDays,
-  Car as CarIcon, Wrench, Settings, Fuel, Battery, X, Edit2,
-  Info, Gauge, Calendar as CalendarIcon, Shield as ShieldIcon,
-  Cog, Zap as ZapIcon, Droplets, Radio, Bluetooth, Wind, File,
-  Sparkles
+  ArrowLeft, Phone, Mail, Building, User, Calendar, 
+  Car, FileText, CheckCircle, Clock,
+  TrendingUp, TrendingDown, Shield, Users,
+  MessageCircle, Edit, Trash2, ChevronRight,
+  Mail as MailIcon, Hash, Briefcase, Wallet, Receipt,
+  Activity, AlertCircle, X, Edit2,
+  Info, Gauge, Settings, Fuel, Droplets, Battery, Zap,
+  Eye
 } from 'lucide-react';
 
 interface LeadScoreBreakdown {
@@ -120,6 +115,8 @@ function VehicleDetailsModal({
   isOpen: boolean; 
   onClose: () => void 
 }) {
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  
   if (!isOpen || !vehicle) return null;
 
   const getVehicleAge = (year: string | number) => {
@@ -166,64 +163,28 @@ function VehicleDetailsModal({
     return logos[lowerMake] || `https://via.placeholder.com/60/3B82F6/FFFFFF?text=${make.charAt(0).toUpperCase()}`;
   };
 
-  const hasTechnicalDetails = () => {
-    return vehicle.engineSize || vehicle.fuelType || vehicle.transmission || vehicle.bodyType;
-  };
-
-  const hasIdentification = () => {
-    return vehicle.vin || vehicle.registrationNumber || vehicle.chassisNumber || vehicle.licensePlate;
-  };
-
-  const hasMileageInfo = () => {
-    return vehicle.mileage;
-  };
-
-  const calculateCompleteness = () => {
-    const fields = [
-      vehicle.make,
-      vehicle.model,
-      vehicle.year,
-      vehicle.color,
-      vehicle.vin,
-      vehicle.registrationNumber,
-      vehicle.engineSize,
-      vehicle.fuelType,
-      vehicle.transmission,
-      vehicle.mileage,
-      vehicle.chassisNumber,
-      vehicle.bodyType,
-      vehicle.licensePlate
-    ];
+  const getFuelIcon = (fuelType?: string) => {
+    if (!fuelType) return <Fuel className="h-4 w-4 text-gray-400" />;
     
-    const filledFields = fields.filter(field => {
-      if (field === null || field === undefined) {
-        return false;
-      }
-      
-      if (typeof field === 'string') {
-        return field.trim() !== '';
-      }
-      
-      if (typeof field === 'number') {
-        return field !== 0;
-      }
-      
-      return String(field).trim() !== '';
-    }).length;
+    const fuelIcons: Record<string, React.ReactNode> = {
+      'petrol': <Fuel className="h-4 w-4 text-red-500" />,
+      'diesel': <Droplets className="h-4 w-4 text-blue-500" />,
+      'electric': <Battery className="h-4 w-4 text-green-500" />,
+      'hybrid': <Zap className="h-4 w-4 text-purple-500" />,
+    };
     
-    return Math.round((filledFields / fields.length) * 100);
+    const lowerFuel = fuelType.toLowerCase();
+    return fuelIcons[lowerFuel] || <Fuel className="h-4 w-4 text-gray-400" />;
   };
 
-  const getCompletenessColor = (percentage: number) => {
-    if (percentage >= 80) return 'bg-green-100 text-green-600';
-    if (percentage >= 50) return 'bg-amber-100 text-amber-600';
-    return 'bg-red-100 text-red-600';
-  };
-
-  const getCompletenessLabel = (percentage: number) => {
-    if (percentage >= 80) return 'Complete';
-    if (percentage >= 50) return 'Moderate';
-    return 'Basic';
+  const formatMileage = (mileage?: string) => {
+    if (!mileage) return 'N/A';
+    const num = parseInt(mileage.replace(/[^0-9]/g, ''));
+    if (isNaN(num)) return mileage;
+    
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M KM`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K KM`;
+    return `${num} KM`;
   };
 
   return (
@@ -235,90 +196,80 @@ function VehicleDetailsModal({
       
       <div className="fixed inset-0 z-50 overflow-y-auto">
         <div className="min-h-full flex items-center justify-center p-4">
-          <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden border border-white/30">
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 z-10 p-2 bg-white/80 backdrop-blur-sm rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <X className="h-5 w-5 text-gray-600" />
-            </button>
-            
-            <div className="h-full overflow-y-auto">
-              <div className="p-6">
-                <div className="flex items-start gap-4 mb-6">
-                  <div className="flex-shrink-0">
-                    <div className="h-16 w-16 rounded-xl bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
-                      <img 
-                        src={getMakeLogo(vehicle.make)}
-                        alt={vehicle.make}
-                        className="h-10 w-10 object-contain"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = `https://via.placeholder.com/40/3B82F6/FFFFFF?text=${vehicle.make?.charAt(0)?.toUpperCase() || 'V'}`;
-                        }}
-                      />
-                    </div>
+          <div className="relative bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden border border-white/30">
+            {/* Header */}
+            <div className="sticky top-0 z-20 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-white/30 p-6">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="h-20 w-20 rounded-xl bg-gradient-to-br from-white to-gray-100 border border-white/50 flex items-center justify-center shadow-sm">
+                    <img 
+                      src={getMakeLogo(vehicle.make)}
+                      alt={vehicle.make}
+                      className="h-12 w-12 object-contain"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = `https://via.placeholder.com/48/3B82F6/FFFFFF?text=${vehicle.make?.charAt(0)?.toUpperCase() || 'V'}`;
+                      }}
+                    />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h2 className="text-xl font-bold text-gray-900">
+                    <h2 className="text-2xl font-bold text-gray-900">
                       {vehicle.year ? `${vehicle.year} ` : ''}{vehicle.make || 'Unknown Make'} {vehicle.model || 'Unknown Model'}
                     </h2>
-                    <p className="text-gray-600">
+                    <p className="text-gray-600 mt-1">
                       {vehicle.color ? `${vehicle.color} • ` : ''}
+                      {vehicle.bodyType ? `${vehicle.bodyType} • ` : ''}
                       {getVehicleAge(vehicle.year)}
                     </p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getCompletenessColor(calculateCompleteness())}`}>
-                        {getCompletenessLabel(calculateCompleteness())} ({calculateCompleteness()}%)
-                      </span>
-                      <span className="px-2 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-100 to-blue-50 text-blue-600">
-                        {getVehicleAge(vehicle.year)}
-                      </span>
-                      {vehicle.bodyType && (
-                        <span className="px-2 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-purple-100 to-purple-50 text-purple-600">
-                          {vehicle.bodyType}
+                    <div className="flex items-center gap-2 mt-3">
+                      {vehicle.registrationNumber && (
+                        <span className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gradient-to-r from-blue-100 to-blue-50 text-blue-600 border border-blue-200">
+                          {vehicle.registrationNumber}
                         </span>
                       )}
                     </div>
                   </div>
                 </div>
+                <button
+                  onClick={onClose}
+                  className="p-2.5 bg-white/80 backdrop-blur-sm rounded-xl hover:bg-white transition-colors shadow-sm border border-white/50"
+                >
+                  <X className="h-5 w-5 text-gray-600" />
+                </button>
+              </div>
+            </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            {/* Content */}
+            <div className="h-[calc(90vh-200px)] overflow-y-auto p-6">
+              <div className="space-y-6">
+                {/* Basic Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                       <Car className="h-4 w-4 text-blue-500" />
-                      Basic Information
+                      Vehicle Information
                     </h3>
                     <div className="space-y-3">
-                      {vehicle.make && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Make</span>
-                          <span className="text-sm font-medium text-gray-800">
-                            {vehicle.make}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {vehicle.model && (
-                        <div className="flex items-center justify-between">
+                      {vehicle.make && vehicle.model && (
+                        <div className="flex items-center justify-between py-2 border-b border-gray-100">
                           <span className="text-sm text-gray-600">Model</span>
                           <span className="text-sm font-medium text-gray-800">
-                            {vehicle.model}
+                            {vehicle.make} {vehicle.model}
                           </span>
                         </div>
                       )}
                       
                       {vehicle.year && (
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between py-2 border-b border-gray-100">
                           <span className="text-sm text-gray-600">Year</span>
                           <span className="text-sm font-medium text-gray-800">
-                            {vehicle.year}
+                            {vehicle.year} ({getVehicleAge(vehicle.year)})
                           </span>
                         </div>
                       )}
                       
                       {vehicle.color && (
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between py-2 border-b border-gray-100">
                           <span className="text-sm text-gray-600">Color</span>
                           <span className="text-sm font-medium text-gray-800">
                             {vehicle.color}
@@ -327,7 +278,7 @@ function VehicleDetailsModal({
                       )}
                       
                       {vehicle.bodyType && (
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between py-2 border-b border-gray-100">
                           <span className="text-sm text-gray-600">Body Type</span>
                           <span className="text-sm font-medium text-gray-800">
                             {vehicle.bodyType}
@@ -337,91 +288,107 @@ function VehicleDetailsModal({
                     </div>
                   </div>
 
-                  {hasTechnicalDetails() && (
-                    <div className="space-y-4">
-                      <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                        <Settings className="h-4 w-4 text-green-500" />
-                        Technical Details
-                      </h3>
-                      <div className="space-y-3">
-                        {vehicle.engineSize && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600">Engine Size</span>
-                            <span className="text-sm font-medium text-gray-800">
-                              {vehicle.engineSize} CC
-                            </span>
+                  {/* Technical Specifications */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                      <Settings className="h-4 w-4 text-green-500" />
+                      Technical Specifications
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      {vehicle.engineSize && (
+                        <div className="p-3 rounded-lg bg-red-50 border border-red-100">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Gauge className="h-4 w-4 text-red-500" />
+                            <span className="text-xs font-medium text-gray-600">Engine Size</span>
                           </div>
-                        )}
-                        
-                        {vehicle.fuelType && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600">Fuel Type</span>
-                            <span className="text-sm font-medium text-gray-800">
-                              {vehicle.fuelType}
-                            </span>
+                          <p className="text-sm font-semibold text-gray-800">{vehicle.engineSize} CC</p>
+                        </div>
+                      )}
+                      
+                      {vehicle.fuelType && (
+                        <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
+                          <div className="flex items-center gap-2 mb-1">
+                            {getFuelIcon(vehicle.fuelType)}
+                            <span className="text-xs font-medium text-gray-600">Fuel Type</span>
                           </div>
-                        )}
-                        
-                        {vehicle.transmission && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600">Transmission</span>
-                            <span className="text-sm font-medium text-gray-800">
-                              {vehicle.transmission}
-                            </span>
+                          <p className="text-sm font-semibold text-gray-800">{vehicle.fuelType}</p>
+                        </div>
+                      )}
+                      
+                      {vehicle.transmission && (
+                        <div className="p-3 rounded-lg bg-green-50 border border-green-100">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Settings className="h-4 w-4 text-green-500" />
+                            <span className="text-xs font-medium text-gray-600">Transmission</span>
                           </div>
-                        )}
-                        
-                        {vehicle.mileage && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600">Mileage</span>
-                            <span className="text-sm font-medium text-gray-800">
-                              {vehicle.mileage} KM
-                            </span>
+                          <p className="text-sm font-semibold text-gray-800">{vehicle.transmission}</p>
+                        </div>
+                      )}
+                      
+                      {vehicle.mileage && (
+                        <div className="p-3 rounded-lg bg-purple-50 border border-purple-100">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Activity className="h-4 w-4 text-purple-500" />
+                            <span className="text-xs font-medium text-gray-600">Mileage</span>
                           </div>
-                        )}
-                      </div>
+                          <p className="text-sm font-semibold text-gray-800">{formatMileage(vehicle.mileage)}</p>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
 
-                {hasIdentification() && (
-                  <div className="mb-8">
-                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-3">
+                {/* Identification & Registration */}
+                {(vehicle.vin || vehicle.registrationNumber || vehicle.chassisNumber || vehicle.licensePlate) && (
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                       <Shield className="h-4 w-4 text-purple-500" />
                       Identification & Registration
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {vehicle.vin && (
-                        <div className="p-3 rounded-lg bg-gradient-to-r from-blue-50 to-blue-100/50 border border-blue-100">
-                          <div className="text-xs font-medium text-gray-600 mb-1">VIN Number</div>
-                          <div className="text-sm font-medium text-gray-800 font-mono break-all">
+                        <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50 to-blue-100/30 border border-blue-200">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Hash className="h-4 w-4 text-blue-500" />
+                            <div className="text-xs font-semibold text-gray-600 uppercase">VIN Number</div>
+                          </div>
+                          <div className="text-sm font-mono text-gray-800 break-all p-2 bg-white/50 rounded-lg">
                             {vehicle.vin}
                           </div>
                         </div>
                       )}
                       
                       {vehicle.registrationNumber && (
-                        <div className="p-3 rounded-lg bg-gradient-to-r from-green-50 to-green-100/50 border border-green-100">
-                          <div className="text-xs font-medium text-gray-600 mb-1">Registration Number</div>
-                          <div className="text-sm font-medium text-gray-800 font-semibold">
+                        <div className="p-4 rounded-xl bg-gradient-to-r from-green-50 to-green-100/30 border border-green-200">
+                          <div className="flex items-center gap-2 mb-2">
+                            <FileText className="h-4 w-4 text-green-500" />
+                            <div className="text-xs font-semibold text-gray-600 uppercase">Registration</div>
+                          </div>
+                          <div className="text-lg font-bold text-gray-800 tracking-wider">
                             {vehicle.registrationNumber}
                           </div>
                         </div>
                       )}
                       
                       {vehicle.chassisNumber && (
-                        <div className="p-3 rounded-lg bg-gradient-to-r from-amber-50 to-amber-100/50 border border-amber-100">
-                          <div className="text-xs font-medium text-gray-600 mb-1">Chassis Number</div>
-                          <div className="text-sm font-medium text-gray-800 font-mono break-all">
+                        <div className="p-4 rounded-xl bg-gradient-to-r from-amber-50 to-amber-100/30 border border-amber-200">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Settings className="h-4 w-4 text-amber-500" />
+                            <div className="text-xs font-semibold text-gray-600 uppercase">Chassis Number</div>
+                          </div>
+                          <div className="text-sm font-mono text-gray-800 break-all p-2 bg-white/50 rounded-lg">
                             {vehicle.chassisNumber}
                           </div>
                         </div>
                       )}
                       
                       {vehicle.licensePlate && (
-                        <div className="p-3 rounded-lg bg-gradient-to-r from-purple-50 to-purple-100/50 border border-purple-100">
-                          <div className="text-xs font-medium text-gray-600 mb-1">License Plate</div>
-                          <div className="text-sm font-medium text-gray-800 font-semibold">
+                        <div className="p-4 rounded-xl bg-gradient-to-r from-purple-50 to-purple-100/30 border border-purple-200">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Car className="h-4 w-4 text-purple-500" />
+                            <div className="text-xs font-semibold text-gray-600 uppercase">License Plate</div>
+                          </div>
+                          <div className="text-lg font-bold text-gray-800 tracking-wider">
                             {vehicle.licensePlate}
                           </div>
                         </div>
@@ -430,55 +397,73 @@ function VehicleDetailsModal({
                   </div>
                 )}
 
-                <div className="p-4 rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Data Summary</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Information Completeness</span>
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${getCompletenessColor(calculateCompleteness())}`}>
-                          {getCompletenessLabel(calculateCompleteness())}
-                        </span>
-                        <span className="text-sm font-medium text-gray-800">{calculateCompleteness()}%</span>
-                      </div>
-                    </div>
-                    
-                    <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full rounded-full ${calculateCompleteness() >= 80 ? 'bg-green-500' : calculateCompleteness() >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
-                        style={{ width: `${calculateCompleteness()}%` }}
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                        <span className="text-gray-600">Basic Info:</span>
-                        <span className="font-medium">{vehicle.make && vehicle.model && vehicle.year && vehicle.color ? 'Complete' : 'Partial'}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                        <span className="text-gray-600">Technical:</span>
-                        <span className="font-medium">{hasTechnicalDetails() ? 'Available' : 'Not specified'}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                        <span className="text-gray-600">Identification:</span>
-                        <span className="font-medium">{hasIdentification() ? 'Available' : 'Not specified'}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 rounded-full bg-amber-500"></div>
-                        <span className="text-gray-600">Mileage:</span>
-                        <span className="font-medium">{vehicle.mileage ? 'Recorded' : 'Not recorded'}</span>
-                      </div>
+                {/* Images Section */}
+                {vehicle.images && vehicle.images.length > 0 && (
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                      <Eye className="h-4 w-4 text-amber-500" />
+                      Vehicle Images
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {vehicle.images.map((image, index) => (
+                        <div 
+                          key={index} 
+                          className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group"
+                          onClick={() => setSelectedImage(image)}
+                        >
+                          <img 
+                            src={image} 
+                            alt={`Vehicle image ${index + 1}`}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      ))}
                     </div>
                   </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="sticky bottom-0 border-t border-gray-100 bg-white/95 backdrop-blur-sm p-4">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  Last updated: {vehicle.updatedAt ? new Date(vehicle.updatedAt).toLocaleDateString() : 'Unknown'}
+                </div>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={onClose}
+                    className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    Close
+                  </button>
+                  <button className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-blue-700 transition-all">
+                    Schedule Service
+                  </button>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Image Viewer Modal */}
+      {selectedImage && (
+        <div className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4">
+          <button
+            onClick={() => setSelectedImage(null)}
+            className="absolute top-4 right-4 p-2 bg-white/20 backdrop-blur-sm rounded-lg hover:bg-white/30 transition-colors"
+          >
+            <X className="h-6 w-6 text-white" />
+          </button>
+          <img 
+            src={selectedImage} 
+            alt="Vehicle view"
+            className="max-w-full max-h-full object-contain"
+          />
+        </div>
+      )}
     </>
   );
 }
@@ -497,16 +482,10 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   
   const {
     updatingStatus,
-    // Generic confirmation for ANY status change
     showGenericConfirm,
     genericMessage,
     onGenericConfirm,
     onGenericCancel,
-    // Special "Create Lead" modal (only when needed)
-    showCreateLeadModal,
-    onCreateLeadConfirm,
-    onCreateLeadCancel,
-    // The main entry point
     handleStatusUpdate
   } = useOpportunityStatusUpdate();
 
@@ -535,7 +514,16 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
 
   const handleStatusUpdateClick = async (newStatus: string) => {
     if (!opportunity || opportunity.status === newStatus) return;
-    await handleStatusUpdate(opportunity, newStatus);
+    
+    // Use the updated status update hook (no lead creation needed)
+    await handleStatusUpdate(opportunity, newStatus, async (success) => {
+      if (success) {
+        showToast(`Status updated to ${getStatusLabel(newStatus)}`, 'success', 3000);
+        await fetchOpportunityDetails(); // Refresh data
+      } else {
+        showToast('Failed to update status', 'error', 3000);
+      }
+    });
   };
 
   const handleDelete = async () => {
@@ -1331,18 +1319,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
         confirmText="Confirm"
         cancelText="Cancel"
         type="warning"
-      />
-
-      {/* Create Lead Modal */}
-      <ConfirmationModal
-        isOpen={showCreateLeadModal}
-        onClose={onCreateLeadCancel}
-        onConfirm={onCreateLeadConfirm}
-        title="Create Lead Required"
-        message="A lead record is required to move this opportunity to 'Attempted to Contact'. Would you like to create a lead now?"
-        confirmText="Create Lead"
-        cancelText="Cancel"
-        type="info"
       />
     </div>
   );
