@@ -7,7 +7,7 @@ import {
   Upload, Clock, Shield, Briefcase, Sparkles, ChevronRight,
   ArrowRight, ChevronLeft, Save, Package, Settings, ShoppingBag,
   Layers, Box, Wrench, Zap, AlertTriangle, Search, ChevronUp,
-  Globe, Settings as SettingsIcon
+  Globe, Settings as SettingsIcon, Palette, Contact
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { CreateOpportunityData, opportunityService } from '@/services/opportunityService';
@@ -23,14 +23,12 @@ interface Vehicle {
   make: string;
   model: string;
   year: string;
-  color: string;
+  colorCode: string;
   engineSize?: string;
   fuelType?: string;
   transmission?: string;
   mileage?: string;
-  chassisNumber?: string;
   bodyType?: string;
-  licensePlate?: string;
 }
 
 interface ServiceProduct {
@@ -66,10 +64,10 @@ interface OpportunityFormData {
   notes: string;
   currentStep: number;
   opportunityType: 'SERVICE' | 'PRODUCT';
-  companyAddress?: string;
-  companyTaxId?: string;
-  companyPhone?: string;
-  companyEmail?: string;
+  contactPersonName?: string;
+  contactPersonPhone?: string;
+  contactPersonEmail?: string;
+  contactPersonTitle?: string;
 }
 
 interface UserPreferences {
@@ -96,7 +94,13 @@ const vehicleModels: Record<string, string[]> = {
   'Other': ['Custom Model']
 };
 
-const vehicleColors = [
+const vehicleColorCodes = [
+  '#FFFFFF', '#000000', '#C0C0C0', '#808080', '#FF0000', '#0000FF', '#008000', '#964B00',
+  '#FFFF00', '#FFA500', '#800080', '#FFD700', '#F5F5DC', '#800000', '#000080',
+  '#F8F8FF', '#A9A9A9', '#808000'
+];
+
+const vehicleColorNames = [
   'White', 'Black', 'Silver', 'Gray', 'Red', 'Blue', 'Green', 'Brown',
   'Yellow', 'Orange', 'Purple', 'Gold', 'Beige', 'Maroon', 'Navy Blue',
   'Pearl White', 'Metallic Gray', 'Other'
@@ -106,8 +110,9 @@ const vehicleFuelTypes = [
   'Petrol', 'Diesel', 'Electric', 'Hybrid', 'CNG', 'LPG', 'Other'
 ];
 
+// Simplified transmission options
 const vehicleTransmissions = [
-  'Manual', 'Automatic', 'Semi-Automatic', 'CVT', 'DSG', 'Other'
+  'Manual', 'Automatic'
 ];
 
 const vehicleBodyTypes = [
@@ -116,47 +121,160 @@ const vehicleBodyTypes = [
   'Other'
 ];
 
+// Service suggestions with pre-filled descriptions
 const serviceSuggestions = [
-  'Oil Change Service',
-  'Brake System Repair',
-  'Engine Tune-up',
-  'Transmission Service',
-  'Suspension Repair',
-  'Wheel Alignment',
-  'AC Repair & Service',
-  'Electrical System Repair',
-  'Exhaust System Repair',
-  'Fuel System Service',
-  'Tire Replacement',
-  'Battery Replacement',
-  'Windshield Replacement',
-  'Paint Job & Body Work',
-  'Full Vehicle Service',
-  'Pre-purchase Inspection',
-  'Custom Service'
+  {
+    title: 'Oil Change Service',
+    description: 'Complete oil and filter change using high-quality synthetic oil. Includes fluid level check, tire pressure check, and basic inspection of brakes, lights, and belts.'
+  },
+  {
+    title: 'Brake System Repair',
+    description: 'Comprehensive brake system inspection and repair. Includes brake pad/disc replacement, brake fluid flush, caliper inspection, and system bleeding.'
+  },
+  {
+    title: 'Engine Tune-up',
+    description: 'Complete engine performance optimization. Includes spark plug replacement, air filter change, fuel system cleaning, and ignition system check.'
+  },
+  {
+    title: 'Transmission Service',
+    description: 'Transmission fluid flush and filter replacement. Includes pan gasket replacement, fluid level adjustment, and transmission performance test.'
+  },
+  {
+    title: 'Suspension Repair',
+    description: 'Suspension system inspection and repair. Includes shock absorber/strut replacement, bushing inspection, wheel alignment, and ride height adjustment.'
+  },
+  {
+    title: 'Wheel Alignment',
+    description: 'Precision wheel alignment service. Includes camber, caster, and toe adjustment using computerized alignment equipment.'
+  },
+  {
+    title: 'AC Repair & Service',
+    description: 'Air conditioning system service. Includes refrigerant recharge, compressor check, condenser cleaning, and system pressure test.'
+  },
+  {
+    title: 'Electrical System Repair',
+    description: 'Complete electrical system diagnosis and repair. Includes battery test, alternator check, wiring inspection, and electrical component testing.'
+  },
+  {
+    title: 'Exhaust System Repair',
+    description: 'Exhaust system inspection and repair. Includes muffler replacement, catalytic converter check, pipe repair, and emissions system test.'
+  },
+  {
+    title: 'Fuel System Service',
+    description: 'Fuel system cleaning and service. Includes fuel filter replacement, injector cleaning, pump test, and system pressure check.'
+  },
+  {
+    title: 'Tire Replacement',
+    description: 'Tire replacement and balancing. Includes old tire removal, new tire installation, wheel balancing, and tire pressure monitoring system reset.'
+  },
+  {
+    title: 'Battery Replacement',
+    description: 'Battery replacement service. Includes old battery removal, new battery installation, terminal cleaning, and charging system test.'
+  },
+  {
+    title: 'Windshield Replacement',
+    description: 'Windshield glass replacement. Includes old glass removal, new glass installation, sealant application, and curing time.'
+  },
+  {
+    title: 'Paint Job & Body Work',
+    description: 'Body repair and painting service. Includes dent removal, surface preparation, primer application, color matching, and clear coat finishing.'
+  },
+  {
+    title: 'Full Vehicle Service',
+    description: 'Comprehensive vehicle maintenance package. Includes all fluid changes, filter replacements, system inspections, and safety checks.'
+  },
+  {
+    title: 'Pre-purchase Inspection',
+    description: 'Detailed vehicle inspection for prospective buyers. Includes mechanical, electrical, body, and interior condition assessment with detailed report.'
+  },
+  {
+    title: 'Custom Service',
+    description: 'Customized service based on specific requirements. Please provide detailed description of needed service.'
+  }
 ];
 
+// Product suggestions with pre-filled descriptions
 const productSuggestions = [
-  'Engine Oil',
-  'Brake Pads',
-  'Brake Discs',
-  'Air Filter',
-  'Oil Filter',
-  'Fuel Filter',
-  'Spark Plugs',
-  'Car Battery',
-  'Tires (Set of 4)',
-  'Wheel Rims',
-  'Shock Absorbers',
-  'Struts',
-  'AC Compressor',
-  'Alternator',
-  'Starter Motor',
-  'Radiator',
-  'Windshield',
-  'Headlights',
-  'Taillights',
-  'Custom Part'
+  {
+    title: 'Engine Oil',
+    description: 'High-quality synthetic engine oil. Provides superior engine protection, improves fuel efficiency, and extends engine life. Available in various viscosity grades.'
+  },
+  {
+    title: 'Brake Pads',
+    description: 'Premium brake pads with ceramic or semi-metallic compounds. Offers excellent stopping power, reduced brake dust, and quiet operation. Compatible with most vehicle models.'
+  },
+  {
+    title: 'Brake Discs',
+    description: 'High-performance brake discs/rotors. Made from premium materials for improved heat dissipation and longer lifespan. Includes proper fitment for specific vehicle models.'
+  },
+  {
+    title: 'Air Filter',
+    description: 'High-flow air filter element. Improves engine performance and fuel efficiency. Washable/reusable options available for certain models.'
+  },
+  {
+    title: 'Oil Filter',
+    description: 'Premium oil filter with synthetic media. Provides superior filtration, protects engine from contaminants, and ensures optimal oil flow.'
+  },
+  {
+    title: 'Fuel Filter',
+    description: 'High-efficiency fuel filter. Removes contaminants from fuel, protects fuel injectors, and maintains proper fuel pressure.'
+  },
+  {
+    title: 'Spark Plugs',
+    description: 'Performance spark plugs. Improves ignition efficiency, fuel economy, and engine performance. Available in copper, platinum, and iridium options.'
+  },
+  {
+    title: 'Car Battery',
+    description: 'Maintenance-free car battery. Provides reliable starting power, long service life, and excellent cold-cranking performance. Includes proper warranty.'
+  },
+  {
+    title: 'Tires (Set of 4)',
+    description: 'Complete set of 4 premium tires. Includes all-season or performance options with proper load rating and speed index for your vehicle.'
+  },
+  {
+    title: 'Wheel Rims',
+    description: 'Alloy or steel wheel rims. Available in various sizes and designs. Includes proper hub centric fitment and load capacity for your vehicle.'
+  },
+  {
+    title: 'Shock Absorbers',
+    description: 'Premium shock absorbers. Improves ride comfort, handling, and vehicle stability. Available in standard or performance variants.'
+  },
+  {
+    title: 'Struts',
+    description: 'Complete strut assembly. Includes shock absorber, spring, and mounting hardware. Provides improved suspension performance and ride quality.'
+  },
+  {
+    title: 'AC Compressor',
+    description: 'OE-quality AC compressor. Includes proper refrigerant capacity and compatibility with your vehicle\'s AC system.'
+  },
+  {
+    title: 'Alternator',
+    description: 'High-output alternator. Provides reliable electrical power for all vehicle systems. Includes proper amperage rating for your vehicle.'
+  },
+  {
+    title: 'Starter Motor',
+    description: 'Premium starter motor. Ensures reliable engine starting in all conditions. Includes proper torque specifications for your engine.'
+  },
+  {
+    title: 'Radiator',
+    description: 'High-efficiency radiator. Provides optimal engine cooling with improved heat dissipation. Includes proper fitment for your vehicle.'
+  },
+  {
+    title: 'Windshield',
+    description: 'OE-quality windshield glass. Includes proper tint, curvature, and sensor compatibility if applicable.'
+  },
+  {
+    title: 'Headlights',
+    description: 'Premium headlight assembly. Includes proper beam pattern, brightness, and compatibility with your vehicle\'s electrical system.'
+  },
+  {
+    title: 'Taillights',
+    description: 'OE-quality taillight assembly. Includes proper lighting functions, lens clarity, and weather sealing.'
+  },
+  {
+    title: 'Custom Part',
+    description: 'Custom automotive part. Please specify exact requirements, vehicle details, and any special instructions.'
+  }
 ];
 
 export default function CreateOpportunityPage() {
@@ -189,23 +307,21 @@ export default function CreateOpportunityPage() {
       make: '',
       model: '',
       year: '',
-      color: '',
+      colorCode: '',
       engineSize: '',
       fuelType: '',
       transmission: '',
       mileage: '',
-      chassisNumber: '',
-      bodyType: '',
-      licensePlate: ''
+      bodyType: ''
     }],
     servicesProducts: [],
     notes: '',
     currentStep: 1,
     opportunityType: 'SERVICE',
-    companyAddress: '',
-    companyTaxId: '',
-    companyPhone: '',
-    companyEmail: ''
+    contactPersonName: '',
+    contactPersonPhone: '',
+    contactPersonEmail: '',
+    contactPersonTitle: ''
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -221,7 +337,7 @@ export default function CreateOpportunityPage() {
   // Dropdown states
   const [showMakeDropdown, setShowMakeDropdown] = useState<number | null>(null);
   const [showModelDropdown, setShowModelDropdown] = useState<number | null>(null);
-  const [showColorDropdown, setShowColorDropdown] = useState<number | null>(null);
+  const [showColorCodeDropdown, setShowColorCodeDropdown] = useState<number | null>(null);
   const [showFuelDropdown, setShowFuelDropdown] = useState<number | null>(null);
   const [showTransmissionDropdown, setShowTransmissionDropdown] = useState<number | null>(null);
   const [showBodyTypeDropdown, setShowBodyTypeDropdown] = useState<number | null>(null);
@@ -229,15 +345,15 @@ export default function CreateOpportunityPage() {
   
   const [makeSearch, setMakeSearch] = useState('');
   const [modelSearch, setModelSearch] = useState('');
-  const [colorSearch, setColorSearch] = useState('');
+  const [colorCodeSearch, setColorCodeSearch] = useState('');
   const [fuelSearch, setFuelSearch] = useState('');
   const [transmissionSearch, setTransmissionSearch] = useState('');
   const [bodyTypeSearch, setBodyTypeSearch] = useState('');
   const [serviceProductSearch, setServiceProductSearch] = useState('');
 
   const accountTypes = [
-    { value: 'individual', label: 'Individual', icon: User },
-    { value: 'organization', label: 'Company/Organization', icon: Building }
+    { value: 'individual', label: 'Individual', icon: User, disabled: false },
+    { value: 'organization', label: 'Company/Organization', icon: Building, disabled: false }
   ];
 
   const sources = [
@@ -261,7 +377,7 @@ export default function CreateOpportunityPage() {
   // Refs for dropdown click outside detection
   const makeDropdownRef = useRef<HTMLDivElement | null>(null);
   const modelDropdownRef = useRef<HTMLDivElement | null>(null);
-  const colorDropdownRef = useRef<HTMLDivElement | null>(null);
+  const colorCodeDropdownRef = useRef<HTMLDivElement | null>(null);
   const fuelDropdownRef = useRef<HTMLDivElement | null>(null);
   const transmissionDropdownRef = useRef<HTMLDivElement | null>(null);
   const bodyTypeDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -269,10 +385,8 @@ export default function CreateOpportunityPage() {
   const preferencesRef = useRef<HTMLDivElement | null>(null);
 
   // Close dropdowns when clicking outside
-
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // Check if ref.current exists before accessing its methods
       if (makeDropdownRef.current && !makeDropdownRef.current.contains(event.target as Node)) {
         setShowMakeDropdown(null);
         setMakeSearch('');
@@ -281,9 +395,9 @@ export default function CreateOpportunityPage() {
         setShowModelDropdown(null);
         setModelSearch('');
       }
-      if (colorDropdownRef.current && !colorDropdownRef.current.contains(event.target as Node)) {
-        setShowColorDropdown(null);
-        setColorSearch('');
+      if (colorCodeDropdownRef.current && !colorCodeDropdownRef.current.contains(event.target as Node)) {
+        setShowColorCodeDropdown(null);
+        setColorCodeSearch('');
       }
       if (fuelDropdownRef.current && !fuelDropdownRef.current.contains(event.target as Node)) {
         setShowFuelDropdown(null);
@@ -322,7 +436,6 @@ export default function CreateOpportunityPage() {
         const formattedCountries = data
           .filter((country: any) => country.idd?.root && country.idd?.suffixes?.[0])
           .map((country: any) => {
-            // Use a different method to get flag emoji
             const getFlagEmoji = (countryCode: string) => {
               const codePoints = countryCode
                 .toUpperCase()
@@ -343,7 +456,6 @@ export default function CreateOpportunityPage() {
         setCountryCodes(formattedCountries);
       } catch (error) {
         console.error('Error fetching countries:', error);
-        // Use a static list with guaranteed flag emojis
         const staticCountries: CountryCode[] = [
           { code: 'KE', name: 'Kenya', flag: '🇰🇪', dialCode: '+254' },
           { code: 'US', name: 'United States', flag: '🇺🇸', dialCode: '+1' },
@@ -415,9 +527,11 @@ export default function CreateOpportunityPage() {
     setFormData(prev => ({ ...prev, servicesProducts: updatedServicesProducts }));
   };
 
-  const selectServiceProductSuggestion = (index: number, suggestion: string) => {
+  // Updated to include pre-filled description
+  const selectServiceProductSuggestion = (index: number, suggestion: { title: string; description: string }) => {
     const updatedServicesProducts = [...formData.servicesProducts];
-    updatedServicesProducts[index].title = suggestion;
+    updatedServicesProducts[index].title = suggestion.title;
+    updatedServicesProducts[index].description = suggestion.description;
     setFormData(prev => ({ ...prev, servicesProducts: updatedServicesProducts }));
     setShowServiceProductDropdown(null);
     setServiceProductSearch('');
@@ -433,14 +547,12 @@ export default function CreateOpportunityPage() {
         make: '',
         model: '',
         year: '',
-        color: '',
+        colorCode: '',
         engineSize: '',
         fuelType: '',
         transmission: '',
         mileage: '',
-        chassisNumber: '',
-        bodyType: '',
-        licensePlate: ''
+        bodyType: ''
       }]
     }));
   };
@@ -497,11 +609,9 @@ export default function CreateOpportunityPage() {
   const getFlagEmoji = (countryCode: string) => {
     let country;
     
-    // If it's a dial code (starts with +), find by dialCode
     if (countryCode.startsWith('+')) {
       country = countryCodes.find(c => c.dialCode === countryCode);
     } else {
-      // It's a country code
       country = countryCodes.find(c => c.code === countryCode);
     }
     
@@ -509,7 +619,6 @@ export default function CreateOpportunityPage() {
       return country.flag;
     }
     
-    // Fallback: return globe emoji
     return '🌍';
   };
 
@@ -537,8 +646,8 @@ export default function CreateOpportunityPage() {
     );
   };
 
-  const filteredColors = vehicleColors.filter(color =>
-    color.toLowerCase().includes(colorSearch.toLowerCase())
+  const filteredColorCodes = vehicleColorCodes.filter((colorCode, index) =>
+    vehicleColorNames[index].toLowerCase().includes(colorCodeSearch.toLowerCase())
   );
 
   const filteredFuelTypes = vehicleFuelTypes.filter(fuel =>
@@ -556,7 +665,7 @@ export default function CreateOpportunityPage() {
   const filteredServiceProducts = () => {
     const suggestions = formData.opportunityType === 'SERVICE' ? serviceSuggestions : productSuggestions;
     return suggestions.filter(item =>
-      item.toLowerCase().includes(serviceProductSearch.toLowerCase())
+      item.title.toLowerCase().includes(serviceProductSearch.toLowerCase())
     );
   };
 
@@ -568,6 +677,8 @@ export default function CreateOpportunityPage() {
         if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
       } else if (formData.accountType === 'organization') {
         if (!formData.companyName.trim()) newErrors.companyName = 'Company name is required';
+        if (!formData.contactPersonName?.trim()) newErrors.contactPersonName = 'Contact person name is required';
+        if (!formData.contactPersonEmail?.trim()) newErrors.contactPersonEmail = 'Contact person email is required';
       }
       
       if (!formData.email.trim()) newErrors.email = 'Email is required';
@@ -576,6 +687,10 @@ export default function CreateOpportunityPage() {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (formData.email && !emailRegex.test(formData.email)) {
         newErrors.email = 'Please enter a valid email address';
+      }
+      
+      if (formData.contactPersonEmail && !emailRegex.test(formData.contactPersonEmail)) {
+        newErrors.contactPersonEmail = 'Please enter a valid email address for contact person';
       }
       
       const phoneRegex = /^\d+$/;
@@ -633,184 +748,181 @@ export default function CreateOpportunityPage() {
   };
 
   const handleSubmit = async () => {
-  console.log('=== OPPORTUNITY SUBMISSION STARTED ===');
-  console.log('Step validation initiated...');
-  
-  if (validateStep()) {
-    console.log('✅ Step validation passed');
-    console.log('Setting isSubmitting to true');
-    setIsSubmitting(true);
+    console.log('=== OPPORTUNITY SUBMISSION STARTED ===');
+    console.log('Step validation initiated...');
     
-    try {
-      console.log('\n--- Creating Title ---');
-      const title = formData.accountType === 'individual' 
-        ? `${formData.firstName} ${formData.lastName}'s ${formData.opportunityType.toLowerCase()} request`
-        : `${formData.companyName}'s ${formData.opportunityType.toLowerCase()} request`;
-      console.log('Generated title:', title);
+    if (validateStep()) {
+      console.log('✅ Step validation passed');
+      console.log('Setting isSubmitting to true');
+      setIsSubmitting(true);
+      
+      try {
+        console.log('\n--- Creating Title ---');
+        const title = formData.accountType === 'individual' 
+          ? `${formData.firstName} ${formData.lastName}'s ${formData.opportunityType.toLowerCase()} request`
+          : `${formData.companyName}'s ${formData.opportunityType.toLowerCase()} request`;
+        console.log('Generated title:', title);
 
-      console.log('\n--- Building API Form Data Structure ---');
-      console.log('Account type:', formData.accountType);
-      console.log('Source:', formData.source);
-      console.log('Opportunity type:', formData.opportunityType);
-      
-      // Build the backend-compatible DTO with proper types
-      const apiFormData: CreateOpportunityData = {
-        type: formData.accountType,
-        source: formData.source,
-        subject: title,
-        status: 'new',
-        opportunityType: formData.opportunityType,
-        customer: {
-          name: formData.accountType === 'individual' 
-            ? `${formData.firstName} ${formData.lastName}`.trim()
-            : formData.companyName,
-          ...(formData.email && { email: formData.email }),
-          phone: `${formData.phoneCode}${formData.phone}`,
-          ...(formData.accountType === 'organization' && {
-            companyName: formData.companyName,
-            companyAddress: formData.companyAddress,
-            companyTaxId: formData.companyTaxId,
-            companyPhone: formData.companyPhone,
-            companyEmail: formData.companyEmail
-          })
-        },
-        ...(formData.vehicles.length > 0 && {
-          vehicles: formData.vehicles.map((vehicle, index) => {
-            console.log(`Vehicle ${index + 1}: ${vehicle.make} ${vehicle.model}`);
-            const vehicleData: any = {
-              ...(vehicle.vin && { vin: vehicle.vin }),
-              ...(vehicle.registrationNumber && { registrationNumber: vehicle.registrationNumber }),
-              ...(vehicle.licensePlate && { licensePlate: vehicle.licensePlate }),
-              make: vehicle.make,
-              model: vehicle.model,
-              ...(vehicle.year && { year: vehicle.year }),
-              ...(vehicle.color && { color: vehicle.color }),
-              ...(vehicle.engineSize && { engineSize: vehicle.engineSize }),
-              ...(vehicle.fuelType && { fuelType: vehicle.fuelType }),
-              ...(vehicle.transmission && { transmission: vehicle.transmission }),
-              ...(vehicle.mileage && { mileage: vehicle.mileage }),
-              ...(vehicle.chassisNumber && { chassisNumber: vehicle.chassisNumber }),
-              ...(vehicle.bodyType && { bodyType: vehicle.bodyType })
-            };
-            if (vehicle.year && !isNaN(Number(vehicle.year))) {
-              vehicleData.year = Number(vehicle.year);
-            }
-
-            if (vehicle.mileage && !isNaN(Number(vehicle.mileage))) {
-              vehicleData.mileage = Number(vehicle.mileage);
-            }
-            
-            return vehicleData;
-          })
-        }),
-        ...(formData.servicesProducts.length > 0 && {
-          servicesProducts: formData.servicesProducts.map((item, index) => {
-            console.log(`Service/Product ${index + 1}: ${item.title}, Quantity: ${item.quantity}`);
-            return {
-              title: item.title,
-              description: item.description,
-              type: item.type,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              discount: item.discount,
-              subtotal: item.subtotal,
-              total: item.total
-            };
-          })
-        }),
-        ...(formData.notes && { notes: formData.notes }),
-        subtotal: calculateSubtotal(),
-        totalDiscount: calculateTotalDiscount(),
-        total: calculateTotal(),
-      };
-
-      console.log('\n--- Calculated Values ---');
-      console.log('Subtotal:', calculateSubtotal());
-      console.log('Total Discount:', calculateTotalDiscount());
-      console.log('Total:', calculateTotal());
-      
-      console.log('\n--- Final API Form Data Structure ---');
-      console.log('API Form Data:', JSON.stringify(apiFormData, null, 2));
-      const missingFields = [];
-      if (!apiFormData.type) missingFields.push('type');
-      if (!apiFormData.source) missingFields.push('source');
-      if (!apiFormData.subject) missingFields.push('subject');
-      if (!apiFormData.customer) missingFields.push('customer');
-      if (!apiFormData.customer?.name) missingFields.push('customer.name');
-      if (!apiFormData.customer?.phone) missingFields.push('customer.phone');
-      if (!apiFormData.opportunityType) missingFields.push('opportunityType');
-      
-      if (missingFields.length > 0) {
-        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-      }
-      
-      console.log('\n--- Sending API Request ---');
-      console.log('Calling opportunityService.createOpportunity()');
-      console.time('API Request Duration');
-      
-      const result = await opportunityService.createOpportunity(apiFormData);
-
-      console.timeEnd('API Request Duration');
-      console.log('API Response:', result);
-      
-      console.log('\n--- Post-Submission Actions ---');
-      console.log('Setting created opportunity in state');
-      setCreatedOpportunity(result);
-      
-      console.log('Showing success modal');
-      setShowSuccessModal(true);
-      
-      console.log('Removing draft from localStorage');
-      localStorage.removeItem('opportunityDraft');
-      
-      console.log('Showing success toast notification');
-      showToast('Opportunity created successfully!', 'success', 3000);
-      
-      console.log('\n=== OPPORTUNITY SUBMISSION COMPLETED SUCCESSFULLY ===');
-      
-    } catch (error: any) {
-      console.error('Error name:', error.name);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      console.error('Full error object:', error);
-      
-      if (error.response) {
-        console.error('Server response:', error.response);
-        console.error('Status code:', error.response.status);
-        console.error('Response data:', error.response.data);
-        console.error('Response headers:', error.response.headers);
+        console.log('\n--- Building API Form Data Structure ---');
+        console.log('Account type:', formData.accountType);
+        console.log('Source:', formData.source);
+        console.log('Opportunity type:', formData.opportunityType);
         
-        // Extract error message from response
-        let errorMessage = 'Failed to create opportunity. Please try again.';
-        if (error.response.data?.message) {
-          errorMessage = error.response.data.message;
-        } else if (error.response.data?.error) {
-          errorMessage = error.response.data.error;
-        } else if (typeof error.response.data === 'string') {
-          errorMessage = error.response.data;
+        // Build the backend-compatible DTO with proper types
+        const apiFormData: CreateOpportunityData = {
+          type: formData.accountType,
+          source: formData.source,
+          subject: title,
+          status: 'new',
+          opportunityType: formData.opportunityType,
+          customer: {
+            name: formData.accountType === 'individual' 
+              ? `${formData.firstName} ${formData.lastName}`.trim()
+              : formData.companyName,
+            email: formData.email,
+            phone: `${formData.phoneCode}${formData.phone}`,
+            ...(formData.accountType === 'organization' && {
+              companyName: formData.companyName,
+              ...(formData.contactPersonName && { contactPersonName: formData.contactPersonName }),
+              ...(formData.contactPersonPhone && { contactPersonPhone: formData.contactPersonPhone }),
+              ...(formData.contactPersonEmail && { contactPersonEmail: formData.contactPersonEmail }),
+              ...(formData.contactPersonTitle && { contactPersonTitle: formData.contactPersonTitle })
+            })
+          },
+          ...(formData.vehicles.length > 0 && {
+            vehicles: formData.vehicles.map((vehicle, index) => {
+              console.log(`Vehicle ${index + 1}: ${vehicle.make} ${vehicle.model}`);
+              const vehicleData: any = {
+                ...(vehicle.vin && { vin: vehicle.vin }),
+                ...(vehicle.registrationNumber && { registrationNumber: vehicle.registrationNumber }),
+                make: vehicle.make,
+                model: vehicle.model,
+                ...(vehicle.year && { year: vehicle.year }),
+                ...(vehicle.colorCode && { color: vehicle.colorCode }),
+                ...(vehicle.engineSize && { engineSize: vehicle.engineSize }),
+                ...(vehicle.fuelType && { fuelType: vehicle.fuelType }),
+                ...(vehicle.transmission && { transmission: vehicle.transmission }),
+                ...(vehicle.mileage && { mileage: vehicle.mileage }),
+                ...(vehicle.bodyType && { bodyType: vehicle.bodyType })
+              };
+              if (vehicle.year && !isNaN(Number(vehicle.year))) {
+                vehicleData.year = Number(vehicle.year);
+              }
+
+              if (vehicle.mileage && !isNaN(Number(vehicle.mileage))) {
+                vehicleData.mileage = Number(vehicle.mileage);
+              }
+              
+              return vehicleData;
+            })
+          }),
+          ...(formData.servicesProducts.length > 0 && {
+            servicesProducts: formData.servicesProducts.map((item, index) => {
+              console.log(`Service/Product ${index + 1}: ${item.title}, Quantity: ${item.quantity}`);
+              return {
+                title: item.title,
+                description: item.description,
+                type: item.type,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                discount: item.discount,
+                subtotal: item.subtotal,
+                total: item.total
+              };
+            })
+          }),
+          ...(formData.notes && { notes: formData.notes }),
+          subtotal: calculateSubtotal(),
+          totalDiscount: calculateTotalDiscount(),
+          total: calculateTotal(),
+        };
+
+        console.log('\n--- Calculated Values ---');
+        console.log('Subtotal:', calculateSubtotal());
+        console.log('Total Discount:', calculateTotalDiscount());
+        console.log('Total:', calculateTotal());
+        
+        console.log('\n--- Final API Form Data Structure ---');
+        console.log('API Form Data:', JSON.stringify(apiFormData, null, 2));
+        const missingFields = [];
+        if (!apiFormData.type) missingFields.push('type');
+        if (!apiFormData.source) missingFields.push('source');
+        if (!apiFormData.subject) missingFields.push('subject');
+        if (!apiFormData.customer) missingFields.push('customer');
+        if (!apiFormData.customer?.name) missingFields.push('customer.name');
+        if (!apiFormData.customer?.phone) missingFields.push('customer.phone');
+        if (!apiFormData.opportunityType) missingFields.push('opportunityType');
+        
+        if (missingFields.length > 0) {
+          throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
         }
-        console.log('Displaying error message:', errorMessage);
-        showToast(errorMessage, 'error', 5000);
-      } else if (error.request) {
-        console.error('No response received. Request details:', error.request);
-        showToast('Network error. Please check your connection and try again.', 'error', 5000);
-      } else {
-        console.error('Error setting up request:', error.message);
-        showToast(error.message || 'Failed to create opportunity. Please try again.', 'error', 5000);
+        
+        console.log('\n--- Sending API Request ---');
+        console.log('Calling opportunityService.createOpportunity()');
+        console.time('API Request Duration');
+        
+        const result = await opportunityService.createOpportunity(apiFormData);
+
+        console.timeEnd('API Request Duration');
+        console.log('API Response:', result);
+        
+        console.log('\n--- Post-Submission Actions ---');
+        console.log('Setting created opportunity in state');
+        setCreatedOpportunity(result);
+        
+        console.log('Showing success modal');
+        setShowSuccessModal(true);
+        
+        console.log('Removing draft from localStorage');
+        localStorage.removeItem('opportunityDraft');
+        
+        console.log('Showing success toast notification');
+        showToast('Opportunity created successfully!', 'success', 3000);
+        
+        console.log('\n=== OPPORTUNITY SUBMISSION COMPLETED SUCCESSFULLY ===');
+        
+      } catch (error: any) {
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        console.error('Full error object:', error);
+        
+        if (error.response) {
+          console.error('Server response:', error.response);
+          console.error('Status code:', error.response.status);
+          console.error('Response data:', error.response.data);
+          console.error('Response headers:', error.response.headers);
+          
+          let errorMessage = 'Failed to create opportunity. Please try again.';
+          if (error.response.data?.message) {
+            errorMessage = error.response.data.message;
+          } else if (error.response.data?.error) {
+            errorMessage = error.response.data.error;
+          } else if (typeof error.response.data === 'string') {
+            errorMessage = error.response.data;
+          }
+          console.log('Displaying error message:', errorMessage);
+          showToast(errorMessage, 'error', 5000);
+        } else if (error.request) {
+          console.error('No response received. Request details:', error.request);
+          showToast('Network error. Please check your connection and try again.', 'error', 5000);
+        } else {
+          console.error('Error setting up request:', error.message);
+          showToast(error.message || 'Failed to create opportunity. Please try again.', 'error', 5000);
+        }
+        
+      } finally {
+        console.log('\n--- Cleanup Phase ---');
+        console.log('Setting isSubmitting to false');
+        setIsSubmitting(false);
+        console.log('=== HANDLE SUBMIT FUNCTION FINISHED ===');
       }
-      
-    } finally {
-      console.log('\n--- Cleanup Phase ---');
-      console.log('Setting isSubmitting to false');
-      setIsSubmitting(false);
-      console.log('=== HANDLE SUBMIT FUNCTION FINISHED ===');
+    } else {
+      console.log('❌ Step validation failed - submission aborted');
+      console.log('Current form data:', formData);
+      showToast('Please fix the validation errors before submitting.', 'error', 3000);
     }
-  } else {
-    console.log('❌ Step validation failed - submission aborted');
-    console.log('Current form data:', formData);
-    showToast('Please fix the validation errors before submitting.', 'error', 3000);
-  }
-};
+  };
 
   const handleViewOpportunityDetails = () => {
     if (createdOpportunity) {
@@ -838,23 +950,21 @@ export default function CreateOpportunityPage() {
         make: '',
         model: '',
         year: '',
-        color: '',
+        colorCode: '',
         engineSize: '',
         fuelType: '',
         transmission: '',
         mileage: '',
-        chassisNumber: '',
-        bodyType: '',
-        licensePlate: ''
+        bodyType: ''
       }],
       servicesProducts: [],
       notes: '',
       currentStep: 1,
       opportunityType: 'SERVICE',
-      companyAddress: '',
-      companyTaxId: '',
-      companyPhone: '',
-      companyEmail: ''
+      contactPersonName: '',
+      contactPersonPhone: '',
+      contactPersonEmail: '',
+      contactPersonTitle: ''
     });
     setStep(1);
     setErrors({});
@@ -1107,7 +1217,7 @@ export default function CreateOpportunityPage() {
                   {/* Account Type Selection */}
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-3">
-                      Account Type
+                      Account Type *
                     </label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {accountTypes.map((type) => {
@@ -1121,7 +1231,8 @@ export default function CreateOpportunityPage() {
                               formData.accountType === type.value
                                 ? 'border-blue-500 bg-gradient-to-r from-blue-50 to-blue-100 ring-2 ring-blue-200'
                                 : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                            }`}
+                            } ${type.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={type.disabled}
                           >
                             <div className="flex items-center gap-3">
                               <div className={`p-2 rounded-lg ${
@@ -1229,59 +1340,90 @@ export default function CreateOpportunityPage() {
                           )}
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Company Address
-                            </label>
-                            <input
-                              type="text"
-                              value={formData.companyAddress}
-                              onChange={(e) => handleInputChange('companyAddress', e.target.value)}
-                              placeholder="e.g., 123 Business Street, Nairobi"
-                              className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                            />
-                          </div>
+                        {/* Contact Person Details Section */}
+                        <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100">
+                          <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                            <Contact className="h-5 w-5 text-blue-600" />
+                            Contact Person Details
+                          </h3>
                           
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Tax ID/VAT Number
-                            </label>
-                            <input
-                              type="text"
-                              value={formData.companyTaxId}
-                              onChange={(e) => handleInputChange('companyTaxId', e.target.value)}
-                              placeholder="e.g., P12345678X"
-                              className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Company Phone
-                            </label>
-                            <input
-                              type="text"
-                              value={formData.companyPhone}
-                              onChange={(e) => handleInputChange('companyPhone', e.target.value)}
-                              placeholder="e.g., 712345678"
-                              className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                            />
-                          </div>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Company Email
-                            </label>
-                            <input
-                              type="email"
-                              value={formData.companyEmail}
-                              onChange={(e) => handleInputChange('companyEmail', e.target.value)}
-                              placeholder="e.g., info@company.com"
-                              className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                            />
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Contact Person Name *
+                              </label>
+                              <div className="relative">
+                                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <input
+                                  type="text"
+                                  value={formData.contactPersonName}
+                                  onChange={(e) => handleInputChange('contactPersonName', e.target.value)}
+                                  placeholder="e.g., John Doe"
+                                  className={`pl-10 pr-4 py-3 w-full rounded-xl border ${
+                                    errors.contactPersonName ? 'border-red-300' : 'border-gray-200'
+                                  } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors`}
+                                />
+                              </div>
+                              {errors.contactPersonName && (
+                                <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                  <AlertCircle className="h-3 w-3" />
+                                  {errors.contactPersonName}
+                                </p>
+                              )}
+                            </div>
+                            
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Title/Position
+                              </label>
+                              <input
+                                type="text"
+                                value={formData.contactPersonTitle}
+                                onChange={(e) => handleInputChange('contactPersonTitle', e.target.value)}
+                                placeholder="e.g., Procurement Manager"
+                                className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                              />
+                            </div>
+                            
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Contact Person Email *
+                              </label>
+                              <div className="relative">
+                                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <input
+                                  type="email"
+                                  value={formData.contactPersonEmail}
+                                  onChange={(e) => handleInputChange('contactPersonEmail', e.target.value)}
+                                  placeholder="e.g., john.doe@company.com"
+                                  className={`pl-10 pr-4 py-3 w-full rounded-xl border ${
+                                    errors.contactPersonEmail ? 'border-red-300' : 'border-gray-200'
+                                  } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors`}
+                                />
+                              </div>
+                              {errors.contactPersonEmail && (
+                                <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                  <AlertCircle className="h-3 w-3" />
+                                  {errors.contactPersonEmail}
+                                </p>
+                              )}
+                            </div>
+                            
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Contact Person Phone
+                              </label>
+                              <div className="relative">
+                                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <input
+                                  type="tel"
+                                  value={formData.contactPersonPhone}
+                                  onChange={(e) => handleInputChange('contactPersonPhone', e.target.value)}
+                                  placeholder="e.g., 712345678"
+                                  className="pl-10 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1291,7 +1433,7 @@ export default function CreateOpportunityPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Email *
+                          {formData.accountType === 'individual' ? 'Email *' : 'Company Email *'}
                         </label>
                         <div className="relative">
                           <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -1299,7 +1441,11 @@ export default function CreateOpportunityPage() {
                             type="email"
                             value={formData.email}
                             onChange={(e) => handleInputChange('email', e.target.value)}
-                            placeholder="e.g., john.doe@example.com"
+                            placeholder={
+                              formData.accountType === 'individual' 
+                                ? "e.g., john.doe@example.com"
+                                : "e.g., info@company.com"
+                            }
                             className={`pl-10 pr-4 py-3 w-full rounded-xl border ${
                               errors.email ? 'border-red-300' : 'border-gray-200'
                             } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors`}
@@ -1315,7 +1461,7 @@ export default function CreateOpportunityPage() {
                       
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Phone *
+                          {formData.accountType === 'individual' ? 'Phone *' : 'Company Phone *'}
                         </label>
                         <div className="flex gap-2">
                           <div className="relative flex-1">
@@ -1484,19 +1630,6 @@ export default function CreateOpportunityPage() {
                             />
                           </div>
                           
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">
-                              License Plate
-                            </label>
-                            <input
-                              type="text"
-                              value={vehicle.licensePlate}
-                              onChange={(e) => handleVehicleChange(index, 'licensePlate', e.target.value)}
-                              placeholder="e.g., KDL 456B"
-                              className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
-                            />
-                          </div>
-                          
                           {/* Make with dropdown/regular input */}
                           {renderVehicleFieldWithDropdown(
                             index,
@@ -1610,19 +1743,105 @@ export default function CreateOpportunityPage() {
                             />
                           </div>
                           
-                          {/* Color with dropdown/regular input */}
-                          {renderVehicleFieldWithDropdown(
-                            index,
-                            'color',
-                            'Color',
-                            'Type or select color',
-                            vehicleColors,
-                            showColorDropdown,
-                            setShowColorDropdown,
-                            colorSearch,
-                            setColorSearch,
-                            filteredColors,
-                            colorDropdownRef
+                          {/* Color Code with dropdown/regular input */}
+                          {userPreferences.useDropdowns ? (
+                            <div className="relative" ref={colorCodeDropdownRef}>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">
+                                Color Code
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={vehicle.colorCode}
+                                  onChange={(e) => {
+                                    handleVehicleChange(index, 'colorCode', e.target.value);
+                                    setColorCodeSearch(e.target.value);
+                                  }}
+                                  onFocus={() => setShowColorCodeDropdown(index)}
+                                  placeholder="Type or select color code"
+                                  className="pl-8 pr-8 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+                                />
+                                {vehicle.colorCode && (
+                                  <div 
+                                    className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 rounded border border-gray-300"
+                                    style={{ backgroundColor: vehicle.colorCode }}
+                                  />
+                                )}
+                                <Palette className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowColorCodeDropdown(showColorCodeDropdown === index ? null : index)}
+                                  className="absolute right-8 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                >
+                                  {showColorCodeDropdown === index ? (
+                                    <ChevronUp className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4" />
+                                  )}
+                                </button>
+                              </div>
+                              
+                              {showColorCodeDropdown === index && (
+                                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                  <div className="sticky top-0 bg-white p-2 border-b">
+                                    <div className="relative">
+                                      <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
+                                      <input
+                                        type="text"
+                                        value={colorCodeSearch}
+                                        onChange={(e) => setColorCodeSearch(e.target.value)}
+                                        placeholder="Search colors..."
+                                        className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="max-h-48 overflow-y-auto">
+                                    {filteredColorCodes.map((colorCode, colorIndex) => (
+                                      <button
+                                        key={colorCode}
+                                        type="button"
+                                        onClick={() => {
+                                          handleVehicleChange(index, 'colorCode', colorCode);
+                                          setShowColorCodeDropdown(null);
+                                          setColorCodeSearch('');
+                                        }}
+                                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <div 
+                                            className="h-4 w-4 rounded border border-gray-300"
+                                            style={{ backgroundColor: colorCode }}
+                                          />
+                                          <span>{vehicleColorNames[colorIndex]}</span>
+                                        </div>
+                                        <span className="text-xs text-gray-500">{colorCode}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">
+                                Color Code
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={vehicle.colorCode}
+                                  onChange={(e) => handleVehicleChange(index, 'colorCode', e.target.value)}
+                                  placeholder="e.g., #FFFFFF"
+                                  className="pl-8 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+                                />
+                                {vehicle.colorCode && (
+                                  <div 
+                                    className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 rounded border border-gray-300"
+                                    style={{ backgroundColor: vehicle.colorCode }}
+                                  />
+                                )}
+                              </div>
+                            </div>
                           )}
 
                           <div>
@@ -1653,19 +1872,83 @@ export default function CreateOpportunityPage() {
                             fuelDropdownRef
                           )}
 
-                          {/* Transmission with dropdown/regular input */}
-                          {renderVehicleFieldWithDropdown(
-                            index,
-                            'transmission',
-                            'Transmission',
-                            'Type or select transmission',
-                            vehicleTransmissions,
-                            showTransmissionDropdown,
-                            setShowTransmissionDropdown,
-                            transmissionSearch,
-                            setTransmissionSearch,
-                            filteredTransmissions,
-                            transmissionDropdownRef
+                          {/* Transmission with simplified options */}
+                          {userPreferences.useDropdowns ? (
+                            <div className="relative" ref={transmissionDropdownRef}>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">
+                                Transmission
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={vehicle.transmission}
+                                  onChange={(e) => {
+                                    handleVehicleChange(index, 'transmission', e.target.value);
+                                    setTransmissionSearch(e.target.value);
+                                  }}
+                                  onFocus={() => setShowTransmissionDropdown(index)}
+                                  placeholder="Select Manual or Automatic"
+                                  className="pl-3 pr-8 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowTransmissionDropdown(showTransmissionDropdown === index ? null : index)}
+                                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                >
+                                  {showTransmissionDropdown === index ? (
+                                    <ChevronUp className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4" />
+                                  )}
+                                </button>
+                              </div>
+                              
+                              {showTransmissionDropdown === index && (
+                                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                  <div className="sticky top-0 bg-white p-2 border-b">
+                                    <div className="relative">
+                                      <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
+                                      <input
+                                        type="text"
+                                        value={transmissionSearch}
+                                        onChange={(e) => setTransmissionSearch(e.target.value)}
+                                        placeholder="Search transmission..."
+                                        className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="max-h-48 overflow-y-auto">
+                                    {filteredTransmissions.map((transmission) => (
+                                      <button
+                                        key={transmission}
+                                        type="button"
+                                        onClick={() => {
+                                          handleVehicleChange(index, 'transmission', transmission);
+                                          setShowTransmissionDropdown(null);
+                                          setTransmissionSearch('');
+                                        }}
+                                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
+                                      >
+                                        <span>{transmission}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">
+                                Transmission
+                              </label>
+                              <input
+                                type="text"
+                                value={vehicle.transmission}
+                                onChange={(e) => handleVehicleChange(index, 'transmission', e.target.value)}
+                                placeholder="Manual or Automatic"
+                                className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+                              />
+                            </div>
                           )}
 
                           <div>
@@ -1677,19 +1960,6 @@ export default function CreateOpportunityPage() {
                               value={vehicle.mileage}
                               onChange={(e) => handleVehicleChange(index, 'mileage', e.target.value)}
                               placeholder="e.g., 45000"
-                              className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">
-                              Chassis Number
-                            </label>
-                            <input
-                              type="text"
-                              value={vehicle.chassisNumber}
-                              onChange={(e) => handleVehicleChange(index, 'chassisNumber', e.target.value)}
-                              placeholder="e.g., JTEHT05J402123456"
                               className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
                             />
                           </div>
@@ -1797,18 +2067,6 @@ export default function CreateOpportunityPage() {
 
                   {/* Services/Products Section */}
                   <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-800">Items List</h3>
-                      <button
-                        type="button"
-                        onClick={addServiceProduct}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 hover:from-blue-100 hover:to-blue-200 text-sm font-medium transition-all"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Add Item
-                      </button>
-                    </div>
-
                     {/* Empty State */}
                     {formData.servicesProducts.length === 0 && (
                       <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-xl bg-gradient-to-r from-gray-50/50 to-gray-100/50">
@@ -1826,14 +2084,6 @@ export default function CreateOpportunityPage() {
                           <p className="text-gray-500 mb-6 max-w-sm mx-auto">
                             Start by adding {formData.opportunityType === 'SERVICE' ? 'services' : 'products'} to build your quote.
                           </p>
-                          <button
-                            type="button"
-                            onClick={addServiceProduct}
-                            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 text-sm font-medium shadow-sm transition-all"
-                          >
-                            <Plus className="h-4 w-4" />
-                            Add First Item
-                          </button>
                         </div>
                       </div>
                     )}
@@ -1933,12 +2183,15 @@ export default function CreateOpportunityPage() {
                                   <div className="max-h-48 overflow-y-auto">
                                     {filteredServiceProducts().map((suggestion) => (
                                       <button
-                                        key={suggestion}
+                                        key={suggestion.title}
                                         type="button"
                                         onClick={() => selectServiceProductSuggestion(index, suggestion)}
-                                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
+                                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex flex-col items-start gap-1"
                                       >
-                                        <span>{suggestion}</span>
+                                        <div className="font-medium">{suggestion.title}</div>
+                                        <div className="text-xs text-gray-500 truncate w-full">
+                                          {suggestion.description}
+                                        </div>
                                       </button>
                                     ))}
                                   </div>
@@ -1958,7 +2211,7 @@ export default function CreateOpportunityPage() {
                                     ? "e.g., Full synthetic oil change and filter replacement, including labor and inspection..."
                                     : "e.g., High-quality brake pads for improved stopping power, compatible with most models..."
                                 }
-                                rows={2}
+                                rows={3}
                                 className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-colors"
                               />
                             </div>
@@ -2063,6 +2316,18 @@ export default function CreateOpportunityPage() {
                         </div>
                       ))}
                     </div>
+
+                    {/* Add Item Button moved to bottom */}
+                    <div className="mt-6 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={addServiceProduct}
+                        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 text-sm font-medium shadow-sm transition-all"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add Item
+                      </button>
+                    </div>
                   </div>
 
                   {/* Overall Totals Section */}
@@ -2142,9 +2407,10 @@ export default function CreateOpportunityPage() {
                               <p className="text-sm">
                                 <span className="font-medium">Company:</span> {formData.companyName}
                               </p>
-                              {formData.companyAddress && (
+                              {formData.contactPersonName && (
                                 <p className="text-sm">
-                                  <span className="font-medium">Address:</span> {formData.companyAddress}
+                                  <span className="font-medium">Contact Person:</span> {formData.contactPersonName}
+                                  {formData.contactPersonTitle && ` (${formData.contactPersonTitle})`}
                                 </p>
                               )}
                             </>

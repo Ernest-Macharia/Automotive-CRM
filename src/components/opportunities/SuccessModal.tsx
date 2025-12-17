@@ -8,7 +8,6 @@ import {
   Car, 
   Calendar, 
   Copy, 
-  Share2, 
   ArrowRight,
   Sparkles,
   Mail,
@@ -16,7 +15,10 @@ import {
   Building,
   Users,
   Plus,
-  AlertTriangle
+  AlertTriangle,
+  CreditCard,
+  Package,
+  Settings
 } from 'lucide-react';
 import { Opportunity } from '@/services/opportunityService';
 
@@ -76,7 +78,6 @@ export default function SuccessModal({
   const formatDate = (dateString: string) => {
     try {
       return new Date(dateString).toLocaleDateString('en-US', {
-        weekday: 'long',
         year: 'numeric',
         month: 'long',
         day: 'numeric',
@@ -89,52 +90,28 @@ export default function SuccessModal({
   };
 
   const getStatusColor = (status: string | undefined) => {
-    if (!status) return 'bg-gray-100 text-gray-600 border border-gray-200';
+    if (!status) return 'bg-gray-100 text-gray-600';
     
     switch (status) {
-      case 'new': return 'bg-blue-100 text-blue-600 border border-blue-200';
-      case 'attempted_to_contact': return 'bg-purple-100 text-purple-600 border border-purple-200';
-      case 'prospecting': return 'bg-amber-100 text-amber-600 border border-amber-200';
-      case 'appointment_scheduled': return 'bg-orange-100 text-orange-600 border border-orange-200';
-      case 'non_progressive': return 'bg-gray-100 text-gray-600 border border-gray-200';
-      case 'lost': return 'bg-red-100 text-red-600 border border-red-200';
-      case 'won': return 'bg-green-100 text-green-600 border border-green-200';
-      default: return 'bg-gray-100 text-gray-600 border border-gray-200';
-    }
-  };
-
-  const getStatusIcon = (status: string | undefined) => {
-    if (!status) return '📋';
-    
-    switch (status) {
-      case 'new': return '🆕';
-      case 'attempted_to_contact': return '📞';
-      case 'prospecting': return '🔍';
-      case 'appointment_scheduled': return '📅';
-      case 'non_progressive': return '⏸️';
-      case 'lost': return '📉';
-      case 'won': return '🏆';
-      default: return '📋';
+      case 'new': return 'bg-blue-100 text-blue-600';
+      case 'attempted_to_contact': return 'bg-purple-100 text-purple-600';
+      case 'prospecting': return 'bg-amber-100 text-amber-600';
+      case 'appointment_scheduled': return 'bg-orange-100 text-orange-600';
+      case 'non_progressive': return 'bg-gray-100 text-gray-600';
+      case 'lost': return 'bg-red-100 text-red-600';
+      case 'won': return 'bg-green-100 text-green-600';
+      default: return 'bg-gray-100 text-gray-600';
     }
   };
 
   const getStatusDisplay = (status: string | undefined) => {
     if (!status) return 'Pending';
-    return status.charAt(0).toUpperCase() + status.slice(1);
+    return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-  };
-
-  const shareOpportunity = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: `Opportunity: ${opportunity.subject || 'New Opportunity'}`,
-        text: `Check out this new opportunity: ${opportunity.subject || 'New Opportunity'}`,
-        url: window.location.href,
-      });
-    }
+    // You could add a toast notification here
   };
 
   const getCustomerName = () => {
@@ -148,6 +125,22 @@ export default function SuccessModal({
     return name.charAt(0).toUpperCase();
   };
 
+  const getOpportunityTypeIcon = (type?: 'SERVICE' | 'PRODUCT') => {
+    switch (type) {
+      case 'SERVICE': return <Settings className="h-4 w-4 text-blue-600" />;
+      case 'PRODUCT': return <Package className="h-4 w-4 text-green-600" />;
+      default: return <FileText className="h-4 w-4 text-gray-600" />;
+    }
+  };
+
+  const getOpportunityTypeColor = (type?: 'SERVICE' | 'PRODUCT') => {
+    switch (type) {
+      case 'SERVICE': return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'PRODUCT': return 'bg-green-50 text-green-700 border-green-200';
+      default: return 'bg-gray-50 text-gray-700 border-gray-200';
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[100] overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
@@ -158,9 +151,9 @@ export default function SuccessModal({
         />
         
         {/* Modal */}
-        <div className="relative w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white shadow-2xl transition-all">
+        <div className="relative w-full max-w-4xl transform overflow-hidden rounded-2xl bg-white shadow-2xl transition-all">
           {/* Header */}
-          <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-6">
+          <div className="bg-gradient-to-r from-emerald-500 to-green-600 p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-white/20 rounded-xl">
@@ -181,9 +174,9 @@ export default function SuccessModal({
           </div>
 
           {/* Content */}
-          <div className="max-h-[60vh] overflow-y-auto p-6">
-            {/* Success Animation/Icon */}
-            <div className="flex justify-center mb-6">
+          <div className="max-h-[70vh] overflow-y-auto p-6">
+            {/* Success Animation */}
+            <div className="flex justify-center mb-8">
               <div className="relative">
                 <div className="h-24 w-24 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 flex items-center justify-center">
                   <CheckCircle className="h-12 w-12 text-green-500" />
@@ -196,235 +189,340 @@ export default function SuccessModal({
               </div>
             </div>
 
-            {/* Opportunity Details */}
-            <div className="space-y-6">
-              {/* Basic Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Opportunity Information Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              {/* Opportunity Details Card */}
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100/30 rounded-2xl border border-blue-200 p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <FileText className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-800">Opportunity Details</h3>
+                </div>
+                
                 <div className="space-y-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-800 mb-3">Opportunity Details</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-600">ID</span>
-                        <div className="flex items-center gap-2">
-                          <code className="px-2 py-1 bg-gray-100 rounded text-sm font-mono">
-                            {opportunity._id?.substring?.(0, 8) || 'N/A'}...
-                          </code>
-                          {opportunity._id && (
-                            <button 
-                              onClick={() => copyToClipboard(opportunity._id)}
-                              className="p-1 hover:bg-gray-100 rounded transition-colors"
-                              title="Copy ID"
-                            >
-                              <Copy className="h-4 w-4 text-gray-500" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-600">Subject</span>
-                        <span className="font-medium text-gray-800">{opportunity.subject || 'New Opportunity'}</span>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-600">Status</span>
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2 ${getStatusColor(opportunity.status)}`}>
-                          {getStatusIcon(opportunity.status)} {getStatusDisplay(opportunity.status)}
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-600">Type</span>
-                        <span className="flex items-center gap-2">
-                          {opportunity.type === 'organization' ? (
-                            <>
-                              <Building className="h-4 w-4 text-purple-500" />
-                              <span className="font-medium">Organization</span>
-                            </>
-                          ) : (
-                            <>
-                              <User className="h-4 w-4 text-blue-500" />
-                              <span className="font-medium">Individual</span>
-                            </>
-                          )}
-                        </span>
-                      </div>
-                    </div>
+                    <div className="text-sm text-gray-600 mb-1">Subject</div>
+                    <div className="font-medium text-gray-800 text-lg">{opportunity.subject || 'New Opportunity'}</div>
                   </div>
-                </div>
-
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-3">Customer Information</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-100 to-blue-200 flex items-center justify-center">
-                        <span className="text-lg font-semibold text-blue-600">
-                          {getCustomerInitial()}
-                        </span>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-800">{getCustomerName()}</h4>
-                        {opportunity.customer?.companyName && (
-                          <p className="text-sm text-gray-600">{opportunity.customer.companyName}</p>
-                        )}
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-sm text-gray-600 mb-1">Status</div>
+                      <div className={`px-3 py-1.5 rounded-lg text-sm font-medium inline-flex items-center gap-2 ${getStatusColor(opportunity.status)}`}>
+                        <div className="w-2 h-2 rounded-full bg-current opacity-75"></div>
+                        {getStatusDisplay(opportunity.status)}
                       </div>
                     </div>
                     
-                    <div className="space-y-2 pl-1">
-                      {opportunity.customer?.email && (
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <Mail className="h-4 w-4" />
-                          <span className="text-sm">{opportunity.customer.email}</span>
-                        </div>
-                      )}
-                      
-                      {opportunity.customer?.phone && (
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <Phone className="h-4 w-4" />
-                          <span className="text-sm">{opportunity.customer.phone}</span>
-                        </div>
+                    <div>
+                      <div className="text-sm text-gray-600 mb-1">Type</div>
+                      <div className="flex items-center gap-2">
+                        {opportunity.type === 'organization' ? (
+                          <>
+                            <Building className="h-4 w-4 text-purple-500" />
+                            <span className="font-medium">Organization</span>
+                          </>
+                        ) : (
+                          <>
+                            <User className="h-4 w-4 text-blue-500" />
+                            <span className="font-medium">Individual</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {opportunity.opportunityType && (
+                    <div>
+                      <div className="text-sm text-gray-600 mb-1">Opportunity Type</div>
+                      <div className={`px-3 py-1.5 rounded-lg text-sm font-medium inline-flex items-center gap-2 ${getOpportunityTypeColor(opportunity.opportunityType)} border`}>
+                        {getOpportunityTypeIcon(opportunity.opportunityType)}
+                        {opportunity.opportunityType === 'SERVICE' ? 'Service' : 'Product'}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div>
+                    <div className="text-sm text-gray-600 mb-1">ID</div>
+                    <div className="flex items-center gap-2">
+                      <code className="px-3 py-1.5 bg-gray-100 rounded-lg text-sm font-mono text-gray-800 flex-1 truncate">
+                        {opportunity._id?.substring?.(0, 12) || 'N/A'}...
+                      </code>
+                      {opportunity._id && (
+                        <button 
+                          onClick={() => copyToClipboard(opportunity._id)}
+                          className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                          title="Copy ID"
+                        >
+                          <Copy className="h-4 w-4 text-gray-500" />
+                        </button>
                       )}
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Additional Info */}
-              <div className="border-t border-gray-200 pt-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center p-4 rounded-xl bg-gray-50">
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-100 to-blue-200 flex items-center justify-center mx-auto mb-2">
-                      <Car className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div className="text-2xl font-bold text-gray-800">{opportunity.vehicles?.length || 0}</div>
-                    <div className="text-sm text-gray-600">Vehicle{opportunity.vehicles?.length !== 1 ? 's' : ''}</div>
+              {/* Customer Information Card */}
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100/30 rounded-2xl border border-purple-200 p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <User className="h-5 w-5 text-purple-600" />
                   </div>
-                  
-                  <div className="text-center p-4 rounded-xl bg-gray-50">
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-r from-green-100 to-green-200 flex items-center justify-center mx-auto mb-2">
-                      <FileText className="h-5 w-5 text-green-600" />
-                    </div>
-                    <div className="text-2xl font-bold text-gray-800">{opportunity.quotes?.length || 0}</div>
-                    <div className="text-sm text-gray-600">Quote{opportunity.quotes?.length !== 1 ? 's' : ''}</div>
-                  </div>
-                  
-                  <div className="text-center p-4 rounded-xl bg-gray-50">
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-r from-amber-100 to-amber-200 flex items-center justify-center mx-auto mb-2">
-                      <Calendar className="h-5 w-5 text-amber-600" />
-                    </div>
-                    <div className="text-sm font-medium text-gray-800">
-                      {formatDate(opportunity.createdAt || new Date().toISOString()).split(',')[0]}
-                    </div>
-                    <div className="text-xs text-gray-600">Created Date</div>
-                  </div>
-                  
-                  {opportunity.leadScore && (
-                    <div className="text-center p-4 rounded-xl bg-gradient-to-r from-red-50 to-orange-50 border border-red-100">
-                      <div className="h-10 w-10 rounded-full bg-gradient-to-r from-red-100 to-orange-200 flex items-center justify-center mx-auto mb-2">
-                        <Sparkles className="h-5 w-5 text-red-600" />
+                  <h3 className="text-lg font-semibold text-gray-800">Customer Information</h3>
+                </div>
+                
+                <div className="space-y-4">
+                  {/* Customer Avatar and Name */}
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <div className="h-14 w-14 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+                        <span className="text-lg font-bold text-white">
+                          {getCustomerInitial()}
+                        </span>
                       </div>
-                      <div className="text-2xl font-bold text-gray-800">{opportunity.leadScore.totalScore || 0}</div>
-                      <div className="text-sm text-gray-600 capitalize">{opportunity.leadScore.tier || 'unknown'} Lead</div>
+                      <div className="absolute -bottom-1 -right-1 p-1 bg-white rounded-full border-2 border-purple-100">
+                        {opportunity.type === 'organization' ? (
+                          <Building className="h-3 w-3 text-purple-600" />
+                        ) : (
+                          <User className="h-3 w-3 text-blue-600" />
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-gray-800 text-lg">{getCustomerName()}</h4>
+                      {opportunity.customer?.companyName && (
+                        <p className="text-sm text-gray-600 mt-1">{opportunity.customer.companyName}</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Contact Details */}
+                  <div className="space-y-3">
+                    {opportunity.customer?.email && (
+                      <div className="flex items-center gap-3 p-3 bg-white/50 rounded-lg border border-gray-100">
+                        <div className="p-2 bg-blue-50 rounded-lg">
+                          <Mail className="h-4 w-4 text-blue-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-gray-600">Email</div>
+                          <div className="font-medium text-gray-800 truncate">{opportunity.customer.email}</div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {opportunity.customer?.phone && (
+                      <div className="flex items-center gap-3 p-3 bg-white/50 rounded-lg border border-gray-100">
+                        <div className="p-2 bg-green-50 rounded-lg">
+                          <Phone className="h-4 w-4 text-green-500" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm text-gray-600">Phone</div>
+                          <div className="font-medium text-gray-800">{opportunity.customer.phone}</div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Company Contact Details */}
+                    {(opportunity.customer?.companyEmail || opportunity.customer?.companyPhone) && (
+                      <div className="p-3 bg-white/50 rounded-lg border border-gray-100">
+                        <div className="text-xs font-medium text-gray-600 mb-2">Company Contact</div>
+                        <div className="space-y-2">
+                          {opportunity.customer?.companyEmail && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Mail className="h-3 w-3 text-gray-400" />
+                              <span className="text-gray-700">{opportunity.customer.companyEmail}</span>
+                            </div>
+                          )}
+                          {opportunity.customer?.companyPhone && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Phone className="h-3 w-3 text-gray-400" />
+                              <span className="text-gray-700">{opportunity.customer.companyPhone}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Financial Summary */}
+            {(opportunity.subtotal !== undefined || opportunity.total !== undefined) && (
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Financial Summary</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {opportunity.subtotal !== undefined && (
+                    <div className="bg-gradient-to-br from-gray-50 to-gray-100/30 rounded-xl border border-gray-200 p-4">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-gray-100 rounded-lg">
+                          <CreditCard className="h-4 w-4 text-gray-600" />
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-600">Subtotal</div>
+                          <div className="text-xl font-bold text-gray-800">
+                            KES {opportunity.subtotal?.toLocaleString() || '0'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {opportunity.totalDiscount !== undefined && (
+                    <div className="bg-gradient-to-br from-red-50 to-red-100/30 rounded-xl border border-red-200 p-4">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-red-100 rounded-lg">
+                          <CreditCard className="h-4 w-4 text-red-600" />
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-600">Discount</div>
+                          <div className="text-xl font-bold text-red-600">
+                            - KES {opportunity.totalDiscount?.toLocaleString() || '0'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {opportunity.total !== undefined && (
+                    <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/30 rounded-xl border border-emerald-200 p-4">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-emerald-100 rounded-lg">
+                          <CreditCard className="h-4 w-4 text-emerald-600" />
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-600">Grand Total</div>
+                          <div className="text-xl font-bold text-emerald-600">
+                            KES {opportunity.total?.toLocaleString() || '0'}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
+            )}
 
-              {/* Next Steps */}
-              <div className="border-t border-gray-200 pt-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Next Steps</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <button
-                    onClick={() => {
-                      onViewDetails?.();
-                      onClose();
-                    }}
-                    className="p-4 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-blue-100 text-blue-600 group-hover:bg-blue-200 transition-colors">
-                        <FileText className="h-5 w-5" />
-                      </div>
-                      <div className="text-left">
-                        <div className="font-medium text-gray-800">View Full Details</div>
-                        <div className="text-sm text-gray-500">See complete opportunity information</div>
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-gray-400 ml-auto group-hover:text-blue-500" />
-                    </div>
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      onCreateAnother?.();
-                      onClose();
-                    }}
-                    className="p-4 rounded-xl border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-all group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-green-100 text-green-600 group-hover:bg-green-200 transition-colors">
-                        <Plus className="h-5 w-5" />
-                      </div>
-                      <div className="text-left">
-                        <div className="font-medium text-gray-800">Create Another</div>
-                        <div className="text-sm text-gray-500">Add new opportunity</div>
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-gray-400 ml-auto group-hover:text-green-500" />
-                    </div>
-                  </button>
-                  
-                  {onAssignToTeam && (
-                    <button
-                      onClick={() => {
-                        onAssignToTeam();
-                        onClose();
-                      }}
-                      className="p-4 rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-all group"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-purple-100 text-purple-600 group-hover:bg-purple-200 transition-colors">
-                          <Users className="h-5 w-5" />
-                        </div>
-                        <div className="text-left">
-                          <div className="font-medium text-gray-800">Assign to Team</div>
-                          <div className="text-sm text-gray-500">Assign this opportunity</div>
-                        </div>
-                        <ArrowRight className="h-4 w-4 text-gray-400 ml-auto group-hover:text-purple-500" />
-                      </div>
-                    </button>
-                  )}
-                  
-                  <button
-                    onClick={shareOpportunity}
-                    className="p-4 rounded-xl border border-gray-200 hover:border-amber-300 hover:bg-amber-50 transition-all group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-amber-100 text-amber-600 group-hover:bg-amber-200 transition-colors">
-                        <Share2 className="h-5 w-5" />
-                      </div>
-                      <div className="text-left">
-                        <div className="font-medium text-gray-800">Share</div>
-                        <div className="text-sm text-gray-500">Share with team members</div>
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-gray-400 ml-auto group-hover:text-amber-500" />
-                    </div>
-                  </button>
+            {/* Stats Overview */}
+            <div className="mb-8">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Overview</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/30 border border-blue-200">
+                  <div className="h-12 w-12 rounded-full bg-gradient-to-r from-blue-100 to-blue-200 flex items-center justify-center mx-auto mb-3">
+                    <Car className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="text-2xl font-bold text-gray-800">{opportunity.vehicles?.length || 0}</div>
+                  <div className="text-sm text-gray-600">Vehicle{opportunity.vehicles?.length !== 1 ? 's' : ''}</div>
                 </div>
+                
+                <div className="text-center p-4 rounded-xl bg-gradient-to-br from-green-50 to-green-100/30 border border-green-200">
+                  <div className="h-12 w-12 rounded-full bg-gradient-to-r from-green-100 to-green-200 flex items-center justify-center mx-auto mb-3">
+                    <FileText className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div className="text-2xl font-bold text-gray-800">{opportunity.quotes?.length || 0}</div>
+                  <div className="text-sm text-gray-600">Quote{opportunity.quotes?.length !== 1 ? 's' : ''}</div>
+                </div>
+                
+                <div className="text-center p-4 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/30 border border-amber-200">
+                  <div className="h-12 w-12 rounded-full bg-gradient-to-r from-amber-100 to-amber-200 flex items-center justify-center mx-auto mb-3">
+                    <Calendar className="h-6 w-6 text-amber-600" />
+                  </div>
+                  <div className="text-sm font-medium text-gray-800">
+                    {formatDate(opportunity.createdAt || new Date().toISOString()).split(',')[0]}
+                  </div>
+                  <div className="text-sm text-gray-600">Created</div>
+                </div>
+                
+                {opportunity.leadScore && (
+                  <div className="text-center p-4 rounded-xl bg-gradient-to-br from-red-50 to-red-100/30 border border-red-200">
+                    <div className="h-12 w-12 rounded-full bg-gradient-to-r from-red-100 to-red-200 flex items-center justify-center mx-auto mb-3">
+                      <Sparkles className="h-6 w-6 text-red-600" />
+                    </div>
+                    <div className="text-2xl font-bold text-gray-800">{opportunity.leadScore.totalScore || 0}</div>
+                    <div className="text-sm text-gray-600 capitalize">{opportunity.leadScore.tier || 'unknown'} Lead</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Next Steps */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Next Steps</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <button
+                  onClick={() => {
+                    onViewDetails?.();
+                    onClose();
+                  }}
+                  className="p-4 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-blue-100 text-blue-600 group-hover:bg-blue-200 transition-colors">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-800">View Full Details</div>
+                      <div className="text-sm text-gray-500">See complete opportunity information</div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-gray-400 ml-auto group-hover:text-blue-500 transition-colors" />
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    onCreateAnother?.();
+                    onClose();
+                  }}
+                  className="p-4 rounded-xl border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-all group text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-green-100 text-green-600 group-hover:bg-green-200 transition-colors">
+                      <Plus className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-800">Create Another</div>
+                      <div className="text-sm text-gray-500">Add new opportunity</div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-gray-400 ml-auto group-hover:text-green-500 transition-colors" />
+                  </div>
+                </button>
+                
+                {onAssignToTeam && (
+                  <button
+                    onClick={() => {
+                      onAssignToTeam();
+                      onClose();
+                    }}
+                    className="p-4 rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-all group text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-purple-100 text-purple-600 group-hover:bg-purple-200 transition-colors">
+                        <Users className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-800">Assign to Team</div>
+                        <div className="text-sm text-gray-500">Assign this opportunity</div>
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-gray-400 ml-auto group-hover:text-purple-500 transition-colors" />
+                    </div>
+                  </button>
+                )}
               </div>
             </div>
           </div>
 
           {/* Footer */}
           <div className="border-t border-gray-200 p-6 bg-gray-50">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="text-sm text-gray-500">
-                Opportunity created at {formatDate(opportunity.createdAt || new Date().toISOString())}
+                Created at {formatDate(opportunity.createdAt || new Date().toISOString())}
               </div>
               
               <div className="flex items-center gap-3">
                 <button
                   onClick={onClose}
-                  className="px-4 py-2 rounded-xl border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors"
+                  className="px-5 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors"
                 >
                   Close
                 </button>
@@ -434,7 +532,7 @@ export default function SuccessModal({
                     onViewDetails?.();
                     onClose();
                   }}
-                  className="px-6 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 text-sm font-medium shadow-sm transition-all flex items-center gap-2"
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 text-sm font-medium shadow-sm transition-all flex items-center gap-2"
                 >
                   View Opportunity
                   <ArrowRight className="h-4 w-4" />

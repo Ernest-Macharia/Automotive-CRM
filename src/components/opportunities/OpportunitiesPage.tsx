@@ -160,6 +160,7 @@ interface KanbanColumnProps {
   setIsDragging: (dragging: boolean) => void;
   showToast: (message: string, type: 'success' | 'error' | 'info' | 'warning', duration?: number) => void;
   refreshOpportunities: () => Promise<void>;
+  onStatusUpdate: (opportunity: ExtendedOpportunity, newStatus: string) => Promise<void>;
 }
 
 function KanbanColumn({
@@ -176,6 +177,7 @@ function KanbanColumn({
   setIsDragging,
   showToast,
   refreshOpportunities,
+  onStatusUpdate,
   }: KanbanColumnProps) {
   const router = useRouter();
   const [dropping, setDropping] = useState(false);
@@ -219,8 +221,17 @@ function KanbanColumn({
         return;
     }
 
-    // This will trigger the generic confirmation modal
-        await handleStatusUpdate(opportunity, stage.id);
+    // This will trigger the generic confirmation modal with callback
+    await handleStatusUpdate(opportunity, stage.id, async (success: boolean) => {
+        if (success) {
+        showToast(`Opportunity moved to ${stage.label}`, 'success', 2000);
+        // Refresh the opportunities to update the UI
+        await refreshOpportunities();
+        // Don't call onStatusUpdate here - it's already handled by the hook
+        } else {
+        showToast('Failed to move opportunity', 'error', 3000);
+        }
+    });
     };
 
   const handleDragStart = () => {
@@ -645,6 +656,66 @@ export default function OpportunitiesContent() {
     hasJobCards: undefined as boolean | undefined,
     isNurturing: undefined as boolean | undefined,
   });
+
+  // In OpportunitiesContent component, add this function:
+  const handleStatusUpdate = async (opportunity: ExtendedOpportunity, newStatus: string) => {
+    try {
+        // Update the opportunity in the backend
+        await opportunityService.updateOpportunity(opportunity._id, {
+        status: newStatus as any
+        });
+
+        // Update the local state immediately for instant feedback
+        setOpportunities(prev => 
+        prev.map(opp => 
+            opp._id === opportunity._id 
+            ? { ...opp, status: newStatus as any } 
+            : opp
+        )
+        );
+
+        showToast(`Opportunity moved to ${getStatusLabel(newStatus)}`, 'success', 2000);
+
+        // Refresh the data to get the latest from backend
+        setTimeout(() => {
+        fetchOpportunities();
+        }, 500);
+
+    } catch (error: any) {
+        console.error('Error updating status:', error);
+        
+        // Revert the local state if the update failed
+        setOpportunities(prev => 
+        prev.map(opp => 
+            opp._id === opportunity._id 
+            ? { ...opp, status: opportunity.status } 
+            : opp
+        )
+        );
+
+        let errorMessage = 'Failed to update opportunity status';
+        if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+        } else if (error.message) {
+        errorMessage = error.message;
+        }
+        
+        showToast(errorMessage, 'error', 3000);
+    }
+  };
+
+    // Also add this helper function (inside OpportunitiesContent):
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+        new: 'New',
+        attempted_to_contact: 'Attempted to Contact',
+        prospecting: 'Prospecting',
+        appointment_scheduled: 'Appointment Scheduled',
+        non_progressive: 'Non Progressive',
+        lost: 'Lost'
+    };
+    return labels[status] || status;
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -1634,6 +1705,7 @@ export default function OpportunitiesContent() {
                       setIsDragging={setIsDragging}
                       showToast={showToast}
                       refreshOpportunities={fetchOpportunities}
+                      onStatusUpdate={handleStatusUpdate}
                     />
                   </div>
                 );

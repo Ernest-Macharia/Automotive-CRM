@@ -798,129 +798,198 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
             <div className="lg:col-span-2 space-y-6">
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 shadow-lg overflow-hidden">
                 <div className="p-6">
-                  <div className="flex items-start justify-between mb-6">
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-6">
                     <div>
-                      <h2 className="text-lg font-semibold text-gray-800 mb-1">Customer Information</h2>
+                      <h2 className="text-xl font-semibold text-gray-800 mb-2">Customer Profile</h2>
                       <p className="text-sm text-gray-600">Primary contact and opportunity details</p>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(opportunity.status || 'new')}`}>
-                      {getStatusLabel(opportunity.status || 'new')}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${getStatusColor(opportunity.status || 'new')}`}>
+                        {getStatusLabel(opportunity.status || 'new')}
+                      </span>
+                      {opportunity.opportunityType && (
+                        <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${opportunity.opportunityType === 'SERVICE' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
+                          {opportunity.opportunityType === 'SERVICE' ? 'Service' : 'Product'}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${opportunity.type === 'organization' ? 'bg-gradient-to-br from-purple-100 to-purple-50' : 'bg-gradient-to-br from-blue-100 to-blue-50'}`}>
-                          {opportunity.type === 'organization' ? (
-                            <Building className="h-5 w-5 text-purple-600" />
-                          ) : (
-                            <User className="h-5 w-5 text-blue-600" />
-                          )}
+                  {/* Main Customer Info */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    {/* Left Column: Customer Details */}
+                    <div className="lg:col-span-2">
+                      <div className="bg-gradient-to-br from-gray-50 to-gray-100/30 rounded-xl border border-gray-200 p-5">
+                        <div className="flex items-start gap-4">
+                          {/* Customer Avatar */}
+                          <div className="relative">
+                            <div className="h-16 w-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+                              <span className="text-xl font-bold text-white">
+                                {opportunity.customer?.name?.charAt(0).toUpperCase() || 'C'}
+                              </span>
+                            </div>
+                            <div className="absolute -bottom-1 -right-1 p-1.5 bg-white rounded-full border-2 border-gray-100">
+                              {opportunity.type === 'organization' ? (
+                                <Building className="h-4 w-4 text-purple-600" />
+                              ) : (
+                                <User className="h-4 w-4 text-blue-600" />
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Customer Info */}
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between mb-4">
+                              <div>
+                                <h3 className="text-lg font-semibold text-gray-800 mb-1">{opportunity.customer?.name || 'No Name'}</h3>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-gray-600">
+                                    {opportunity.type === 'organization' ? 'Organization' : 'Individual'}
+                                  </span>
+                                  {opportunity.customer?.companyName && (
+                                    <>
+                                      <span className="text-gray-300">•</span>
+                                      <span className="text-sm font-medium text-gray-700">{opportunity.customer.companyName}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Contact Details */}
+                            <div className="space-y-3">
+                              {opportunity.customer?.phone && (
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-blue-50 rounded-lg">
+                                    <Phone className="h-4 w-4 text-blue-500" />
+                                  </div>
+                                  <div>
+                                    <div className="text-sm text-gray-600">Phone</div>
+                                    <div className="font-medium text-gray-800">{opportunity.customer.phone}</div>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {opportunity.customer?.email && (
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-green-50 rounded-lg">
+                                    <Mail className="h-4 w-4 text-green-500" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-sm text-gray-600">Email</div>
+                                    <div className="font-medium text-gray-800 truncate">{opportunity.customer.email}</div>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Company Contact Details */}
+                              {(opportunity.customer?.companyEmail || opportunity.customer?.companyPhone) && (
+                                <div className="mt-4 pt-4 border-t border-gray-100">
+                                  <div className="text-xs font-semibold text-gray-600 mb-3 flex items-center gap-2">
+                                    <Building className="h-3 w-3" />
+                                    Company Contact
+                                  </div>
+                                  <div className="space-y-2">
+                                    {opportunity.customer?.companyEmail && (
+                                      <div className="flex items-center gap-2 text-sm">
+                                        <Mail className="h-3 w-3 text-gray-400" />
+                                        <span className="text-gray-700">{opportunity.customer.companyEmail}</span>
+                                      </div>
+                                    )}
+                                    {opportunity.customer?.companyPhone && (
+                                      <div className="flex items-center gap-2 text-sm">
+                                        <Phone className="h-3 w-3 text-gray-400" />
+                                        <span className="text-gray-700">{opportunity.customer.companyPhone}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-800">{opportunity.customer?.name || 'No Name'}</h3>
-                          <p className="text-sm text-gray-600">
-                            {opportunity.type === 'organization' ? 'Organization' : 'Individual'} Lead
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-3 pl-1">
-                        {opportunity.customer?.phone && (
-                          <div className="flex items-center gap-3">
-                            <Phone className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-gray-700">{opportunity.customer.phone}</span>
-                          </div>
-                        )}
-                        {opportunity.customer?.email && (
-                          <div className="flex items-center gap-3">
-                            <Mail className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-gray-700 truncate">{opportunity.customer.email}</span>
-                          </div>
-                        )}
-                        {opportunity.customer?.companyName && (
-                          <div className="flex items-center gap-3">
-                            <Building className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-gray-700">{opportunity.customer.companyName}</span>
-                          </div>
-                        )}
                       </div>
                     </div>
                     
+                    {/* Right Column: Opportunity Metadata */}
                     <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Hash className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm text-gray-600">Source:</span>
+                      <div className="bg-gradient-to-br from-blue-50 to-blue-100/30 rounded-xl border border-blue-200 p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Hash className="h-4 w-4 text-blue-500" />
+                          <div className="text-sm font-semibold text-gray-700">Source</div>
                         </div>
-                        <span className="text-sm font-medium text-gray-800 capitalize">
+                        <div className="text-sm font-medium text-gray-800 capitalize">
                           {opportunity.source ? opportunity.source.replace('_', ' ') : 'Unknown'}
-                        </span>
+                        </div>
                       </div>
                       
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm text-gray-600">Created:</span>
+                      <div className="bg-gradient-to-br from-green-50 to-green-100/30 rounded-xl border border-green-200 p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Calendar className="h-4 w-4 text-green-500" />
+                          <div className="text-sm font-semibold text-gray-700">Created</div>
                         </div>
-                        <span className="text-sm text-gray-800">{formatDate(opportunity.createdAt)}</span>
+                        <div className="text-sm text-gray-800">{formatDate(opportunity.createdAt)}</div>
                       </div>
                       
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm text-gray-600">Last Updated:</span>
+                      <div className="bg-gradient-to-br from-amber-50 to-amber-100/30 rounded-xl border border-amber-200 p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Clock className="h-4 w-4 text-amber-500" />
+                          <div className="text-sm font-semibold text-gray-700">Last Updated</div>
                         </div>
-                        <span className="text-sm text-gray-800">{formatDate(opportunity.updatedAt)}</span>
+                        <div className="text-sm text-gray-800">{formatDate(opportunity.updatedAt)}</div>
                       </div>
                       
                       {opportunity.assignedTo && (
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Users className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm text-gray-600">Assigned To:</span>
+                        <div className="bg-gradient-to-br from-purple-50 to-purple-100/30 rounded-xl border border-purple-200 p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Users className="h-4 w-4 text-purple-500" />
+                            <div className="text-sm font-semibold text-gray-700">Assigned To</div>
                           </div>
-                          <span className="text-sm font-medium text-blue-600">{opportunity.assignedTo}</span>
+                          <div className="text-sm font-medium text-purple-600">{opportunity.assignedTo}</div>
                         </div>
                       )}
                     </div>
                   </div>
-                </div>
-                
-                <div className="border-t border-gray-100/50 p-4 bg-gradient-to-r from-gray-50/50 to-gray-100/50">
-                  <div className="flex items-center gap-3">
-                    <button 
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                      disabled={!opportunity.customer?.phone}
-                      onClick={() => {
-                        if (opportunity.customer?.phone) {
-                          window.open(`tel:${opportunity.customer.phone}`, '_blank');
-                        }
-                      }}
-                    >
-                      <Phone className="h-4 w-4" />
-                      Call Customer
-                    </button>
-                    <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                      <MessageCircle className="h-4 w-4" />
-                      Send Message
-                    </button>
-                    <button 
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                      disabled={!opportunity.customer?.email}
-                      onClick={() => {
-                        if (opportunity.customer?.email) {
-                          window.open(`mailto:${opportunity.customer.email}`, '_blank');
-                        }
-                      }}
-                    >
-                      <MailIcon className="h-4 w-4" />
-                      Send Email
-                    </button>
+                  
+                  {/* Quick Actions */}
+                  <div className="border-t border-gray-100 pt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <button 
+                        className="flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-blue-700 transition-all group"
+                        disabled={!opportunity.customer?.phone}
+                        onClick={() => {
+                          if (opportunity.customer?.phone) {
+                            window.open(`tel:${opportunity.customer.phone}`, '_blank');
+                          }
+                        }}
+                      >
+                        <Phone className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                        Call Customer
+                      </button>
+                      
+                      <button className="flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-lg font-medium hover:from-emerald-600 hover:to-green-700 transition-all group">
+                        <MessageCircle className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                        Send Message
+                      </button>
+                      
+                      <button 
+                        className="flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg font-medium hover:from-purple-600 hover:to-purple-700 transition-all group"
+                        disabled={!opportunity.customer?.email}
+                        onClick={() => {
+                          if (opportunity.customer?.email) {
+                            window.open(`mailto:${opportunity.customer.email}`, '_blank');
+                          }
+                        }}
+                      >
+                        <MailIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                        Send Email
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
+
 
               {opportunity.leadScore && (
                 <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 shadow-lg">
