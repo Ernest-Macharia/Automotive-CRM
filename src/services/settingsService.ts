@@ -242,7 +242,7 @@ class SettingsService {
   // User Management Methods
   async getUsers(): Promise<User[]> {
     try {
-      return await apiClient.get<User[]>('/api/v1/users');
+      return await apiClient.get<User[]>('/users');
     } catch (error) {
       console.error('Error fetching users:', error);
       throw error;
@@ -251,7 +251,7 @@ class SettingsService {
 
   async createUser(data: CreateUserData): Promise<User> {
     try {
-      return await apiClient.post<CreateUserData, User>('/api/v1/users', data);
+      return await apiClient.post<CreateUserData, User>('/users', data);
     } catch (error) {
       console.error('Error creating user:', error);
       throw error;
@@ -260,7 +260,7 @@ class SettingsService {
 
   async registerUser(data: CreateUserData): Promise<User> {
     try {
-      return await apiClient.post<CreateUserData, User>('/api/v1/users/register', data);
+      return await apiClient.post<CreateUserData, User>('/users/register', data);
     } catch (error) {
       console.error('Error registering user:', error);
       throw error;
@@ -270,7 +270,7 @@ class SettingsService {
   async updateUserSummaryAccess(id: string, canViewSummary: boolean): Promise<User> {
     try {
       return await apiClient.patch<{ canViewSummary: boolean }, User>(
-        `/api/v1/users/${id}/summary-access`,
+        `/users/${id}/summary-access`,
         { canViewSummary }
       );
     } catch (error) {
@@ -282,7 +282,7 @@ class SettingsService {
   // Role Management Methods
   async getRoles(): Promise<Role[]> {
     try {
-      return await apiClient.get<Role[]>('/api/v1/roles');
+      return await apiClient.get<Role[]>('/roles');
     } catch (error) {
       console.error('Error fetching roles:', error);
       throw error;
@@ -291,7 +291,7 @@ class SettingsService {
 
   async seedDefaultRoles(): Promise<{ message: string }> {
     try {
-        return await apiClient.post<any, { message: string }>('/api/v1/roles/seed', {});
+        return await apiClient.post<any, { message: string }>('/roles/seed', {});
     } catch (error) {
         console.error('Error seeding default roles:', error);
         throw error;
@@ -300,7 +300,7 @@ class SettingsService {
 
   async assignRole(data: AssignRoleData): Promise<{ message: string }> {
     try {
-      return await apiClient.post<AssignRoleData, { message: string }>('/api/v1/roles/assign', data);
+      return await apiClient.post<AssignRoleData, { message: string }>('/roles/assign', data);
     } catch (error) {
       console.error('Error assigning role:', error);
       throw error;
@@ -310,7 +310,7 @@ class SettingsService {
   // Blueprint Methods
   async getBlueprints(): Promise<Blueprint[]> {
     try {
-      return await apiClient.get<Blueprint[]>('/api/v1/blueprints');
+      return await apiClient.get<Blueprint[]>('/blueprints');
     } catch (error) {
       console.error('Error fetching blueprints:', error);
       throw error;
@@ -319,7 +319,7 @@ class SettingsService {
 
   async getBlueprint(id: string): Promise<Blueprint> {
     try {
-      return await apiClient.get<Blueprint>(`/api/v1/blueprints/${id}`);
+      return await apiClient.get<Blueprint>(`/blueprints/${id}`);
     } catch (error) {
       console.error('Error fetching blueprint:', error);
       throw error;
@@ -328,7 +328,7 @@ class SettingsService {
 
   async createBlueprint(data: CreateBlueprintData): Promise<Blueprint> {
     try {
-      return await apiClient.post<CreateBlueprintData, Blueprint>('/api/v1/blueprints', data);
+      return await apiClient.post<CreateBlueprintData, Blueprint>('/blueprints', data);
     } catch (error) {
       console.error('Error creating blueprint:', error);
       throw error;
@@ -338,7 +338,7 @@ class SettingsService {
   async updateBlueprint(id: string, data: Partial<CreateBlueprintData>): Promise<Blueprint> {
     try {
       return await apiClient.patch<Partial<CreateBlueprintData>, Blueprint>(
-        `/api/v1/blueprints/${id}`,
+        `/blueprints/${id}`,
         data
       );
     } catch (error) {
@@ -349,7 +349,7 @@ class SettingsService {
 
   async deleteBlueprint(id: string): Promise<{ message: string }> {
     try {
-      return await apiClient.delete<{ message: string }>(`/api/v1/blueprints/${id}`);
+      return await apiClient.delete<{ message: string }>(`/blueprints/${id}`);
     } catch (error) {
       console.error('Error deleting blueprint:', error);
       throw error;
@@ -358,7 +358,7 @@ class SettingsService {
 
   async testBlueprintAutomation(data: any): Promise<any> {
     try {
-      return await apiClient.post<any, any>('/api/v1/blueprints/test/automation', data);
+      return await apiClient.post<any, any>('/blueprints/test/automation', data);
     } catch (error) {
       console.error('Error testing blueprint automation:', error);
       throw error;
@@ -368,7 +368,7 @@ class SettingsService {
   // Workflow Methods
   async getWorkflows(): Promise<Workflow[]> {
     try {
-      return await apiClient.get<Workflow[]>('/api/v1/workflows');
+      return await apiClient.get<Workflow[]>('/workflows');
     } catch (error) {
       console.error('Error fetching workflows:', error);
       throw error;
@@ -377,7 +377,7 @@ class SettingsService {
 
   async getWorkflow(id: string): Promise<Workflow> {
     try {
-      return await apiClient.get<Workflow>(`/api/v1/workflows/${id}`);
+      return await apiClient.get<Workflow>(`/workflows/${id}`);
     } catch (error) {
       console.error('Error fetching workflow:', error);
       throw error;
@@ -386,7 +386,7 @@ class SettingsService {
 
   async createWorkflow(data: CreateWorkflowData): Promise<Workflow> {
     try {
-      return await apiClient.post<CreateWorkflowData, Workflow>('/api/v1/workflows', data);
+      return await apiClient.post<CreateWorkflowData, Workflow>('/workflows', data);
     } catch (error) {
       console.error('Error creating workflow:', error);
       throw error;
@@ -396,7 +396,7 @@ class SettingsService {
   async updateWorkflow(id: string, data: Partial<CreateWorkflowData>): Promise<Workflow> {
     try {
       return await apiClient.patch<Partial<CreateWorkflowData>, Workflow>(
-        `/api/v1/workflows/${id}`,
+        `/workflows/${id}`,
         data
       );
     } catch (error) {
@@ -407,7 +407,7 @@ class SettingsService {
 
   async deleteWorkflow(id: string): Promise<{ message: string }> {
     try {
-      return await apiClient.delete<{ message: string }>(`/api/v1/workflows/${id}`);
+      return await apiClient.delete<{ message: string }>(`/workflows/${id}`);
     } catch (error) {
       console.error('Error deleting workflow:', error);
       throw error;
@@ -416,7 +416,7 @@ class SettingsService {
 
   async testWorkflowAutomation(): Promise<any> {
     try {
-        return await apiClient.post<any, any>('/api/v1/workflows/test/automation', {});
+        return await apiClient.post<any, any>('/workflows/test/automation', {});
     } catch (error) {
         console.error('Error testing workflow automation:', error);
         throw error;
@@ -426,7 +426,7 @@ class SettingsService {
   // Profile Methods
   async getProfiles(): Promise<Profile[]> {
     try {
-      return await apiClient.get<Profile[]>('/api/v1/profiles');
+      return await apiClient.get<Profile[]>('/profiles');
     } catch (error) {
       console.error('Error fetching profiles:', error);
       throw error;
@@ -435,7 +435,7 @@ class SettingsService {
 
   async getProfile(id: string): Promise<Profile> {
     try {
-      return await apiClient.get<Profile>(`/api/v1/profiles/${id}`);
+      return await apiClient.get<Profile>(`/profiles/${id}`);
     } catch (error) {
       console.error('Error fetching profile:', error);
       throw error;
@@ -444,7 +444,7 @@ class SettingsService {
 
   async getProfileByUserId(userId: string): Promise<Profile> {
     try {
-      return await apiClient.get<Profile>(`/api/v1/profiles/user/${userId}`);
+      return await apiClient.get<Profile>(`/profiles/user/${userId}`);
     } catch (error) {
       console.error('Error fetching profile by user ID:', error);
       throw error;
@@ -453,7 +453,7 @@ class SettingsService {
 
   async getMyProfile(): Promise<Profile> {
     try {
-      return await apiClient.get<Profile>('/api/v1/profiles/me/profile');
+      return await apiClient.get<Profile>('/profiles/me/profile');
     } catch (error) {
       console.error('Error fetching my profile:', error);
       throw error;
@@ -463,7 +463,7 @@ class SettingsService {
   async createProfile(userId: string, data: Omit<CreateProfileData, 'userId'>): Promise<Profile> {
     try {
       return await apiClient.post<Omit<CreateProfileData, 'userId'>, Profile>(
-        `/api/v1/profiles/${userId}`,
+        `/profiles/${userId}`,
         data
       );
     } catch (error) {
@@ -475,7 +475,7 @@ class SettingsService {
   async updateProfile(id: string, data: Partial<CreateProfileData>): Promise<Profile> {
     try {
       return await apiClient.put<Partial<CreateProfileData>, Profile>(
-        `/api/v1/profiles/${id}`,
+        `/profiles/${id}`,
         data
       );
     } catch (error) {
@@ -487,7 +487,7 @@ class SettingsService {
   async updateMyProfile(data: Partial<CreateProfileData>): Promise<Profile> {
     try {
       return await apiClient.put<Partial<CreateProfileData>, Profile>(
-        '/api/v1/profiles/me/update',
+        '/profiles/me/update',
         data
       );
     } catch (error) {
@@ -498,7 +498,7 @@ class SettingsService {
 
   async deleteProfile(id: string): Promise<{ message: string }> {
     try {
-      return await apiClient.delete<{ message: string }>(`/api/v1/profiles/${id}`);
+      return await apiClient.delete<{ message: string }>(`/profiles/${id}`);
     } catch (error) {
       console.error('Error deleting profile:', error);
       throw error;
@@ -507,7 +507,7 @@ class SettingsService {
 
   async activateProfile(id: string): Promise<Profile> {
   try {
-    return await apiClient.put<any, Profile>(`/api/v1/profiles/${id}/activate`, {});
+    return await apiClient.put<any, Profile>(`/profiles/${id}/activate`, {});
   } catch (error) {
     console.error('Error activating profile:', error);
     throw error;
@@ -516,7 +516,7 @@ class SettingsService {
 
 async deactivateProfile(id: string): Promise<Profile> {
   try {
-    return await apiClient.put<any, Profile>(`/api/v1/profiles/${id}/deactivate`, {});
+    return await apiClient.put<any, Profile>(`/profiles/${id}/deactivate`, {});
   } catch (error) {
     console.error('Error deactivating profile:', error);
     throw error;
@@ -528,7 +528,7 @@ async deactivateProfile(id: string): Promise<Profile> {
   ): Promise<{ message: string }> {
     try {
       return await apiClient.post<Omit<EmergencyContact, 'id'>, { message: string }>(
-        '/api/v1/profiles/me/emergency-contacts',
+        '/profiles/me/emergency-contacts',
         data
       );
     } catch (error) {
@@ -539,7 +539,7 @@ async deactivateProfile(id: string): Promise<Profile> {
 
   async getProfilesByDepartment(department: string): Promise<Profile[]> {
     try {
-      return await apiClient.get<Profile[]>(`/api/v1/profiles/department/${department}`);
+      return await apiClient.get<Profile[]>(`/profiles/department/${department}`);
     } catch (error) {
       console.error('Error fetching profiles by department:', error);
       throw error;
@@ -549,7 +549,7 @@ async deactivateProfile(id: string): Promise<Profile> {
   async searchProfiles(query: string): Promise<Profile[]> {
     try {
       const params = new URLSearchParams({ q: query });
-      return await apiClient.get<Profile[]>(`/api/v1/profiles/search?${params}`);
+      return await apiClient.get<Profile[]>(`/profiles/search?${params}`);
     } catch (error) {
       console.error('Error searching profiles:', error);
       throw error;
@@ -558,7 +558,7 @@ async deactivateProfile(id: string): Promise<Profile> {
 
   async getMyTeam(): Promise<Profile[]> {
     try {
-      return await apiClient.get<Profile[]>('/api/v1/profiles/me/team');
+      return await apiClient.get<Profile[]>('/profiles/me/team');
     } catch (error) {
       console.error('Error fetching team members:', error);
       throw error;

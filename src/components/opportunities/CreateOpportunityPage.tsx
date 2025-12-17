@@ -748,180 +748,123 @@ export default function CreateOpportunityPage() {
   };
 
   const handleSubmit = async () => {
-    console.log('=== OPPORTUNITY SUBMISSION STARTED ===');
-    console.log('Step validation initiated...');
-    
-    if (validateStep()) {
-      console.log('✅ Step validation passed');
-      console.log('Setting isSubmitting to true');
-      setIsSubmitting(true);
-      
-      try {
-        console.log('\n--- Creating Title ---');
-        const title = formData.accountType === 'individual' 
-          ? `${formData.firstName} ${formData.lastName}'s ${formData.opportunityType.toLowerCase()} request`
-          : `${formData.companyName}'s ${formData.opportunityType.toLowerCase()} request`;
-        console.log('Generated title:', title);
-
-        console.log('\n--- Building API Form Data Structure ---');
-        console.log('Account type:', formData.accountType);
-        console.log('Source:', formData.source);
-        console.log('Opportunity type:', formData.opportunityType);
-        
-        // Build the backend-compatible DTO with proper types
-        const apiFormData: CreateOpportunityData = {
-          type: formData.accountType,
-          source: formData.source,
-          subject: title,
-          status: 'new',
-          opportunityType: formData.opportunityType,
-          customer: {
-            name: formData.accountType === 'individual' 
-              ? `${formData.firstName} ${formData.lastName}`.trim()
-              : formData.companyName,
-            email: formData.email,
-            phone: `${formData.phoneCode}${formData.phone}`,
-            ...(formData.accountType === 'organization' && {
-              companyName: formData.companyName,
-              ...(formData.contactPersonName && { contactPersonName: formData.contactPersonName }),
-              ...(formData.contactPersonPhone && { contactPersonPhone: formData.contactPersonPhone }),
-              ...(formData.contactPersonEmail && { contactPersonEmail: formData.contactPersonEmail }),
-              ...(formData.contactPersonTitle && { contactPersonTitle: formData.contactPersonTitle })
-            })
-          },
-          ...(formData.vehicles.length > 0 && {
-            vehicles: formData.vehicles.map((vehicle, index) => {
-              console.log(`Vehicle ${index + 1}: ${vehicle.make} ${vehicle.model}`);
-              const vehicleData: any = {
-                ...(vehicle.vin && { vin: vehicle.vin }),
-                ...(vehicle.registrationNumber && { registrationNumber: vehicle.registrationNumber }),
-                make: vehicle.make,
-                model: vehicle.model,
-                ...(vehicle.year && { year: vehicle.year }),
-                ...(vehicle.colorCode && { color: vehicle.colorCode }),
-                ...(vehicle.engineSize && { engineSize: vehicle.engineSize }),
-                ...(vehicle.fuelType && { fuelType: vehicle.fuelType }),
-                ...(vehicle.transmission && { transmission: vehicle.transmission }),
-                ...(vehicle.mileage && { mileage: vehicle.mileage }),
-                ...(vehicle.bodyType && { bodyType: vehicle.bodyType })
-              };
-              if (vehicle.year && !isNaN(Number(vehicle.year))) {
-                vehicleData.year = Number(vehicle.year);
-              }
-
-              if (vehicle.mileage && !isNaN(Number(vehicle.mileage))) {
-                vehicleData.mileage = Number(vehicle.mileage);
-              }
-              
-              return vehicleData;
-            })
-          }),
-          ...(formData.servicesProducts.length > 0 && {
-            servicesProducts: formData.servicesProducts.map((item, index) => {
-              console.log(`Service/Product ${index + 1}: ${item.title}, Quantity: ${item.quantity}`);
-              return {
-                title: item.title,
-                description: item.description,
-                type: item.type,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                discount: item.discount,
-                subtotal: item.subtotal,
-                total: item.total
-              };
-            })
-          }),
-          ...(formData.notes && { notes: formData.notes }),
-          subtotal: calculateSubtotal(),
-          totalDiscount: calculateTotalDiscount(),
-          total: calculateTotal(),
-        };
-
-        console.log('\n--- Calculated Values ---');
-        console.log('Subtotal:', calculateSubtotal());
-        console.log('Total Discount:', calculateTotalDiscount());
-        console.log('Total:', calculateTotal());
-        
-        console.log('\n--- Final API Form Data Structure ---');
-        console.log('API Form Data:', JSON.stringify(apiFormData, null, 2));
-        const missingFields = [];
-        if (!apiFormData.type) missingFields.push('type');
-        if (!apiFormData.source) missingFields.push('source');
-        if (!apiFormData.subject) missingFields.push('subject');
-        if (!apiFormData.customer) missingFields.push('customer');
-        if (!apiFormData.customer?.name) missingFields.push('customer.name');
-        if (!apiFormData.customer?.phone) missingFields.push('customer.phone');
-        if (!apiFormData.opportunityType) missingFields.push('opportunityType');
-        
-        if (missingFields.length > 0) {
-          throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-        }
-        
-        console.log('\n--- Sending API Request ---');
-        console.log('Calling opportunityService.createOpportunity()');
-        console.time('API Request Duration');
-        
-        const result = await opportunityService.createOpportunity(apiFormData);
-
-        console.timeEnd('API Request Duration');
-        console.log('API Response:', result);
-        
-        console.log('\n--- Post-Submission Actions ---');
-        console.log('Setting created opportunity in state');
-        setCreatedOpportunity(result);
-        
-        console.log('Showing success modal');
-        setShowSuccessModal(true);
-        
-        console.log('Removing draft from localStorage');
-        localStorage.removeItem('opportunityDraft');
-        
-        console.log('Showing success toast notification');
-        showToast('Opportunity created successfully!', 'success', 3000);
-        
-        console.log('\n=== OPPORTUNITY SUBMISSION COMPLETED SUCCESSFULLY ===');
-        
-      } catch (error: any) {
-        console.error('Error name:', error.name);
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-        console.error('Full error object:', error);
-        
-        if (error.response) {
-          console.error('Server response:', error.response);
-          console.error('Status code:', error.response.status);
-          console.error('Response data:', error.response.data);
-          console.error('Response headers:', error.response.headers);
-          
-          let errorMessage = 'Failed to create opportunity. Please try again.';
-          if (error.response.data?.message) {
-            errorMessage = error.response.data.message;
-          } else if (error.response.data?.error) {
-            errorMessage = error.response.data.error;
-          } else if (typeof error.response.data === 'string') {
-            errorMessage = error.response.data;
-          }
-          console.log('Displaying error message:', errorMessage);
-          showToast(errorMessage, 'error', 5000);
-        } else if (error.request) {
-          console.error('No response received. Request details:', error.request);
-          showToast('Network error. Please check your connection and try again.', 'error', 5000);
-        } else {
-          console.error('Error setting up request:', error.message);
-          showToast(error.message || 'Failed to create opportunity. Please try again.', 'error', 5000);
-        }
-        
-      } finally {
-        console.log('\n--- Cleanup Phase ---');
-        console.log('Setting isSubmitting to false');
-        setIsSubmitting(false);
-        console.log('=== HANDLE SUBMIT FUNCTION FINISHED ===');
-      }
-    } else {
-      console.log('❌ Step validation failed - submission aborted');
-      console.log('Current form data:', formData);
+    if (!validateStep()) {
       showToast('Please fix the validation errors before submitting.', 'error', 3000);
+      return;
     }
+
+    setIsSubmitting(true);
+
+    try {
+      const isIndividual = formData.accountType === 'individual';
+
+      const subject = isIndividual
+        ? `${formData.firstName} ${formData.lastName}'s ${formData.opportunityType.toLowerCase()} request`
+        : `${formData.companyName}'s ${formData.opportunityType.toLowerCase()} request`;
+
+      // 🔹 Calculate once
+      const subtotal = calculateSubtotal();
+      const totalDiscount = calculateTotalDiscount();
+      const total = calculateTotal();
+
+      const apiFormData: CreateOpportunityData = {
+        type: formData.accountType,
+        source: formData.source,
+        subject,
+        status: 'new',
+        opportunityType: formData.opportunityType,
+
+        customer: {
+          name: isIndividual
+            ? `${formData.firstName} ${formData.lastName}`.trim()
+            : formData.companyName,
+          email: formData.email || undefined,
+          phone: `${formData.phoneCode}${formData.phone}` || undefined,
+          companyName: !isIndividual ? formData.companyName : undefined,
+        },
+
+        vehicles: formData.vehicles?.length
+        ? formData.vehicles.map(mapVehicle)
+        : undefined,
+
+        servicesProducts: formData.servicesProducts?.length
+          ? formData.servicesProducts
+          : undefined,
+
+        notes: formData.notes || undefined,
+        subtotal,
+        totalDiscount,
+        total,
+      };
+
+      // 🔹 Minimal required-field check
+      if (!apiFormData.customer.name || !apiFormData.customer.phone) {
+        throw new Error('Missing required customer details');
+      }
+
+      const result = await opportunityService.createOpportunity(apiFormData);
+
+      setCreatedOpportunity(result);
+      setShowSuccessModal(true);
+      localStorage.removeItem('opportunityDraft');
+      showToast('Opportunity created successfully!', 'success', 3000);
+
+    } catch (error: any) {
+      handleCreateOpportunityError(error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  type VehicleDTO = NonNullable<CreateOpportunityData['vehicles']>[number];
+
+  const mapVehicle = (v: VehicleDTO): VehicleDTO => ({
+    vin: v.vin || undefined,
+    registrationNumber: v.registrationNumber || undefined,
+    licensePlate: v.licensePlate || undefined,
+
+    make: v.make,
+    model: v.model,
+
+    year: v.year ? Number(v.year) || undefined : undefined,
+    mileage: v.mileage ? String(v.mileage) : undefined,
+
+    color: v.color || undefined,
+    engineSize: v.engineSize || undefined,
+    fuelType: v.fuelType || undefined,
+    transmission: v.transmission || undefined,
+    bodyType: v.bodyType || undefined,
+  });
+
+
+  const handleCreateOpportunityError = (error: any) => {
+    console.error('Create opportunity error:', error);
+
+    if (error?.response) {
+      showToast(
+        error.response.data?.message ||
+        error.response.data?.error ||
+        'Failed to create opportunity.',
+        'error',
+        5000
+      );
+      return;
+    }
+
+    if (error?.request) {
+      showToast(
+        'Network error. Please check your connection.',
+        'error',
+        5000
+      );
+      return;
+    }
+
+    showToast(
+      error?.message || 'Failed to create opportunity.',
+      'error',
+      5000
+    );
   };
 
   const handleViewOpportunityDetails = () => {

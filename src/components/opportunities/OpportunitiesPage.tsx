@@ -2,7 +2,7 @@
 
 import { opportunityService, Opportunity, FilterParams } from '@/services/opportunityService';
 import { useToast } from '@/contexts/ToastContext';
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Plus, Filter, CalendarDays, Search, MoreVertical, Phone, MessageCircle,
@@ -13,7 +13,6 @@ import {
   Mail, Clock, TrendingUp as TrendingUpIcon, Award, CheckCircle, AlertTriangle,
   Trophy
 } from 'lucide-react';
-import { leadService } from '@/services/leadService';
 import ConfirmationModal from '@/components/opportunities/ConfirmationModal';
 import { useOpportunityStatusUpdate } from '@/hooks/useOpportunityStatusUpdate';
 
@@ -94,10 +93,55 @@ interface ExtendedOpportunity extends Opportunity {
     lastCalculated: string;
     scoreChange?: number;
   };
-  hasLead?: boolean;
+  computedStageColor?: string;
+  computedAvatarColor?: string;
+  computedTier?: string;
+  computedChildCounts?: any;
 }
 
-const SkeletonCard = () => (
+function useDebounce<T extends (...args: any[]) => any>(
+    callback: T, 
+    delay: number
+  ): (...args: Parameters<T>) => void {
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    return useCallback(
+      (...args: Parameters<T>) => {
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+        
+        timeoutRef.current = setTimeout(() => {
+          callback(...args);
+        }, delay);
+      },
+      [callback, delay]
+    );
+  }
+
+// Simple caching mechanism
+const createCache = () => {
+  const cache = new Map<string, { data: any; timestamp: number }>();
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  return {
+    get: (key: string) => {
+      const cached = cache.get(key);
+      const now = Date.now();
+      
+      if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+        return cached.data;
+      }
+      return null;
+    },
+    set: (key: string, data: any) => {
+      cache.set(key, { data, timestamp: Date.now() });
+    },
+    clear: () => cache.clear()
+  };
+};
+
+const SkeletonCard = memo(() => (
   <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-white/30 p-4 animate-pulse">
     <div className="flex items-start justify-between mb-3">
       <div className="flex items-center gap-3">
@@ -125,9 +169,11 @@ const SkeletonCard = () => (
       </div>
     </div>
   </div>
-);
+));
 
-const SkeletonColumn = () => (
+SkeletonCard.displayName = 'SkeletonCard';
+
+const SkeletonColumn = memo(() => (
   <div className="w-full md:w-72 lg:w-80 flex flex-col rounded-2xl bg-gray-50/80 backdrop-blur-sm border border-gray-200/50 p-4 h-auto md:h-[calc(100vh-250px)] min-h-[400px] md:min-h-[500px]">
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center gap-2">
@@ -144,7 +190,9 @@ const SkeletonColumn = () => (
       ))}
     </div>
   </div>
-);
+));
+
+SkeletonColumn.displayName = 'SkeletonColumn';
 
 interface KanbanColumnProps {
   stage: typeof stages[0];
@@ -178,25 +226,21 @@ function KanbanColumn({
   showToast,
   refreshOpportunities,
   onStatusUpdate,
-  }: KanbanColumnProps) {
+}: KanbanColumnProps) {
   const router = useRouter();
   const [dropping, setDropping] = useState(false);
   
-  // Use the hook for status updates
   const {
     updatingStatus,
-    // Generic confirmation for ANY status change
     showGenericConfirm,
     genericMessage,
     onGenericConfirm,
     onGenericCancel,
-    // Special "Create Lead" modal (only when needed)
     showCreateLeadModal,
     onCreateLeadConfirm,
     onCreateLeadCancel,
-    // The main entry point
     handleStatusUpdate
-    } = useOpportunityStatusUpdate();
+  } = useOpportunityStatusUpdate();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -217,22 +261,19 @@ function KanbanColumn({
 
     const opportunity = allOpportunities.find(opp => opp._id === opportunityId);
     if (!opportunity || opportunity.status === stage.id) {
-        if (opportunity) showToast('Already in this stage', 'info', 2000);
-        return;
+      if (opportunity) showToast('Already in this stage', 'info', 2000);
+      return;
     }
 
-    // This will trigger the generic confirmation modal with callback
     await handleStatusUpdate(opportunity, stage.id, async (success: boolean) => {
-        if (success) {
+      if (success) {
         showToast(`Opportunity moved to ${stage.label}`, 'success', 2000);
-        // Refresh the opportunities to update the UI
         await refreshOpportunities();
-        // Don't call onStatusUpdate here - it's already handled by the hook
-        } else {
+      } else {
         showToast('Failed to move opportunity', 'error', 3000);
-        }
+      }
     });
-    };
+  };
 
   const handleDragStart = () => {
     setIsDragging(true);
@@ -242,6 +283,88 @@ function KanbanColumn({
     setIsDragging(false);
     setDropping(false);
   };
+
+  // Virtualized list for opportunities
+  const VirtualizedOpportunityList = memo(({ opportunities: opps }: { opportunities: ExtendedOpportunity[] }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [visibleRange, setVisibleRange] = useState({ start: 0, end: 10 });
+    
+    useEffect(() => {
+      const updateVisibleRange = () => {
+        if (!containerRef.current) return;
+        
+        const container = containerRef.current;
+        const scrollTop = container.scrollTop;
+        const containerHeight = container.clientHeight;
+        const itemHeight = 280;
+        
+        const start = Math.max(0, Math.floor(scrollTop / itemHeight) - 2);
+        const end = Math.min(
+          opps.length,
+          start + Math.ceil(containerHeight / itemHeight) + 4
+        );
+        
+        setVisibleRange({ start, end });
+      };
+      
+      const container = containerRef.current;
+      if (container) {
+        container.addEventListener('scroll', updateVisibleRange);
+        updateVisibleRange(); // Initial calculation
+        
+        // Cleanup
+        return () => container.removeEventListener('scroll', updateVisibleRange);
+      }
+    }, [opps.length]);
+    
+    if (opps.length === 0) {
+      return (
+        <div className="text-center py-8">
+          <div className="text-gray-400 mb-2">No opportunities in this stage</div>
+          <div className="text-sm text-gray-500">Drag opportunities here or create new ones</div>
+        </div>
+      );
+    }
+
+    return (
+      <div 
+        ref={containerRef}
+        className="h-[500px] overflow-y-auto pr-1"
+        style={{ scrollBehavior: 'smooth' }}
+      >
+        <div style={{ height: `${opps.length * 280}px`, position: 'relative' }}>
+          {opps.slice(visibleRange.start, visibleRange.end).map((opportunity, index) => {
+            const actualIndex = visibleRange.start + index;
+            return (
+              <div
+                key={opportunity._id}
+                style={{
+                  position: 'absolute',
+                  top: `${actualIndex * 280}px`,
+                  width: '100%',
+                  height: '280px'
+                }}
+                className="mb-3"
+              >
+                <OpportunityCard
+                  opportunity={opportunity}
+                  onRecalculateScore={onRecalculateScore}
+                  getAvatarColor={getAvatarColor}
+                  getLeadScoreTier={getLeadScoreTier}
+                  formatDate={formatDate}
+                  getStageColor={getStageColor}
+                  getChildCounts={getChildCounts}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  });
+  VirtualizedOpportunityList.displayName = 'VirtualizedOpportunityList';
 
   return (
     <>
@@ -272,60 +395,42 @@ function KanbanColumn({
           </button>
         </div>
 
-        <div className="space-y-3 flex-1 overflow-y-auto pr-1">
+        <div className="flex-1">
           {loading && opportunities.length === 0 ? (
-            [1, 2].map((i) => (
-              <div key={i} className="opacity-70">
-                <SkeletonCard />
-              </div>
-            ))
-          ) : opportunities.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="text-gray-400 mb-2">No opportunities in this stage</div>
-              <div className="text-sm text-gray-500">Drag opportunities here or create new ones</div>
+            <div className="space-y-3">
+              {[1, 2].map((i) => (
+                <div key={i} className="opacity-70">
+                  <SkeletonCard />
+                </div>
+              ))}
             </div>
           ) : (
-            opportunities.map((opportunity) => (
-              <OpportunityCard
-                key={opportunity._id}
-                opportunity={opportunity}
-                onRecalculateScore={onRecalculateScore}
-                getAvatarColor={getAvatarColor}
-                getLeadScoreTier={getLeadScoreTier}
-                formatDate={formatDate}
-                getStageColor={getStageColor}
-                getChildCounts={getChildCounts}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
-              />
-            ))
+            <VirtualizedOpportunityList opportunities={opportunities} />
           )}
         </div>
       </div>
 
-      {/* Generic Status Change Confirmation */}
       <ConfirmationModal
-            isOpen={showGenericConfirm}
-            onClose={onGenericCancel}
-            onConfirm={onGenericConfirm}
-            title="Confirm Status Change"
-            message={genericMessage}
-            confirmText="Confirm"
-            cancelText="Cancel"
-            type="warning"
-       />
+        isOpen={showGenericConfirm}
+        onClose={onGenericCancel}
+        onConfirm={onGenericConfirm}
+        title="Confirm Status Change"
+        message={genericMessage}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        type="warning"
+      />
 
-        {/* Special "Create Lead" Modal */}
-       <ConfirmationModal
-            isOpen={showCreateLeadModal}
-            onClose={onCreateLeadCancel}
-            onConfirm={onCreateLeadConfirm}
-            title="Create Lead Required"
-            message="A lead record is required to move this opportunity to 'Attempted to Contact'. Would you like to create a lead now?"
-            confirmText="Create Lead"
-            cancelText="Cancel"
-            type="info"
-       />
+      <ConfirmationModal
+        isOpen={showCreateLeadModal}
+        onClose={onCreateLeadCancel}
+        onConfirm={onCreateLeadConfirm}
+        title="Create Lead Required"
+        message="A lead record is required to move this opportunity to 'Attempted to Contact'. Would you like to create a lead now?"
+        confirmText="Create Lead"
+        cancelText="Cancel"
+        type="info"
+      />
     </>
   );
 }
@@ -342,7 +447,7 @@ interface OpportunityCardProps {
   onDragEnd: () => void;
 }
 
-function OpportunityCard({
+const OpportunityCard = memo(function OpportunityCard({
   opportunity,
   onRecalculateScore,
   getAvatarColor,
@@ -355,27 +460,35 @@ function OpportunityCard({
 }: OpportunityCardProps) {
   const router = useRouter();
   const [isRecalculating, setIsRecalculating] = useState(false);
-  const childCounts = getChildCounts(opportunity);
+  
+  // Memoize expensive computations
+  const childCounts = useMemo(() => getChildCounts(opportunity), [opportunity, getChildCounts]);
+  const avatarColor = useMemo(() => getAvatarColor(opportunity.type, opportunity.leadScore?.totalScore), 
+    [opportunity.type, opportunity.leadScore?.totalScore, getAvatarColor]);
+  const tier = useMemo(() => getLeadScoreTier(opportunity.leadScore?.totalScore), 
+    [opportunity.leadScore?.totalScore, getLeadScoreTier]);
+  const stageColor = useMemo(() => getStageColor(opportunity.status as StageId), 
+    [opportunity.status, getStageColor]);
 
-  const handleClick = (e: React.MouseEvent) => {
+  const handleClick = useCallback((e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) {
       return;
     }
     router.push(`/opportunities/details?id=${opportunity._id}`);
-  };
+  }, [router, opportunity._id]);
 
-  const handleDragStart = (e: React.DragEvent) => {
+  const handleDragStart = useCallback((e: React.DragEvent) => {
     e.dataTransfer.setData('opportunityId', opportunity._id);
     e.dataTransfer.setData('currentStatus', opportunity.status);
     e.dataTransfer.effectAllowed = 'move';
     onDragStart();
-  };
+  }, [opportunity._id, opportunity.status, onDragStart]);
 
-  const handleDragEnd = () => {
+  const handleDragEnd = useCallback(() => {
     onDragEnd();
-  };
+  }, [onDragEnd]);
 
-  const handleRecalculateClick = async (e: React.MouseEvent) => {
+  const handleRecalculateClick = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsRecalculating(true);
     try {
@@ -383,9 +496,9 @@ function OpportunityCard({
     } finally {
       setIsRecalculating(false);
     }
-  };
+  }, [opportunity._id, onRecalculateScore]);
 
-  const handleActionButtonClick = (e: React.MouseEvent, action: string) => {
+  const handleActionButtonClick = useCallback((e: React.MouseEvent, action: string) => {
     e.stopPropagation();
     switch (action) {
       case 'call':
@@ -400,7 +513,10 @@ function OpportunityCard({
         handleClick(e);
         break;
     }
-  };
+  }, [opportunity.customer?.phone, handleClick]);
+
+  // Remove "Needs Lead" badge since leads are created automatically
+  const showNeedsLeadBadge = false;
 
   return (
     <div 
@@ -413,7 +529,7 @@ function OpportunityCard({
     >
       <div className="flex items-start justify-between mb-3 gap-2">
         <div className="flex items-start gap-3 min-w-0 flex-1">
-          <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${getAvatarColor(opportunity.type, opportunity.leadScore?.totalScore)} transition-colors`}>
+          <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${avatarColor} transition-colors`}>
             {opportunity.type === 'organization' ? (
               <Building className="h-4 w-4" />
             ) : (
@@ -431,7 +547,7 @@ function OpportunityCard({
           </div>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <span className={`h-2 w-2 rounded-full ${getStageColor(opportunity.status as StageId)}`} />
+          <span className={`h-2 w-2 rounded-full ${stageColor}`} />
           {opportunity.leadScore?.totalScore && (
             <span className="text-xs font-medium text-gray-700 whitespace-nowrap">
               {opportunity.leadScore.totalScore}
@@ -446,7 +562,7 @@ function OpportunityCard({
           opportunity.leadScore?.tier === 'warm' ? 'bg-amber-100/80 text-amber-600 hover:bg-amber-200' :
           'bg-blue-100/80 text-blue-600 hover:bg-blue-200'
         }`}>
-          {getLeadScoreTier(opportunity.leadScore?.totalScore)}
+          {tier}
         </span>
         
         {opportunity.type === 'organization' && (
@@ -455,33 +571,7 @@ function OpportunityCard({
           </span>
         )}
 
-        {opportunity.status === 'new' && !opportunity.hasLead && (
-          <span className="px-2 py-1 rounded-lg bg-red-50/80 text-red-600 text-xs transition-colors hover:bg-red-100/80 whitespace-nowrap">
-            <AlertCircle className="h-3 w-3 inline mr-1" />
-            Needs Lead
-          </span>
-        )}
-        
-        <div className="flex items-center gap-1">
-          {childCounts.vehicles > 0 && (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50/80 text-blue-600 text-xs whitespace-nowrap">
-              <Car className="h-3 w-3 flex-shrink-0" />
-              {childCounts.vehicles}
-            </span>
-          )}
-          {childCounts.quotes > 0 && (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-green-50/80 text-green-600 text-xs whitespace-nowrap">
-              <FileText className="h-3 w-3 flex-shrink-0" />
-              {childCounts.quotes}
-            </span>
-          )}
-          {childCounts.jobCards > 0 && (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-50/80 text-orange-600 text-xs whitespace-nowrap">
-              <ClipboardList className="h-3 w-3 flex-shrink-0" />
-              {childCounts.jobCards}
-            </span>
-          )}
-        </div>
+        {/* Removed "Needs Lead" badge since leads are created automatically */}
       </div>
 
       {opportunity.leadScore && (
@@ -608,7 +698,9 @@ function OpportunityCard({
       </div>
     </div>
   );
-}
+});
+
+OpportunityCard.displayName = 'OpportunityCard';
 
 export default function OpportunitiesContent() {
   const { showToast } = useToast();
@@ -657,93 +749,169 @@ export default function OpportunitiesContent() {
     isNurturing: undefined as boolean | undefined,
   });
 
-  // In OpportunitiesContent component, add this function:
+  // Create cache instance
+  const cacheRef = useRef(createCache());
+  
+  // Memoize filter dependencies
+  const memoizedFilters = useMemo(() => filters, [
+    filters.status, filters.tier, filters.source, filters.type, 
+    filters.search, filters.minScore, filters.maxScore, filters.fromDate,
+    filters.toDate, filters.assignedTo, filters.sort, filters.page, filters.limit
+  ]);
+
+  const memoizedAdvancedFilters = useMemo(() => advancedFilters, [
+    advancedFilters.multipleStatuses, advancedFilters.multipleSources,
+    advancedFilters.hasVehicles, advancedFilters.hasQuotes,
+    advancedFilters.hasJobCards, advancedFilters.isNurturing
+  ]);
+
+  // Memoize helper functions
+  const getAvatarColor = useCallback((type: string, score?: number) => {
+    if (type === 'organization') return 'bg-purple-100 text-purple-600';
+    if (!score) return 'bg-blue-100 text-blue-600';
+    
+    if (score >= 70) return 'bg-green-100 text-green-600';
+    if (score >= 50) return 'bg-amber-100 text-amber-600';
+    return 'bg-blue-100 text-blue-600';
+  }, []);
+
+  const getLeadScoreTier = useCallback((score?: number) => {
+    if (!score) return 'Not Scored';
+    if (score >= 70) return 'Hot';
+    if (score >= 50) return 'Warm';
+    return 'Cold';
+  }, []);
+
+  const getStageColor = useCallback((stage: StageId) => {
+    switch (stage) {
+      case 'new': return 'bg-gradient-to-r from-blue-400 to-blue-500';
+      case 'attempted_to_contact': return 'bg-gradient-to-r from-purple-400 to-purple-500';
+      case 'prospecting': return 'bg-gradient-to-r from-amber-400 to-amber-500';
+      case 'appointment_scheduled': return 'bg-gradient-to-r from-orange-400 to-orange-500';
+      case 'non_progressive': return 'bg-gradient-to-r from-gray-400 to-gray-500';
+      case 'lost': return 'bg-gradient-to-r from-rose-400 to-rose-500';
+    }
+  }, []);
+
+  const formatDate = useCallback((dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) {
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      if (diffHours === 0) {
+        const diffMinutes = Math.floor(diffMs / (1000 * 60));
+        return `${diffMinutes} minute${diffMinutes !== 1 ? 's' : ''} ago`;
+      }
+      return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+    }
+    
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }, []);
+
+  const getChildCounts = useCallback((opportunity: ExtendedOpportunity) => {
+    return {
+      vehicles: opportunity.vehicles?.length || 0,
+      jobCards: opportunity.jobCards?.length || 0,
+      waivers: opportunity.waivers?.length || 0,
+      quotes: opportunity.quotes?.length || 0,
+      invoices: opportunity.invoices?.length || 0,
+      payments: opportunity.payments?.length || 0
+    };
+  }, []);
+
   const handleStatusUpdate = async (opportunity: ExtendedOpportunity, newStatus: string) => {
     try {
-        // Update the opportunity in the backend
-        await opportunityService.updateOpportunity(opportunity._id, {
+      await opportunityService.updateOpportunity(opportunity._id, {
         status: newStatus as any
-        });
+      });
 
-        // Update the local state immediately for instant feedback
-        setOpportunities(prev => 
+      setOpportunities(prev => 
         prev.map(opp => 
-            opp._id === opportunity._id 
+          opp._id === opportunity._id 
             ? { ...opp, status: newStatus as any } 
             : opp
         )
-        );
+      );
 
-        showToast(`Opportunity moved to ${getStatusLabel(newStatus)}`, 'success', 2000);
+      showToast(`Opportunity moved to ${getStatusLabel(newStatus)}`, 'success', 2000);
 
-        // Refresh the data to get the latest from backend
-        setTimeout(() => {
+      // Invalidate cache for this opportunity
+      const cacheKey = `opportunities-${JSON.stringify(memoizedFilters)}`;
+      cacheRef.current.set(cacheKey, null);
+
+      setTimeout(() => {
         fetchOpportunities();
-        }, 500);
+      }, 500);
 
     } catch (error: any) {
-        console.error('Error updating status:', error);
-        
-        // Revert the local state if the update failed
-        setOpportunities(prev => 
+      console.error('Error updating status:', error);
+      
+      setOpportunities(prev => 
         prev.map(opp => 
-            opp._id === opportunity._id 
+          opp._id === opportunity._id 
             ? { ...opp, status: opportunity.status } 
             : opp
         )
-        );
+      );
 
-        let errorMessage = 'Failed to update opportunity status';
-        if (error.response?.data?.message) {
+      let errorMessage = 'Failed to update opportunity status';
+      if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
-        } else if (error.message) {
+      } else if (error.message) {
         errorMessage = error.message;
-        }
-        
-        showToast(errorMessage, 'error', 3000);
+      }
+      
+      showToast(errorMessage, 'error', 3000);
     }
   };
 
-    // Also add this helper function (inside OpportunitiesContent):
-  const getStatusLabel = (status: string) => {
+  const getStatusLabel = useCallback((status: string) => {
     const labels: Record<string, string> = {
-        new: 'New',
-        attempted_to_contact: 'Attempted to Contact',
-        prospecting: 'Prospecting',
-        appointment_scheduled: 'Appointment Scheduled',
-        non_progressive: 'Non Progressive',
-        lost: 'Lost'
+      new: 'New',
+      attempted_to_contact: 'Attempted to Contact',
+      prospecting: 'Prospecting',
+      appointment_scheduled: 'Appointment Scheduled',
+      non_progressive: 'Non Progressive',
+      lost: 'Lost'
     };
     return labels[status] || status;
-  };
+  }, []);
+
+  // Debounced search
+  const debouncedSetSearch = useDebounce((search: string) => {
+    const trimmedSearch = search.trim();
+    
+    if (trimmedSearch.length >= 3 || trimmedSearch.length === 0) {
+      setDebouncedSearch(trimmedSearch);
+      
+      if (trimmedSearch.length >= 3) {
+        setSearchLoading(true);
+        setFilters(prev => ({ 
+          ...prev, 
+          search: trimmedSearch,
+          page: 1 
+        }));
+      } else if (trimmedSearch.length === 0 && filters.search) {
+        setFilters(prev => ({ 
+          ...prev, 
+          search: undefined,
+          page: 1 
+        }));
+      }
+    }
+  }, 500);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const trimmedSearch = searchQuery.trim();
-      
-      if (trimmedSearch.length >= 3 || trimmedSearch.length === 0) {
-        setDebouncedSearch(trimmedSearch);
-        
-        if (trimmedSearch.length >= 3) {
-          setSearchLoading(true);
-          setFilters(prev => ({ 
-            ...prev, 
-            search: trimmedSearch,
-            page: 1 
-          }));
-        } else if (trimmedSearch.length === 0 && filters.search) {
-          setFilters(prev => ({ 
-            ...prev, 
-            search: undefined,
-            page: 1 
-          }));
-        }
-      }
-    }, 500);
+    debouncedSetSearch(searchQuery);
+  }, [searchQuery, debouncedSetSearch]);
 
-    return () => clearTimeout(timer);
-  }, [searchQuery, filters.search]);
-
+  // Optimized fetch opportunities WITHOUT lead checking
   const fetchOpportunities = useCallback(async (isRefresh = false) => {
     try {
       if (!isRefresh) {
@@ -754,62 +922,86 @@ export default function OpportunitiesContent() {
       }
       setError(null);
       
-      const params: FilterParams = { ...filters };
+      const params: FilterParams = { ...memoizedFilters };
 
-      if (advancedFilters.multipleStatuses.length > 0) {
-        params.statuses = advancedFilters.multipleStatuses;
+      if (memoizedAdvancedFilters.multipleStatuses.length > 0) {
+        params.statuses = memoizedAdvancedFilters.multipleStatuses;
         delete params.status;
       }
       
-      if (advancedFilters.multipleSources.length > 0) {
-        params.sources = advancedFilters.multipleSources;
+      if (memoizedAdvancedFilters.multipleSources.length > 0) {
+        params.sources = memoizedAdvancedFilters.multipleSources;
         delete params.source;
       }
       
-      if (advancedFilters.hasVehicles !== undefined) {
-        params.hasVehicles = advancedFilters.hasVehicles;
+      if (memoizedAdvancedFilters.hasVehicles !== undefined) {
+        params.hasVehicles = memoizedAdvancedFilters.hasVehicles;
       }
       
-      if (advancedFilters.hasQuotes !== undefined) {
-        params.hasQuotes = advancedFilters.hasQuotes;
+      if (memoizedAdvancedFilters.hasQuotes !== undefined) {
+        params.hasQuotes = memoizedAdvancedFilters.hasQuotes;
       }
       
-      if (advancedFilters.hasJobCards !== undefined) {
-        params.hasJobCards = advancedFilters.hasJobCards;
+      if (memoizedAdvancedFilters.hasJobCards !== undefined) {
+        params.hasJobCards = memoizedAdvancedFilters.hasJobCards;
       }
       
-      if (advancedFilters.isNurturing !== undefined) {
-        params.isNurturing = advancedFilters.isNurturing;
+      if (memoizedAdvancedFilters.isNurturing !== undefined) {
+        params.isNurturing = memoizedAdvancedFilters.isNurturing;
       }
       
+      // Check cache first
+      const cacheKey = `opportunities-${JSON.stringify(params)}`;
+      const cachedData = cacheRef.current.get(cacheKey);
+      
+      if (cachedData && !isRefresh) {
+        const { data, pagination: cachedPagination, stats: cachedStats } = cachedData;
+        
+        // Pre-compute all values for opportunities
+        const processedOpportunities = data.map((opp: ExtendedOpportunity) => ({
+          ...opp,
+          computedStageColor: getStageColor(opp.status as StageId),
+          computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
+          computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
+          computedChildCounts: getChildCounts(opp)
+        }));
+        
+        setOpportunities(processedOpportunities);
+        setPagination(cachedPagination);
+        setStats(cachedStats);
+        
+        setLoading(false);
+        setRefreshing(false);
+        setStatsLoading(false);
+        setSearchLoading(false);
+        return;
+      }
+      
+      // Fetch fresh data
       const response = await opportunityService.getAllOpportunities(params);
-
-      const opportunitiesWithLeadInfo = await Promise.all(
-        response.data.map(async (opp: ExtendedOpportunity) => {
-          if (opp.status === 'new' || opp.status === 'attempted_to_contact') {
-            try {
-              const leadResponse = await leadService.getLeadsByOpportunity(opp._id);
-              return {
-                ...opp,
-                hasLead: leadResponse.data && leadResponse.data.length > 0
-              };
-            } catch (error) {
-              return { 
-                ...opp, 
-                hasLead: false 
-              };
-            }
-          }
-          return { ...opp, hasLead: undefined };
-        })
-      );
       
-      setOpportunities(opportunitiesWithLeadInfo);
+      // Pre-compute all values for opportunities
+      const processedOpportunities = response.data.map((opp: ExtendedOpportunity) => ({
+        ...opp,
+        computedStageColor: getStageColor(opp.status as StageId),
+        computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
+        computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
+        computedChildCounts: getChildCounts(opp)
+      }));
+      
+      setOpportunities(processedOpportunities);
       setPagination(response.pagination);
       
       if (response.stats) {
         setStats(response.stats);
       }
+      
+      // Cache the response
+      cacheRef.current.set(cacheKey, {
+        data: response.data,
+        pagination: response.pagination,
+        stats: response.stats
+      });
       
     } catch (err: any) {
       console.error('Error fetching opportunities:', err);
@@ -821,26 +1013,61 @@ export default function OpportunitiesContent() {
       setStatsLoading(false);
       setSearchLoading(false);
     }
-  }, [filters, advancedFilters, showToast]);
+  }, [memoizedFilters, memoizedAdvancedFilters, showToast, getAvatarColor, getLeadScoreTier, getStageColor, getChildCounts]);
 
-  useEffect(() => {
-    if (!activeQuickFilter) {
-      fetchOpportunities();
-    }
-  }, [filters, fetchOpportunities, activeQuickFilter]);
-
+  // Fetch overview stats
   const fetchOverview = useCallback(async () => {
     try {
+      const cacheKey = 'opportunities-overview';
+      const cached = cacheRef.current.get(cacheKey);
+      
+      if (cached) {
+        setStats(cached);
+        return;
+      }
+      
       const overview = await opportunityService.getOpportunitiesOverview();
       setStats(overview);
+      cacheRef.current.set(cacheKey, overview);
     } catch (err) {
       console.error('Error fetching overview:', err);
     }
   }, []);
 
+  // Fetch data on mount and when filters change
+  useEffect(() => {
+    if (!activeQuickFilter) {
+      fetchOpportunities();
+    }
+  }, [fetchOpportunities, activeQuickFilter]);
+
   useEffect(() => {
     fetchOverview();
   }, [fetchOverview]);
+
+  // Memoize computed opportunities by stage
+  const opportunitiesByStage = useMemo(() => {
+    const grouped = {} as Record<StageId, ExtendedOpportunity[]>;
+    stages.forEach(stage => {
+      grouped[stage.id] = opportunities.filter(opp => opp.status === stage.id);
+    });
+    return grouped;
+  }, [opportunities]);
+
+  // Calculate lead score stats
+  const leadScoreStats = useMemo(() => {
+    if (!opportunities.length) return { hot: 0, warm: 0, cold: 0 };
+
+    const leadScores = opportunities
+      .filter(opp => opp.leadScore?.totalScore)
+      .map(opp => opp.leadScore?.totalScore || 0);
+
+    const hot = leadScores.filter(score => score >= 70).length;
+    const warm = leadScores.filter(score => score >= 50 && score < 70).length;
+    const cold = leadScores.filter(score => score < 50).length;
+
+    return { hot, warm, cold };
+  }, [opportunities]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -871,19 +1098,26 @@ export default function OpportunitiesContent() {
     }
   };
 
+  // Debounced filter change
+  const debouncedFilterChange = useDebounce((key: keyof FilterParams, value: any) => {
+    setFilters(prev => ({ ...prev, [key]: value, page: 1 }));
+  }, 300);
+
+  const handleFilterChange = (key: keyof FilterParams, value: any) => {
+    debouncedFilterChange(key, value);
+  };
+
   const handleRecalculateScore = async (opportunityId: string) => {
     try {
       await opportunityService.recalculateLeadScore(opportunityId);
+      // Invalidate cache
+      cacheRef.current.clear();
       await fetchOpportunities();
       showToast('Lead score recalculated successfully', 'success', 2000);
     } catch (err) {
       console.error('Error recalculating score:', err);
       showToast('Failed to recalculate lead score', 'error', 3000);
     }
-  };
-
-  const handleFilterChange = (key: keyof FilterParams, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value, page: 1 }));
   };
 
   const handleMultipleStatusToggle = (status: string) => {
@@ -906,7 +1140,7 @@ export default function OpportunitiesContent() {
     });
   };
 
-  const handleQuickFilter = (filterId: string) => {
+  const handleQuickFilter = async (filterId: string) => {
     setActiveQuickFilter(filterId);
     setFilters({
       status: undefined,
@@ -934,49 +1168,49 @@ export default function OpportunitiesContent() {
       isNurturing: undefined,
     });
     
-    switch (filterId) {
-      case 'hot_leads':
-        opportunityService.getHotLeadsWithHighScores().then(response => {
-          setOpportunities(response.data || []);
-          setPagination(response.pagination);
-          if (response.stats) setStats(response.stats);
-        });
-        break;
-      case 'new_web':
-        opportunityService.getNewWebLeads().then(response => {
-          setOpportunities(response.data || []);
-          setPagination(response.pagination);
-          if (response.stats) setStats(response.stats);
-        });
-        break;
-      case 'unassigned':
-        opportunityService.getUnassignedNewLeads().then(response => {
-          setOpportunities(response.data || []);
-          setPagination(response.pagination);
-          if (response.stats) setStats(response.stats);
-        });
-        break;
-      case 'with_vehicles':
-        opportunityService.getOpportunitiesWithVehicles().then(response => {
-          setOpportunities(response.data || []);
-          setPagination(response.pagination);
-          if (response.stats) setStats(response.stats);
-        });
-        break;
-      case 'this_month':
-        opportunityService.getThisMonthsOpportunities().then(response => {
-          setOpportunities(response.data || []);
-          setPagination(response.pagination);
-          if (response.stats) setStats(response.stats);
-        });
-        break;
-      case 'high_priority':
-        opportunityService.getHotPriorityOpportunities().then(response => {
-          setOpportunities(response.data || []);
-          setPagination(response.pagination);
-          if (response.stats) setStats(response.stats);
-        });
-        break;
+    setLoading(true);
+    
+    try {
+      let response;
+      switch (filterId) {
+        case 'hot_leads':
+          response = await opportunityService.getHotLeadsWithHighScores();
+          break;
+        case 'new_web':
+          response = await opportunityService.getNewWebLeads();
+          break;
+        case 'unassigned':
+          response = await opportunityService.getUnassignedNewLeads();
+          break;
+        case 'with_vehicles':
+          response = await opportunityService.getOpportunitiesWithVehicles();
+          break;
+        case 'this_month':
+          response = await opportunityService.getThisMonthsOpportunities();
+          break;
+        case 'high_priority':
+          response = await opportunityService.getHotPriorityOpportunities();
+          break;
+        default:
+          return;
+      }
+      
+      const processedOpportunities = response.data.map((opp: ExtendedOpportunity) => ({
+        ...opp,
+        computedStageColor: getStageColor(opp.status as StageId),
+        computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
+        computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
+        computedChildCounts: getChildCounts(opp)
+      }));
+      
+      setOpportunities(processedOpportunities);
+      setPagination(response.pagination);
+      if (response.stats) setStats(response.stats);
+    } catch (error) {
+      console.error('Error applying quick filter:', error);
+      showToast('Failed to apply filter', 'error', 3000);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1008,6 +1242,7 @@ export default function OpportunitiesContent() {
     setSearchQuery('');
     setDebouncedSearch('');
     setActiveQuickFilter(null);
+    cacheRef.current.clear();
   };
 
   const applyFilters = () => {
@@ -1015,79 +1250,7 @@ export default function OpportunitiesContent() {
     fetchOpportunities();
   };
 
-  const getAvatarColor = (type: string, score?: number) => {
-    if (type === 'organization') return 'bg-purple-100 text-purple-600';
-    if (!score) return 'bg-blue-100 text-blue-600';
-    
-    if (score >= 70) return 'bg-green-100 text-green-600';
-    if (score >= 50) return 'bg-amber-100 text-amber-600';
-    return 'bg-blue-100 text-blue-600';
-  };
-
-  const getLeadScoreTier = (score?: number) => {
-    if (!score) return 'Not Scored';
-    if (score >= 70) return 'Hot';
-    if (score >= 50) return 'Warm';
-    return 'Cold';
-  };
-
-  const getStageColor = (stage: StageId) => {
-    switch (stage) {
-      case 'new': return 'bg-gradient-to-r from-blue-400 to-blue-500';
-      case 'attempted_to_contact': return 'bg-gradient-to-r from-purple-400 to-purple-500';
-      case 'prospecting': return 'bg-gradient-to-r from-amber-400 to-amber-500';
-      case 'appointment_scheduled': return 'bg-gradient-to-r from-orange-400 to-orange-500';
-      case 'non_progressive': return 'bg-gradient-to-r from-gray-400 to-gray-500';
-      case 'lost': return 'bg-gradient-to-r from-rose-400 to-rose-500';
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) {
-      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-      if (diffHours === 0) {
-        const diffMinutes = Math.floor(diffMs / (1000 * 60));
-        return `${diffMinutes} minute${diffMinutes !== 1 ? 's' : ''} ago`;
-      }
-      return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
-    }
-    
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
-  const getChildCounts = (opportunity: ExtendedOpportunity) => {
-    return {
-      vehicles: opportunity.vehicles?.length || 0,
-      jobCards: opportunity.jobCards?.length || 0,
-      waivers: opportunity.waivers?.length || 0,
-      quotes: opportunity.quotes?.length || 0,
-      invoices: opportunity.invoices?.length || 0,
-      payments: opportunity.payments?.length || 0
-    };
-  };
-
-  const calculateLeadScoreStats = () => {
-    if (!opportunities.length) return { hot: 0, warm: 0, cold: 0 };
-
-    const leadScores = opportunities
-      .filter(opp => opp.leadScore?.totalScore)
-      .map(opp => opp.leadScore?.totalScore || 0);
-
-    const hot = leadScores.filter(score => score >= 70).length;
-    const warm = leadScores.filter(score => score >= 50 && score < 70).length;
-    const cold = leadScores.filter(score => score < 50).length;
-
-    return { hot, warm, cold };
-  };
-
+  // Check scroll buttons
   useEffect(() => {
     const checkScroll = () => {
       if (kanbanRef.current) {
@@ -1097,8 +1260,12 @@ export default function OpportunitiesContent() {
     };
 
     checkScroll();
-    window.addEventListener('resize', checkScroll);
-    return () => window.removeEventListener('resize', checkScroll);
+    const resizeObserver = new ResizeObserver(checkScroll);
+    if (kanbanRef.current) {
+      resizeObserver.observe(kanbanRef.current);
+    }
+    
+    return () => resizeObserver.disconnect();
   }, [opportunities]);
 
   const scrollKanban = (direction: 'left' | 'right') => {
@@ -1117,7 +1284,6 @@ export default function OpportunitiesContent() {
     }
   };
 
-  const leadScoreStats = calculateLeadScoreStats();
   const hasActiveFilters = filters.status || filters.tier || filters.source || filters.type || 
     filters.minScore || filters.maxScore || filters.fromDate || filters.toDate || 
     filters.assignedTo || advancedFilters.multipleStatuses.length > 0 ||
@@ -1391,7 +1557,7 @@ export default function OpportunitiesContent() {
                         </option>
                       );
                     })}
-                </select>
+                  </select>
                 </div>
                 
                 <div>
@@ -1578,7 +1744,7 @@ export default function OpportunitiesContent() {
                 <Target className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">Total Leads</p>
+                <p className="text-sm text-gray-600">Total Opportunities</p>
                 <p className="text-lg font-bold text-gray-900">{opportunities.length}</p>
               </div>
             </div>
@@ -1686,30 +1852,26 @@ export default function OpportunitiesContent() {
             onScroll={() => setScrolling(true)}
           >
             <div className="flex flex-col md:flex-row gap-4 md:gap-6 pb-4 min-w-max">
-              {stages.map((stage) => {
-                const stageOpportunities = opportunities.filter(opp => opp.status === stage.id);
-                
-                return (
-                  <div key={stage.id} className="w-full md:w-72 lg:w-80 flex-shrink-0">
-                    <KanbanColumn
-                      stage={stage}
-                      opportunities={stageOpportunities}
-                      allOpportunities={opportunities}
-                      onRecalculateScore={handleRecalculateScore}
-                      getAvatarColor={getAvatarColor}
-                      getLeadScoreTier={getLeadScoreTier}
-                      getStageColor={getStageColor}
-                      formatDate={formatDate}
-                      getChildCounts={getChildCounts}
-                      loading={loading || creating}
-                      setIsDragging={setIsDragging}
-                      showToast={showToast}
-                      refreshOpportunities={fetchOpportunities}
-                      onStatusUpdate={handleStatusUpdate}
-                    />
-                  </div>
-                );
-              })}
+              {stages.map((stage) => (
+                <div key={stage.id} className="w-full md:w-72 lg:w-80 flex-shrink-0">
+                  <KanbanColumn
+                    stage={stage}
+                    opportunities={opportunitiesByStage[stage.id] || []}
+                    allOpportunities={opportunities}
+                    onRecalculateScore={handleRecalculateScore}
+                    getAvatarColor={getAvatarColor}
+                    getLeadScoreTier={getLeadScoreTier}
+                    getStageColor={getStageColor}
+                    formatDate={formatDate}
+                    getChildCounts={getChildCounts}
+                    loading={loading || creating}
+                    setIsDragging={setIsDragging}
+                    showToast={showToast}
+                    refreshOpportunities={fetchOpportunities}
+                    onStatusUpdate={handleStatusUpdate}
+                  />
+                </div>
+              ))}
             </div>
           </div>
           

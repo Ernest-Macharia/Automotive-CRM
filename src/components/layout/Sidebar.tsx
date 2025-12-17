@@ -47,7 +47,6 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const navItems = [
     { href: '/dashboard',      label: 'Dashboard',     icon: LayoutDashboard },
     { href: '/opportunities',  label: 'Opportunities', icon: Target },
-    { href: '/leads',          label: 'Leads',         icon: ListFilter },
     { href: '/clients',        label: 'Customers',     icon: Building },
     { href: '/kpi',           label: 'KPI Reports',   icon: Settings },
     { href: '/quotes',         label: 'Quotes',        icon: FileText },
