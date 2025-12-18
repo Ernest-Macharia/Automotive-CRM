@@ -277,7 +277,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
                     </span>
                   ) : stats ? (
                     <>
-                      {stats.totalopportunities || 156} total opportunities
+                      {stats.totalopportunities} total opportunities
                     </>
                   ) : (
                     'Track and manage your CRM settings'
