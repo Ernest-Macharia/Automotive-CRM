@@ -249,6 +249,20 @@ class SettingsService {
     }
   }
 
+  async getUser(id: string): Promise<User> {
+    try {
+      // If you have a specific endpoint for single user, use it
+      // For now, we'll fetch all and filter, but you should create this endpoint
+      const users = await this.getUsers();
+      const user = users.find(u => u.id === id);
+      if (!user) throw new Error('User not found');
+      return user;
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      throw error;
+    }
+  }
+
   async createUser(data: CreateUserData): Promise<User> {
     try {
       return await apiClient.post<CreateUserData, User>('/users', data);
@@ -267,6 +281,30 @@ class SettingsService {
     }
   }
 
+  async updateUser(id: string, data: UpdateUserData): Promise<User> {
+    try {
+      // Note: You need to add this endpoint to your API
+      // For now, I'll create a simulated endpoint path
+      return await apiClient.patch<UpdateUserData, User>(
+        `/users/${id}`,
+        data
+      );
+    } catch (error) {
+      console.error('Error updating user:', error);
+      throw error;
+    }
+  }
+
+  async deleteUser(id: string): Promise<{ message: string }> {
+    try {
+      // Note: You need to add this endpoint to your API
+      return await apiClient.delete<{ message: string }>(`/users/${id}`);
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      throw error;
+    }
+  }
+
   async updateUserSummaryAccess(id: string, canViewSummary: boolean): Promise<User> {
     try {
       return await apiClient.patch<{ canViewSummary: boolean }, User>(
@@ -275,6 +313,24 @@ class SettingsService {
       );
     } catch (error) {
       console.error('Error updating user summary access:', error);
+      throw error;
+    }
+  }
+
+  async activateUser(id: string): Promise<User> {
+    try {
+      return await this.updateUser(id, { active: true });
+    } catch (error) {
+      console.error('Error activating user:', error);
+      throw error;
+    }
+  }
+
+  async deactivateUser(id: string): Promise<User> {
+    try {
+      return await this.updateUser(id, { active: false });
+    } catch (error) {
+      console.error('Error deactivating user:', error);
       throw error;
     }
   }

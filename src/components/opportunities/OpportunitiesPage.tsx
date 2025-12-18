@@ -354,11 +354,11 @@ function KanbanColumn({
                 key={opportunity._id}
                 style={{
                   position: 'absolute',
-                  top: `${actualIndex * 280}px`,
+                  top: `${actualIndex * 220}px`,
                   width: '100%',
-                  height: '280px'
+                  height: '220px'
                 }}
-                className="mb-3"
+                className="mb-2"
               >
                 <OpportunityCard
                   opportunity={opportunity}
@@ -505,19 +505,18 @@ const OpportunityCard = memo(function OpportunityCard({
     }
   }, [opportunity.customer?.phone, handleClick]);
 
-  // Remove "Needs Lead" badge since leads are created automatically
   const showNeedsLeadBadge = false;
 
   return (
     <div 
       data-id={opportunity._id}
-      className="group bg-white/80 backdrop-blur-sm rounded-xl border border-white/30 p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
+      className="group bg-white/80 backdrop-blur-sm rounded-xl border border-white/30 p-3 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onClick={handleClick}
     >
-      <div className="flex items-start justify-between mb-3 gap-2">
+      <div className="flex items-start justify-between mb-2 gap-2">
         <div className="flex items-start gap-3 min-w-0 flex-1">
           <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${avatarColor} transition-colors`}>
             {opportunity.type === 'organization' ? (
@@ -546,7 +545,7 @@ const OpportunityCard = memo(function OpportunityCard({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 mb-3">
+      <div className="flex flex-wrap items-center gap-1.5 mb-2">
         <span className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors hover:scale-105 whitespace-nowrap ${
           opportunity.leadScore?.tier === 'hot' ? 'bg-red-100/80 text-red-600 hover:bg-red-200' :
           opportunity.leadScore?.tier === 'warm' ? 'bg-amber-100/80 text-amber-600 hover:bg-amber-200' :
@@ -563,7 +562,7 @@ const OpportunityCard = memo(function OpportunityCard({
       </div>
 
       {opportunity.leadScore && (
-        <div className="mb-3">
+        <div className="mb-2">
           <div className="flex items-center justify-between text-xs mb-1">
             <span className="text-gray-600 whitespace-nowrap">Lead Score</span>
             <div className="flex items-center gap-2">
@@ -1854,7 +1853,7 @@ export default function OpportunitiesContent() {
             className="kanban-container overflow-x-auto scrollbar-hide scroll-smooth pb-4"
             onScroll={() => setScrolling(true)}
           >
-            <div className="flex flex-col md:flex-row gap-4 md:gap-6 pb-4 min-w-max">
+            <div className="flex flex-col md:flex-row gap-3 md:gap-4 pb-4 min-w-max">
               {stages.map((stage) => (
                 <div key={stage.id} className="w-full md:w-72 lg:w-80 flex-shrink-0">
                   <KanbanColumn

@@ -1,12 +1,12 @@
-// app/settings/blueprints/page.tsx
-import BlueprintsManagement from '@/components/settings/BlueprintsManagement';
-import { Metadata } from 'next';
+'use client';
 
-export const metadata: Metadata = {
-  title: 'Blueprints - Settings',
-  description: 'Design process templates and stages',
-};
+import BlueprintsManagementPage from '@/components/settings/blueprints/BlueprintsManagementPage';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
 
-export default function BlueprintsPage() {
-  return <BlueprintsManagement />;
+export default function BlueprintsRoute() {
+  return (
+    <ProtectedRoute>
+      <BlueprintsManagementPage />
+    </ProtectedRoute>
+  );
 }

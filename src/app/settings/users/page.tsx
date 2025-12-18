@@ -1,11 +1,12 @@
-import UserManagement from '@/components/settings/UserManagement';
-import { Metadata } from 'next';
+'use client';
 
-export const metadata: Metadata = {
-  title: 'User Management - Settings',
-  description: 'Manage system users, roles, and permissions',
-};
+import UserManagementPage from '@/components/settings/users/UserManagementPage';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
 
-export default function UsersPage() {
-  return <UserManagement />;
+export default function UsersRoute() {
+  return (
+    <ProtectedRoute>
+      <UserManagementPage />
+    </ProtectedRoute>
+  );
 }
