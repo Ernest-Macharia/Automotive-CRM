@@ -145,7 +145,7 @@ export default function SalesOrdersList() {
                 <RefreshCw className="h-5 w-5 text-white" />
               </button>
               <Link
-                href="/sales-orders/create"
+                href="/orders/sales-orders/create"
                 className="p-2 hover:bg-white/20 rounded-xl transition-colors"
                 title="Create New Sales Order"
               >
@@ -284,7 +284,7 @@ export default function SalesOrdersList() {
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">No sales orders found</h3>
                 <p className="text-gray-500 mb-6">Create your first sales order from an opportunity</p>
                 <Link
-                  href="/sales-orders/create"
+                  href="/orders/sales-orders/create"
                   className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 font-medium inline-flex items-center gap-2"
                 >
                   <Plus className="h-5 w-5" />

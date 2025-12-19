@@ -45,6 +45,14 @@ export interface SalesOrder {
   billingAddress?: string;
   paymentTerms?: string;
   notes?: string;
+  lineItems?: Array<{
+    productId?: string;
+    productName: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+  }>;
   createdBy?: {
     _id: string;
     firstName: string;
@@ -57,25 +65,34 @@ export interface SalesOrder {
 export interface CreateSalesOrderData {
   opportunityId: string;
   quoteId: string;
-  invoiceId?: string;
+  salesOrderNumber?: string;
   status?: 'draft' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   salesRep?: string;
   orderDate?: string;
   estimatedDeliveryDate?: string;
-  subtotal: number;
+  subtotal?: number;
   tax?: number;
   shipping?: number;
   discount?: number;
-  totalAmount: number;
+  totalAmount?: number;
   shippingAddress?: string;
   billingAddress?: string;
   paymentTerms?: string;
   notes?: string;
+  lineItems?: Array<{
+    productId?: string;
+    productName: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+  }>;
 }
 
 export interface UpdateSalesOrderData {
   status?: 'draft' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   salesRep?: string;
+  orderDate?: string;
   estimatedDeliveryDate?: string;
   actualDeliveryDate?: string;
   subtotal?: number;
@@ -87,6 +104,14 @@ export interface UpdateSalesOrderData {
   billingAddress?: string;
   paymentTerms?: string;
   notes?: string;
+  lineItems?: Array<{
+    productId?: string;
+    productName: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+  }>;
 }
 
 export interface FilterParams {
@@ -148,6 +173,8 @@ export interface SalesOrderStats {
 }
 
 class SalesOrderService {
+  private basePath = '/salesorder';
+
   async getAllSalesOrders(params?: FilterParams): Promise<SalesOrdersResponse> {
     try {
       const queryParams = new URLSearchParams();
@@ -160,7 +187,7 @@ class SalesOrderService {
         });
       }
       
-      const endpoint = `/salesorder${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const endpoint = `${this.basePath}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
       const response = await apiClient.get<any>(endpoint);
       
       return {
@@ -176,7 +203,7 @@ class SalesOrderService {
 
   async getSalesOrderById(id: string): Promise<SalesOrder> {
     try {
-      return await apiClient.get<SalesOrder>(`/salesorder/${id}`);
+      return await apiClient.get<SalesOrder>(`${this.basePath}/${id}`);
     } catch (error) {
       console.error(`Error fetching sales order ${id}:`, error);
       throw error;
@@ -185,7 +212,7 @@ class SalesOrderService {
 
   async getSalesOrdersByOpportunity(opportunityId: string): Promise<SalesOrdersResponse> {
     try {
-      const response = await apiClient.get<any>(`/salesorder/opportunity/${opportunityId}`);
+      const response = await apiClient.get<any>(`${this.basePath}/opportunity/${opportunityId}`);
       return {
         data: response.data || response,
         pagination: undefined,
@@ -199,28 +226,41 @@ class SalesOrderService {
 
   async createSalesOrder(data: CreateSalesOrderData): Promise<SalesOrder> {
     try {
+      // Calculate totals if line items are provided
+      let subtotal = data.subtotal || 0;
+      let totalAmount = data.totalAmount || 0;
+      
+      if (data.lineItems && data.lineItems.length > 0) {
+        subtotal = data.lineItems.reduce((sum, item) => sum + item.total, 0);
+        const tax = data.tax || 0;
+        const shipping = data.shipping || 0;
+        const discount = data.discount || 0;
+        totalAmount = subtotal + tax + shipping - discount;
+      }
+
       const formattedData = {
         opportunityId: data.opportunityId,
         quoteId: data.quoteId,
-        invoiceId: data.invoiceId,
+        salesOrderNumber: data.salesOrderNumber || `SO-${Date.now()}`,
         status: data.status || 'draft',
         salesRep: data.salesRep,
         orderDate: data.orderDate || new Date().toISOString(),
         estimatedDeliveryDate: data.estimatedDeliveryDate,
-        subtotal: data.subtotal,
+        subtotal,
         tax: data.tax || 0,
         shipping: data.shipping || 0,
         discount: data.discount || 0,
-        totalAmount: data.totalAmount,
+        totalAmount,
         shippingAddress: data.shippingAddress,
         billingAddress: data.billingAddress,
         paymentTerms: data.paymentTerms || 'Net 30',
-        notes: data.notes
+        notes: data.notes,
+        lineItems: data.lineItems || []
       };
 
       console.log('Creating sales order with data:', JSON.stringify(formattedData, null, 2));
       
-      return await apiClient.post<any, SalesOrder>('/salesorder', formattedData);
+      return await apiClient.post<any, SalesOrder>(this.basePath, formattedData);
     } catch (error) {
       console.error('Error creating sales order:', error);
       throw error;
@@ -229,7 +269,17 @@ class SalesOrderService {
 
   async updateSalesOrder(id: string, data: UpdateSalesOrderData): Promise<SalesOrder> {
     try {
-      return await apiClient.patch<UpdateSalesOrderData, SalesOrder>(`/salesorder/${id}`, data);
+      // Recalculate totals if line items are updated
+      if (data.lineItems && data.lineItems.length > 0) {
+        const subtotal = data.lineItems.reduce((sum, item) => sum + item.total, 0);
+        const tax = data.tax || 0;
+        const shipping = data.shipping || 0;
+        const discount = data.discount || 0;
+        data.totalAmount = subtotal + tax + shipping - discount;
+        data.subtotal = subtotal;
+      }
+      
+      return await apiClient.patch<UpdateSalesOrderData, SalesOrder>(`${this.basePath}/${id}`, data);
     } catch (error) {
       console.error(`Error updating sales order ${id}:`, error);
       throw error;
@@ -238,7 +288,7 @@ class SalesOrderService {
 
   async deleteSalesOrder(id: string): Promise<void> {
     try {
-      await apiClient.delete(`/salesorder/${id}`);
+      await apiClient.delete(`${this.basePath}/${id}`);
     } catch (error) {
       console.error(`Error deleting sales order ${id}:`, error);
       throw error;
@@ -247,7 +297,7 @@ class SalesOrderService {
 
   async updateSalesOrderStatus(id: string, status: string): Promise<SalesOrder> {
     try {
-      return await apiClient.patch<any, SalesOrder>(`/salesorder/${id}/status/${status}`, {});
+      return await apiClient.patch<any, SalesOrder>(`${this.basePath}/${id}/status`, { status });
     } catch (error) {
       console.error(`Error updating sales order status ${id}:`, error);
       throw error;
@@ -256,7 +306,7 @@ class SalesOrderService {
 
   async getSalesOrderStats(): Promise<SalesOrderStats> {
     try {
-      return await apiClient.get<SalesOrderStats>('/salesorder/stats/summary');
+      return await apiClient.get<SalesOrderStats>(`${this.basePath}/stats/summary`);
     } catch (error) {
       console.error('Error fetching sales order stats:', error);
       throw error;
@@ -265,7 +315,7 @@ class SalesOrderService {
 
   async getRecentSalesOrders(limit: number = 10): Promise<SalesOrdersResponse> {
     try {
-      const response = await apiClient.get<any>(`/salesorder/recent?limit=${limit}`);
+      const response = await apiClient.get<any>(`${this.basePath}/recent?limit=${limit}`);
       return {
         data: response.data || response,
         pagination: undefined,
@@ -279,7 +329,7 @@ class SalesOrderService {
 
   async attachInvoiceToSalesOrder(salesOrderId: string, invoiceId: string): Promise<SalesOrder> {
     try {
-      return await apiClient.post<any, SalesOrder>(`/salesorder/${salesOrderId}/attach-invoice/${invoiceId}`, {});
+      return await apiClient.post<any, SalesOrder>(`${this.basePath}/${salesOrderId}/invoice/${invoiceId}`, {});
     } catch (error) {
       console.error(`Error attaching invoice to sales order ${salesOrderId}:`, error);
       throw error;
@@ -317,6 +367,12 @@ class SalesOrderService {
       currency: 'KES',
       minimumFractionDigits: 2
     }).format(amount);
+  }
+
+  generateSalesOrderNumber(): string {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000);
+    return `SO-${timestamp}-${random.toString().padStart(3, '0')}`;
   }
 }
 

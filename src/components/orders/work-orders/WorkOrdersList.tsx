@@ -143,7 +143,7 @@ export default function WorkOrdersList() {
                 <RefreshCw className="h-5 w-5 text-white" />
               </button>
               <Link
-                href="/work-orders/create"
+                href="/orders/work-orders/create"
                 className="p-2 hover:bg-white/20 rounded-xl transition-colors"
                 title="Create New Work Order"
               >
@@ -282,7 +282,7 @@ export default function WorkOrdersList() {
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">No work orders found</h3>
                 <p className="text-gray-500 mb-6">Create your first work order from an opportunity</p>
                 <Link
-                  href="/work-orders/create"
+                  href="/orders/work-orders/create"
                   className="px-6 py-3 rounded-xl bg-gradient-to-r from-green-500 to-teal-600 text-white hover:from-green-600 hover:to-teal-700 font-medium inline-flex items-center gap-2"
                 >
                   <Plus className="h-5 w-5" />

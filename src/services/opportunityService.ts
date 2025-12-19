@@ -46,6 +46,7 @@ export interface Opportunity {
   
   // New properties for opportunity types
   opportunityType?: 'SERVICE' | 'PRODUCT';
+  packageType?: 'work_order' | 'sales_order';
   servicesProducts?: Array<{
     id?: string;
     _id?: string;
@@ -82,6 +83,10 @@ export interface CreateOpportunityData {
     companyTaxId?: string;
     companyPhone?: string;
     companyEmail?: string;
+    contactPersonName?: string;
+    contactPersonEmail?: string;
+    contactPersonPhone?: string;
+    contactPersonTitle?: string;
   };
   vehicles?: Array<{
     vin?: string;
@@ -100,6 +105,7 @@ export interface CreateOpportunityData {
   }>;
   notes?: string;
   opportunityType?: 'SERVICE' | 'PRODUCT';
+  packageType?: 'work_order' | 'sales_order';
   servicesProducts?: Array<{
     title: string;
     description?: string;
@@ -149,6 +155,7 @@ export interface UpdateOpportunityData {
     bodyType?: string;
   }>;
   opportunityType?: 'SERVICE' | 'PRODUCT';
+  packageType?: 'work_order' | 'sales_order';
   servicesProducts?: Array<{
     title: string;
     description?: string;
@@ -188,6 +195,7 @@ export interface FilterParams {
   sources?: string[];
   types?: string[];
   opportunityTypes?: ('SERVICE' | 'PRODUCT')[];
+  packageType?: 'work_order' | 'sales_order';
   
   // Sorting
   sort?: string;
@@ -613,6 +621,7 @@ class OpportunityService {
         status: data.status || 'new',
         source: data.source || 'walk_in',
         opportunityType: data.opportunityType,
+        packageType: data.packageType,
         customer: {
           name: data.customer.name,
           ...(data.customer.email && { email: data.customer.email }),
@@ -622,6 +631,11 @@ class OpportunityService {
           ...(data.customer.companyTaxId && { companyTaxId: data.customer.companyTaxId }),
           ...(data.customer.companyPhone && { companyPhone: data.customer.companyPhone }),
           ...(data.customer.companyEmail && { companyEmail: data.customer.companyEmail }),
+          // Include contact person details
+          ...(data.customer.contactPersonName && { contactPersonName: data.customer.contactPersonName }),
+          ...(data.customer.contactPersonEmail && { contactPersonEmail: data.customer.contactPersonEmail }),
+          ...(data.customer.contactPersonPhone && { contactPersonPhone: data.customer.contactPersonPhone }),
+          ...(data.customer.contactPersonTitle && { contactPersonTitle: data.customer.contactPersonTitle }),
         },
       };
 
@@ -646,7 +660,16 @@ class OpportunityService {
 
       // Add services/products if they exist
       if (data.servicesProducts && data.servicesProducts.length > 0) {
-        formattedData.servicesProducts = data.servicesProducts;
+        formattedData.servicesProducts = data.servicesProducts.map(item => ({
+          title: item.title,
+          description: item.description || '',
+          type: item.type,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: item.discount,
+          subtotal: item.subtotal,
+          total: item.total
+        }));
       }
 
       // Add notes if it exists
@@ -668,6 +691,8 @@ class OpportunityService {
       }
 
       console.log('Sending data to backend:', JSON.stringify(formattedData, null, 2));
+      console.log('Package Type:', formattedData.packageType);
+      console.log('Opportunity Type:', formattedData.opportunityType);
       
       return await apiClient.post<any, Opportunity>('/opportunities', formattedData);
     } catch (error) {

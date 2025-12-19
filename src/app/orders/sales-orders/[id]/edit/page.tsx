@@ -2,14 +2,14 @@
 
 import { useParams } from 'next/navigation';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import SalesOrderDetail from '@/components/orders/sales-orders/SalesOrderDetail';
+import SalesOrderEdit from '@/components/orders/sales-orders/SalesOrderEdit';
 
-export default function SalesOrderDetailPage() {
+export default function SalesOrderEditPage() {
   const params = useParams();
   
   return (
     <ProtectedRoute>
-      <SalesOrderDetail orderId={params.id as string} />
+      <SalesOrderEdit />
     </ProtectedRoute>
   );
 }

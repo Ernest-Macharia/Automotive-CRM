@@ -56,6 +56,7 @@ export interface WorkOrder {
 export interface CreateWorkOrderData {
   opportunityId: string;
   quoteId: string;
+  workOrderNumber?: string;
   waiverId?: string;
   jobCards?: string[];
   preChecklistId?: string;
@@ -66,8 +67,8 @@ export interface CreateWorkOrderData {
   startDate?: string;
   estimatedCompletionDate?: string;
   estimatedHours?: number;
-  laborCost: number;
-  partsCost: number;
+  laborCost?: number;
+  partsCost?: number;
   notes?: string;
 }
 
@@ -81,7 +82,9 @@ export interface UpdateWorkOrderData {
   actualHours?: number;
   laborCost?: number;
   partsCost?: number;
+  totalCost?: number;
   notes?: string;
+  jobCards?: string[];
 }
 
 export interface FilterParams {
@@ -133,6 +136,8 @@ export interface WorkOrderStats {
 }
 
 class WorkOrderService {
+  private basePath = '/workorder';
+
   async getAllWorkOrders(params?: FilterParams): Promise<WorkOrdersResponse> {
     try {
       const queryParams = new URLSearchParams();
@@ -145,7 +150,7 @@ class WorkOrderService {
         });
       }
       
-      const endpoint = `/workorder${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const endpoint = `${this.basePath}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
       const response = await apiClient.get<any>(endpoint);
       
       return {
@@ -161,7 +166,7 @@ class WorkOrderService {
 
   async getWorkOrderById(id: string): Promise<WorkOrder> {
     try {
-      return await apiClient.get<WorkOrder>(`/workorder/${id}`);
+      return await apiClient.get<WorkOrder>(`${this.basePath}/${id}`);
     } catch (error) {
       console.error(`Error fetching work order ${id}:`, error);
       throw error;
@@ -170,7 +175,7 @@ class WorkOrderService {
 
   async getWorkOrdersByOpportunity(opportunityId: string): Promise<WorkOrdersResponse> {
     try {
-      const response = await apiClient.get<any>(`/workorder/opportunity/${opportunityId}`);
+      const response = await apiClient.get<any>(`${this.basePath}/opportunity/${opportunityId}`);
       return {
         data: response.data || response,
         pagination: undefined,
@@ -184,9 +189,14 @@ class WorkOrderService {
 
   async createWorkOrder(data: CreateWorkOrderData): Promise<WorkOrder> {
     try {
+      const laborCost = data.laborCost || 0;
+      const partsCost = data.partsCost || 0;
+      const totalCost = laborCost + partsCost;
+
       const formattedData = {
         opportunityId: data.opportunityId,
         quoteId: data.quoteId,
+        workOrderNumber: data.workOrderNumber || `WO-${Date.now()}`,
         waiverId: data.waiverId,
         jobCards: data.jobCards || [],
         preChecklistId: data.preChecklistId,
@@ -197,14 +207,15 @@ class WorkOrderService {
         startDate: data.startDate || new Date().toISOString(),
         estimatedCompletionDate: data.estimatedCompletionDate,
         estimatedHours: data.estimatedHours || 0,
-        laborCost: data.laborCost || 0,
-        partsCost: data.partsCost || 0,
+        laborCost,
+        partsCost,
+        totalCost,
         notes: data.notes
       };
 
       console.log('Creating work order with data:', JSON.stringify(formattedData, null, 2));
       
-      return await apiClient.post<any, WorkOrder>('/workorder', formattedData);
+      return await apiClient.post<any, WorkOrder>(this.basePath, formattedData);
     } catch (error) {
       console.error('Error creating work order:', error);
       throw error;
@@ -213,7 +224,18 @@ class WorkOrderService {
 
   async updateWorkOrder(id: string, data: UpdateWorkOrderData): Promise<WorkOrder> {
     try {
-      return await apiClient.patch<UpdateWorkOrderData, WorkOrder>(`/workorder/${id}`, data);
+      // Calculate total cost if labor or parts cost are updated
+      if (data.laborCost !== undefined || data.partsCost !== undefined) {
+        // We need to get the current order to calculate total
+        const currentOrder = await this.getWorkOrderById(id);
+        const laborCost = data.laborCost !== undefined ? data.laborCost : currentOrder.laborCost;
+        const partsCost = data.partsCost !== undefined ? data.partsCost : currentOrder.partsCost;
+        
+        // Update total cost in the data
+        data = { ...data, totalCost: laborCost + partsCost };
+      }
+      
+      return await apiClient.patch<UpdateWorkOrderData, WorkOrder>(`${this.basePath}/${id}`, data);
     } catch (error) {
       console.error(`Error updating work order ${id}:`, error);
       throw error;
@@ -222,7 +244,7 @@ class WorkOrderService {
 
   async deleteWorkOrder(id: string): Promise<void> {
     try {
-      await apiClient.delete(`/workorder/${id}`);
+      await apiClient.delete(`${this.basePath}/${id}`);
     } catch (error) {
       console.error(`Error deleting work order ${id}:`, error);
       throw error;
@@ -231,7 +253,7 @@ class WorkOrderService {
 
   async updateWorkOrderStatus(id: string, status: string): Promise<WorkOrder> {
     try {
-      return await apiClient.patch<any, WorkOrder>(`/workorder/${id}/status/${status}`, {});
+      return await apiClient.patch<any, WorkOrder>(`${this.basePath}/${id}/status`, { status });
     } catch (error) {
       console.error(`Error updating work order status ${id}:`, error);
       throw error;
@@ -240,7 +262,7 @@ class WorkOrderService {
 
   async addJobCardToWorkOrder(workOrderId: string, jobCardId: string): Promise<WorkOrder> {
     try {
-      return await apiClient.post<any, WorkOrder>(`/workorder/${workOrderId}/jobcards/${jobCardId}`, {});
+      return await apiClient.post<any, WorkOrder>(`${this.basePath}/${workOrderId}/jobcards`, { jobCardId });
     } catch (error) {
       console.error(`Error adding job card to work order ${workOrderId}:`, error);
       throw error;
@@ -249,7 +271,7 @@ class WorkOrderService {
 
   async removeJobCardFromWorkOrder(workOrderId: string, jobCardId: string): Promise<WorkOrder> {
     try {
-      return await apiClient.delete<WorkOrder>(`/workorder/${workOrderId}/jobcards/${jobCardId}`);
+      return await apiClient.delete<WorkOrder>(`${this.basePath}/${workOrderId}/jobcards/${jobCardId}`);
     } catch (error) {
       console.error(`Error removing job card from work order ${workOrderId}:`, error);
       throw error;
@@ -258,7 +280,7 @@ class WorkOrderService {
 
   async getWorkOrderStats(): Promise<WorkOrderStats> {
     try {
-      return await apiClient.get<WorkOrderStats>('/workorder/stats/summary');
+      return await apiClient.get<WorkOrderStats>(`${this.basePath}/stats/summary`);
     } catch (error) {
       console.error('Error fetching work order stats:', error);
       throw error;
@@ -298,6 +320,12 @@ class WorkOrderService {
 
   calculateTotalCost(laborCost: number, partsCost: number): number {
     return laborCost + partsCost;
+  }
+
+  generateWorkOrderNumber(): string {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000);
+    return `WO-${timestamp}-${random.toString().padStart(3, '0')}`;
   }
 }
 

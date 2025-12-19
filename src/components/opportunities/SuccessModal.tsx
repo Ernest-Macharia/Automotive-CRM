@@ -18,7 +18,9 @@ import {
   AlertTriangle,
   CreditCard,
   Package,
-  Settings
+  Settings,
+  Wrench,
+  ShoppingBag // Add this import
 } from 'lucide-react';
 import { Opportunity } from '@/services/opportunityService';
 
@@ -125,19 +127,93 @@ export default function SuccessModal({
     return name.charAt(0).toUpperCase();
   };
 
-  const getOpportunityTypeIcon = (type?: 'SERVICE' | 'PRODUCT') => {
-    switch (type) {
-      case 'SERVICE': return <Settings className="h-4 w-4 text-blue-600" />;
-      case 'PRODUCT': return <Package className="h-4 w-4 text-green-600" />;
-      default: return <FileText className="h-4 w-4 text-gray-600" />;
+  // Get the icon based on packageType (more accurate than opportunityType)
+  const getPackageTypeIcon = () => {
+    // First check packageType, then fall back to opportunityType
+    const type = opportunity.packageType || opportunity.opportunityType;
+    
+    if (type === 'sales_order' || type === 'PRODUCT') {
+      return <ShoppingBag className="h-6 w-6 text-green-600" />;
+    } else if (type === 'work_order' || type === 'SERVICE') {
+      return <Wrench className="h-6 w-6 text-blue-600" />;
+    } else {
+      return <FileText className="h-6 w-6 text-gray-600" />;
     }
   };
 
-  const getOpportunityTypeColor = (type?: 'SERVICE' | 'PRODUCT') => {
-    switch (type) {
-      case 'SERVICE': return 'bg-blue-50 text-blue-700 border-blue-200';
-      case 'PRODUCT': return 'bg-green-50 text-green-700 border-green-200';
-      default: return 'bg-gray-50 text-gray-700 border-gray-200';
+  const getPackageTypeColor = () => {
+    const type = opportunity.packageType || opportunity.opportunityType;
+    
+    if (type === 'sales_order' || type === 'PRODUCT') {
+      return 'bg-green-50 text-green-700 border-green-200';
+    } else if (type === 'work_order' || type === 'SERVICE') {
+      return 'bg-blue-50 text-blue-700 border-blue-200';
+    } else {
+      return 'bg-gray-50 text-gray-700 border-gray-200';
+    }
+  };
+
+  const getPackageTypeDisplay = () => {
+    const type = opportunity.packageType || opportunity.opportunityType;
+    
+    if (type === 'sales_order' || type === 'PRODUCT') {
+      return 'Sales Order';
+    } else if (type === 'work_order' || type === 'SERVICE') {
+      return 'Work Order';
+    } else {
+      return 'Opportunity';
+    }
+  };
+
+  // Determine the correct gradient color for the header based on package type
+  const getHeaderGradient = () => {
+    const type = opportunity.packageType || opportunity.opportunityType;
+    
+    if (type === 'sales_order' || type === 'PRODUCT') {
+      return 'bg-gradient-to-r from-emerald-500 to-green-600';
+    } else if (type === 'work_order' || type === 'SERVICE') {
+      return 'bg-gradient-to-r from-blue-500 to-cyan-600';
+    } else {
+      return 'bg-gradient-to-r from-emerald-500 to-green-600';
+    }
+  };
+
+  // Get the success message based on what was created
+  const getSuccessMessage = () => {
+    const type = opportunity.packageType || opportunity.opportunityType;
+    
+    if (type === 'sales_order' || type === 'PRODUCT') {
+      return 'Sales Order Created Successfully!';
+    } else if (type === 'work_order' || type === 'SERVICE') {
+      return 'Work Order Created Successfully!';
+    } else {
+      return 'Opportunity Created Successfully!';
+    }
+  };
+
+  // Get the description based on what was created
+  const getSuccessDescription = () => {
+    const type = opportunity.packageType || opportunity.opportunityType;
+    
+    if (type === 'sales_order' || type === 'PRODUCT') {
+      return 'Your sales order has been created and is ready for processing';
+    } else if (type === 'work_order' || type === 'SERVICE') {
+      return 'Your work order has been created and is ready for scheduling';
+    } else {
+      return 'All details have been saved and processed';
+    }
+  };
+
+  // Get the main success icon color based on package type
+  const getSuccessIconColor = () => {
+    const type = opportunity.packageType || opportunity.opportunityType;
+    
+    if (type === 'sales_order' || type === 'PRODUCT') {
+      return 'text-emerald-500';
+    } else if (type === 'work_order' || type === 'SERVICE') {
+      return 'text-blue-500';
+    } else {
+      return 'text-green-500';
     }
   };
 
@@ -152,16 +228,16 @@ export default function SuccessModal({
         
         {/* Modal */}
         <div className="relative w-full max-w-4xl transform overflow-hidden rounded-2xl bg-white shadow-2xl transition-all">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-emerald-500 to-green-600 p-6">
+          {/* Header - Dynamic gradient based on package type */}
+          <div className={`p-6 ${getHeaderGradient()}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-white/20 rounded-xl">
-                  <CheckCircle className="h-8 w-8 text-white" />
+                  {getPackageTypeIcon()}
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-white">Opportunity Created Successfully!</h2>
-                  <p className="text-emerald-100 text-sm">All details have been saved and processed</p>
+                  <h2 className="text-2xl font-bold text-white">{getSuccessMessage()}</h2>
+                  <p className="text-white/90 text-sm">{getSuccessDescription()}</p>
                 </div>
               </div>
               <button
@@ -175,11 +251,15 @@ export default function SuccessModal({
 
           {/* Content */}
           <div className="max-h-[70vh] overflow-y-auto p-6">
-            {/* Success Animation */}
+            {/* Success Animation with dynamic color */}
             <div className="flex justify-center mb-8">
               <div className="relative">
-                <div className="h-24 w-24 rounded-full bg-gradient-to-r from-green-100 to-emerald-100 flex items-center justify-center">
-                  <CheckCircle className="h-12 w-12 text-green-500" />
+                <div className={`h-24 w-24 rounded-full ${
+                  opportunity.packageType === 'sales_order' || opportunity.opportunityType === 'PRODUCT'
+                    ? 'bg-gradient-to-r from-emerald-100 to-green-100'
+                    : 'bg-gradient-to-r from-blue-100 to-cyan-100'
+                } flex items-center justify-center`}>
+                  <CheckCircle className={`h-12 w-12 ${getSuccessIconColor()}`} />
                 </div>
                 <div className="absolute -top-2 -right-2">
                   <div className="h-10 w-10 rounded-full bg-gradient-to-r from-yellow-400 to-orange-400 flex items-center justify-center animate-pulse">
@@ -192,18 +272,18 @@ export default function SuccessModal({
             {/* Opportunity Information Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
               {/* Opportunity Details Card */}
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100/30 rounded-2xl border border-blue-200 p-5">
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100/30 rounded-2xl border border-gray-200 p-5">
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <FileText className="h-5 w-5 text-blue-600" />
+                  <div className="p-2 bg-gray-100 rounded-lg">
+                    {getPackageTypeIcon()}
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-800">Opportunity Details</h3>
+                  <h3 className="text-lg font-semibold text-gray-800">Order Details</h3>
                 </div>
                 
                 <div className="space-y-4">
                   <div>
                     <div className="text-sm text-gray-600 mb-1">Subject</div>
-                    <div className="font-medium text-gray-800 text-lg">{opportunity.subject || 'New Opportunity'}</div>
+                    <div className="font-medium text-gray-800 text-lg">{opportunity.subject || 'New Order'}</div>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
@@ -216,7 +296,7 @@ export default function SuccessModal({
                     </div>
                     
                     <div>
-                      <div className="text-sm text-gray-600 mb-1">Type</div>
+                      <div className="text-sm text-gray-600 mb-1">Customer Type</div>
                       <div className="flex items-center gap-2">
                         {opportunity.type === 'organization' ? (
                           <>
@@ -233,15 +313,19 @@ export default function SuccessModal({
                     </div>
                   </div>
                   
-                  {opportunity.opportunityType && (
-                    <div>
-                      <div className="text-sm text-gray-600 mb-1">Opportunity Type</div>
-                      <div className={`px-3 py-1.5 rounded-lg text-sm font-medium inline-flex items-center gap-2 ${getOpportunityTypeColor(opportunity.opportunityType)} border`}>
-                        {getOpportunityTypeIcon(opportunity.opportunityType)}
-                        {opportunity.opportunityType === 'SERVICE' ? 'Service' : 'Product'}
-                      </div>
+                  {/* Package Type Display */}
+                  <div>
+                    <div className="text-sm text-gray-600 mb-1">Order Type</div>
+                    <div className={`px-3 py-1.5 rounded-lg text-sm font-medium inline-flex items-center gap-2 ${getPackageTypeColor()} border`}>
+                      {getPackageTypeIcon()}
+                      {getPackageTypeDisplay()}
                     </div>
-                  )}
+                    {opportunity.opportunityType && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Opportunity Type: {opportunity.opportunityType === 'SERVICE' ? 'Service' : 'Product'}
+                      </p>
+                    )}
+                  </div>
                   
                   <div>
                     <div className="text-sm text-gray-600 mb-1">ID</div>
@@ -386,14 +470,26 @@ export default function SuccessModal({
                   )}
                   
                   {opportunity.total !== undefined && (
-                    <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/30 rounded-xl border border-emerald-200 p-4">
+                    <div className={`rounded-xl border p-4 ${
+                      opportunity.packageType === 'sales_order' || opportunity.opportunityType === 'PRODUCT'
+                        ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/30 border-emerald-200'
+                        : 'bg-gradient-to-br from-blue-50 to-blue-100/30 border-blue-200'
+                    }`}>
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-emerald-100 rounded-lg">
-                          <CreditCard className="h-4 w-4 text-emerald-600" />
+                        <div className={`p-2 rounded-lg ${
+                          opportunity.packageType === 'sales_order' || opportunity.opportunityType === 'PRODUCT'
+                            ? 'bg-emerald-100 text-emerald-600'
+                            : 'bg-blue-100 text-blue-600'
+                        }`}>
+                          <CreditCard className="h-4 w-4" />
                         </div>
                         <div>
                           <div className="text-sm text-gray-600">Grand Total</div>
-                          <div className="text-xl font-bold text-emerald-600">
+                          <div className={`text-xl font-bold ${
+                            opportunity.packageType === 'sales_order' || opportunity.opportunityType === 'PRODUCT'
+                              ? 'text-emerald-600'
+                              : 'text-blue-600'
+                          }`}>
                             KES {opportunity.total?.toLocaleString() || '0'}
                           </div>
                         </div>
@@ -416,12 +512,33 @@ export default function SuccessModal({
                   <div className="text-sm text-gray-600">Vehicle{opportunity.vehicles?.length !== 1 ? 's' : ''}</div>
                 </div>
                 
-                <div className="text-center p-4 rounded-xl bg-gradient-to-br from-green-50 to-green-100/30 border border-green-200">
-                  <div className="h-12 w-12 rounded-full bg-gradient-to-r from-green-100 to-green-200 flex items-center justify-center mx-auto mb-3">
-                    <FileText className="h-6 w-6 text-green-600" />
+                {/* Check if we have quotes (for sales) or job cards (for work orders) */}
+                <div className={`text-center p-4 rounded-xl border ${
+                  opportunity.packageType === 'work_order' || opportunity.opportunityType === 'SERVICE'
+                    ? 'bg-gradient-to-br from-amber-50 to-amber-100/30 border-amber-200'
+                    : 'bg-gradient-to-br from-green-50 to-green-100/30 border-green-200'
+                }`}>
+                  <div className={`h-12 w-12 rounded-full flex items-center justify-center mx-auto mb-3 ${
+                    opportunity.packageType === 'work_order' || opportunity.opportunityType === 'SERVICE'
+                      ? 'bg-gradient-to-r from-amber-100 to-amber-200'
+                      : 'bg-gradient-to-r from-green-100 to-green-200'
+                  }`}>
+                    {opportunity.packageType === 'work_order' || opportunity.opportunityType === 'SERVICE' ? (
+                      <Wrench className="h-6 w-6 text-amber-600" />
+                    ) : (
+                      <ShoppingBag className="h-6 w-6 text-green-600" />
+                    )}
                   </div>
-                  <div className="text-2xl font-bold text-gray-800">{opportunity.quotes?.length || 0}</div>
-                  <div className="text-sm text-gray-600">Quote{opportunity.quotes?.length !== 1 ? 's' : ''}</div>
+                  <div className="text-2xl font-bold text-gray-800">
+                    {opportunity.packageType === 'work_order' || opportunity.opportunityType === 'SERVICE'
+                      ? (opportunity.jobCards?.length || 0)
+                      : (opportunity.quotes?.length || 0)}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {opportunity.packageType === 'work_order' || opportunity.opportunityType === 'SERVICE'
+                      ? `Job Card${opportunity.jobCards?.length !== 1 ? 's' : ''}`
+                      : `Quote${opportunity.quotes?.length !== 1 ? 's' : ''}`}
+                  </div>
                 </div>
                 
                 <div className="text-center p-4 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/30 border border-amber-200">
@@ -463,7 +580,7 @@ export default function SuccessModal({
                     </div>
                     <div className="flex-1">
                       <div className="font-medium text-gray-800">View Full Details</div>
-                      <div className="text-sm text-gray-500">See complete opportunity information</div>
+                      <div className="text-sm text-gray-500">See complete order information</div>
                     </div>
                     <ArrowRight className="h-4 w-4 text-gray-400 ml-auto group-hover:text-blue-500 transition-colors" />
                   </div>
@@ -482,7 +599,7 @@ export default function SuccessModal({
                     </div>
                     <div className="flex-1">
                       <div className="font-medium text-gray-800">Create Another</div>
-                      <div className="text-sm text-gray-500">Add new opportunity</div>
+                      <div className="text-sm text-gray-500">Add new order</div>
                     </div>
                     <ArrowRight className="h-4 w-4 text-gray-400 ml-auto group-hover:text-green-500 transition-colors" />
                   </div>
@@ -502,10 +619,10 @@ export default function SuccessModal({
                       </div>
                       <div className="flex-1">
                         <div className="font-medium text-gray-800">Assign to Team</div>
-                        <div className="text-sm text-gray-500">Assign this opportunity</div>
+                        <div className="text-sm text-gray-500">Assign this order</div>
                       </div>
                       <ArrowRight className="h-4 w-4 text-gray-400 ml-auto group-hover:text-purple-500 transition-colors" />
-                    </div>
+                  </div>
                   </button>
                 )}
               </div>
@@ -517,6 +634,7 @@ export default function SuccessModal({
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="text-sm text-gray-500">
                 Created at {formatDate(opportunity.createdAt || new Date().toISOString())}
+                {opportunity.packageType && ` • Type: ${getPackageTypeDisplay()}`}
               </div>
               
               <div className="flex items-center gap-3">
@@ -532,9 +650,13 @@ export default function SuccessModal({
                     onViewDetails?.();
                     onClose();
                   }}
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 text-sm font-medium shadow-sm transition-all flex items-center gap-2"
+                  className={`px-6 py-2.5 rounded-xl text-white text-sm font-medium shadow-sm transition-all flex items-center gap-2 ${
+                    opportunity.packageType === 'sales_order' || opportunity.opportunityType === 'PRODUCT'
+                      ? 'bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700'
+                      : 'bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700'
+                  }`}
                 >
-                  View Opportunity
+                  View {getPackageTypeDisplay()}
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </div>

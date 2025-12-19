@@ -184,7 +184,7 @@ export default function WorkOrderCard({
         <div className="mt-6 pt-4 border-t border-gray-200">
           <div className="flex items-center justify-between">
             <Link
-              href={`/work-orders/${workOrder._id}`}
+              href={`/orders/work-orders/${workOrder._id}`}
               className="flex items-center gap-2 text-green-600 hover:text-green-700 text-sm font-medium"
             >
               <ExternalLink className="h-4 w-4" />

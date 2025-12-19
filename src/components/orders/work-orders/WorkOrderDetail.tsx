@@ -40,7 +40,7 @@ export default function WorkOrderDetail({ orderId }: WorkOrderDetailProps) {
     } catch (error) {
       console.error('Error fetching work order:', error);
       showToast('Failed to load work order details', 'error');
-      router.push('/work-orders');
+      router.push('/orders/work-orders');
     } finally {
       setLoading(false);
     }
@@ -118,7 +118,7 @@ export default function WorkOrderDetail({ orderId }: WorkOrderDetailProps) {
             
             <div className="flex items-center gap-2">
               <button
-                onClick={() => router.push(`/work-orders/${workOrder._id}/edit`)}
+                onClick={() => router.push(`/orders/work-orders/${workOrder._id}/edit`)}
                 className="p-2 hover:bg-white/20 rounded-xl transition-colors"
                 title="Edit"
               >
@@ -332,7 +332,7 @@ export default function WorkOrderDetail({ orderId }: WorkOrderDetailProps) {
               <div className="p-6">
                 <div className="space-y-3">
                   <button
-                    onClick={() => router.push(`/work-orders/${workOrder._id}/edit`)}
+                    onClick={() => router.push(`/orders/work-orders/${workOrder._id}/edit`)}
                     className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-green-500 to-teal-600 text-white hover:from-green-600 hover:to-teal-700 flex items-center justify-center gap-2"
                   >
                     <Edit className="h-5 w-5" />

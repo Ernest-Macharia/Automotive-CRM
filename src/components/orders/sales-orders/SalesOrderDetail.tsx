@@ -40,7 +40,7 @@ export default function SalesOrderDetail({ orderId }: SalesOrderDetailProps) {
     } catch (error) {
       console.error('Error fetching sales order:', error);
       showToast('Failed to load sales order details', 'error');
-      router.push('/sales-orders');
+      router.push('/orders/sales-orders');
     } finally {
       setLoading(false);
     }
@@ -118,7 +118,7 @@ export default function SalesOrderDetail({ orderId }: SalesOrderDetailProps) {
             
             <div className="flex items-center gap-2">
               <Link
-                href={`/sales-orders/${salesOrder._id}/edit`}
+                href={`/orders/sales-orders/${salesOrder._id}/edit`}
                 className="p-2 hover:bg-white/20 rounded-xl transition-colors"
                 title="Edit"
               >
@@ -293,13 +293,13 @@ export default function SalesOrderDetail({ orderId }: SalesOrderDetailProps) {
               
               <div className="p-6">
                 <div className="space-y-3">
-                  <Link
-                    href={`/sales-orders/${salesOrder._id}/edit`}
-                    className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 flex items-center justify-center gap-2"
+                  <button
+                    onClick={() => router.push(`/orders/sales-orders/${salesOrder._id}/edit`)}
+                    className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-green-600 hover:to-teal-700 flex items-center justify-center gap-2"
                   >
                     <Edit className="h-5 w-5" />
-                    Edit Order
-                  </Link>
+                    Edit Sales Order
+                  </button>
                   
                   <button
                     onClick={() => window.print()}

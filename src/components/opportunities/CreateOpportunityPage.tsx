@@ -747,6 +747,7 @@ export default function CreateOpportunityPage() {
     setTimeout(() => setDraftSaved(false), 3000);
   };
 
+  // Replace the entire handleSubmit function with this:
   const handleSubmit = async () => {
     if (!validateStep()) {
       showToast('Please fix the validation errors before submitting.', 'error', 3000);
@@ -762,10 +763,13 @@ export default function CreateOpportunityPage() {
         ? `${formData.firstName} ${formData.lastName}'s ${formData.opportunityType.toLowerCase()} request`
         : `${formData.companyName}'s ${formData.opportunityType.toLowerCase()} request`;
 
-      // 🔹 Calculate once
+      // Calculate financials
       const subtotal = calculateSubtotal();
       const totalDiscount = calculateTotalDiscount();
       const total = calculateTotal();
+
+      // Determine the package type based on opportunity type
+      const packageType = formData.opportunityType === 'SERVICE' ? 'work_order' : 'sales_order';
 
       const apiFormData: CreateOpportunityData = {
         type: formData.accountType,
@@ -773,6 +777,7 @@ export default function CreateOpportunityPage() {
         subject,
         status: 'new',
         opportunityType: formData.opportunityType,
+        packageType: packageType,
 
         customer: {
           name: isIndividual
@@ -781,14 +786,26 @@ export default function CreateOpportunityPage() {
           email: formData.email || undefined,
           phone: `${formData.phoneCode}${formData.phone}` || undefined,
           companyName: !isIndividual ? formData.companyName : undefined,
+          // Include contact person details for organizations
+          ...(formData.accountType === 'organization' && {
+            contactPersonName: formData.contactPersonName || undefined,
+            contactPersonEmail: formData.contactPersonEmail || undefined,
+            contactPersonPhone: formData.contactPersonPhone ? 
+              `${formData.phoneCode}${formData.contactPersonPhone}` : undefined,
+            contactPersonTitle: formData.contactPersonTitle || undefined,
+          }),
         },
 
         vehicles: formData.vehicles?.length
-        ? formData.vehicles.map(mapVehicle)
-        : undefined,
+          ? formData.vehicles.map(mapVehicle)
+          : undefined,
 
         servicesProducts: formData.servicesProducts?.length
-          ? formData.servicesProducts
+          ? formData.servicesProducts.map(item => ({
+              ...item,
+              // Ensure type matches the selected opportunity type
+              type: formData.opportunityType,
+            }))
           : undefined,
 
         notes: formData.notes || undefined,
@@ -797,17 +814,21 @@ export default function CreateOpportunityPage() {
         total,
       };
 
-      // 🔹 Minimal required-field check
-      if (!apiFormData.customer.name || !apiFormData.customer.phone) {
-        throw new Error('Missing required customer details');
-      }
+      console.log('Creating opportunity with type:', formData.opportunityType);
+      console.log('Package type will be:', packageType);
+      console.log('Services/Products count:', formData.servicesProducts?.length);
 
       const result = await opportunityService.createOpportunity(apiFormData);
 
       setCreatedOpportunity(result);
       setShowSuccessModal(true);
       localStorage.removeItem('opportunityDraft');
-      showToast('Opportunity created successfully!', 'success', 3000);
+      
+      // Show success message based on type
+      const successMessage = formData.opportunityType === 'SERVICE' 
+        ? 'Work Order created successfully!' 
+        : 'Sales Order created successfully!';
+      showToast(successMessage, 'success', 3000);
 
     } catch (error: any) {
       handleCreateOpportunityError(error);

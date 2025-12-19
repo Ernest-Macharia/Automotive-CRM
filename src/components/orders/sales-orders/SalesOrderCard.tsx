@@ -169,7 +169,7 @@ export default function SalesOrderCard({
         <div className="mt-6 pt-4 border-t border-gray-200">
           <div className="flex items-center justify-between">
             <Link
-              href={`/sales-orders/${salesOrder._id}`}
+              href={`/orders/sales-orders/${salesOrder._id}`}
               className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
             >
               <ExternalLink className="h-4 w-4" />
