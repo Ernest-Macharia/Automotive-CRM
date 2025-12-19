@@ -35,7 +35,7 @@ export interface CreateUserData {
   name?: string;
   email: string;
   password?: string;
-  role: string | Role;
+  roleName: string | Role;
   permissions?: string[];
   phone?: string;
   department?: string;
@@ -339,7 +339,7 @@ class UserService {
         name: data.name || data.email.split('@')[0],
         email: data.email,
         password: data.password,
-        role: data.role,
+        role: data.roleName,
         ...(data.permissions && { permissions: data.permissions }),
         ...(data.phone && { phone: data.phone }),
         ...(data.department && { department: data.department }),

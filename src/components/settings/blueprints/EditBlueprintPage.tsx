@@ -1,8 +1,7 @@
-// app/settings/blueprints/edit/page.tsx
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Plus,
@@ -25,7 +24,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
-import { settingsService, Blueprint } from '@/services/settingsService';
+import { blueprintsService, Blueprint } from '@/services/settings/blueprintsService';
 import React from 'react';
 
 // Reuse the interfaces
@@ -43,7 +42,7 @@ interface ActionForm {
   params: Record<string, string>;
 }
 
-// Available role options
+// Available role options - get from service
 const ROLE_OPTIONS = [
   'admin',
   'manager',
@@ -87,14 +86,18 @@ const ACTION_TYPES = [
   }
 ];
 
-export default function EditBlueprintPage() {
+interface EditBlueprintPageProps {
+  blueprintId: string;
+}
+
+export default function EditBlueprintPage({ blueprintId }: EditBlueprintPageProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { showToast } = useToast();
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
+  const [availableModules, setAvailableModules] = useState<string[]>([]);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -105,7 +108,6 @@ export default function EditBlueprintPage() {
   });
 
   const [expandedStage, setExpandedStage] = useState<number | null>(null);
-  const blueprintId = searchParams.get('id');
 
   useEffect(() => {
     if (blueprintId) {
@@ -119,7 +121,7 @@ export default function EditBlueprintPage() {
   const loadBlueprint = async () => {
     try {
       setLoading(true);
-      const data = await settingsService.getBlueprint(blueprintId as string);
+      const data = await blueprintsService.getBlueprint(blueprintId as string);
       setBlueprint(data);
       setFormData({
         name: data.name,
@@ -147,6 +149,16 @@ export default function EditBlueprintPage() {
       router.push('/settings/blueprints');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAvailableModules = async () => {
+    try {
+      const modules = await blueprintsService.getAvailableModules();
+      setAvailableModules(modules);
+    } catch (error) {
+      console.error('Error loading available modules:', error);
+      setAvailableModules(['opportunities', 'quotes', 'customers', 'jobs', 'inventory', 'projects', 'tasks']);
     }
   };
 
@@ -298,7 +310,7 @@ export default function EditBlueprintPage() {
         })),
       };
       
-      await settingsService.updateBlueprint(blueprintId as string, blueprintData);
+      await blueprintsService.updateBlueprint(blueprintId as string, blueprintData);
       showToast('Blueprint updated successfully', 'success');
       router.push('/settings/blueprints');
     } catch (error: any) {
@@ -327,7 +339,7 @@ export default function EditBlueprintPage() {
         })),
       };
       
-      const newBlueprint = await settingsService.createBlueprint(duplicateData);
+      const newBlueprint = await blueprintsService.createBlueprint(duplicateData);
       showToast('Blueprint duplicated successfully', 'success');
       router.push(`/settings/blueprints/edit?id=${newBlueprint.id}`);
     } catch (error: any) {
@@ -349,7 +361,7 @@ export default function EditBlueprintPage() {
       
       // Optionally save immediately
       if (blueprint) {
-        await settingsService.updateBlueprint(blueprint.id, {
+        await blueprintsService.updateBlueprint(blueprint.id, {
           isActive: newStatus,
         });
         showToast(`Blueprint ${newStatus ? 'activated' : 'deactivated'}`, 'success');
@@ -357,6 +369,28 @@ export default function EditBlueprintPage() {
     } catch (error) {
       console.error('Error toggling status:', error);
       showToast('Failed to update status', 'error');
+    }
+  };
+
+  const handleTestAutomation = async () => {
+    if (!blueprint) return;
+    
+    try {
+      await blueprintsService.testBlueprintAutomation({
+        name: blueprint.name,
+        module: blueprint.module,
+        stages: blueprint.stages.map(stage => ({
+          name: stage.name,
+          order: stage.order,
+          allowedRoles: stage.allowedRoles,
+          entryActions: stage.entryActions,
+          exitActions: stage.exitActions,
+        })),
+      });
+      showToast('Blueprint automation test completed successfully', 'success');
+    } catch (error: any) {
+      console.error('Error testing blueprint automation:', error);
+      showToast(error.message || 'Failed to test blueprint automation', 'error');
     }
   };
 
@@ -409,6 +443,13 @@ export default function EditBlueprintPage() {
             </div>
             
             <div className="flex items-center gap-3">
+              <button
+                onClick={handleTestAutomation}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium backdrop-blur-sm transition-colors"
+              >
+                <Sparkles className="h-4 w-4" />
+                Test Automation
+              </button>
               <button
                 onClick={handleDuplicate}
                 className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium backdrop-blur-sm transition-colors"
@@ -482,7 +523,7 @@ export default function EditBlueprintPage() {
               <div className="flex items-center gap-2">
                 <button 
                   className="p-2 bg-white/10 hover:bg-white/20 rounded-lg"
-                  onClick={() => window.open(`/settings/blueprints/preview?id=${blueprint.id}`, '_blank')}
+                  onClick={() => router.push(`/settings/blueprints/${blueprint.id}`)}
                 >
                   <Eye className="h-4 w-4 text-white" />
                 </button>
@@ -571,14 +612,14 @@ export default function EditBlueprintPage() {
                     Clone to New Blueprint
                   </button>
                   <button
-                    onClick={() => window.open(`/settings/blueprints/preview?id=${blueprintId}`, '_blank')}
+                    onClick={() => router.push(`/settings/blueprints/${blueprint.id}`)}
                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:text-blue-700 font-medium hover:bg-blue-50 rounded-lg transition-colors"
                   >
                     <Eye className="h-4 w-4" />
-                    Preview Blueprint
+                    View Details
                   </button>
                   <button
-                    onClick={() => router.push(`/settings/blueprints/test?id=${blueprintId}`)}
+                    onClick={handleTestAutomation}
                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-green-600 hover:text-green-700 font-medium hover:bg-green-50 rounded-lg transition-colors"
                   >
                     <Sparkles className="h-4 w-4" />
@@ -629,13 +670,11 @@ export default function EditBlueprintPage() {
                       className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
                       disabled={saving}
                     >
-                      <option value="opportunities">Opportunities</option>
-                      <option value="quotes">Quotes</option>
-                      <option value="customers">Customers</option>
-                      <option value="jobs">Jobs</option>
-                      <option value="inventory">Inventory</option>
-                      <option value="projects">Projects</option>
-                      <option value="tasks">Tasks</option>
+                      {availableModules.map(module => (
+                        <option key={module} value={module}>
+                          {module.charAt(0).toUpperCase() + module.slice(1)}
+                        </option>
+                      ))}
                     </select>
                   </div>
 

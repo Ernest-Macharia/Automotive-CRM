@@ -4,7 +4,7 @@ export interface User {
   id: string;
   name: string | null;
   email: string;
-  role: string;
+  roleName: string;
   permissions: string[];
   active: boolean;
   canViewSummary?: boolean;
@@ -16,7 +16,7 @@ export interface CreateUserData {
   name?: string;
   email: string;
   password?: string;
-  role: string;
+  roleName: string;
   permissions?: string[];
   active?: boolean;
 }
@@ -24,7 +24,7 @@ export interface CreateUserData {
 export interface UpdateUserData {
   name?: string;
   email?: string;
-  role?: string;
+  roleName?: string;
   permissions?: string[];
   active?: boolean;
   canViewSummary?: boolean;

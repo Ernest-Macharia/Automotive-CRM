@@ -24,7 +24,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
-import { roleService } from '@/services/roleService';
+import { roleService } from '@/services/settings/roleService';
 
 interface FormData {
   name: string;

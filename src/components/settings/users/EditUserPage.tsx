@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   User,
@@ -69,16 +69,10 @@ export default function EditUserPage({
   onSave
 }: EditUserPageProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { showToast } = useToast();
 
   const handleBack = () => {
     onBack?.() || router.push('/settings/users');
-  };
-  
-  // Use onEdit for edit button
-  const handleEdit = () => {
-    onSave?.() || router.push(`/settings/users/${userId}/edit`);
   };
   
   const [loading, setLoading] = useState(true);

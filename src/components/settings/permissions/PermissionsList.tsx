@@ -40,7 +40,7 @@ import {
   Download,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
-import { roleService, Permission, ROLE_NAMES, PERMISSIONS } from '@/services/roleService';
+import { roleService, Permission, ROLE_NAMES, PERMISSIONS } from '@/services/settings/roleService';
 import Link from 'next/link';
 
 interface PermissionFilters {

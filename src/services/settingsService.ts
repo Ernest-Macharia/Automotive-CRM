@@ -34,6 +34,7 @@ export interface UpdateUserData {
 // Role Management Types
 export interface Role {
   id: string;
+  _id: string;
   name: string;
   display_name: string;
   category: string;

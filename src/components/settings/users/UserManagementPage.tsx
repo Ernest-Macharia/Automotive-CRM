@@ -93,7 +93,7 @@ export default function UserManagementPage({
       result = result.filter(user => {
         const userName = user.name?.toLowerCase() || '';
         const userEmail = user.email.toLowerCase();
-        const userRole = user.role?.toLowerCase() || '';
+        const userRole = user.roleName?.toLowerCase() || '';
         
         return (
           userName.includes(searchTerm) ||
@@ -104,7 +104,7 @@ export default function UserManagementPage({
     }
 
     if (filters.role !== 'all') {
-      result = result.filter(user => user.role === filters.role);
+      result = result.filter(user => user.roleName === filters.role);
     }
 
     if (filters.status !== 'all') {
@@ -173,7 +173,7 @@ export default function UserManagementPage({
     total: users.length,
     active: users.filter(u => u.active).length,
     inactive: users.filter(u => !u.active).length,
-    admins: users.filter(u => u.role === 'admin').length,
+    admins: users.filter(u => u.roleName === 'admin').length,
     withSummaryAccess: users.filter(u => u.canViewSummary).length,
     recent: users.filter(u => {
       if (!u.createdAt) return false;
@@ -263,8 +263,8 @@ export default function UserManagementPage({
         </div>
       </td>
       <td className="px-6 py-4">
-        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRoleBadgeColor(user.role)} whitespace-nowrap`}>
-          {getRoleDisplayName(user.role)}
+        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRoleBadgeColor(user.roleName)} whitespace-nowrap`}>
+          {getRoleDisplayName(user.roleName)}
         </span>
       </td>
       <td className="px-6 py-4">
@@ -293,14 +293,14 @@ export default function UserManagementPage({
       <td className="px-6 py-4">
         <div className="flex items-center gap-2">
           <button
-            onClick={() => router.push(`/settings/users/details?id=${user.id}`)}
+            onClick={() => router.push(`/settings/users/${user.id}`)}
             className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700 rounded-lg transition-colors"
             title="View Details"
           >
             <Eye className="h-4 w-4" />
           </button>
           <button
-            onClick={() => router.push(`/settings/users/edit?id=${user.id}`)}
+            onClick={() => router.push(`/settings/users/${user.id}/edit`)}
             className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
             title="Edit User"
           >

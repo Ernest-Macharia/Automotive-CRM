@@ -119,7 +119,7 @@ export default function WorkOrdersList() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-teal-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6 shadow-lg">
         <div className="max-w-7xl mx-auto">
@@ -130,7 +130,7 @@ export default function WorkOrdersList() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-white">Work Orders</h1>
-                <p className="text-green-100 text-sm">Manage and track all work orders</p>
+                <p className="text-blue-100 text-sm">Manage and track all work orders</p>
               </div>
             </div>
             
@@ -158,14 +158,14 @@ export default function WorkOrdersList() {
       {stats && (
         <div className="max-w-7xl mx-auto p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-2xl p-4 border border-green-200">
+            <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-2xl p-4 border border-blue-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-green-700">Total Work Orders</p>
                   <p className="text-2xl font-bold text-green-800">{stats.total}</p>
                 </div>
-                <div className="p-3 rounded-xl bg-green-500/20">
-                  <Wrench className="h-6 w-6 text-green-600" />
+                <div className="p-3 rounded-xl bg-blue-500/20">
+                  <Wrench className="h-6 w-6 text-blue-600" />
                 </div>
               </div>
             </div>
@@ -219,7 +219,7 @@ export default function WorkOrdersList() {
       <div className="max-w-7xl mx-auto p-4">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           {/* Filters */}
-          <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-green-50/50 to-teal-50/50">
+          <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50/50 to-purple-50/50">
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="flex-1 w-full">
                 <div className="relative">
@@ -229,7 +229,7 @@ export default function WorkOrdersList() {
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Search work orders by number, customer, or description..."
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -239,7 +239,7 @@ export default function WorkOrdersList() {
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="appearance-none pl-4 pr-10 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white"
+                    className="appearance-none pl-4 pr-10 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                   >
                     {statusOptions.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -272,18 +272,18 @@ export default function WorkOrdersList() {
           <div className="p-6">
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
               </div>
             ) : workOrders.length === 0 ? (
               <div className="text-center py-12">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-green-100 to-teal-100 mb-4">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 mb-4">
                   <Wrench className="h-8 w-8 text-gray-600" />
                 </div>
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">No work orders found</h3>
                 <p className="text-gray-500 mb-6">Create your first work order from an opportunity</p>
                 <Link
                   href="/orders/work-orders/create"
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-green-500 to-teal-600 text-white hover:from-green-600 hover:to-teal-700 font-medium inline-flex items-center gap-2"
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 font-medium inline-flex items-center gap-2"
                 >
                   <Plus className="h-5 w-5" />
                   Create New Work Order
@@ -307,8 +307,8 @@ export default function WorkOrdersList() {
                       <tr key={order._id} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="py-4 px-4">
                           <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-gradient-to-r from-green-100 to-green-200">
-                              <Wrench className="h-4 w-4 text-green-600" />
+                            <div className="p-2 rounded-lg bg-gradient-to-r from-blue-100 to-blue-200">
+                              <Wrench className="h-4 w-4 text-blue-600" />
                             </div>
                             <div>
                               <p className="font-medium text-gray-800">{order.workOrderNumber}</p>
@@ -356,7 +356,7 @@ export default function WorkOrdersList() {
                           <div className="flex items-center gap-2">
                             <Link
                               href={`/orders/work-orders/${order._id}`}
-                              className="p-2 rounded-lg hover:bg-green-50 text-green-600 transition-colors"
+                              className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
                               title="View Details"
                             >
                               <Eye className="h-4 w-4" />
@@ -384,7 +384,7 @@ export default function WorkOrdersList() {
                                                    'cancelled';
                                   handleStatusChange(order._id, nextStatus);
                                 }}
-                                className="px-3 py-1 rounded-lg bg-gradient-to-r from-green-500 to-teal-600 text-white text-sm hover:from-green-600 hover:to-teal-700"
+                                className="px-3 py-1 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm hover:from-green-600 hover:to-teal-700"
                               >
                                 {order.status === 'draft' ? 'Start Work' :
                                  order.status === 'in_progress' ? 'Hold' :

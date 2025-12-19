@@ -32,7 +32,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
-import { roleService, Permission } from '@/services/roleService';
+import { roleService, Permission } from '@/services/settings/roleService';
 
 interface FormData {
   name: string;

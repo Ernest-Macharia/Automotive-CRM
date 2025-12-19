@@ -23,7 +23,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
-import { settingsService, Blueprint } from '@/services/settingsService';
+import { blueprintsService, Blueprint } from '@/services/settings/blueprintsService';
 
 export default function BlueprintsManagementPage() {
   const router = useRouter();
@@ -44,7 +44,12 @@ export default function BlueprintsManagementPage() {
   const loadBlueprints = async () => {
     try {
       setLoading(true);
-      const data = await settingsService.getBlueprints();
+      const data = await blueprintsService.getBlueprints();
+      
+      // Log each blueprint's ID
+      data.forEach((blueprint, index) => {
+      });
+      
       setBlueprints(data);
     } catch (error) {
       console.error('Error loading blueprints:', error);
@@ -57,14 +62,30 @@ export default function BlueprintsManagementPage() {
   const handleCreateBlueprint = () => {
     router.push('/settings/blueprints/create');
   };
+  const handleViewDetails = (id: string) => {
+    
+    if (!id || id === 'undefined') {
+      console.error('Invalid blueprint ID:', id);
+      showToast('Invalid blueprint ID', 'error');
+      return;
+    }
+    
+    router.push(`/settings/blueprints/${id}`);
+  };
 
   const handleEditBlueprint = (id: string) => {
-    router.push(`/settings/blueprints/edit?id=${id}`);
+    
+    if (!id || id === 'undefined') {
+      console.error('Invalid blueprint ID for edit:', id);
+      showToast('Invalid blueprint ID', 'error');
+      return;
+    }
+    router.push(`/settings/blueprints/${id}/edit`);
   };
 
   const handleToggleStatus = async (blueprint: Blueprint) => {
     try {
-      const updatedBlueprint = await settingsService.updateBlueprint(blueprint.id, {
+      const updatedBlueprint = await blueprintsService.updateBlueprint(blueprint.id, {
         isActive: !blueprint.isActive,
       });
       setBlueprints(prev => prev.map(b => b.id === blueprint.id ? updatedBlueprint : b));
@@ -82,7 +103,7 @@ export default function BlueprintsManagementPage() {
     if (!confirm('Are you sure you want to delete this blueprint? This action cannot be undone.')) return;
     
     try {
-      await settingsService.deleteBlueprint(blueprint.id);
+      await blueprintsService.deleteBlueprint(blueprint.id);
       setBlueprints(prev => prev.filter(b => b.id !== blueprint.id));
       showToast('Blueprint deleted successfully', 'success');
     } catch (error) {
@@ -93,10 +114,16 @@ export default function BlueprintsManagementPage() {
 
   const handleTestAutomation = async (blueprint: Blueprint) => {
     try {
-      await settingsService.testBlueprintAutomation({
+      await blueprintsService.testBlueprintAutomation({
         name: `Test: ${blueprint.name}`,
         module: blueprint.module,
-        stages: blueprint.stages,
+        stages: blueprint.stages.map(stage => ({
+          name: stage.name,
+          order: stage.order,
+          allowedRoles: stage.allowedRoles,
+          entryActions: stage.entryActions,
+          exitActions: stage.exitActions,
+        })),
       });
       showToast('Blueprint automation test completed successfully', 'success');
     } catch (error) {
@@ -415,6 +442,14 @@ export default function BlueprintsManagementPage() {
                       
                       <div className="flex items-center gap-2">
                         <button
+                          onClick={() => handleViewDetails(blueprint.id)}
+                          className="p-2.5 bg-gradient-to-r from-gray-50 to-gray-100 text-gray-600 rounded-xl hover:from-gray-100 hover:to-gray-200 transition-all"
+                          title="View Details"
+                        >
+                          <ArrowRight className="h-5 w-5" />
+                        </button>
+                        
+                        <button
                           onClick={() => handleTestAutomation(blueprint)}
                           className="p-2.5 bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 rounded-xl hover:from-blue-100 hover:to-blue-200 transition-all"
                           title="Test Automation"
@@ -628,10 +663,10 @@ export default function BlueprintsManagementPage() {
                     })}
                   </div>
                   <button
-                    onClick={() => handleEditBlueprint(blueprint.id)}
+                    onClick={() => handleViewDetails(blueprint.id)}
                     className="flex items-center gap-2 text-sm font-medium text-green-600 hover:text-green-700"
                   >
-                    Edit Blueprint
+                    View Details
                     <ArrowRight className="h-4 w-4" />
                   </button>
                 </div>

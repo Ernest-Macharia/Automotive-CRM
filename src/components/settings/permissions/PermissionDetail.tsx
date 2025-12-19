@@ -33,7 +33,7 @@ import {
   Key,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
-import { roleService, Permission, ROLE_NAMES } from '@/services/roleService';
+import { roleService, Permission, ROLE_NAMES } from '@/services/settings/roleService';
 
 interface PermissionDetailProps {
   permissionId: string;
