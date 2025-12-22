@@ -605,7 +605,10 @@ export default function UserDetailsPage({
                 {user.permissions && user.permissions.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {user.permissions.map((permission, index) => {
-                      const [module, action] = permission.split('.');
+                      const parts = permission.split('.');
+                      const action = parts[1] || 'access';
+                      const module = parts[0] || 'general';
+                      
                       return (
                         <div
                           key={index}
@@ -614,9 +617,11 @@ export default function UserDetailsPage({
                           <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
                           <div>
                             <span className="text-sm font-medium text-gray-900 dark:text-white capitalize">
-                              {action?.replace('_', ' ') || permission}
+                              {action.replace(/_/g, ' ')}
                             </span>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{module || 'General'}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 capitalize">
+                              {module.replace(/_/g, ' ')}
+                            </p>
                           </div>
                         </div>
                       );

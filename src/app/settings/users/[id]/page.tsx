@@ -1,6 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import UserDetailsPage from '@/components/settings/users/UserDetailsPage';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 
@@ -9,18 +10,20 @@ export default function UserDetailsRoute() {
   const router = useRouter();
   const userId = params.id as string;
   
+  useEffect(() => {
+    if (!userId) {
+      router.push('/settings/users');
+    }
+  }, [userId, router]);
+  
   if (!userId) {
     return (
       <ProtectedRoute>
-        <div className="p-8 text-center">
-          <h1 className="text-2xl font-bold mb-4">No User Selected</h1>
-          <p>Please select a user to view details.</p>
-          <button
-            onClick={() => router.push('/settings/users')}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Back to Users List
-          </button>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading...</p>
+          </div>
         </div>
       </ProtectedRoute>
     );

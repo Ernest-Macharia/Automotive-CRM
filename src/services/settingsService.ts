@@ -25,7 +25,7 @@ export interface CreateUserData {
 export interface UpdateUserData {
   name?: string;
   email?: string;
-  role?: string;
+  roleName?: string;
   permissions?: string[];
   active?: boolean;
   canViewSummary?: boolean;

@@ -8,7 +8,6 @@ import {
   Mail,
   Lock,
   Shield,
-  Save,
   Key,
   Eye,
   EyeOff,
@@ -16,14 +15,10 @@ import {
   Check,
   X,
   UserPlus,
-  ChevronRight,
-  KeyRound,
   ShieldCheck,
-  PlusCircle,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
-import { userService, CreateUserData } from '@/services/userService';
-import { settingsService, Role } from '@/services/settingsService';
+import { userService, CreateUserData } from '@/services/settings/userService';
 
 interface FormData {
   name: string;
@@ -41,10 +36,7 @@ interface FormData {
 interface PermissionOption {
   value: string;
   label: string;
-}
-
-interface PermissionsResponse {
-  permissions?: string[];
+  category: string;
 }
 
 interface CreateUserPageProps {
@@ -61,10 +53,23 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
   
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
+  const [availableRoles, setAvailableRoles] = useState<Array<{ 
+    id: string; 
+    name: string; 
+    display_name: string; 
+    description?: string; 
+    permissions: string[] 
+  }>>([]);
   const [availablePermissions, setAvailablePermissions] = useState<PermissionOption[]>([]);
-  const [selectedRoleDetails, setSelectedRoleDetails] = useState<Role | null>(null);
+  const [selectedRoleDetails, setSelectedRoleDetails] = useState<{ 
+    id: string; 
+    name: string; 
+    display_name: string; 
+    description?: string; 
+    permissions: string[] 
+  } | null>(null);
   const [loadingRolePermissions, setLoadingRolePermissions] = useState(false);
+  const [rolesLoaded, setRolesLoaded] = useState(false);
   
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -87,184 +92,67 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
   }, []);
 
   useEffect(() => {
-    // When role changes, fetch role permissions
-    if (formData.roleName) {
+    if (formData.roleName && rolesLoaded) {
       fetchRolePermissions(formData.roleName);
     } else {
       setSelectedRoleDetails(null);
       setFormData(prev => ({ ...prev, rolePermissions: [] }));
     }
-  }, [formData.roleName]);
+  }, [formData.roleName, rolesLoaded]);
 
   const loadRolesAndPermissions = async () => {
     try {
-      // Use getRoles instead of getAllRoles
-      const roles = await settingsService.getRoles();
-      setAvailableRoles(Array.isArray(roles) ? roles : [roles]);
+      console.log('Loading roles...');
       
-      // Load all available permissions for additional selection
-      try {
-        // Try to get permissions from the /roles/permissions endpoint
-        const allPermissionsResponse = await settingsService.getPermissionOptions() as any;
-        const permissionOptions: PermissionOption[] = [];
-        
-        if (Array.isArray(allPermissionsResponse)) {
-          // If response is an array of strings
-          allPermissionsResponse.forEach((permission: string) => {
-            permissionOptions.push({
-              value: permission,
-              label: formatPermissionLabel(permission),
-            });
-          });
-        } else if (allPermissionsResponse && allPermissionsResponse.permissions && Array.isArray(allPermissionsResponse.permissions)) {
-          // If response has a permissions property with array
-          allPermissionsResponse.permissions.forEach((permission: string) => {
-            permissionOptions.push({
-              value: permission,
-              label: formatPermissionLabel(permission),
-            });
-          });
-        } else if (allPermissionsResponse && typeof allPermissionsResponse === 'object') {
-          // If response is an array of objects
-          Object.entries(allPermissionsResponse).forEach(([key, value]) => {
-            if (typeof value === 'string') {
-              permissionOptions.push({
-                value: value,
-                label: formatPermissionLabel(value),
-              });
-            }
-          });
-        }
-        
-        if (permissionOptions.length > 0) {
-          setAvailablePermissions(permissionOptions);
-        } else {
-          // If no permissions found, use default permissions
-          setAvailablePermissions(getDefaultPermissions());
-        }
-      } catch (permError) {
-        console.error('Error loading permissions:', permError);
-        // If permission endpoint fails, use default permissions
-        setAvailablePermissions(getDefaultPermissions());
+      const roles = await userService.getRoles();
+      console.log('Loaded roles:', roles);
+      
+      setAvailableRoles(roles);
+      setRolesLoaded(true);
+      
+      if (roles.length === 0) {
+        showToast('No roles found. Please create roles first.', 'warning');
+      } else {
+        console.log(`Successfully loaded ${roles.length} roles`);
       }
+      
     } catch (error) {
-      console.error('Error loading roles and permissions:', error);
-      showToast('Failed to load system data', 'error');
+      console.error('Error loading roles:', error);
+      showToast('Failed to load roles', 'error');
+      setAvailableRoles([]);
+      setRolesLoaded(true);
     }
-  };
-
-  const getDefaultPermissions = (): PermissionOption[] => {
-    return [
-      { value: 'users.create', label: 'Create Users' },
-      { value: 'users.read', label: 'Read Users' },
-      { value: 'users.update', label: 'Update Users' },
-      { value: 'users.delete', label: 'Delete Users' },
-      { value: 'dashboard.view', label: 'View Dashboard' },
-      { value: 'leads.create', label: 'Create Leads' },
-      { value: 'leads.read', label: 'Read Leads' },
-      { value: 'leads.update', label: 'Update Leads' },
-      { value: 'leads.delete', label: 'Delete Leads' },
-      { value: 'quotes.create', label: 'Create Quotes' },
-      { value: 'quotes.read', label: 'Read Quotes' },
-      { value: 'quotes.update', label: 'Update Quotes' },
-      { value: 'work_orders.create', label: 'Create Work Orders' },
-      { value: 'work_orders.read', label: 'Read Work Orders' },
-      { value: 'work_orders.update', label: 'Update Work Orders' },
-      { value: 'reports.generate', label: 'Generate Reports' },
-      { value: 'reports.view', label: 'View Reports' },
-    ];
   };
 
   const fetchRolePermissions = async (roleName: string) => {
     try {
       setLoadingRolePermissions(true);
       
-      // Find the selected role from available roles
       const role = availableRoles.find(r => r.name === roleName);
       if (role) {
         setSelectedRoleDetails(role);
         
-        // If role has permissions array, use it
         const permissions = role.permissions || [];
         setFormData(prev => ({
           ...prev,
           rolePermissions: permissions,
-          // Clear additional permissions that might be included in role permissions
           additionalPermissions: prev.additionalPermissions.filter(
             p => !permissions.includes(p)
           ),
         }));
       } else {
-        try {
-          // Try to fetch role details from API using POST /roles/find
-          const roleDetails = await fetch('/api/v1/roles/find', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ name: roleName }),
-          });
-          
-          if (roleDetails.ok) {
-            const roleData = await roleDetails.json();
-            setSelectedRoleDetails(roleData);
-            
-            const permissions = roleData.permissions || [];
-            setFormData(prev => ({
-              ...prev,
-              rolePermissions: permissions,
-              additionalPermissions: prev.additionalPermissions.filter(
-                p => !permissions.includes(p)
-              ),
-            }));
-          } else {
-            console.warn(`Role ${roleName} not found via API`);
-            // If role not found via API, set default permissions based on role name
-            const defaultPermissions = getDefaultPermissionsForRole(roleName);
-            setFormData(prev => ({
-              ...prev,
-              rolePermissions: defaultPermissions,
-              additionalPermissions: prev.additionalPermissions.filter(
-                p => !defaultPermissions.includes(p)
-              ),
-            }));
-          }
-        } catch (apiError) {
-          console.error('Error fetching role from API:', apiError);
-          // Fallback to default permissions
-          const defaultPermissions = getDefaultPermissionsForRole(roleName);
-          setFormData(prev => ({
-            ...prev,
-            rolePermissions: defaultPermissions,
-            additionalPermissions: prev.additionalPermissions.filter(
-              p => !defaultPermissions.includes(p)
-            ),
-          }));
-        }
+        console.warn(`Role "${roleName}" not found in available roles`);
+        setSelectedRoleDetails(null);
+        setFormData(prev => ({ ...prev, rolePermissions: [] }));
       }
     } catch (error) {
       console.error('Error fetching role permissions:', error);
-      showToast('Failed to load role permissions', 'error');
     } finally {
       setLoadingRolePermissions(false);
     }
   };
 
-  const getDefaultPermissionsForRole = (roleName: string): string[] => {
-    // Default permissions based on common role names
-    const rolePermissions: Record<string, string[]> = {
-      'admin': ['users.create', 'users.read', 'users.update', 'users.delete', 'dashboard.view', 'reports.generate', 'reports.view'],
-      'sales_manager': ['leads.create', 'leads.read', 'leads.update', 'quotes.create', 'quotes.read', 'quotes.update', 'dashboard.view', 'reports.view'],
-      'sales_rep': ['leads.create', 'leads.read.own', 'leads.update.own', 'quotes.create', 'quotes.read.own', 'quotes.update.own', 'dashboard.view'],
-      'technician': ['work_orders.read.assigned', 'work_orders.update.assigned', 'dashboard.view'],
-      'technical_manager': ['work_orders.create', 'work_orders.read', 'work_orders.update', 'dashboard.view', 'reports.view'],
-    };
-    
-    return rolePermissions[roleName] || ['dashboard.view'];
-  };
-
   const formatPermissionLabel = (permission: string): string => {
-    // Convert "users.create" to "Create Users"
     const parts = permission.split('.');
     if (parts.length >= 2) {
       const [entity, action] = parts;
@@ -303,19 +191,11 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
   const generateSecurePassword = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
     let password = '';
-    for (let i = 0; i < 12; i++) {
+    const length = 12;
+    for (let i = 0; i < length; i++) {
       password += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return password;
-  };
-
-  const toggleAdditionalPermission = (permission: string) => {
-    setFormData(prev => ({
-      ...prev,
-      additionalPermissions: prev.additionalPermissions.includes(permission)
-        ? prev.additionalPermissions.filter(p => p !== permission)
-        : [...prev.additionalPermissions, permission]
-    }));
   };
 
   const validateForm = (): boolean => {
@@ -334,10 +214,8 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
     if (!formData.generatePassword) {
       if (!formData.password) {
         newErrors.password = 'Password is required';
-      } else if (formData.password.length < 8) {
-        newErrors.password = 'Password must be at least 8 characters';
-      } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
-        newErrors.password = 'Password must include uppercase, lowercase, and numbers';
+      } else if (formData.password.length < 6) {
+        newErrors.password = 'Password must be at least 6 characters';
       }
       
       if (formData.password !== formData.confirmPassword) {
@@ -346,16 +224,16 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
     }
     
     if (!formData.roleName) {
-      newErrors.role = 'Role is required';
+      newErrors.roleName = 'Role is required';
+    } else if (!availableRoles.find(r => r.name === formData.roleName)) {
+      newErrors.roleName = 'Please select a valid role';
     }
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // In your handleSubmit function in CreateUserPage
   const handleSubmit = async () => {
-    
     if (!validateForm()) {
       showToast('Please fix the errors in the form', 'error');
       setFormStep(1);
@@ -365,29 +243,65 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
     setLoading(true);
     
     try {
-      // Prepare user data WITHOUT permissions
-      // Backend will assign permissions based on the role
       const userData: CreateUserData = {
-        name: formData.name,
-        email: formData.email,
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
         roleName: formData.roleName,
+        // active: formData.active,
       };
-      
-      // Only add password if applicable
-      if (!formData.generatePassword) {
+
+      // Set password
+      if (formData.password) {
         userData.password = formData.password;
-      } else if (formData.sendWelcomeEmail) {
-        userData.password = formData.password;
+      } else {
+        userData.password = generateSecurePassword();
       }
       
-      const newUser = await userService.createUser(userData);
-      showToast('User created successfully', 'success');
+      console.log('Creating user with:', userData);
       
-      router.push('/settings/users');
+      const newUser = await userService.createUser(userData);
+      
+      showToast('User created successfully!', 'success');
+
+      // Show password if auto-generated
+      if (formData.generatePassword && !formData.sendWelcomeEmail) {
+        setTimeout(() => {
+          showToast(`Generated password: ${userData.password}`, 'info', 10000);
+        }, 1000);
+      }
+      
+      // Redirect after delay
+      setTimeout(() => {
+        router.push('/settings/users');
+      }, 1500);
       
     } catch (error: any) {
       console.error('Error creating user:', error);
-      showToast(error.message || 'Failed to create user', 'error');
+      
+      let errorMessage = 'Failed to create user';
+      
+      if (error.message) {
+        errorMessage = error.message;
+        
+        // Check for specific backend errors
+        if (errorMessage.includes('Only admin')) {
+          errorMessage = 'You need administrator privileges to create users';
+        } else if (errorMessage.includes('already exists')) {
+          errorMessage = 'A user with this email already exists';
+        } else if (errorMessage.includes('Role') && errorMessage.includes('not found')) {
+          const roleMatch = errorMessage.match(/Role "([^"]+)" not found/);
+          const roleName = roleMatch ? roleMatch[1] : formData.roleName;
+          errorMessage = `Role "${roleName}" was not found. Available roles: ${availableRoles.map(r => r.display_name).join(', ')}`;
+        } else if (errorMessage.includes('Missing required')) {
+          errorMessage = 'Please fill in all required fields';
+        } else if (errorMessage.includes('Invalid email')) {
+          errorMessage = 'Please enter a valid email address';
+        } else if (errorMessage.includes('Password must be at least')) {
+          errorMessage = 'Password must be at least 6 characters long';
+        }
+      }
+      
+      showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
     }
@@ -399,6 +313,12 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
         showToast('Please fill in all required fields', 'error');
         return;
       }
+      
+      // Validate role exists
+      if (!availableRoles.find(r => r.name === formData.roleName)) {
+        showToast('Please select a valid role from the dropdown', 'error');
+        return;
+      }
     }
     setFormStep(prev => prev + 1);
   };
@@ -407,11 +327,14 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
     setFormStep(prev => prev - 1);
   };
 
-  // Get permissions that are available for additional selection
-  const getAvailableAdditionalPermissions = (): PermissionOption[] => {
-    return availablePermissions.filter(
-      permission => !formData.rolePermissions.includes(permission.value)
-    );
+  // Get unique permission categories for display
+  const getPermissionCategories = () => {
+    const categories = new Set<string>();
+    formData.rolePermissions.forEach(permission => {
+      const category = permission.split('.')[0] || 'general';
+      categories.add(category);
+    });
+    return Array.from(categories);
   };
 
   return (
@@ -422,14 +345,14 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => router.push('/settings/users')}
+                onClick={handleBack}
                 className="p-2 bg-white/20 hover:bg-white/30 rounded-xl backdrop-blur-sm transition-colors"
               >
                 <ArrowLeft className="h-5 w-5 text-white" />
               </button>
               <div>
                 <h1 className="text-2xl font-bold text-white">Create New User</h1>
-                <p className="text-blue-100 mt-1">Add a new user to your CRM system</p>
+                <p className="text-blue-100 mt-1">Add a new user to your system</p>
               </div>
             </div>
           </div>
@@ -531,27 +454,31 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
                       value={formData.roleName}
                       onChange={(e) => handleInputChange('roleName', e.target.value)}
                       className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 ${
-                        errors.role ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
+                        errors.roleName ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
                       }`}
-                      disabled={loadingRolePermissions}
+                      disabled={!rolesLoaded || loadingRolePermissions}
                     >
                       <option value="">Select a role</option>
-                      {availableRoles.map((role) => (
-                        <option key={role.id || role._id} value={role.name}>
-                          {role.display_name || role.name}
-                        </option>
-                      ))}
+                      {availableRoles.length === 0 ? (
+                        <option value="" disabled>Loading roles...</option>
+                      ) : (
+                        availableRoles.map((role) => (
+                          <option key={role.id || role.name} value={role.name}>
+                            {role.display_name || role.name}
+                          </option>
+                        ))
+                      )}
                     </select>
-                    {loadingRolePermissions && (
+                    {(!rolesLoaded || loadingRolePermissions) && (
                       <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                       </div>
                     )}
                   </div>
-                  {errors.role && (
+                  {errors.roleName && (
                     <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
                       <AlertCircle className="h-3 w-3" />
-                      {errors.role}
+                      {errors.roleName}
                     </p>
                   )}
 
@@ -562,7 +489,7 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
                         <ShieldCheck className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
                         <div>
                           <h4 className="font-medium text-blue-800 dark:text-blue-300">
-                            {selectedRoleDetails.display_name || selectedRoleDetails.name}
+                            {selectedRoleDetails.display_name}
                           </h4>
                           {selectedRoleDetails.description && (
                             <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
@@ -572,23 +499,8 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
                           {formData.rolePermissions.length > 0 && (
                             <div className="mt-2">
                               <p className="text-xs font-medium text-blue-800 dark:text-blue-300">
-                                Includes {formData.rolePermissions.length} permission(s)
+                                Includes {formData.rolePermissions.length} permissions
                               </p>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {formData.rolePermissions.slice(0, 3).map((permission: string) => (
-                                  <span
-                                    key={permission}
-                                    className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-full"
-                                  >
-                                    {formatPermissionLabel(permission)}
-                                  </span>
-                                ))}
-                                {formData.rolePermissions.length > 3 && (
-                                  <span className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-full">
-                                    +{formData.rolePermissions.length - 3} more
-                                  </span>
-                                )}
-                              </div>
                             </div>
                           )}
                         </div>
@@ -710,13 +622,38 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
             </div>
           )}
 
-          {/* Step 3: Permissions & Settings */}
+          {/* Step 3: Review & Settings */}
           {formStep === 3 && (
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-8 shadow-sm">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Permissions & Settings</h3>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Review & Settings</h3>
               
               <div className="space-y-8">
-                {/* Role Permissions Section */}
+                {/* User Summary */}
+                <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-100 dark:border-blue-800">
+                  <h4 className="font-medium text-gray-900 dark:text-white mb-4">User Summary</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Name</p>
+                      <p className="font-medium text-gray-900 dark:text-white">{formData.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Email</p>
+                      <p className="font-medium text-gray-900 dark:text-white">{formData.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Role</p>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {selectedRoleDetails?.display_name || formData.roleName}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Status</p>
+                      <p className="font-medium text-green-600 dark:text-green-400">Active</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Role Permissions Summary */}
                 {selectedRoleDetails && formData.rolePermissions.length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-4">
@@ -724,83 +661,39 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
                       <h4 className="font-medium text-gray-900 dark:text-white">
                         Role Permissions ({formData.rolePermissions.length})
                       </h4>
-                      <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full">
-                        Auto-assigned
-                      </span>
                     </div>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                      These permissions are automatically included with the {selectedRoleDetails.display_name || selectedRoleDetails.name} role
+                      This user will inherit all permissions from the <span className="font-medium">{selectedRoleDetails.display_name}</span> role
                     </p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded-lg">
-                      {formData.rolePermissions.map((permission: string) => {
-                        const permissionOption = availablePermissions.find(p => p.value === permission);
-                        return (
-                          <div
-                            key={permission}
-                            className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 rounded-lg"
-                          >
-                            <ShieldCheck className="h-4 w-4 text-green-500 dark:text-green-400" />
-                            <span className="text-sm text-gray-700 dark:text-gray-300">
-                              {permissionOption?.label || formatPermissionLabel(permission)}
-                            </span>
+                    <div className="max-h-60 overflow-y-auto p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {getPermissionCategories().map((category) => (
+                          <div key={category} className="mb-3">
+                            <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">
+                              {category.replace('_', ' ')}
+                            </h5>
+                            <div className="space-y-1">
+                              {formData.rolePermissions
+                                .filter(p => p.startsWith(`${category}.`))
+                                .slice(0, 5)
+                                .map((permission: string, index: number) => (
+                                  <div
+                                    key={`permission-${index}-${permission}`}
+                                    className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 rounded"
+                                  >
+                                    <ShieldCheck className="h-3 w-3 text-green-500 dark:text-green-400" />
+                                    <span className="text-xs text-gray-700 dark:text-gray-300">
+                                      {formatPermissionLabel(permission)}
+                                    </span>
+                                  </div>
+                                ))}
+                            </div>
                           </div>
-                        );
-                      })}
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
-
-                {/* Additional Permissions Section */}
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <PlusCircle className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                      <h4 className="font-medium text-gray-900 dark:text-white">
-                        Additional Permissions
-                      </h4>
-                      {formData.additionalPermissions.length > 0 && (
-                        <span className="ml-2 px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-full">
-                          {formData.additionalPermissions.length} added
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Add extra permissions beyond what's included in the role
-                  </p>
-                  
-                  {getAvailableAdditionalPermissions().length === 0 ? (
-                    <div className="p-8 text-center border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl">
-                      <Shield className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                      <p className="text-gray-600 dark:text-gray-400">
-                        No additional permissions available. The selected role already includes all permissions.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded-lg">
-                      {getAvailableAdditionalPermissions().map((permission: PermissionOption) => (
-                        <label
-                          key={permission.value}
-                          className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
-                            formData.additionalPermissions.includes(permission.value)
-                              ? 'border-purple-300 dark:border-purple-500 bg-purple-50 dark:bg-purple-500/10'
-                              : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-500 hover:bg-purple-50/50 dark:hover:bg-purple-500/5'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={formData.additionalPermissions.includes(permission.value)}
-                            onChange={() => toggleAdditionalPermission(permission.value)}
-                            className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">
-                            {permission.label}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
 
                 {/* Email Settings */}
                 <div className="space-y-4">
@@ -814,10 +707,10 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
                     />
                     <div>
                       <label htmlFor="sendWelcomeEmail" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Send welcome email with login instructions
+                        Send welcome email
                       </label>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        User will receive email with login credentials
+                        User will receive email with login credentials and instructions
                       </p>
                     </div>
                   </div>
@@ -840,7 +733,7 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
             ) : (
               <button
                 type="button"
-                onClick={() => router.push('/settings/users')}
+                onClick={handleBack}
                 className="flex items-center gap-2 px-6 py-3 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 <X className="h-4 w-4" />
