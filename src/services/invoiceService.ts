@@ -66,7 +66,10 @@ class InvoiceService {
         }))
       };
       
-      return await apiClient.post<typeof processedData, Invoice>('/invoices', processedData);
+      console.log('Creating invoice with data:', processedData);
+      const response = await apiClient.post<typeof processedData, any>('/invoices', processedData);
+      console.log('Invoice creation response:', response);
+      return this.mapApiResponseToInvoice(response);
     } catch (error) {
       console.error('Error creating invoice:', error);
       throw error;
@@ -75,6 +78,7 @@ class InvoiceService {
 
   async getAllInvoices(params?: InvoiceFilterParams): Promise<Invoice[]> {
     try {
+      console.log('Fetching invoices with params:', params);
       const queryParams = new URLSearchParams();
       
       if (params) {
@@ -88,16 +92,30 @@ class InvoiceService {
       const queryString = queryParams.toString();
       const endpoint = `/invoices${queryString ? `?${queryString}` : ''}`;
       
-      return await apiClient.get<Invoice[]>(endpoint);
-    } catch (error) {
+      console.log('API endpoint:', endpoint);
+      const response = await apiClient.get<any[]>(endpoint);
+      console.log('Invoices API response:', response);
+      
+      if (!Array.isArray(response)) {
+        console.error('Expected array but got:', response);
+        return [];
+      }
+      
+      return response.map(item => this.mapApiResponseToInvoice(item));
+    } catch (error: any) {
       console.error('Error fetching invoices:', error);
+      console.error('Error details:', error.message, error.response?.data, error.status);
+      showToast('Failed to load invoices', 'error');
       throw error;
     }
   }
 
   async getInvoiceById(id: string): Promise<Invoice> {
     try {
-      return await apiClient.get<Invoice>(`/invoices/${id}`);
+      console.log('Fetching invoice by ID:', id);
+      const response = await apiClient.get<any>(`/invoices/${id}`);
+      console.log('Invoice by ID response:', response);
+      return this.mapApiResponseToInvoice(response);
     } catch (error) {
       console.error(`Error fetching invoice ${id}:`, error);
       throw error;
@@ -106,7 +124,8 @@ class InvoiceService {
 
   async updateInvoice(id: string, data: Partial<Invoice>): Promise<Invoice> {
     try {
-      return await apiClient.patch<Partial<Invoice>, Invoice>(`/invoices/${id}`, data);
+      const response = await apiClient.patch<Partial<Invoice>, any>(`/invoices/${id}`, data);
+      return this.mapApiResponseToInvoice(response);
     } catch (error) {
       console.error(`Error updating invoice ${id}:`, error);
       throw error;
@@ -124,6 +143,7 @@ class InvoiceService {
 
   async createInvoiceFromQuote(quoteId: string, data?: Partial<CreateInvoiceData>): Promise<Invoice> {
     try {
+      console.log('Creating invoice from quote:', quoteId);
       const quote = await quoteService.getQuoteById(quoteId);
       
       const invoiceData = {
@@ -172,9 +192,6 @@ class InvoiceService {
   async exportInvoiceToPDF(id: string): Promise<Blob> {
     try {
       return await apiClient.get<Blob>(`/invoices/${id}/export/pdf`, {
-        // headers: {
-        //   'Accept': 'application/pdf',
-        // },
         responseType: 'blob'
       });
     } catch (error) {
@@ -195,6 +212,58 @@ class InvoiceService {
     }
   }
 
+  // Helper method to map API response to Invoice interface
+  private mapApiResponseToInvoice(apiResponse: any): Invoice {
+    console.log('Mapping API response to invoice:', apiResponse);
+    
+    // Calculate balance if not provided
+    const totalAmount = apiResponse.totalAmount || apiResponse.total || 0;
+    const paidAmount = apiResponse.paidAmount || 0;
+    const balance = apiResponse.balance !== undefined 
+      ? apiResponse.balance 
+      : totalAmount - paidAmount;
+    
+    // Parse payment status
+    let paymentStatus: Invoice['paymentStatus'] = 'pending';
+    if (apiResponse.paymentStatus) {
+      const status = apiResponse.paymentStatus.toLowerCase();
+      if (['draft', 'pending', 'partially_paid', 'paid', 'overdue', 'cancelled'].includes(status)) {
+        paymentStatus = status as Invoice['paymentStatus'];
+      }
+    }
+    
+    // Parse items
+    const items: InvoiceItem[] = apiResponse.items || [];
+    
+    // Calculate subtotal if not provided
+    const subtotal = apiResponse.subtotal || items.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
+    
+    // Parse dates
+    const now = new Date().toISOString();
+    const dueDate = apiResponse.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    
+    // Use default values for missing fields
+    return {
+      id: apiResponse.id || `temp-${Date.now()}`,
+      invoiceNumber: apiResponse.invoiceNumber || `INV-${Date.now()}`,
+      opportunityId: apiResponse.opportunityId || '',
+      quoteId: apiResponse.quoteId,
+      items: items,
+      subtotal: subtotal,
+      tax: apiResponse.tax || 0,
+      totalAmount: totalAmount,
+      paidAmount: paidAmount,
+      balance: balance,
+      paymentStatus: paymentStatus,
+      dueDate: dueDate,
+      issueDate: apiResponse.issueDate || apiResponse.createdAt || now,
+      notes: apiResponse.notes,
+      terms: apiResponse.terms || '',
+      createdAt: apiResponse.createdAt || now,
+      updatedAt: apiResponse.updatedAt || now
+    };
+  }
+
   formatCurrency(amount: number): string {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -204,23 +273,43 @@ class InvoiceService {
   }
 
   isOverdue(dueDate: string): boolean {
-    return new Date(dueDate) < new Date();
+    try {
+      return new Date(dueDate) < new Date();
+    } catch (error) {
+      console.error('Error checking if date is overdue:', error, dueDate);
+      return false;
+    }
   }
 
   daysUntilDue(dueDate: string): number {
-    const due = new Date(dueDate);
-    const now = new Date();
-    const diffTime = due.getTime() - now.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    try {
+      const due = new Date(dueDate);
+      const now = new Date();
+      const diffTime = due.getTime() - now.getTime();
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    } catch (error) {
+      console.error('Error calculating days until due:', error, dueDate);
+      return 0;
+    }
   }
 
   formatDate(dateString: string): string {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error, dateString);
+      return 'Invalid date';
+    }
   }
 }
 
 export const invoiceService = new InvoiceService();
+
+// Helper function for toast (temporary)
+function showToast(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
+  console.log(`Toast: ${type}: ${message}`);
+}

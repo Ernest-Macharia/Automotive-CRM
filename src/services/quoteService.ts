@@ -65,7 +65,7 @@ class QuoteService {
         }))
       };
       
-      return await apiClient.post<typeof processedData, Quote>('/api/v1/quotes', processedData);
+      return await apiClient.post<typeof processedData, Quote>('/quotes', processedData);
     } catch (error) {
       console.error('Error creating quote:', error);
       throw error;
@@ -85,7 +85,7 @@ class QuoteService {
       }
       
       const queryString = queryParams.toString();
-      const endpoint = `/api/v1/quotes${queryString ? `?${queryString}` : ''}`;
+      const endpoint = `/quotes${queryString ? `?${queryString}` : ''}`;
       
       return await apiClient.get<Quote[]>(endpoint);
     } catch (error) {
@@ -96,7 +96,7 @@ class QuoteService {
 
   async getQuoteById(id: string): Promise<Quote> {
     try {
-      return await apiClient.get<Quote>(`/api/v1/quotes/${id}`);
+      return await apiClient.get<Quote>(`/quotes/${id}`);
     } catch (error) {
       console.error(`Error fetching quote ${id}:`, error);
       throw error;
@@ -105,7 +105,7 @@ class QuoteService {
 
   async updateQuote(id: string, data: Partial<Quote>): Promise<Quote> {
     try {
-      return await apiClient.patch<Partial<Quote>, Quote>(`/api/v1/quotes/${id}`, data);
+      return await apiClient.patch<Partial<Quote>, Quote>(`/quotes/${id}`, data);
     } catch (error) {
       console.error(`Error updating quote ${id}:`, error);
       throw error;
@@ -114,7 +114,7 @@ class QuoteService {
 
   async deleteQuote(id: string): Promise<{ message: string }> {
     try {
-      return await apiClient.delete<{ message: string }>(`/api/v1/quotes/${id}`);
+      return await apiClient.delete<{ message: string }>(`/quotes/${id}`);
     } catch (error) {
       console.error(`Error deleting quote ${id}:`, error);
       throw error;
@@ -123,7 +123,7 @@ class QuoteService {
 
   async approveQuote(id: string): Promise<Quote> {
     try {
-      return await apiClient.patch<object, Quote>(`/api/v1/quotes/${id}/approve`, {});
+      return await apiClient.patch<object, Quote>(`/quotes/${id}/approve`, {});
     } catch (error) {
       console.error(`Error approving quote ${id}:`, error);
       throw error;
@@ -132,7 +132,7 @@ class QuoteService {
 
   async getQuoteStats(): Promise<any> {
     try {
-      return await apiClient.get('/api/v1/quotes/stats');
+      return await apiClient.get('/quotes/stats');
     } catch (error) {
       console.error('Error fetching quote stats:', error);
       throw error;
@@ -141,7 +141,7 @@ class QuoteService {
 
   async generateQuoteNumber(): Promise<string> {
     try {
-      const response = await apiClient.get<{ nextNumber: string }>('/api/v1/quotes/generate-number');
+      const response = await apiClient.get<{ nextNumber: string }>('/quotes/generate-number');
       return response.nextNumber;
     } catch (error) {
       console.error('Error generating quote number:', error);
@@ -169,7 +169,7 @@ class QuoteService {
   async sendQuoteEmail(id: string, emailData: { to: string; subject?: string; message?: string }): Promise<{ message: string }> {
     try {
       return await apiClient.post<typeof emailData, { message: string }>(
-        `/api/v1/quotes/${id}/send-email`,
+        `/quotes/${id}/send-email`,
         emailData
       );
     } catch (error) {
