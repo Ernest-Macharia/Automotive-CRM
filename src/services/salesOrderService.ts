@@ -92,6 +92,7 @@ export interface CreateSalesOrderData {
 export interface UpdateSalesOrderData {
   status?: 'draft' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   salesRep?: string;
+  quoteId?: string;
   orderDate?: string;
   estimatedDeliveryDate?: string;
   actualDeliveryDate?: string;
