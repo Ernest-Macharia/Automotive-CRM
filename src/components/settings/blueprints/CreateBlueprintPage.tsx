@@ -16,6 +16,7 @@ import {
   X,
   ChevronDown,
   ChevronRight,
+  Loader2,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { blueprintsService } from '@/services/settings/blueprintsService';
@@ -50,7 +51,6 @@ export default function CreateBlueprintPage() {
 
   const [expandedStage, setExpandedStage] = useState<number | null>(null);
 
-  // Load available modules on component mount
   useState(() => {
     const loadModules = async () => {
       try {
@@ -220,21 +220,21 @@ export default function CreateBlueprintPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-purple-50/30">
       {/* Header */}
-      <div className="bg-gradient-to-r from-green-500 to-emerald-600 shadow-lg">
+      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 shadow-lg">
         <div className="max-w-7xl mx-auto px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={handleCancel}
-                className="p-2 bg-white/20 hover:bg-white/30 rounded-xl backdrop-blur-sm transition-colors"
+                className="p-2 bg-white/20 hover:bg-white/30 rounded-xl backdrop-blur-sm transition-colors hover:scale-110"
               >
                 <ArrowLeft className="h-5 w-5 text-white" />
               </button>
               <div>
                 <h1 className="text-2xl font-bold text-white">Create Blueprint</h1>
-                <p className="text-green-100 mt-1">Design a new workflow template and process stages</p>
+                <p className="text-blue-100/90 mt-1">Design a new workflow template and process stages</p>
               </div>
             </div>
             
@@ -242,18 +242,18 @@ export default function CreateBlueprintPage() {
               <button
                 onClick={handleCancel}
                 disabled={loading}
-                className="px-6 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium backdrop-blur-sm transition-colors"
+                className="px-6 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium backdrop-blur-sm transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={loading}
-                className="flex items-center gap-2 px-8 py-2.5 bg-white text-green-600 rounded-xl font-medium hover:bg-green-50 transition-all shadow-lg disabled:opacity-50"
+                className="flex items-center gap-2 px-8 py-2.5 bg-white text-blue-600 rounded-xl font-medium hover:bg-blue-50 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]"
               >
                 {loading ? (
                   <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600"></div>
+                    <Loader2 className="h-5 w-5 animate-spin" />
                     Creating...
                   </>
                 ) : (
@@ -273,7 +273,7 @@ export default function CreateBlueprintPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Sidebar - Progress */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm sticky top-8">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-blue-100/50 p-6 shadow-lg sticky top-8">
               <h3 className="text-lg font-semibold text-gray-900 mb-6">Blueprint Creation</h3>
               
               <div className="space-y-1">
@@ -282,13 +282,13 @@ export default function CreateBlueprintPage() {
                   { id: 2, label: 'Process Stages', status: 'current' },
                   { id: 3, label: 'Review & Create', status: 'upcoming' },
                 ].map((step) => (
-                  <div key={step.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50">
+                  <div key={step.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-blue-50/30 transition-colors">
                     <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
                       step.status === 'completed' 
-                        ? 'bg-green-100 text-green-600' 
+                        ? 'bg-gradient-to-r from-green-100 to-green-200 text-green-600 border border-green-200' 
                         : step.status === 'current'
-                        ? 'bg-green-500 text-white'
-                        : 'bg-gray-100 text-gray-400'
+                        ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white'
+                        : 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-400 border border-blue-200'
                     }`}>
                       {step.status === 'completed' ? '✓' : step.id}
                     </div>
@@ -300,19 +300,19 @@ export default function CreateBlueprintPage() {
                 ))}
               </div>
               
-              <div className="mt-8 pt-6 border-t border-gray-200">
+              <div className="mt-8 pt-6 border-t border-blue-100/50">
                 <h4 className="text-sm font-semibold text-gray-700 mb-3">Quick Tips</h4>
                 <ul className="space-y-2 text-sm text-gray-600">
                   <li className="flex items-start gap-2">
-                    <div className="h-5 w-5 rounded bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0 mt-0.5">✓</div>
+                    <div className="h-5 w-5 rounded bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0 mt-0.5">✓</div>
                     <span>Each stage requires at least one allowed role</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <div className="h-5 w-5 rounded bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0 mt-0.5">✓</div>
+                    <div className="h-5 w-5 rounded bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0 mt-0.5">✓</div>
                     <span>Entry actions run when a record enters the stage</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <div className="h-5 w-5 rounded bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0 mt-0.5">✓</div>
+                    <div className="h-5 w-5 rounded bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0 mt-0.5">✓</div>
                     <span>Exit actions run when a record leaves the stage</span>
                   </li>
                 </ul>
@@ -324,9 +324,9 @@ export default function CreateBlueprintPage() {
           <div className="lg:col-span-2">
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Basic Information Card */}
-              <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-blue-100/50 p-8 shadow-lg">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg">
+                  <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg">
                     <Layers className="h-6 w-6 text-white" />
                   </div>
                   <div>
@@ -344,7 +344,7 @@ export default function CreateBlueprintPage() {
                       type="text"
                       value={formData.name}
                       onChange={(e) => handleInputChange('name', e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-blue-200 bg-white/50 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                       placeholder="e.g., Opportunity Pipeline"
                       disabled={loading}
                     />
@@ -359,7 +359,7 @@ export default function CreateBlueprintPage() {
                       <select
                         value={formData.module}
                         onChange={(e) => handleInputChange('module', e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent appearance-none bg-white"
+                        className="w-full px-4 py-3 border border-blue-200 bg-white/50 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors appearance-none"
                         disabled={loading}
                       >
                         {availableModules.map(module => (
@@ -368,7 +368,7 @@ export default function CreateBlueprintPage() {
                           </option>
                         ))}
                       </select>
-                      <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+                      <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-blue-400 pointer-events-none" />
                     </div>
                     <p className="mt-1 text-xs text-gray-500">Select the module this blueprint applies to</p>
                   </div>
@@ -381,7 +381,7 @@ export default function CreateBlueprintPage() {
                       value={formData.description}
                       onChange={(e) => handleInputChange('description', e.target.value)}
                       rows={3}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-blue-200 bg-white/50 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                       placeholder="Describe the purpose and usage of this blueprint..."
                       disabled={loading}
                     />
@@ -390,12 +390,8 @@ export default function CreateBlueprintPage() {
                 </div>
               </div>
 
-              {/* Stages Card - Rest of the component remains the same, just change the service calls */}
-              {/* ... rest of the component code remains exactly the same as before ... */}
-              {/* Only change is using blueprintsService instead of settingsService */}
-              
               {/* Status Card */}
-              <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-blue-100/50 p-8 shadow-lg">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-1">Blueprint Status</h3>
@@ -410,7 +406,7 @@ export default function CreateBlueprintPage() {
                       className="sr-only peer"
                       disabled={loading}
                     />
-                    <div className="w-14 h-7 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-green-600"></div>
+                    <div className="w-14 h-7 bg-blue-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-blue-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-gradient-to-r from-blue-600 to-purple-600"></div>
                     <span className="ml-3 text-sm font-medium text-gray-900">
                       {formData.isActive ? 'Active' : 'Inactive'}
                     </span>
@@ -419,12 +415,12 @@ export default function CreateBlueprintPage() {
               </div>
 
               {/* Bottom Actions */}
-              <div className="flex items-center justify-between pt-6 border-t border-gray-200">
+              <div className="flex items-center justify-between pt-6 border-t border-blue-200">
                 <button
                   type="button"
                   onClick={handleCancel}
                   disabled={loading}
-                  className="px-8 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors"
+                  className="px-8 py-3 border-2 border-blue-200 text-blue-700 bg-white/50 rounded-xl font-medium hover:bg-blue-50 transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -433,11 +429,10 @@ export default function CreateBlueprintPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      // Save as draft functionality
                       showToast('Draft saved successfully', 'success');
                     }}
                     disabled={loading}
-                    className="px-8 py-3 border-2 border-green-600 text-green-600 rounded-xl font-medium hover:bg-green-50 transition-colors"
+                    className="px-8 py-3 border-2 border-blue-600 text-blue-600 bg-white/50 rounded-xl font-medium hover:bg-blue-50 transition-colors disabled:opacity-50"
                   >
                     Save Draft
                   </button>
@@ -445,11 +440,11 @@ export default function CreateBlueprintPage() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex items-center gap-3 px-10 py-3.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-medium hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg disabled:opacity-50"
+                    className="flex items-center gap-3 px-10 py-3.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-medium hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]"
                   >
                     {loading ? (
                       <>
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <Loader2 className="h-5 w-5 animate-spin" />
                         Creating Blueprint...
                       </>
                     ) : (
@@ -457,7 +452,7 @@ export default function CreateBlueprintPage() {
                         <Save className="h-5 w-5" />
                         Create Blueprint
                       </>
-                )}
+                    )}
                   </button>
                 </div>
               </div>

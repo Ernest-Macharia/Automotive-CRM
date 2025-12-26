@@ -174,7 +174,7 @@ const SkeletonCard = memo(() => (
 SkeletonCard.displayName = 'SkeletonCard';
 
 const SkeletonColumn = memo(() => (
-  <div className="w-full md:w-72 lg:w-80 flex flex-col rounded-2xl bg-gray-50/80 backdrop-blur-sm border border-gray-200/50 p-4 h-auto md:h-[calc(100vh-250px)] min-h-[400px] md:min-h-[500px]">
+  <div className="w-full md:w-72 lg:w-80 flex flex-col rounded-2xl bg-gray-50/80 backdrop-blur-sm border border-gray-200/50 p-4 h-[500px]">
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center gap-2">
         <div className="h-3 w-3 rounded-full bg-gray-400/50" />
@@ -343,8 +343,7 @@ function KanbanColumn({
     return (
       <div 
         ref={containerRef}
-        className="h-[500px] overflow-y-auto pr-1"
-        style={{ scrollBehavior: 'smooth' }}
+        className="h-full overflow-y-auto pr-1 scrollbar-thin"
       >
         <div style={{ height: `${opps.length * 280}px`, position: 'relative' }}>
           {opps.slice(visibleRange.start, visibleRange.end).map((opportunity, index) => {
@@ -386,7 +385,7 @@ function KanbanColumn({
         dropping 
           ? `${stage.pastelClass} border-2 ${stage.borderColor} scale-[1.02] shadow-lg` 
           : `${stage.pastelClass} border ${stage.borderColor}`
-      } p-4 h-auto md:h-[calc(100vh-250px)] min-h-[400px] md:min-h-[500px]`}
+      } p-4 h-[500px]`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -408,9 +407,9 @@ function KanbanColumn({
         </button>
       </div>
 
-      <div className="flex-1">
+      <div className="flex-1 min-h-0">
         {loading && opportunities.length === 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-3 h-full">
             {[1, 2].map((i) => (
               <div key={i} className="opacity-70">
                 <SkeletonCard />
@@ -834,7 +833,6 @@ export default function OpportunitiesContent() {
     return labels[status] || status;
   }, []);
 
-  // Wrapper function for status updates that works with the hook
   // Wrapper function for status updates that works with the hook
   const handleStatusUpdateWrapper = async (opportunity: ExtendedOpportunity, newStatus: string): Promise<{ success: boolean; needsLead?: boolean }> => {
     try {
@@ -1298,9 +1296,22 @@ export default function OpportunitiesContent() {
 
   if (loading && !opportunities.length) {
     return (
-      <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-hidden">
-        <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg" />
-        <div className="h-[calc(100vh-64px)] p-4 md:p-6 space-y-6 overflow-auto">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg flex items-center px-6 flex-shrink-0">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-xl">
+                <Target className="h-6 w-6 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl font-bold text-white">Opportunities</h1>
+                <p className="text-blue-100 text-sm">Loading opportunities...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 p-4 md:p-6 space-y-6 overflow-auto">
           <div className="flex flex-col md:flex-row gap-4 animate-pulse">
             <div className="h-10 w-full md:w-96 bg-white/50 backdrop-blur-sm rounded-xl border border-white/30" />
             <div className="flex gap-3">
@@ -1310,13 +1321,11 @@ export default function OpportunitiesContent() {
             </div>
           </div>
 
-          <div className="pb-6 relative">
-            <div className="kanban-container">
-              <div className="flex flex-col md:flex-row gap-4 md:gap-6 pb-4">
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <SkeletonColumn key={i} />
-                ))}
-              </div>
+          <div className="flex-1 overflow-hidden">
+            <div className="flex gap-4 pb-4 min-w-max">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <SkeletonColumn key={i} />
+              ))}
             </div>
           </div>
         </div>
@@ -1325,8 +1334,9 @@ export default function OpportunitiesContent() {
   }
 
   return (
-    <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-hidden">
-      <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg flex items-center px-6">
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Header - Fixed height */}
+      <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg flex items-center px-6 flex-shrink-0">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-white/20 rounded-xl">
@@ -1367,588 +1377,595 @@ export default function OpportunitiesContent() {
         </div>
       </div>
 
-      <div className="h-[calc(100vh-64px)] p-4 md:p-6 space-y-6 overflow-auto">
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-5">
-          <div className="flex flex-col md:flex-row justify-between gap-4">
-            <div className="flex-1">
-              <form onSubmit={handleSearch} className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search opportunities, customers..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-10 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 w-full transition-all"
-                  disabled={loading || creating}
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={handleClearSearch}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+      {/* Main Content Area - Scrollable */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-4 md:p-6 space-y-6">
+          {/* Search and Filters */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-5">
+            <div className="flex flex-col md:flex-row justify-between gap-4">
+              <div className="flex-1">
+                <form onSubmit={handleSearch} className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search opportunities, customers..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 pr-10 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 w-full transition-all"
                     disabled={loading || creating}
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-                {showSearchHelp && (
-                  <div className="absolute top-full left-0 right-0 mt-1 px-3 py-1.5 bg-amber-50/80 backdrop-blur-sm border border-amber-200/50 rounded-lg text-xs text-amber-700">
-                    Type at least 3 characters to search
-                  </div>
-                )}
-              </form>
-              {debouncedSearch.length >= 3 && (
-                <div className="mt-3 flex items-center gap-2 text-sm">
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50/80 backdrop-blur-sm text-blue-600 rounded-lg">
-                    <Search className="h-3 w-3" />
-                    <span>Searching for: "{debouncedSearch}"</span>
+                  />
+                  {searchQuery && (
                     <button
+                      type="button"
                       onClick={handleClearSearch}
-                      className="ml-2 text-blue-400 hover:text-blue-600"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                      disabled={loading || creating}
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-4 w-4" />
                     </button>
-                  </div>
-                  {searchLoading && (
-                    <div className="flex items-center gap-1 text-gray-500">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      <span>Searching...</span>
+                  )}
+                  {showSearchHelp && (
+                    <div className="absolute top-full left-0 right-0 mt-1 px-3 py-1.5 bg-amber-50/80 backdrop-blur-sm border border-amber-200/50 rounded-lg text-xs text-amber-700">
+                      Type at least 3 characters to search
                     </div>
                   )}
-                </div>
-              )}
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => fetchOpportunities(true)}
-                disabled={refreshing || loading || creating}
-                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium transition-colors ${
-                  refreshing || loading || creating
-                    ? 'border-gray-200/50 bg-gray-50/50 text-gray-400 cursor-not-allowed'
-                    : 'border-gray-200 bg-white/50 text-gray-600 hover:bg-white'
-                }`}
-              >
-                {refreshing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="hidden sm:inline">Refreshing...</span>
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4" />
-                    <span className="hidden sm:inline">Refresh</span>
-                  </>
+                </form>
+                {debouncedSearch.length >= 3 && (
+                  <div className="mt-3 flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50/80 backdrop-blur-sm text-blue-600 rounded-lg">
+                      <Search className="h-3 w-3" />
+                      <span>Searching for: "{debouncedSearch}"</span>
+                      <button
+                        onClick={handleClearSearch}
+                        className="ml-2 text-blue-400 hover:text-blue-600"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                    {searchLoading && (
+                      <div className="flex items-center gap-1 text-gray-500">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span>Searching...</span>
+                      </div>
+                    )}
+                  </div>
                 )}
-              </button>
+              </div>
               
-              <button 
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-gray-600 hover:bg-white text-sm font-medium transition-colors relative"
-                disabled={loading || creating}
-              >
-                <Filter className="h-4 w-4" />
-                <span className="hidden sm:inline">Filter</span>
-                {hasActiveFilters && (
-                  <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full"></span>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {error && (
-            <div className="mt-4 p-4 rounded-xl bg-red-50/80 backdrop-blur-sm border border-red-200/50 flex items-start gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
-              <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-red-800">Error loading opportunities</p>
-                <p className="text-sm text-red-600 mt-1">{error}</p>
+              <div className="flex items-center gap-3">
                 <button 
-                  onClick={() => fetchOpportunities()}
-                  disabled={loading}
-                  className="mt-2 text-sm font-medium text-red-700 hover:text-red-800 flex items-center gap-1"
+                  onClick={() => fetchOpportunities(true)}
+                  disabled={refreshing || loading || creating}
+                  className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium transition-colors ${
+                    refreshing || loading || creating
+                      ? 'border-gray-200/50 bg-gray-50/50 text-gray-400 cursor-not-allowed'
+                      : 'border-gray-200 bg-white/50 text-gray-600 hover:bg-white'
+                  }`}
                 >
-                  {loading ? (
+                  {refreshing ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Retrying...
+                      <span className="hidden sm:inline">Refreshing...</span>
                     </>
                   ) : (
-                    'Try again'
+                    <>
+                      <RefreshCw className="h-4 w-4" />
+                      <span className="hidden sm:inline">Refresh</span>
+                    </>
+                  )}
+                </button>
+                
+                <button 
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-gray-600 hover:bg-white text-sm font-medium transition-colors relative"
+                  disabled={loading || creating}
+                >
+                  <Filter className="h-4 w-4" />
+                  <span className="hidden sm:inline">Filter</span>
+                  {hasActiveFilters && (
+                    <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full"></span>
                   )}
                 </button>
               </div>
             </div>
-          )}
 
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-4">
-            {hasActiveFilters && (
-              <button 
-                onClick={handleClearFilters}
-                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gray-100/50 text-gray-600 text-xs sm:text-sm font-medium hover:bg-gray-200/50 transition-all flex items-center gap-1 sm:gap-2"
-              >
-                <X className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span>Clear All</span>
-              </button>
-            )}
-          </div>
-
-          {showFilters && (
-            <div className="mt-4 p-4 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-xl shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-gray-800">Advanced Filters</h3>
-                <div className="flex items-center gap-2">
-                  {searchQuery && (
-                    <div className="text-xs text-gray-500">
-                      Search: "{searchQuery}"
-                    </div>
-                  )}
+            {error && (
+              <div className="mt-4 p-4 rounded-xl bg-red-50/80 backdrop-blur-sm border border-red-200/50 flex items-start gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
+                <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-red-800">Error loading opportunities</p>
+                  <p className="text-sm text-red-600 mt-1">{error}</p>
                   <button 
-                    onClick={() => setAdvancedFilters(prev => ({ ...prev, showAdvanced: !prev.showAdvanced }))}
-                    className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1"
+                    onClick={() => fetchOpportunities()}
+                    disabled={loading}
+                    className="mt-2 text-sm font-medium text-red-700 hover:text-red-800 flex items-center gap-1"
                   >
-                    {advancedFilters.showAdvanced ? 'Show Basic' : 'Show Advanced'}
-                    <ChevronDown className={`h-3 w-3 transition-transform ${advancedFilters.showAdvanced ? 'rotate-180' : ''}`} />
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Retrying...
+                      </>
+                    ) : (
+                      'Try again'
+                    )}
                   </button>
                 </div>
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-2">Status</label>
-                  <select 
-                    value={filters.status || ''}
-                    onChange={(e) => handleFilterChange('status', e.target.value || undefined)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                  >
-                    <option value="">All Statuses</option>
-                    {stages.map(stage => (
-                      <option key={stage.id} value={stage.id}>{stage.label}</option>
-                    ))}
-                  </select>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-4">
+              {hasActiveFilters && (
+                <button 
+                  onClick={handleClearFilters}
+                  className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gray-100/50 text-gray-600 text-xs sm:text-sm font-medium hover:bg-gray-200/50 transition-all flex items-center gap-1 sm:gap-2"
+                >
+                  <X className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span>Clear All</span>
+                </button>
+              )}
+            </div>
+
+            {showFilters && (
+              <div className="mt-4 p-4 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-xl shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-gray-800">Advanced Filters</h3>
+                  <div className="flex items-center gap-2">
+                    {searchQuery && (
+                      <div className="text-xs text-gray-500">
+                        Search: "{searchQuery}"
+                      </div>
+                    )}
+                    <button 
+                      onClick={() => setAdvancedFilters(prev => ({ ...prev, showAdvanced: !prev.showAdvanced }))}
+                      className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-1"
+                    >
+                      {advancedFilters.showAdvanced ? 'Show Basic' : 'Show Advanced'}
+                      <ChevronDown className={`h-3 w-3 transition-transform ${advancedFilters.showAdvanced ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
                 </div>
                 
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-2">Lead Tier</label>
-                  <select 
-                    value={filters.tier || ''}
-                    onChange={(e) => handleFilterChange('tier', e.target.value || undefined)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                  >
-                    <option value="">All Tiers</option>
-                    {leadTiers.map(tier => (
-                      <option key={tier.id} value={tier.id}>{tier.label}</option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-2">Source</label>
-                  <select 
-                    value={filters.source || ''}
-                    onChange={(e) => handleFilterChange('source', e.target.value || undefined)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                  >
-                    <option value="">All Sources</option>
-                    {sources.map(source => {
-                      const Icon = source.icon;
-                      return (
-                        <option key={source.id} value={source.id}>
-                          {source.label}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-2">Sort By</label>
-                  <select 
-                    value={filters.sort || 'createdAt:desc'}
-                    onChange={(e) => handleFilterChange('sort', e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                  >
-                    {sortOptions.map(option => (
-                      <option key={option.id} value={option.id}>{option.label}</option>
-                    ))}
-                  </select>
-                </div>
-                
-                {advancedFilters.showAdvanced && (
-                  <>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">Date From</label>
-                      <input
-                        type="date"
-                        value={filters.fromDate || ''}
-                        onChange={(e) => handleFilterChange('fromDate', e.target.value || undefined)}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">Date To</label>
-                      <input
-                        type="date"
-                        value={filters.toDate || ''}
-                        onChange={(e) => handleFilterChange('toDate', e.target.value || undefined)}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">Min Score</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={filters.minScore || ''}
-                        onChange={(e) => handleFilterChange('minScore', e.target.value ? parseInt(e.target.value) : undefined)}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                        placeholder="0"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-2">Max Score</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={filters.maxScore || ''}
-                        onChange={(e) => handleFilterChange('maxScore', e.target.value ? parseInt(e.target.value) : undefined)}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                        placeholder="100"
-                      />
-                    </div>
-                    
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-medium text-gray-700 mb-2">Multiple Statuses</label>
-                      <div className="flex flex-wrap gap-2">
-                        {stages.map(stage => (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-2">Status</label>
+                    <select 
+                      value={filters.status || ''}
+                      onChange={(e) => handleFilterChange('status', e.target.value || undefined)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                    >
+                      <option value="">All Statuses</option>
+                      {stages.map(stage => (
+                        <option key={stage.id} value={stage.id}>{stage.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-2">Lead Tier</label>
+                    <select 
+                      value={filters.tier || ''}
+                      onChange={(e) => handleFilterChange('tier', e.target.value || undefined)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                    >
+                      <option value="">All Tiers</option>
+                      {leadTiers.map(tier => (
+                        <option key={tier.id} value={tier.id}>{tier.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-2">Source</label>
+                    <select 
+                      value={filters.source || ''}
+                      onChange={(e) => handleFilterChange('source', e.target.value || undefined)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                    >
+                      <option value="">All Sources</option>
+                      {sources.map(source => {
+                        const Icon = source.icon;
+                        return (
+                          <option key={source.id} value={source.id}>
+                            {source.label}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-2">Sort By</label>
+                    <select 
+                      value={filters.sort || 'createdAt:desc'}
+                      onChange={(e) => handleFilterChange('sort', e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                    >
+                      {sortOptions.map(option => (
+                        <option key={option.id} value={option.id}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {advancedFilters.showAdvanced && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-2">Date From</label>
+                        <input
+                          type="date"
+                          value={filters.fromDate || ''}
+                          onChange={(e) => handleFilterChange('fromDate', e.target.value || undefined)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-2">Date To</label>
+                        <input
+                          type="date"
+                          value={filters.toDate || ''}
+                          onChange={(e) => handleFilterChange('toDate', e.target.value || undefined)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-2">Min Score</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={filters.minScore || ''}
+                          onChange={(e) => handleFilterChange('minScore', e.target.value ? parseInt(e.target.value) : undefined)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                          placeholder="0"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-2">Max Score</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={filters.maxScore || ''}
+                          onChange={(e) => handleFilterChange('maxScore', e.target.value ? parseInt(e.target.value) : undefined)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                          placeholder="100"
+                        />
+                      </div>
+                      
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-medium text-gray-700 mb-2">Multiple Statuses</label>
+                        <div className="flex flex-wrap gap-2">
+                          {stages.map(stage => (
+                            <button
+                              key={stage.id}
+                              type="button"
+                              onClick={() => handleMultipleStatusToggle(stage.id)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                advancedFilters.multipleStatuses.includes(stage.id)
+                                  ? 'bg-blue-100/80 text-blue-600 border border-blue-200/50'
+                                  : 'bg-gray-100/50 text-gray-600 hover:bg-gray-200/50'
+                              }`}
+                            >
+                              {stage.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-medium text-gray-700 mb-2">Multiple Sources</label>
+                        <div className="flex flex-wrap gap-2">
+                          {sources.map(source => (
+                            <button
+                              key={source.id}
+                              type="button"
+                              onClick={() => handleMultipleSourceToggle(source.id)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                advancedFilters.multipleSources.includes(source.id)
+                                  ? 'bg-green-100/80 text-green-600 border border-green-200/50'
+                                  : 'bg-gray-100/50 text-gray-600 hover:bg-gray-200/50'
+                              }`}
+                            >
+                              {source.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-medium text-gray-700 mb-2">Additional Filters</label>
+                        <div className="flex flex-wrap gap-2">
                           <button
-                            key={stage.id}
                             type="button"
-                            onClick={() => handleMultipleStatusToggle(stage.id)}
+                            onClick={() => setAdvancedFilters(prev => ({ 
+                              ...prev, 
+                              hasVehicles: prev.hasVehicles === true ? undefined : true 
+                            }))}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                              advancedFilters.multipleStatuses.includes(stage.id)
+                              advancedFilters.hasVehicles === true
                                 ? 'bg-blue-100/80 text-blue-600 border border-blue-200/50'
                                 : 'bg-gray-100/50 text-gray-600 hover:bg-gray-200/50'
                             }`}
                           >
-                            {stage.label}
+                            Has Vehicles
                           </button>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-medium text-gray-700 mb-2">Multiple Sources</label>
-                      <div className="flex flex-wrap gap-2">
-                        {sources.map(source => (
                           <button
-                            key={source.id}
                             type="button"
-                            onClick={() => handleMultipleSourceToggle(source.id)}
+                            onClick={() => setAdvancedFilters(prev => ({ 
+                              ...prev, 
+                              hasQuotes: prev.hasQuotes === true ? undefined : true 
+                            }))}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                              advancedFilters.multipleSources.includes(source.id)
+                              advancedFilters.hasQuotes === true
                                 ? 'bg-green-100/80 text-green-600 border border-green-200/50'
                                 : 'bg-gray-100/50 text-gray-600 hover:bg-gray-200/50'
                             }`}
                           >
-                            {source.label}
+                            Has Quotes
                           </button>
-                        ))}
+                          <button
+                            type="button"
+                            onClick={() => setAdvancedFilters(prev => ({ 
+                              ...prev, 
+                              isNurturing: prev.isNurturing === true ? undefined : true 
+                            }))}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              advancedFilters.isNurturing === true
+                                ? 'bg-purple-100/80 text-purple-600 border border-purple-200/50'
+                                : 'bg-gray-100/50 text-gray-600 hover:bg-gray-200/50'
+                            }`}
+                          >
+                            Is Nurturing
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-medium text-gray-700 mb-2">Additional Filters</label>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setAdvancedFilters(prev => ({ 
-                            ...prev, 
-                            hasVehicles: prev.hasVehicles === true ? undefined : true 
-                          }))}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                            advancedFilters.hasVehicles === true
-                              ? 'bg-blue-100/80 text-blue-600 border border-blue-200/50'
-                              : 'bg-gray-100/50 text-gray-600 hover:bg-gray-200/50'
-                          }`}
-                        >
-                          Has Vehicles
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAdvancedFilters(prev => ({ 
-                            ...prev, 
-                            hasQuotes: prev.hasQuotes === true ? undefined : true 
-                          }))}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                            advancedFilters.hasQuotes === true
-                              ? 'bg-green-100/80 text-green-600 border border-green-200/50'
-                              : 'bg-gray-100/50 text-gray-600 hover:bg-gray-200/50'
-                          }`}
-                        >
-                          Has Quotes
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAdvancedFilters(prev => ({ 
-                            ...prev, 
-                            isNurturing: prev.isNurturing === true ? undefined : true 
-                          }))}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                            advancedFilters.isNurturing === true
-                              ? 'bg-purple-100/80 text-purple-600 border border-purple-200/50'
-                              : 'bg-gray-100/50 text-gray-600 hover:bg-gray-200/50'
-                          }`}
-                        >
-                          Is Nurturing
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
+                    </>
+                  )}
+                </div>
+                
+                <div className="mt-4 pt-4 border-t border-gray-200/50 flex items-center gap-2">
+                  <button
+                    onClick={applyFilters}
+                    disabled={loading}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg text-sm font-medium hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 transition-all"
+                  >
+                    Apply Filters
+                  </button>
+                  <button
+                    onClick={handleClearFilters}
+                    className="px-4 py-2 bg-gray-200/50 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300/50 transition-colors"
+                  >
+                    Clear All
+                  </button>
+                  <button
+                    onClick={() => setShowFilters(false)}
+                    className="px-4 py-2 bg-transparent text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100/50 ml-auto"
+                  >
+                    Close
+                </button>
+                </div>
               </div>
-              
-              <div className="mt-4 pt-4 border-t border-gray-200/50 flex items-center gap-2">
-                <button
-                  onClick={applyFilters}
-                  disabled={loading}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg text-sm font-medium hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 transition-all"
-                >
-                  Apply Filters
-                </button>
-                <button
-                  onClick={handleClearFilters}
-                  className="px-4 py-2 bg-gray-200/50 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300/50 transition-colors"
-                >
-                  Clear All
-                </button>
-                <button
-                  onClick={() => setShowFilters(false)}
-                  className="px-4 py-2 bg-transparent text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100/50 ml-auto"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
 
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-blue-50/50 to-blue-100/30">
-              <div className="p-2 rounded-lg bg-blue-100/50">
-                <Target className="h-5 w-5 text-blue-600" />
+          {/* Stats Cards */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-blue-50/50 to-blue-100/30">
+                <div className="p-2 rounded-lg bg-blue-100/50">
+                  <Target className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Total Opportunities</p>
+                  <p className="text-lg font-bold text-gray-900">{opportunities.length}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Total Opportunities</p>
-                <p className="text-lg font-bold text-gray-900">{opportunities.length}</p>
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-green-50/50 to-green-100/30">
+                <div className="p-2 rounded-lg bg-green-100/50">
+                  <TrendingUp className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Hot Leads</p>
+                  <p className="text-lg font-bold text-gray-900">{leadScoreStats.hot}</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-green-50/50 to-green-100/30">
-              <div className="p-2 rounded-lg bg-green-100/50">
-                <TrendingUp className="h-5 w-5 text-green-600" />
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-amber-50/50 to-amber-100/30">
+                <div className="p-2 rounded-lg bg-amber-100/50">
+                  <Briefcase className="h-5 w-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Active Deals</p>
+                  <p className="text-lg font-bold text-gray-900">
+                    {opportunities.filter(o => !['lost'].includes(o.status)).length}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Hot Leads</p>
-                <p className="text-lg font-bold text-gray-900">{leadScoreStats.hot}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-amber-50/50 to-amber-100/30">
-              <div className="p-2 rounded-lg bg-amber-100/50">
-                <Briefcase className="h-5 w-5 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Active Deals</p>
-                <p className="text-lg font-bold text-gray-900">
-                  {opportunities.filter(o => !['lost'].includes(o.status)).length}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-purple-50/50 to-purple-100/30">
-              <div className="p-2 rounded-lg bg-purple-100/50">
-                <Trophy className="h-5 w-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Win Rate</p>
-                <p className="text-lg font-bold text-gray-900">
-                  {opportunities.length > 0 
-                    ? Math.round((opportunities.filter(o => o.status === 'appointment_scheduled').length / opportunities.length) * 100)
-                    : 0
-                  }%
-                </p>
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-purple-50/50 to-purple-100/30">
+                <div className="p-2 rounded-lg bg-purple-100/50">
+                  <Trophy className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Win Rate</p>
+                  <p className="text-lg font-bold text-gray-900">
+                    {opportunities.length > 0 
+                      ? Math.round((opportunities.filter(o => o.status === 'appointment_scheduled').length / opportunities.length) * 100)
+                      : 0
+                    }%
+                  </p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="pb-6 relative">
-          {showScrollButtons && (
-            <div className="md:hidden flex justify-center gap-2 mb-4">
-              <button
-                onClick={() => scrollKanban('left')}
-                disabled={scrolling || loading || creating}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/80 backdrop-blur-sm border border-gray-200/50 hover:bg-white disabled:opacity-50 transition-all"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                <span>Previous</span>
-              </button>
-              <button
-                onClick={() => scrollKanban('right')}
-                disabled={scrolling || loading || creating}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/80 backdrop-blur-sm border border-gray-200/50 hover:bg-white disabled:opacity-50 transition-all"
-              >
-                <span>Next</span>
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-
-          {showScrollButtons && (
-            <>
-              <button
-                onClick={() => scrollKanban('left')}
-                disabled={scrolling || loading || creating}
-                className="hidden md:block absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-2 z-10 h-10 w-10 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-full shadow-lg flex items-center justify-center hover:bg-white disabled:opacity-50 transition-all"
-              >
-                <ChevronLeft className="h-5 w-5 text-gray-600" />
-              </button>
-              <button
-                onClick={() => scrollKanban('right')}
-                disabled={scrolling || loading || creating}
-                className="hidden md:block absolute right-0 top-1/2 transform -translate-y-1/2 translate-x-2 z-10 h-10 w-10 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-full shadow-lg flex items-center justify-center hover:bg-white disabled:opacity-50 transition-all"
-              >
-                <ChevronRight className="h-5 w-5 text-gray-600" />
-              </button>
-            </>
-          )}
-
-          {loading && opportunities.length > 0 && (
-            <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-20 flex items-center justify-center rounded-2xl">
-              <div className="text-center">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-3" />
-                <p className="text-gray-600">Updating opportunities...</p>
+          {/* Kanban Section - Scrollable */}
+          <div className="flex-1 min-h-0 relative">
+            {showScrollButtons && (
+              <div className="md:hidden flex justify-center gap-2 mb-4">
+                <button
+                  onClick={() => scrollKanban('left')}
+                  disabled={scrolling || loading || creating}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/80 backdrop-blur-sm border border-gray-200/50 hover:bg-white disabled:opacity-50 transition-all"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span>Previous</span>
+                </button>
+                <button
+                  onClick={() => scrollKanban('right')}
+                  disabled={scrolling || loading || creating}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/80 backdrop-blur-sm border border-gray-200/50 hover:bg-white disabled:opacity-50 transition-all"
+                >
+                  <span>Next</span>
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
-            </div>
-          )}
+            )}
 
-          {isDragging && (
+            {showScrollButtons && (
+              <>
+                <button
+                  onClick={() => scrollKanban('left')}
+                  disabled={scrolling || loading || creating}
+                  className="hidden md:block absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-2 z-10 h-10 w-10 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-full shadow-lg flex items-center justify-center hover:bg-white disabled:opacity-50 transition-all"
+                >
+                  <ChevronLeft className="h-5 w-5 text-gray-600" />
+                </button>
+                <button
+                  onClick={() => scrollKanban('right')}
+                  disabled={scrolling || loading || creating}
+                  className="hidden md:block absolute right-0 top-1/2 transform -translate-y-1/2 translate-x-2 z-10 h-10 w-10 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-full shadow-lg flex items-center justify-center hover:bg-white disabled:opacity-50 transition-all"
+                >
+                  <ChevronRight className="h-5 w-5 text-gray-600" />
+                </button>
+              </>
+            )}
+
+            {loading && opportunities.length > 0 && (
+              <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-20 flex items-center justify-center rounded-2xl">
+                <div className="text-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-3" />
+                  <p className="text-gray-600">Updating opportunities...</p>
+                </div>
+              </div>
+            )}
+
+            {isDragging && (
+              <div 
+                className="absolute inset-0 border-4 border-dashed border-blue-400 bg-blue-50/20 z-10 rounded-2xl flex items-center justify-center pointer-events-none"
+              >
+                <div className="bg-white/80 backdrop-blur-sm px-6 py-4 rounded-xl shadow-lg border border-blue-200/50">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                    <span className="font-medium text-blue-600">Drop opportunity here</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Kanban Board - Horizontal Scroll */}
             <div 
-              className="absolute inset-0 border-4 border-dashed border-blue-400 bg-blue-50/20 z-10 rounded-2xl flex items-center justify-center pointer-events-none"
+              ref={kanbanRef}
+              className="h-[500px] overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pb-4"
+              onScroll={() => setScrolling(true)}
             >
-              <div className="bg-white/80 backdrop-blur-sm px-6 py-4 rounded-xl shadow-lg border border-blue-200/50">
-                <div className="flex items-center gap-3">
-                  <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
-                  <span className="font-medium text-blue-600">Drop opportunity here</span>
-                </div>
+              <div className="flex gap-4 pb-4 min-w-max">
+                {stages.map((stage) => (
+                  <div key={stage.id} className="w-80 flex-shrink-0">
+                    <KanbanColumn
+                      stage={stage}
+                      opportunities={opportunitiesByStage[stage.id] || []}
+                      allOpportunities={opportunities}
+                      onRecalculateScore={handleRecalculateScore}
+                      getAvatarColor={getAvatarColor}
+                      getLeadScoreTier={getLeadScoreTier}
+                      getStageColor={getStageColor}
+                      formatDate={formatDate}
+                      getChildCounts={getChildCounts}
+                      loading={loading || creating}
+                      setIsDragging={setIsDragging}
+                      showToast={showToast}
+                      refreshOpportunities={fetchOpportunities}
+                      onStatusUpdate={handleStatusUpdateWrapper}
+                    />
+                  </div>
+                ))}
               </div>
             </div>
-          )}
-
-          <div 
-            ref={kanbanRef}
-            className="kanban-container overflow-x-auto scrollbar-hide scroll-smooth pb-4"
-            onScroll={() => setScrolling(true)}
-          >
-            <div className="flex flex-col md:flex-row gap-3 md:gap-4 pb-4 min-w-max">
-              {stages.map((stage) => (
-                <div key={stage.id} className="w-full md:w-72 lg:w-80 flex-shrink-0">
-                  <KanbanColumn
-                    stage={stage}
-                    opportunities={opportunitiesByStage[stage.id] || []}
-                    allOpportunities={opportunities}
-                    onRecalculateScore={handleRecalculateScore}
-                    getAvatarColor={getAvatarColor}
-                    getLeadScoreTier={getLeadScoreTier}
-                    getStageColor={getStageColor}
-                    formatDate={formatDate}
-                    getChildCounts={getChildCounts}
-                    loading={loading || creating}
-                    setIsDragging={setIsDragging}
-                    showToast={showToast}
-                    refreshOpportunities={fetchOpportunities}
-                    onStatusUpdate={handleStatusUpdateWrapper}
-                  />
+            
+            {pagination && pagination.totalPages > 1 && (
+              <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-sm text-gray-600">
+                  Showing {opportunities.length} of {pagination.total} opportunities
+                  {pagination.page && pagination.totalPages && (
+                    <span> (Page {pagination.page} of {pagination.totalPages})</span>
+                  )}
                 </div>
-              ))}
-            </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleFilterChange('page', Math.max(1, (pagination.page || 1) - 1))}
+                    disabled={!pagination.page || pagination.page <= 1}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200/50 bg-white/50 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <div className="flex items-center gap-1">
+                    {(() => {
+                      if (!pagination.totalPages) return null;
+                      
+                      const pages = [];
+                      const currentPage = pagination.page || 1;
+                      const totalPages = pagination.totalPages;
+                      
+                      if (totalPages <= 5) {
+                        for (let i = 1; i <= totalPages; i++) {
+                          pages.push(i);
+                        }
+                      } else {
+                        pages.push(1);
+                        if (currentPage > 3) pages.push('...');
+                        
+                        const start = Math.max(2, currentPage - 1);
+                        const end = Math.min(totalPages - 1, currentPage + 1);
+                        
+                        for (let i = start; i <= end; i++) {
+                          if (!pages.includes(i)) pages.push(i);
+                        }
+                        
+                        if (currentPage < totalPages - 2) pages.push('...');
+                        pages.push(totalPages);
+                      }
+                      
+                      return pages.map((pageNum, index) => (
+                        pageNum === '...' ? (
+                          <span key={`ellipsis-${index}`} className="px-2 text-gray-400">...</span>
+                        ) : (
+                          <button
+                            key={pageNum}
+                            onClick={() => handleFilterChange('page', pageNum)}
+                            className={`w-8 h-8 rounded-lg text-sm font-medium transition-all ${
+                              currentPage === pageNum
+                                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm'
+                                : 'border border-gray-200/50 bg-white/50 text-gray-600 hover:bg-white hover:border-gray-300'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        )
+                      ));
+                    })()}
+                  </div>
+                  <button
+                    onClick={() => handleFilterChange('page', Math.min(pagination.totalPages || 1, (pagination.page || 1) + 1))}
+                    disabled={!pagination.page || pagination.page >= pagination.totalPages}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200/50 bg-white/50 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          
-          {pagination && pagination.totalPages > 1 && (
-            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="text-sm text-gray-600">
-                Showing {opportunities.length} of {pagination.total} opportunities
-                {pagination.page && pagination.totalPages && (
-                  <span> (Page {pagination.page} of {pagination.totalPages})</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleFilterChange('page', Math.max(1, (pagination.page || 1) - 1))}
-                  disabled={!pagination.page || pagination.page <= 1}
-                  className="px-3 py-1.5 rounded-lg border border-gray-200/50 bg-white/50 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors"
-                >
-                  Previous
-                </button>
-                <div className="flex items-center gap-1">
-                  {(() => {
-                    if (!pagination.totalPages) return null;
-                    
-                    const pages = [];
-                    const currentPage = pagination.page || 1;
-                    const totalPages = pagination.totalPages;
-                    
-                    if (totalPages <= 5) {
-                      for (let i = 1; i <= totalPages; i++) {
-                        pages.push(i);
-                      }
-                    } else {
-                      pages.push(1);
-                      if (currentPage > 3) pages.push('...');
-                      
-                      const start = Math.max(2, currentPage - 1);
-                      const end = Math.min(totalPages - 1, currentPage + 1);
-                      
-                      for (let i = start; i <= end; i++) {
-                        if (!pages.includes(i)) pages.push(i);
-                      }
-                      
-                      if (currentPage < totalPages - 2) pages.push('...');
-                      pages.push(totalPages);
-                    }
-                    
-                    return pages.map((pageNum, index) => (
-                      pageNum === '...' ? (
-                        <span key={`ellipsis-${index}`} className="px-2 text-gray-400">...</span>
-                      ) : (
-                        <button
-                          key={pageNum}
-                          onClick={() => handleFilterChange('page', pageNum)}
-                          className={`w-8 h-8 rounded-lg text-sm font-medium transition-all ${
-                            currentPage === pageNum
-                              ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm'
-                              : 'border border-gray-200/50 bg-white/50 text-gray-600 hover:bg-white hover:border-gray-300'
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      )
-                    ));
-                  })()}
-                </div>
-                <button
-                  onClick={() => handleFilterChange('page', Math.min(pagination.totalPages || 1, (pagination.page || 1) + 1))}
-                  disabled={!pagination.page || pagination.page >= pagination.totalPages}
-                  className="px-3 py-1.5 rounded-lg border border-gray-200/50 bg-white/50 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

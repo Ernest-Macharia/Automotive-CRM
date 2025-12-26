@@ -60,11 +60,11 @@ export default function ClientLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100/30">
+    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100/30">
       {/* Overlay for mobile */}
       {sidebarOpen && isMobile && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-30 transition-opacity duration-300"
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 transition-opacity duration-300 lg:hidden"
           onClick={closeSidebar}
         />
       )}
@@ -75,6 +75,7 @@ export default function ClientLayout({
         transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:relative lg:translate-x-0 lg:z-auto
         transition-transform duration-300 ease-in-out
+        lg:flex-shrink-0
         ${isMobile ? 'shadow-2xl' : ''}
       `}>
         <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
@@ -82,10 +83,10 @@ export default function ClientLayout({
 
       {/* Main Content */}
       <main className={`
-        flex-1 min-h-screen min-w-0
+        flex-1 h-full min-w-0
         transition-all duration-300
         w-full overflow-hidden
-        ${sidebarOpen && isMobile ? 'ml-0' : ''}
+        flex flex-col
       `}>
         {/* Mobile menu button */}
         {isMobile && !sidebarOpen && (
@@ -99,7 +100,8 @@ export default function ClientLayout({
           </button>
         )}
         
-        <div className="h-full overflow-auto pt-4 lg:pt-0">
+        {/* Content Container */}
+        <div className="flex-1 overflow-y-auto pt-4 lg:pt-0 pb-4">
           {children}
         </div>
       </main>
