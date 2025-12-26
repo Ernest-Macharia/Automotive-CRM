@@ -56,7 +56,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     { href: '/invoices',       label: 'Invoices',      icon: Receipt },
     { href: '/payments',       label: 'Payments',      icon: Wallet },
     { href: '/vehicles',       label: 'Vehicles',      icon: Truck },
-    { href: '/jobcards',       label: 'Job Cards',     icon: ClipboardList },
+    { href: '/job-cards',       label: 'Job Cards',     icon: ClipboardList },
     { href: '/tickets',        label: 'Tickets',       icon: MessageSquare },
     { href: '/settings',       label: 'Settings',      icon: Settings },
   ];
