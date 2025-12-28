@@ -1,32 +1,17 @@
 import { apiClient } from '@/lib/api/client';
 
-// ================ Types & Interfaces ================
-
-export interface Permission {
-  id: string;
-  name: string;
-  displayName: string;
-  description?: string;
-  category: string;
-  module: string;
-  action: string;
-  scope?: 'global' | 'own' | 'team';
-}
-
 export interface Role {
-  _id: string;
   id: string;
+  _id?: string;
   name: string;
   display_name: string;
   description?: string;
-  category: 'system' | 'sales' | 'technical' | 'management' | 'finance' | 'support';
-  employee_type?: 'manager' | 'technician' | 'sales' | 'admin' | 'support';
+  category: string;
+  employee_type?: string;
   permissions: string[];
-  additionalPermissions?: string[];
-  active: boolean;
+  active?: boolean;
   createdAt?: string;
   updatedAt?: string;
-  createdBy?: string;
 }
 
 export interface UserRoleAssignment {
@@ -38,12 +23,12 @@ export interface RoleAssignmentResponse {
   message: string;
   user: {
     id: string;
-    customId: string;
-    name: string;
+    customId?: string;
+    name?: string;
     email: string;
     role: string;
     permissions: string[];
-    additionalPermissions: string[];
+    additionalPermissions?: string[];
   };
 }
 
@@ -51,92 +36,34 @@ export interface PermissionsListResponse {
   permissions: string[];
 }
 
-export interface RoleCreationData {
+export interface RoleFindRequest {
   name: string;
-  display_name: string;
-  description?: string;
-  category: Role['category'];
-  employee_type?: Role['employee_type'];
+}
+
+export interface SeedRolesResponse {
+  message: string;
+}
+
+export interface PermissionCheckRequest {
   permissions: string[];
-  additionalPermissions?: string[];
-  active?: boolean;
+  role?: string;
 }
 
-export interface RoleUpdateData {
-  display_name?: string;
-  description?: string;
-  category?: Role['category'];
-  employee_type?: Role['employee_type'];
-  permissions?: string[];
-  additionalPermissions?: string[];
-  active?: boolean;
+export interface PermissionCheckResponse {
+  hasAllPermissions: boolean;
+  missingPermissions: string[];
+  hasRole: boolean;
 }
-
-export interface RoleFilterParams {
-  category?: string;
-  employee_type?: string;
-  active?: boolean;
-  search?: string;
-  sort?: string;
-  page?: number;
-  limit?: number;
-}
-
-export interface RolesResponse {
-  data: Role[];
-  pagination?: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  };
-  stats?: {
-    total: number;
-    byCategory: Array<{
-      _id: string;
-      count: number;
-    }>;
-    active: number;
-    inactive: number;
-  };
-}
-
-export interface PermissionCheck {
-  hasPermission: (permission: string, scope?: string) => boolean;
-  hasAnyPermission: (permissions: string[]) => boolean;
-  hasAllPermissions: (permissions: string[]) => boolean;
-  hasRole: (roleName: string) => boolean;
-  hasAnyRole: (roleNames: string[]) => boolean;
-}
-
-// ================ Service Class ================
 
 class RoleService {
-  // ================ Role Management ================
-  
   /**
-   * Get all roles with optional filtering
+   * List all roles
+   * GET /api/v1/roles
    */
-  async getAllRoles(params?: RoleFilterParams): Promise<RolesResponse> {
+  async getAllRoles(): Promise<Role[]> {
     try {
-      const queryParams = new URLSearchParams();
-      
-      if (params) {
-        Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined && value !== null && value !== '') {
-            queryParams.append(key, value.toString());
-          }
-        });
-      }
-      
-      const endpoint = `/roles${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      const response = await apiClient.get<any>(endpoint);
-      
-      return {
-        data: response.data || response,
-        pagination: response.pagination,
-        stats: response.stats
-      };
+      const response = await apiClient.get<any[]>('/roles');
+      return response.map(role => this.normalizeRole(role));
     } catch (error) {
       console.error('Error fetching roles:', error);
       throw error;
@@ -144,174 +71,21 @@ class RoleService {
   }
 
   /**
-   * Get role by name
+   * Seed default roles (Admin only)
+   * POST /api/v1/roles/seed
    */
-  async getRoleByName(name: string): Promise<Role> {
+  async seedDefaultRoles(): Promise<SeedRolesResponse> {
     try {
-      const response = await apiClient.post<{ name: string }, Role>('/roles/find', { name });
-      return response;
+      return await apiClient.post<any, SeedRolesResponse>('/roles/seed', {});
     } catch (error) {
-      console.error(`Error fetching role ${name}:`, error);
+      console.error('Error seeding default roles:', error);
       throw error;
     }
   }
 
   /**
-   * Get role by ID
-   */
-  async getRoleById(id: string): Promise<Role> {
-    try {
-      const response = await apiClient.get<Role>(`/roles/${id}`);
-      return response;
-    } catch (error) {
-      console.error(`Error fetching role ${id}:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Create a new role
-   */
-  async createRole(data: RoleCreationData): Promise<Role> {
-    try {
-      const formattedData = {
-        name: data.name,
-        display_name: data.display_name,
-        description: data.description || '',
-        category: data.category,
-        employee_type: data.employee_type,
-        permissions: data.permissions || [],
-        additionalPermissions: data.additionalPermissions || [],
-        active: data.active !== undefined ? data.active : true
-      };
-
-      return await apiClient.post<typeof formattedData, Role>('/roles', formattedData);
-    } catch (error) {
-      console.error('Error creating role:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Update an existing role
-   */
-  async updateRole(id: string, data: RoleUpdateData): Promise<Role> {
-    try {
-      return await apiClient.patch<RoleUpdateData, Role>(`/roles/${id}`, data);
-    } catch (error) {
-      console.error(`Error updating role ${id}:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Delete a role
-   */
-  async deleteRole(id: string): Promise<void> {
-    try {
-      await apiClient.delete(`/roles/${id}`);
-    } catch (error) {
-      console.error(`Error deleting role ${id}:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Toggle role active status
-   */
-  async toggleRoleActive(id: string, active: boolean): Promise<Role> {
-    try {
-      return await apiClient.patch<any, Role>(`/roles/${id}/toggle-active`, { active });
-    } catch (error) {
-      console.error(`Error toggling role active status ${id}:`, error);
-      throw error;
-    }
-  }
-
-  // ================ Permission Management ================
-
-  /**
-   * Get all available permissions
-   */
-  async getAllPermissions(): Promise<PermissionsListResponse> {
-    try {
-      return await apiClient.get<PermissionsListResponse>('/roles/permissions');
-    } catch (error) {
-      console.error('Error fetching permissions:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get permissions grouped by category
-   */
-  async getPermissionsByCategory(): Promise<Record<string, Permission[]>> {
-    try {
-      // This endpoint might not exist in your API, so we'll simulate it
-      const permissions = await this.getAllPermissions();
-      
-      // Group permissions by their prefix (e.g., 'users.', 'dashboard.', etc.)
-      const grouped: Record<string, Permission[]> = {};
-      
-      // This is a simplified grouping - you might want to customize this
-      permissions.permissions.forEach(permission => {
-        const parts = permission.split('.');
-        const category = parts[0] || 'general';
-        
-        if (!grouped[category]) {
-          grouped[category] = [];
-        }
-        
-        // Create a Permission object from the string
-        const perm: Permission = {
-          id: permission,
-          name: permission,
-          displayName: this.formatPermissionDisplayName(permission),
-          category: category,
-          module: parts[0] || 'general',
-          action: parts[1] || 'access'
-        };
-        
-        grouped[category].push(perm);
-      });
-      
-      return grouped;
-    } catch (error) {
-      console.error('Error grouping permissions:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Check if user has specific permission
-   */
-  async checkUserPermission(userId: string, permission: string): Promise<boolean> {
-    try {
-      const response = await apiClient.get<any>(`/roles/user/${userId}/check-permission/${permission}`);
-      return response.hasPermission || false;
-    } catch (error) {
-      console.error(`Error checking permission for user ${userId}:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get user's permissions
-   */
-  async getUserPermissions(userId: string): Promise<string[]> {
-    try {
-      const response = await apiClient.get<{ permissions: string[] }>(`/roles/user/${userId}/permissions`);
-      return response.permissions || [];
-    } catch (error) {
-      console.error(`Error fetching permissions for user ${userId}:`, error);
-      throw error;
-    }
-  }
-
-  // ================ User Role Assignment ================
-
-  /**
-   * Assign role to user
+   * Assign role to user (Admin only)
+   * POST /api/v1/roles/assign
    */
   async assignRoleToUser(data: UserRoleAssignment): Promise<RoleAssignmentResponse> {
     try {
@@ -323,467 +97,642 @@ class RoleService {
   }
 
   /**
-   * Remove role from user
+   * Get all permissions (Admin only)
+   * GET /api/v1/roles/permissions
    */
-  async removeRoleFromUser(userId: string, roleName: string): Promise<void> {
+  async getAllPermissions(): Promise<PermissionsListResponse> {
     try {
-      await apiClient.post<any, void>('/roles/remove', { userId, roleName });
+      return await apiClient.get<PermissionsListResponse>('/roles/permissions');
     } catch (error) {
-      console.error(`Error removing role from user ${userId}:`, error);
+      console.error('Error fetching permissions:', error);
       throw error;
     }
   }
 
   /**
-   * Get user's roles
+   * Get role by name (Admin only)
+   * POST /api/v1/roles/find
    */
-  async getUserRoles(userId: string): Promise<Role[]> {
+  async getRoleByName(name: string): Promise<Role> {
     try {
-      const response = await apiClient.get<Role[]>(`/roles/user/${userId}/roles`);
-      return Array.isArray(response) ? response : [response];
+      const response = await apiClient.post<RoleFindRequest, any>('/roles/find', { name });
+      return this.normalizeRole(response);
     } catch (error) {
-      console.error(`Error fetching roles for user ${userId}:`, error);
+      console.error(`Error fetching role ${name}:`, error);
       throw error;
     }
   }
 
   /**
-   * Get all users with a specific role
+   * Normalize role data from backend
    */
-  async getUsersByRole(roleName: string): Promise<any[]> {
-    try {
-      const response = await apiClient.get<any[]>(`/roles/${roleName}/users`);
-      return Array.isArray(response) ? response : [response];
-    } catch (error) {
-      console.error(`Error fetching users with role ${roleName}:`, error);
-      throw error;
-    }
-  }
-
-  // ================ System Operations ================
-
-  /**
-   * Seed default roles and permissions
-   */
-  async seedDefaultRoles(): Promise<{ message: string }> {
-    try {
-      return await apiClient.post<any, { message: string }>('/roles/seed', {});
-    } catch (error) {
-      console.error('Error seeding default roles:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Sync permissions from configuration
-   */
-  async syncPermissions(permissions: Permission[]): Promise<{ message: string }> {
-    try {
-      return await apiClient.post<Permission[], { message: string }>('/roles/sync-permissions', permissions);
-    } catch (error) {
-      console.error('Error syncing permissions:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get role statistics
-   */
-  async getRoleStats(): Promise<any> {
-    try {
-      return await apiClient.get<any>('/roles/stats');
-    } catch (error) {
-      console.error('Error fetching role stats:', error);
-      throw error;
-    }
-  }
-
-  // ================ Permission Checking Utilities ================
-
-  /**
-   * Create a permission checker for a user
-   */
-  createPermissionChecker(
-    userRoles: Role[],
-    userAdditionalPermissions: string[] = []
-    ): PermissionCheck {
-
-    const allPermissions = new Set<string>();
-
-    userRoles.forEach(role => {
-        role.permissions.forEach(p => allPermissions.add(p));
-    });
-
-    userAdditionalPermissions.forEach(p => allPermissions.add(p));
-
-    const hasPermission = (permission: string, scope?: string): boolean => {
-        if (allPermissions.has(permission)) return true;
-
-        const parts = permission.split('.');
-        if (parts.length >= 2) {
-        const wildcard = `${parts[0]}.*`;
-        if (allPermissions.has(wildcard)) return true;
-        }
-
-        if (scope) {
-        if (allPermissions.has(`${permission}.${scope}`)) return true;
-        }
-
-        return false;
-    };
-
+  private normalizeRole(data: any): Role {
     return {
-        hasPermission,
-
-        hasAnyPermission: (permissions: string[]) =>
-        permissions.some(p => hasPermission(p)),
-
-        hasAllPermissions: (permissions: string[]) =>
-        permissions.every(p => hasPermission(p)),
-
-        hasRole: (roleName: string) =>
-        userRoles.some(role => role.name === roleName),
-
-        hasAnyRole: (roleNames: string[]) =>
-        roleNames.some(roleName =>
-            userRoles.some(role => role.name === roleName)
-        ),
+      id: data._id || data.id,
+      _id: data._id,
+      name: data.name,
+      display_name: data.display_name,
+      description: data.description,
+      category: data.category,
+      employee_type: data.employee_type,
+      permissions: data.permissions || [],
+      active: data.active !== undefined ? data.active : true,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
     };
-    }
-
-  // ================ Utility Methods ================
+  }
 
   /**
-   * Format permission display name
+   * Get all available roles for dropdown/select
    */
-  private formatPermissionDisplayName(permission: string): string {
-    const parts = permission.split('.');
+  async getRolesForSelect(): Promise<Array<{ value: string; label: string; category: string }>> {
+    try {
+      const roles = await this.getAllRoles();
+      return roles
+        .filter(role => role.active !== false)
+        .map(role => ({
+          value: role.name,
+          label: role.display_name || role.name,
+          category: role.category
+        }));
+    } catch (error) {
+      console.error('Error getting roles for select:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get roles by category
+   */
+  async getRolesByCategory(category: string): Promise<Role[]> {
+    try {
+      const roles = await this.getAllRoles();
+      return roles.filter(role => role.category === category && role.active !== false);
+    } catch (error) {
+      console.error(`Error fetching roles for category ${category}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get active roles only
+   */
+  async getActiveRoles(): Promise<Role[]> {
+    try {
+      const roles = await this.getAllRoles();
+      return roles.filter(role => role.active === true);
+    } catch (error) {
+      console.error('Error fetching active roles:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if user has specific permissions
+   * (Helper method for client-side permission checking)
+   */
+  checkPermissions(userPermissions: string[], requiredPermissions: string | string[]): boolean {
+    if (!userPermissions || userPermissions.length === 0) {
+      return false;
+    }
+
+    const permissions = Array.isArray(requiredPermissions) ? requiredPermissions : [requiredPermissions];
     
+    // Check if user has all required permissions
+    return permissions.every(permission => {
+      // Exact match
+      if (userPermissions.includes(permission)) {
+        return true;
+      }
+      
+      // Wildcard check: users.* should match users.create, users.read, etc.
+      const parts = permission.split('.');
+      if (parts.length >= 2) {
+        const module = parts[0];
+        const action = parts[1];
+        
+        // Check for module.* permission
+        if (userPermissions.includes(`${module}.*`)) {
+          return true;
+        }
+        
+        // Check for wildcard action
+        if (action === '*') {
+          return userPermissions.some(p => p.startsWith(`${module}.`));
+        }
+      }
+      
+      return false;
+    });
+  }
+
+  /**
+   * Check if user has any of the required permissions
+   */
+  checkAnyPermission(userPermissions: string[], requiredPermissions: string | string[]): boolean {
+    if (!userPermissions || userPermissions.length === 0) {
+      return false;
+    }
+
+    const permissions = Array.isArray(requiredPermissions) ? requiredPermissions : [requiredPermissions];
+    
+    return permissions.some(permission => {
+      // Exact match
+      if (userPermissions.includes(permission)) {
+        return true;
+      }
+      
+      // Wildcard check
+      const parts = permission.split('.');
+      if (parts.length >= 2) {
+        const module = parts[0];
+        
+        // Check for module.* permission
+        if (userPermissions.includes(`${module}.*`)) {
+          return true;
+        }
+      }
+      
+      return false;
+    });
+  }
+
+  /**
+   * Get permission categories from permissions list
+   */
+  async getPermissionCategories(): Promise<string[]> {
+    try {
+      const { permissions } = await this.getAllPermissions();
+      const categories = new Set<string>();
+      
+      permissions.forEach(permission => {
+        const category = permission.split('.')[0];
+        if (category) {
+          categories.add(category);
+        }
+      });
+      
+      return Array.from(categories);
+    } catch (error) {
+      console.error('Error getting permission categories:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get permissions grouped by module/category
+   */
+  async getPermissionsGrouped(): Promise<Record<string, string[]>> {
+    try {
+      const { permissions } = await this.getAllPermissions();
+      const grouped: Record<string, string[]> = {};
+      
+      permissions.forEach(permission => {
+        const parts = permission.split('.');
+        const module = parts[0];
+        
+        if (!grouped[module]) {
+          grouped[module] = [];
+        }
+        
+        if (!grouped[module].includes(permission)) {
+          grouped[module].push(permission);
+        }
+      });
+      
+      return grouped;
+    } catch (error) {
+      console.error('Error grouping permissions:', error);
+      return {};
+    }
+  }
+
+  /**
+   * Format permission for display
+   */
+  formatPermission(permission: string): string {
+    const parts = permission.split('.');
     if (parts.length === 2) {
       const [module, action] = parts;
-      const actionDisplay = action.charAt(0).toUpperCase() + action.slice(1);
-      const moduleDisplay = module.charAt(0).toUpperCase() + module.slice(1);
-      return `${actionDisplay} ${moduleDisplay}`;
+      const formattedModule = module.charAt(0).toUpperCase() + module.slice(1);
+      const formattedAction = action.charAt(0).toUpperCase() + action.slice(1);
+      return `${formattedAction} ${formattedModule}`;
     }
-    
     return permission.split('.').map(part => 
       part.charAt(0).toUpperCase() + part.slice(1)
     ).join(' ');
   }
 
   /**
-   * Get permission categories
+   * Get role by ID (if you have this endpoint)
    */
-  getPermissionCategories(): Array<{
-    id: string;
-    name: string;
-    displayName: string;
-    description?: string;
-  }> {
-    return [
-      {
-        id: 'users',
-        name: 'users',
-        displayName: 'User Management',
-        description: 'Manage users, roles, and permissions'
-      },
-      {
-        id: 'dashboard',
-        name: 'dashboard',
-        displayName: 'Dashboard',
-        description: 'Access to dashboard features'
-      },
-      {
-        id: 'leads',
-        name: 'leads',
-        displayName: 'Leads',
-        description: 'Manage leads and prospects'
-      },
-      {
-        id: 'opportunities',
-        name: 'opportunities',
-        displayName: 'Opportunities',
-        description: 'Manage sales opportunities'
-      },
-      {
-        id: 'quotes',
-        name: 'quotes',
-        displayName: 'Quotes',
-        description: 'Create and manage quotes'
-      },
-      {
-        id: 'sales_orders',
-        name: 'sales_orders',
-        displayName: 'Sales Orders',
-        description: 'Manage sales orders'
-      },
-      {
-        id: 'work_orders',
-        name: 'work_orders',
-        displayName: 'Work Orders',
-        description: 'Manage work orders and jobs'
-      },
-      {
-        id: 'inventory',
-        name: 'inventory',
-        displayName: 'Inventory',
-        description: 'Manage inventory and stock'
-      },
-      {
-        id: 'reports',
-        name: 'reports',
-        displayName: 'Reports',
-        description: 'Generate and view reports'
-      },
-      {
-        id: 'settings',
-        name: 'settings',
-        displayName: 'Settings',
-        description: 'System settings and configuration'
-      }
-    ];
+  async getRoleById(id: string): Promise<Role> {
+    try {
+      // This endpoint might be /roles/{id} or similar
+      const response = await apiClient.get<any>(`/roles/${id}`);
+      return this.normalizeRole(response);
+    } catch (error) {
+      console.error(`Error fetching role by ID ${id}:`, error);
+      throw error;
+    }
   }
 
   /**
-   * Get default system roles
+   * Update role permissions
    */
-  getDefaultRoles(): RoleCreationData[] {
+  async updateRolePermissions(roleName: string, permissions: string[]): Promise<Role> {
+    try {
+      const role = await this.getRoleByName(roleName);
+      const updatedRole = {
+        ...role,
+        permissions
+      };
+      
+      // This assumes you have a PATCH /roles/{id} endpoint
+      return await apiClient.patch<any, any>(`/roles/${role.id}`, { permissions });
+    } catch (error) {
+      console.error(`Error updating permissions for role ${roleName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new role
+   */
+  async createRole(roleData: Omit<Role, 'id' | '_id' | 'createdAt' | 'updatedAt'>): Promise<Role> {
+    try {
+      const response = await apiClient.post<any, any>('/roles', roleData);
+      return this.normalizeRole(response);
+    } catch (error) {
+      console.error('Error creating role:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update an existing role
+   */
+  async updateRole(id: string, roleData: Partial<Role>): Promise<Role> {
+    try {
+      const response = await apiClient.patch<any, any>(`/roles/${id}`, roleData);
+      return this.normalizeRole(response);
+    } catch (error) {
+      console.error(`Error updating role ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a role
+   */
+  async deleteRole(id: string): Promise<{ message: string }> {
+    try {
+      return await apiClient.delete<{ message: string }>(`/roles/${id}`);
+    } catch (error) {
+      console.error(`Error deleting role ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all role names
+   */
+  async getAllRoleNames(): Promise<string[]> {
+    try {
+      const roles = await this.getAllRoles();
+      return roles.map(role => role.name);
+    } catch (error) {
+      console.error('Error fetching role names:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if a role exists
+   */
+  async roleExists(roleName: string): Promise<boolean> {
+    try {
+      const roles = await this.getAllRoleNames();
+      return roles.includes(roleName);
+    } catch (error) {
+      console.error(`Error checking if role ${roleName} exists:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Get default system permissions (from backend permission map)
+   */
+  getDefaultPermissions(): Record<string, string[]> {
+    return {
+      system: [
+        'users.create',
+        'users.read',
+        'users.update',
+        'users.delete',
+        'roles.manage',
+        'settings.manage',
+        'summary.view',
+        'dashboard.view',
+      ],
+      management: ['dashboard.view', 'reports.generate', 'team.manage', 'targets.set'],
+      waivers: ['waivers.create', 'waivers.read', 'waivers.update', 'waivers.delete', 'waivers.sign'],
+      jobcards: ['jobcards.create', 'jobcards.read', 'jobcards.update', 'jobcards.delete'],
+      development: [
+        'tasks.read',
+        'tasks.update',
+        'workflows.read',
+        'logs.read',
+        'deployments.read'
+      ],
+      sales: [
+        'leads.create',
+        'leads.read',
+        'leads.update',
+        'leads.delete',
+        'opportunities.create',
+        'opportunities.read',
+        'opportunities.update',
+        'opportunities.delete',
+        'clients.read',
+        'clients.update',
+        'quotes.create',
+        'quotes.read',
+        'quotes.update',
+        'quotes.delete',
+        'sales.dashboard.view',
+      ],
+      quotes: [
+        'quotes.create',
+        'quotes.read',
+        'quotes.update',
+        'quotes.delete',
+        'quotes.approve',
+      ],
+      invoices: [
+        'invoices.create',
+        'invoices.read',
+        'invoices.update',
+        'invoices.delete',
+        'invoices.approve',
+        'invoices.pay',
+      ],
+      technical: [
+        'jobs.create',
+        'jobs.read',
+        'jobs.update',
+        'jobs.delete',
+        'vehicles.manage',
+        'vehicles.create',
+        'vehicles.read',
+        'vehicles.update',
+        'vehicles.delete',
+        'maintenance.schedule',
+        'maintenance.update',
+      ],
+      support: [
+        'tickets.create',
+        'tickets.read',
+        'tickets.update',
+        'tickets.close',
+        'customer.feedback',
+      ],
+      contacts: [
+        'contacts.create',
+        'contacts.read', 
+        'contacts.update',
+        'contacts.delete',
+      ],
+      partner: ['partner.clients.read', 'partner.contracts.read', 'partner.contracts.update'],
+      customer: ['customer.profile.read', 'customer.orders.view', 'customer.payments.read'],
+    };
+  }
+
+  /**
+   * Get default roles with their permissions
+   */
+  getDefaultRolesWithPermissions(): Role[] {
+    const permissionMap = this.getDefaultPermissions();
+    
     return [
       {
+        id: 'admin',
         name: 'admin',
         display_name: 'Administrator',
-        description: 'Full system access with all permissions',
+        description: 'Full system access',
         category: 'system',
-        employee_type: 'admin',
-        permissions: ['*'], // Wildcard for all permissions
-        active: true
-      },
-      {
-        name: 'sales_manager',
-        display_name: 'Sales Manager',
-        description: 'Manage sales team and oversee all sales activities',
-        category: 'sales',
         employee_type: 'manager',
         permissions: [
-          'leads.*',
-          'opportunities.*',
-          'quotes.*',
-          'sales_orders.*',
-          'dashboard.view',
-          'reports.view'
+          ...permissionMap.system,
+          ...permissionMap.management,
+          ...permissionMap.sales,
+          ...permissionMap.technical,
+          ...permissionMap.support,
+          ...permissionMap.partner,
+          ...permissionMap.customer,
+          ...permissionMap.jobcards,
+          ...permissionMap.waivers,
+          ...permissionMap.contacts,
+          ...permissionMap.development
         ],
-        active: true
+        active: true,
       },
       {
-        name: 'sales_rep',
+        id: 'management',
+        name: 'management',
+        display_name: 'Management',
+        description: 'Company management',
+        category: 'management',
+        employee_type: 'manager',
+        permissions: [
+          ...permissionMap.invoices,
+          ...permissionMap.quotes,
+          ...permissionMap.management,
+          ...permissionMap.jobcards,
+          ...permissionMap.waivers,
+          ...permissionMap.contacts
+        ],
+        active: true,
+      },
+      {
+        id: 'sales_representative',
+        name: 'sales_representative',
         display_name: 'Sales Representative',
-        description: 'Manage own leads, opportunities, and quotes',
+        description: 'Sales team member',
         category: 'sales',
-        employee_type: 'sales',
-        permissions: [
-          'leads.create',
-          'leads.read.own',
-          'leads.update.own',
-          'opportunities.create',
-          'opportunities.read.own',
-          'opportunities.update.own',
-          'quotes.create',
-          'quotes.read.own',
-          'quotes.update.own',
-          'dashboard.view'
-        ],
-        active: true
+        employee_type: 'employee',
+        permissions: [...permissionMap.sales],
+        active: true,
       },
       {
-        name: 'technical_manager',
-        display_name: 'Technical Manager',
-        description: 'Oversee all technical operations and team',
-        category: 'technical',
-        employee_type: 'manager',
-        permissions: [
-          'work_orders.*',
-          'inventory.*',
-          'dashboard.view',
-          'reports.view'
-        ],
-        active: true
-      },
-      {
+        id: 'technician',
         name: 'technician',
         display_name: 'Technician',
-        description: 'Perform technical work and update job status',
+        description: 'Service technician',
         category: 'technical',
-        employee_type: 'technician',
-        permissions: [
-          'work_orders.read.assigned',
-          'work_orders.update.assigned',
-          'dashboard.view'
-        ],
-        active: true
+        employee_type: 'employee',
+        permissions: [...permissionMap.technical],
+        active: true,
+      },
+      {
+        id: 'developer',
+        name: 'developer',
+        display_name: 'Developer',
+        description: 'Software developer',
+        category: 'Software Department',
+        employee_type: 'employee',
+        permissions: [...permissionMap.development],
+        active: true,
       }
-    ];
-  }
-
-  /**
-   * Get role categories for dropdowns
-   */
-  getRoleCategories(): Array<{ id: string; name: string; description: string }> {
-    return [
-      { id: 'system', name: 'System', description: 'System administration roles' },
-      { id: 'sales', name: 'Sales', description: 'Sales and business development roles' },
-      { id: 'technical', name: 'Technical', description: 'Technical and operational roles' },
-      { id: 'management', name: 'Management', description: 'Management and supervisory roles' },
-      { id: 'finance', name: 'Finance', description: 'Financial and accounting roles' },
-      { id: 'support', name: 'Support', description: 'Customer support roles' }
-    ];
-  }
-
-  /**
-   * Get employee types for dropdowns
-   */
-  getEmployeeTypes(): Array<{ id: string; name: string; description: string }> {
-    return [
-      { id: 'admin', name: 'Admin', description: 'System administrator' },
-      { id: 'manager', name: 'Manager', description: 'Team or department manager' },
-      { id: 'sales', name: 'Sales', description: 'Sales representative' },
-      { id: 'technician', name: 'Technician', description: 'Technical staff' },
-      { id: 'support', name: 'Support', description: 'Customer support staff' },
-      { id: 'finance', name: 'Finance', description: 'Financial staff' }
     ];
   }
 }
 
-// Export singleton instance
 export const roleService = new RoleService();
 
-// ================ Permission Constants ================
-// You can use these constants in your components for consistent permission checking
-
+// Permission constants for easier reference
 export const PERMISSIONS = {
   // User Management
   USERS_CREATE: 'users.create',
   USERS_READ: 'users.read',
   USERS_UPDATE: 'users.update',
   USERS_DELETE: 'users.delete',
-  USERS_READ_ALL: 'users.read.all',
-  USERS_UPDATE_ALL: 'users.update.all',
   
   // Roles & Permissions
-  ROLES_CREATE: 'roles.create',
-  ROLES_READ: 'roles.read',
-  ROLES_UPDATE: 'roles.update',
-  ROLES_DELETE: 'roles.delete',
-  ROLES_ASSIGN: 'roles.assign',
+  ROLES_MANAGE: 'roles.manage',
   
-  // Dashboard
+  // System
+  SETTINGS_MANAGE: 'settings.manage',
+  SUMMARY_VIEW: 'summary.view',
   DASHBOARD_VIEW: 'dashboard.view',
-  DASHBOARD_EXPORT: 'dashboard.export',
   
-  // Leads
+  // Management
+  REPORTS_GENERATE: 'reports.generate',
+  TEAM_MANAGE: 'team.manage',
+  TARGETS_SET: 'targets.set',
+  
+  // Sales
   LEADS_CREATE: 'leads.create',
   LEADS_READ: 'leads.read',
   LEADS_UPDATE: 'leads.update',
   LEADS_DELETE: 'leads.delete',
-  LEADS_READ_ALL: 'leads.read.all',
-  LEADS_UPDATE_ALL: 'leads.update.all',
-  LEADS_ASSIGN: 'leads.assign',
-  
-  // Opportunities
   OPPORTUNITIES_CREATE: 'opportunities.create',
   OPPORTUNITIES_READ: 'opportunities.read',
   OPPORTUNITIES_UPDATE: 'opportunities.update',
   OPPORTUNITIES_DELETE: 'opportunities.delete',
-  OPPORTUNITIES_READ_ALL: 'opportunities.read.all',
-  OPPORTUNITIES_UPDATE_ALL: 'opportunities.update.all',
-  
-  // Quotes
+  CLIENTS_READ: 'clients.read',
+  CLIENTS_UPDATE: 'clients.update',
   QUOTES_CREATE: 'quotes.create',
   QUOTES_READ: 'quotes.read',
   QUOTES_UPDATE: 'quotes.update',
   QUOTES_DELETE: 'quotes.delete',
-  QUOTES_READ_ALL: 'quotes.read.all',
-  QUOTES_UPDATE_ALL: 'quotes.update.all',
+  SALES_DASHBOARD_VIEW: 'sales.dashboard.view',
+  
+  // Quotes
   QUOTES_APPROVE: 'quotes.approve',
-  QUOTES_CONVERT: 'quotes.convert',
   
-  // Sales Orders
-  SALES_ORDERS_CREATE: 'sales_orders.create',
-  SALES_ORDERS_READ: 'sales_orders.read',
-  SALES_ORDERS_UPDATE: 'sales_orders.update',
-  SALES_ORDERS_DELETE: 'sales_orders.delete',
-  SALES_ORDERS_READ_ALL: 'sales_orders.read.all',
-  SALES_ORDERS_UPDATE_ALL: 'sales_orders.update.all',
+  // Invoices
+  INVOICES_CREATE: 'invoices.create',
+  INVOICES_READ: 'invoices.read',
+  INVOICES_UPDATE: 'invoices.update',
+  INVOICES_DELETE: 'invoices.delete',
+  INVOICES_APPROVE: 'invoices.approve',
+  INVOICES_PAY: 'invoices.pay',
   
-  // Work Orders
-  WORK_ORDERS_CREATE: 'work_orders.create',
-  WORK_ORDERS_READ: 'work_orders.read',
-  WORK_ORDERS_UPDATE: 'work_orders.update',
-  WORK_ORDERS_DELETE: 'work_orders.delete',
-  WORK_ORDERS_READ_ALL: 'work_orders.read.all',
-  WORK_ORDERS_UPDATE_ALL: 'work_orders.update.all',
-  WORK_ORDERS_ASSIGN: 'work_orders.assign',
-  WORK_ORDERS_COMPLETE: 'work_orders.complete',
+  // Technical
+  JOBS_CREATE: 'jobs.create',
+  JOBS_READ: 'jobs.read',
+  JOBS_UPDATE: 'jobs.update',
+  JOBS_DELETE: 'jobs.delete',
+  VEHICLES_MANAGE: 'vehicles.manage',
+  VEHICLES_CREATE: 'vehicles.create',
+  VEHICLES_READ: 'vehicles.read',
+  VEHICLES_UPDATE: 'vehicles.update',
+  VEHICLES_DELETE: 'vehicles.delete',
+  MAINTENANCE_SCHEDULE: 'maintenance.schedule',
+  MAINTENANCE_UPDATE: 'maintenance.update',
   
-  // Inventory
-  INVENTORY_CREATE: 'inventory.create',
-  INVENTORY_READ: 'inventory.read',
-  INVENTORY_UPDATE: 'inventory.update',
-  INVENTORY_DELETE: 'inventory.delete',
-  INVENTORY_READ_ALL: 'inventory.read.all',
-  INVENTORY_UPDATE_ALL: 'inventory.update.all',
+  // Support
+  TICKETS_CREATE: 'tickets.create',
+  TICKETS_READ: 'tickets.read',
+  TICKETS_UPDATE: 'tickets.update',
+  TICKETS_CLOSE: 'tickets.close',
+  CUSTOMER_FEEDBACK: 'customer.feedback',
   
-  // Reports
-  REPORTS_GENERATE: 'reports.generate',
-  REPORTS_VIEW: 'reports.view',
-  REPORTS_EXPORT: 'reports.export',
+  // Contacts
+  CONTACTS_CREATE: 'contacts.create',
+  CONTACTS_READ: 'contacts.read',
+  CONTACTS_UPDATE: 'contacts.update',
+  CONTACTS_DELETE: 'contacts.delete',
   
-  // Settings
-  SETTINGS_READ: 'settings.read',
-  SETTINGS_UPDATE: 'settings.update',
+  // Job Cards
+  JOBCARDS_CREATE: 'jobcards.create',
+  JOBCARDS_READ: 'jobcards.read',
+  JOBCARDS_UPDATE: 'jobcards.update',
+  JOBCARDS_DELETE: 'jobcards.delete',
   
-  // Audit
-  AUDIT_LOGS_VIEW: 'audit_logs.view',
+  // Waivers
+  WAIVERS_CREATE: 'waivers.create',
+  WAIVERS_READ: 'waivers.read',
+  WAIVERS_UPDATE: 'waivers.update',
+  WAIVERS_DELETE: 'waivers.delete',
+  WAIVERS_SIGN: 'waivers.sign',
   
-  // Notifications
-  NOTIFICATIONS_SEND: 'notifications.send',
-  NOTIFICATIONS_READ_ALL: 'notifications.read.all',
+  // Development
+  TASKS_READ: 'tasks.read',
+  TASKS_UPDATE: 'tasks.update',
+  WORKFLOWS_READ: 'workflows.read',
+  LOGS_READ: 'logs.read',
+  DEPLOYMENTS_READ: 'deployments.read',
+  
+  // Partner
+  PARTNER_CLIENTS_READ: 'partner.clients.read',
+  PARTNER_CONTRACTS_READ: 'partner.contracts.read',
+  PARTNER_CONTRACTS_UPDATE: 'partner.contracts.update',
+  
+  // Customer
+  CUSTOMER_PROFILE_READ: 'customer.profile.read',
+  CUSTOMER_ORDERS_VIEW: 'customer.orders.view',
+  CUSTOMER_PAYMENTS_READ: 'customer.payments.read',
 };
 
-export const ROLE_NAMES = {
+// Role constants for easier reference
+export const ROLES = {
   ADMIN: 'admin',
+  MANAGEMENT: 'management',
+  BRANCH_MANAGER: 'branch_manager',
+  FLEET_MANAGER: 'fleet_manager',
+  FINANCE: 'finance',
+  COMPLIANCE: 'compliance',
+  SALES_DIRECTOR: 'sales_director',
   SALES_MANAGER: 'sales_manager',
-  SALES_REP: 'sales_rep',
-  TECHNICAL_MANAGER: 'technical_manager',
+  SALES_LEAD: 'sales_lead',
+  SALES_REPRESENTATIVE: 'sales_representative',
+  ACCOUNT_EXECUTIVE: 'account_executive',
+  BUSINESS_DEVELOPMENT: 'business_development',
+  ENGINEER: 'engineer',
   TECHNICIAN: 'technician',
-  FINANCE_MANAGER: 'finance_manager',
-  SUPPORT_AGENT: 'support_agent',
+  WORKSHOP: 'workshop',
+  SUPPORT: 'support',
+  CUSTOMER_SERVICE: 'customer_service',
+  DEALER: 'dealer',
+  PARTNER: 'partner',
+  INSURER: 'insurer',
+  CUSTOMER: 'customer',
+  DEVELOPER: 'developer',
 };
 
-// ================ Permission Check Hooks ================
-// You can create React hooks using this service in a separate file
-
-export const usePermissions = (userRoles: Role[], additionalPermissions: string[] = []) => {
-  return roleService.createPermissionChecker(userRoles, additionalPermissions);
+// Helper function to create a permission checker
+export const createPermissionChecker = (userPermissions: string[]) => {
+  return {
+    hasPermission: (permission: string) => {
+      return roleService.checkPermissions(userPermissions, permission);
+    },
+    hasAnyPermission: (permissions: string[]) => {
+      return roleService.checkAnyPermission(userPermissions, permissions);
+    },
+    hasAllPermissions: (permissions: string[]) => {
+      return roleService.checkPermissions(userPermissions, permissions);
+    },
+  };
 };
-
-// ================ Sample Usage in Components ================
-/*
-// Example 1: Checking permissions
-const { hasPermission } = roleService.createPermissionChecker(userRoles, additionalPermissions);
-
-if (hasPermission(PERMISSIONS.USERS_CREATE)) {
-  // Show create user button
-}
-
-// Example 2: Fetching all roles
-const roles = await roleService.getAllRoles({ active: true, category: 'sales' });
-
-// Example 3: Assigning role to user
-await roleService.assignRoleToUser({
-  userId: '123',
-  roleName: ROLE_NAMES.SALES_REP
-});
-
-// Example 4: Getting permissions by category
-const groupedPermissions = await roleService.getPermissionsByCategory();
-*/
