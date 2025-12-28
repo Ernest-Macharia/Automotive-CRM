@@ -1,160 +1,98 @@
 import { apiClient } from '@/lib/api/client';
 
+export interface UserRef {
+  _id?: string;
+  id?: string;
+  email?: string;
+  role?: string;
+  name?: string;
+}
+
+export interface OpportunityRef {
+  _id?: string;
+  id?: string;
+  subject?: string;
+  type?: string;
+  companyName?: string;
+}
+
+export interface VehicleRef {
+  _id?: string;
+  id?: string;
+  registrationNumber?: string;
+  make?: string;
+  model?: string;
+  vin?: string;
+}
+
 export interface JobCard {
-  _id: string;
-  jobNumber: string;
-  opportunityId: string | {
-    _id: string;
-    subject: string;
-    customer: {
-      name: string;
-      email?: string;
-      phone?: string;
-      companyName?: string;
-    };
-  };
-  vehicleId: string | {
-    _id: string;
-    registrationNumber: string;
-    make: string;
-    model: string;
-    year?: number;
-    vin?: string;
-    customerId?: string;
-  };
+  id: string;
+  _id?: string;
+  opportunityId: OpportunityRef | string;
+  vehicleId: VehicleRef | string;
+  createdBy: UserRef | string;
+  assignedTo?: UserRef | string;
   jobTitle: string;
-  jobDescription: string;
-  status: 'pending' | 'assigned' | 'in_progress' | 'completed' | 'cancelled' | 'on_hold';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  assignedTo: string | {
-    _id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    role: string;
-  };
-  estimatedHours?: number;
-  actualHours?: number;
+  jobDescription?: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   startDate?: string;
   endDate?: string;
-  completedDate?: string;
-  partsUsed?: Array<{
-    partId: string;
-    partNumber: string;
-    name: string;
-    quantity: number;
-    unitPrice: number;
-    totalCost: number;
-  }>;
-  laborCost?: number;
-  partsCost?: number;
-  totalCost?: number;
-  notes?: string[];
-  attachments?: string[];
-  createdBy?: {
-    _id: string;
-    firstName: string;
-    lastName: string;
-  };
-  createdAt: string;
-  updatedAt: string;
+  active?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CreateJobCardData {
   opportunityId: string;
   vehicleId: string;
   jobTitle: string;
-  jobDescription: string;
-  assignedTo: string;
-  priority?: 'low' | 'medium' | 'high' | 'urgent';
-  estimatedHours?: number;
-  startDate?: string;
-  endDate?: string;
-  notes?: string[];
+  jobDescription?: string;
+  assignedTo?: string;
 }
 
 export interface UpdateJobCardData {
   jobTitle?: string;
   jobDescription?: string;
-  status?: 'pending' | 'assigned' | 'in_progress' | 'completed' | 'cancelled' | 'on_hold';
-  priority?: 'low' | 'medium' | 'high' | 'urgent';
-  assignedTo?: string;
-  estimatedHours?: number;
-  actualHours?: number;
+  status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   startDate?: string;
   endDate?: string;
-  completedDate?: string;
-  partsUsed?: Array<{
-    partId: string;
-    partNumber: string;
-    name: string;
-    quantity: number;
-    unitPrice: number;
-    totalCost: number;
-  }>;
-  laborCost?: number;
-  partsCost?: number;
-  totalCost?: number;
-  notes?: string[];
-  attachments?: string[];
+  assignedTo?: string;
+  active?: boolean;
 }
 
-export interface FilterParams {
+export interface JobCardFilterParams {
+  page?: number;
+  limit?: number;
   status?: string;
-  priority?: string;
-  assignedTo?: string;
   vehicleId?: string;
   opportunityId?: string;
+  assignedTo?: string;
   fromDate?: string;
   toDate?: string;
   search?: string;
   sort?: string;
-  page?: number;
-  limit?: number;
-}
-
-export interface JobCardsResponse {
-  data: JobCard[];
-  pagination?: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  };
-  stats?: JobCardStats;
-}
-
-export interface JobCardStats {
-  total: number;
-  byStatus: Array<{
-    _id: string;
-    count: number;
-    totalHours: number;
-  }>;
-  byPriority: Array<{
-    _id: string;
-    count: number;
-  }>;
-  byTechnician: Array<{
-    _id: string;
-    count: number;
-    completedCount: number;
-    totalHours: number;
-  }>;
-  summary: {
-    totalOpen: number;
-    totalCompleted: number;
-    totalHours: number;
-    avgCompletionTime: number;
-    pendingCount: number;
-    inProgressCount: number;
-  };
 }
 
 class JobCardService {
-  private basePath = '/jobcards';
+  /**
+   * Create a new job card
+   * POST /api/v1/jobcards
+   */
+  async createJobCard(data: CreateJobCardData, userId?: string): Promise<JobCard> {
+    try {
+      const response = await apiClient.post<CreateJobCardData, any>('/jobcards', data);
+      return this.normalizeJobCard(response);
+    } catch (error) {
+      console.error('Error creating job card:', error);
+      throw error;
+    }
+  }
 
-  async getAllJobCards(params?: FilterParams): Promise<JobCardsResponse> {
+  /**
+   * Get all job cards
+   * GET /api/v1/jobcards
+   */
+  async getAllJobCards(params?: JobCardFilterParams): Promise<JobCard[]> {
     try {
       const queryParams = new URLSearchParams();
       
@@ -166,230 +104,464 @@ class JobCardService {
         });
       }
       
-      const endpoint = `${this.basePath}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      const response = await apiClient.get<any>(endpoint);
+      const queryString = queryParams.toString();
+      const endpoint = `/jobcards${queryString ? `?${queryString}` : ''}`;
       
-      return {
-        data: response.data || response,
-        pagination: response.pagination,
-        stats: response.stats
-      };
+      const response = await apiClient.get<any[]>(endpoint);
+      return response.map(jobCard => this.normalizeJobCard(jobCard));
     } catch (error) {
       console.error('Error fetching job cards:', error);
       throw error;
     }
   }
 
+  /**
+   * Get a job card by ID
+   * GET /api/v1/jobcards/{id}
+   */
   async getJobCardById(id: string): Promise<JobCard> {
     try {
-      return await apiClient.get<JobCard>(`${this.basePath}/${id}`);
+      const response = await apiClient.get<any>(`/jobcards/${id}`);
+      return this.normalizeJobCard(response);
     } catch (error) {
       console.error(`Error fetching job card ${id}:`, error);
       throw error;
     }
   }
 
-  async getJobCardsByVehicle(vehicleId: string): Promise<JobCardsResponse> {
+  /**
+   * Update a job card
+   * PUT /api/v1/jobcards/{id}
+   */
+  async updateJobCard(id: string, data: UpdateJobCardData, userRole?: string, userId?: string): Promise<JobCard> {
     try {
-      const response = await apiClient.get<any>(`${this.basePath}/vehicle/${vehicleId}`);
-      return {
-        data: response.data || response,
-        pagination: undefined,
-        stats: undefined
-      };
-    } catch (error) {
-      console.error(`Error fetching job cards for vehicle ${vehicleId}:`, error);
-      throw error;
-    }
-  }
-
-  async getJobCardsByOpportunity(opportunityId: string): Promise<JobCardsResponse> {
-    try {
-      const response = await apiClient.get<any>(`${this.basePath}/opportunity/${opportunityId}`);
-      return {
-        data: response.data || response,
-        pagination: undefined,
-        stats: undefined
-      };
-    } catch (error) {
-      console.error(`Error fetching job cards for opportunity ${opportunityId}:`, error);
-      throw error;
-    }
-  }
-
-  async createJobCard(data: CreateJobCardData): Promise<JobCard> {
-    try {
-      const formattedData = {
-        opportunityId: data.opportunityId,
-        vehicleId: data.vehicleId,
-        jobTitle: data.jobTitle,
-        jobDescription: data.jobDescription,
-        assignedTo: data.assignedTo,
-        priority: data.priority || 'medium',
-        estimatedHours: data.estimatedHours || 0,
-        status: 'pending' as const,
-        startDate: data.startDate || new Date().toISOString(),
-        endDate: data.endDate,
-        notes: data.notes || []
-      };
-
-      return await apiClient.post<any, JobCard>(this.basePath, formattedData);
-    } catch (error) {
-      console.error('Error creating job card:', error);
-      throw error;
-    }
-  }
-
-  async updateJobCard(id: string, data: UpdateJobCardData): Promise<JobCard> {
-    try {
-      return await apiClient.put<UpdateJobCardData, JobCard>(`${this.basePath}/${id}`, data);
+      const response = await apiClient.put<UpdateJobCardData, any>(`/jobcards/${id}`, data);
+      return this.normalizeJobCard(response);
     } catch (error) {
       console.error(`Error updating job card ${id}:`, error);
       throw error;
     }
   }
 
-  async deleteJobCard(id: string): Promise<void> {
+  /**
+   * Delete a job card
+   * DELETE /api/v1/jobcards/{id}
+   */
+  async deleteJobCard(id: string, userId?: string): Promise<{ message: string }> {
     try {
-      await apiClient.delete(`${this.basePath}/${id}`);
+      return await apiClient.delete<{ message: string }>(`/jobcards/${id}`);
     } catch (error) {
       console.error(`Error deleting job card ${id}:`, error);
       throw error;
     }
   }
 
-  async updateJobCardStatus(id: string, status: JobCard['status']): Promise<JobCard> {
+  /**
+   * Get job cards by vehicle ID
+   * GET /api/v1/jobcards/vehicle/{vehicleId}
+   */
+  async getJobCardsByVehicle(vehicleId: string): Promise<JobCard[]> {
     try {
-      return await apiClient.patch<any, JobCard>(`${this.basePath}/${id}/status`, { status });
+      const response = await apiClient.get<any[]>(`/jobcards/vehicle/${vehicleId}`);
+      return response.map(jobCard => this.normalizeJobCard(jobCard));
     } catch (error) {
-      console.error(`Error updating job card status ${id}:`, error);
+      console.error(`Error fetching job cards for vehicle ${vehicleId}:`, error);
       throw error;
     }
   }
 
-  async assignJobCard(id: string, technicianId: string): Promise<JobCard> {
+  /**
+   * Normalize job card data from backend
+   */
+  private normalizeJobCard(data: any): JobCard {
+    return {
+      id: data._id || data.id,
+      _id: data._id,
+      opportunityId: data.opportunityId,
+      vehicleId: data.vehicleId,
+      createdBy: data.createdBy,
+      assignedTo: data.assignedTo,
+      jobTitle: data.jobTitle,
+      jobDescription: data.jobDescription,
+      status: data.status || 'pending',
+      startDate: data.startDate,
+      endDate: data.endDate,
+      active: data.active !== undefined ? data.active : true,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+    };
+  }
+
+  /**
+   * Get job cards by status
+   */
+  async getJobCardsByStatus(status: string): Promise<JobCard[]> {
     try {
-      return await apiClient.patch<any, JobCard>(`${this.basePath}/${id}/assign`, { assignedTo: technicianId });
+      const jobCards = await this.getAllJobCards({ status });
+      return jobCards.filter(jobCard => jobCard.status === status);
     } catch (error) {
-      console.error(`Error assigning job card ${id}:`, error);
+      console.error(`Error fetching job cards with status ${status}:`, error);
       throw error;
     }
   }
 
-  async addPartToJobCard(id: string, partData: {
-    partId: string;
-    partNumber: string;
-    name: string;
-    quantity: number;
-    unitPrice: number;
-  }): Promise<JobCard> {
+  /**
+   * Get pending job cards
+   */
+  async getPendingJobCards(): Promise<JobCard[]> {
+    return this.getJobCardsByStatus('pending');
+  }
+
+  /**
+   * Get in-progress job cards
+   */
+  async getInProgressJobCards(): Promise<JobCard[]> {
+    return this.getJobCardsByStatus('in_progress');
+  }
+
+  /**
+   * Get completed job cards
+   */
+  async getCompletedJobCards(): Promise<JobCard[]> {
+    return this.getJobCardsByStatus('completed');
+  }
+
+  /**
+   * Get cancelled job cards
+   */
+  async getCancelledJobCards(): Promise<JobCard[]> {
+    return this.getJobCardsByStatus('cancelled');
+  }
+
+  /**
+   * Search job cards
+   */
+  async searchJobCards(searchTerm: string): Promise<JobCard[]> {
     try {
-      const totalCost = partData.quantity * partData.unitPrice;
-      return await apiClient.post<any, JobCard>(`${this.basePath}/${id}/parts`, {
-        ...partData,
-        totalCost
+      const jobCards = await this.getAllJobCards();
+      return jobCards.filter(jobCard => 
+        jobCard.jobTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        jobCard.jobDescription?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (typeof jobCard.vehicleId === 'object' && 
+         jobCard.vehicleId.registrationNumber?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (typeof jobCard.opportunityId === 'object' && 
+         jobCard.opportunityId.subject?.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+    } catch (error) {
+      console.error('Error searching job cards:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get job cards by assigned user
+   */
+  async getJobCardsByAssignedUser(userId: string): Promise<JobCard[]> {
+    try {
+      const jobCards = await this.getAllJobCards();
+      return jobCards.filter(jobCard => {
+        if (typeof jobCard.assignedTo === 'string') {
+          return jobCard.assignedTo === userId;
+        }
+        return jobCard.assignedTo?._id === userId || jobCard.assignedTo?.id === userId;
       });
     } catch (error) {
-      console.error(`Error adding part to job card ${id}:`, error);
+      console.error(`Error fetching job cards for user ${userId}:`, error);
       throw error;
     }
   }
 
-  async updateTimeSpent(id: string, actualHours: number): Promise<JobCard> {
+  /**
+   * Get job cards by creator
+   */
+  async getJobCardsByCreator(userId: string): Promise<JobCard[]> {
     try {
-      return await apiClient.patch<any, JobCard>(`${this.basePath}/${id}/time`, { actualHours });
+      const jobCards = await this.getAllJobCards();
+      return jobCards.filter(jobCard => {
+        if (typeof jobCard.createdBy === 'string') {
+          return jobCard.createdBy === userId;
+        }
+        return jobCard.createdBy?._id === userId || jobCard.createdBy?.id === userId;
+      });
     } catch (error) {
-      console.error(`Error updating time for job card ${id}:`, error);
+      console.error(`Error fetching job cards created by user ${userId}:`, error);
       throw error;
     }
   }
 
-  async getJobCardStats(): Promise<JobCardStats> {
+  /**
+   * Get active job cards only
+   */
+  async getActiveJobCards(): Promise<JobCard[]> {
     try {
-      return await apiClient.get<JobCardStats>(`${this.basePath}/stats/summary`);
+      const jobCards = await this.getAllJobCards();
+      return jobCards.filter(jobCard => jobCard.active !== false);
     } catch (error) {
-      console.error('Error fetching job card stats:', error);
+      console.error('Error fetching active job cards:', error);
       throw error;
     }
   }
 
-  async getRecentJobCards(limit: number = 10): Promise<JobCardsResponse> {
+  /**
+   * Get job cards statistics
+   */
+  async getJobCardStatistics(): Promise<{
+    total: number;
+    pending: number;
+    in_progress: number;
+    completed: number;
+    cancelled: number;
+    byVehicle: Record<string, number>;
+    byStatus: Record<string, number>;
+    byAssignedTo: Record<string, number>;
+  }> {
     try {
-      const response = await apiClient.get<any>(`${this.basePath}/recent?limit=${limit}`);
+      const jobCards = await this.getAllJobCards();
+      
+      const byVehicle: Record<string, number> = {};
+      const byStatus: Record<string, number> = {};
+      const byAssignedTo: Record<string, number> = {};
+      
+      let pending = 0;
+      let in_progress = 0;
+      let completed = 0;
+      let cancelled = 0;
+      
+      jobCards.forEach(jobCard => {
+        // Count by status
+        byStatus[jobCard.status] = (byStatus[jobCard.status] || 0) + 1;
+        
+        switch (jobCard.status) {
+          case 'pending': pending++; break;
+          case 'in_progress': in_progress++; break;
+          case 'completed': completed++; break;
+          case 'cancelled': cancelled++; break;
+        }
+        
+        // Count by vehicle
+        let vehicleId: string;
+        if (typeof jobCard.vehicleId === 'string') {
+          vehicleId = jobCard.vehicleId;
+        } else {
+          vehicleId = jobCard.vehicleId?._id || jobCard.vehicleId?.id || 'unknown';
+        }
+        byVehicle[vehicleId] = (byVehicle[vehicleId] || 0) + 1;
+        
+        // Count by assigned user
+        if (jobCard.assignedTo) {
+          let assignedToId: string;
+          if (typeof jobCard.assignedTo === 'string') {
+            assignedToId = jobCard.assignedTo;
+          } else {
+            assignedToId = jobCard.assignedTo._id || jobCard.assignedTo.id || 'unknown';
+          }
+          byAssignedTo[assignedToId] = (byAssignedTo[assignedToId] || 0) + 1;
+        }
+      });
+      
       return {
-        data: response.data || response,
-        pagination: undefined,
-        stats: undefined
+        total: jobCards.length,
+        pending,
+        in_progress,
+        completed,
+        cancelled,
+        byVehicle,
+        byStatus,
+        byAssignedTo,
       };
     } catch (error) {
-      console.error('Error fetching recent job cards:', error);
+      console.error('Error calculating job card statistics:', error);
       throw error;
     }
   }
 
-  // Utility methods for UI
+  /**
+   * Get job card status color for UI
+   */
   getStatusColor(status: string): string {
     switch (status) {
-      case 'pending': return 'bg-gray-100 text-gray-800';
-      case 'assigned': return 'bg-blue-100 text-blue-800';
-      case 'in_progress': return 'bg-yellow-100 text-yellow-800';
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      case 'on_hold': return 'bg-orange-100 text-orange-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'pending': return 'warning';
+      case 'in_progress': return 'primary';
+      case 'completed': return 'success';
+      case 'cancelled': return 'error';
+      default: return 'default';
     }
   }
 
-  getPriorityColor(priority: string): string {
-    switch (priority) {
-      case 'low': return 'bg-green-100 text-green-800';
-      case 'medium': return 'bg-blue-100 text-blue-800';
-      case 'high': return 'bg-yellow-100 text-yellow-800';
-      case 'urgent': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+  /**
+   * Get job card status text for UI
+   */
+  getStatusText(status: string): string {
+    switch (status) {
+      case 'pending': return 'Pending';
+      case 'in_progress': return 'In Progress';
+      case 'completed': return 'Completed';
+      case 'cancelled': return 'Cancelled';
+      default: return status;
     }
   }
 
+  /**
+   * Get job card status icon
+   */
   getStatusIcon(status: string): string {
     switch (status) {
       case 'pending': return '⏰';
-      case 'assigned': return '👤';
       case 'in_progress': return '⚙️';
       case 'completed': return '✅';
       case 'cancelled': return '❌';
-      case 'on_hold': return '⏸️';
-      default: return '📝';
+      default: return '📋';
     }
   }
 
-  formatCurrency(amount: number): string {
-    return new Intl.NumberFormat('en-KE', {
-      style: 'currency',
-      currency: 'KES',
-      minimumFractionDigits: 2
-    }).format(amount);
-  }
-
-  generateJobNumber(): string {
-    const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 1000);
-    return `JC-${timestamp}-${random.toString().padStart(3, '0')}`;
-  }
-
-  calculateCompletionPercentage(jobCard: JobCard): number {
-    if (jobCard.status === 'completed') return 100;
-    if (jobCard.status === 'cancelled') return 0;
+  /**
+   * Calculate job card duration
+   */
+  calculateDuration(startDate?: string, endDate?: string): string {
+    if (!startDate) return 'Not started';
     
-    // Simple progress calculation based on status
-    const statusProgress = {
-      'pending': 10,
-      'assigned': 30,
-      'in_progress': 60,
-      'on_hold': 40
+    const start = new Date(startDate);
+    const end = endDate ? new Date(endDate) : new Date();
+    
+    if (isNaN(start.getTime())) return 'Invalid date';
+    
+    const diffMs = end.getTime() - start.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (diffDays > 0) {
+      return `${diffDays}d ${diffHours}h`;
+    } else if (diffHours > 0) {
+      return `${diffHours}h ${diffMinutes}m`;
+    } else {
+      return `${diffMinutes}m`;
+    }
+  }
+
+  /**
+   * Check if job card can be updated
+   */
+  canUpdateJobCard(jobCard: JobCard, userRole?: string): boolean {
+    if (jobCard.status === 'completed' || jobCard.status === 'cancelled') {
+      return false;
+    }
+    
+    // Add role-based permissions if needed
+    if (userRole) {
+      const allowedRoles = ['admin', 'management', 'technician'];
+      if (!allowedRoles.includes(userRole)) {
+        return false;
+      }
+    }
+    
+    return true;
+  }
+
+  /**
+   * Check if job card can be deleted
+   */
+  canDeleteJobCard(jobCard: JobCard, userRole?: string): boolean {
+    if (jobCard.status === 'completed') {
+      return false;
+    }
+    
+    // Add role-based permissions if needed
+    if (userRole) {
+      const allowedRoles = ['admin', 'management'];
+      if (!allowedRoles.includes(userRole)) {
+        return false;
+      }
+    }
+    
+    return true;
+  }
+
+  /**
+   * Get assigned user display name
+   */
+  getAssignedUserDisplayName(jobCard: JobCard): string {
+    if (!jobCard.assignedTo) return 'Unassigned';
+    
+    if (typeof jobCard.assignedTo === 'object' && jobCard.assignedTo !== null) {
+      return jobCard.assignedTo.name || jobCard.assignedTo.email || 'Unknown User';
+    }
+    
+    return 'User ID: ' + jobCard.assignedTo;
+  }
+
+  /**
+   * Get vehicle display name
+   */
+  getVehicleDisplayName(jobCard: JobCard): string {
+    if (!jobCard.vehicleId) return 'No Vehicle';
+    
+    if (typeof jobCard.vehicleId === 'object' && jobCard.vehicleId !== null) {
+      return `${jobCard.vehicleId.registrationNumber} - ${jobCard.vehicleId.make} ${jobCard.vehicleId.model}`;
+    }
+    
+    return 'Vehicle ID: ' + jobCard.vehicleId;
+  }
+
+  /**
+   * Get opportunity display name
+   */
+  getOpportunityDisplayName(jobCard: JobCard): string {
+    if (!jobCard.opportunityId) return 'No Opportunity';
+    
+    if (typeof jobCard.opportunityId === 'object' && jobCard.opportunityId !== null) {
+      return jobCard.opportunityId.subject || 'Opportunity';
+    }
+    
+    return 'Opportunity ID: ' + jobCard.opportunityId;
+  }
+
+  /**
+   * Format job card for select dropdown
+   */
+  formatJobCardForSelect(jobCard: JobCard): { value: string; label: string } {
+    return {
+      value: jobCard.id,
+      label: `${jobCard.jobTitle} (${this.getVehicleDisplayName(jobCard)})`
     };
-    
-    return statusProgress[jobCard.status] || 0;
+  }
+
+  /**
+   * Get job cards for select dropdown
+   */
+  async getJobCardsForSelect(): Promise<Array<{ value: string; label: string }>> {
+    try {
+      const jobCards = await this.getActiveJobCards();
+      return jobCards.map(jobCard => this.formatJobCardForSelect(jobCard));
+    } catch (error) {
+      console.error('Error getting job cards for select:', error);
+      throw error;
+    }
   }
 }
 
 export const jobCardService = new JobCardService();
+
+// Status constants for easier reference
+export const JOB_CARD_STATUS = {
+  PENDING: 'pending',
+  IN_PROGRESS: 'in_progress',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
+};
+
+// Helper function to create a job card status checker
+export const createJobCardStatusChecker = (jobCard: JobCard) => {
+  return {
+    isPending: () => jobCard.status === JOB_CARD_STATUS.PENDING,
+    isInProgress: () => jobCard.status === JOB_CARD_STATUS.IN_PROGRESS,
+    isCompleted: () => jobCard.status === JOB_CARD_STATUS.COMPLETED,
+    isCancelled: () => jobCard.status === JOB_CARD_STATUS.CANCELLED,
+    canUpdate: (userRole?: string) => jobCardService.canUpdateJobCard(jobCard, userRole),
+    canDelete: (userRole?: string) => jobCardService.canDeleteJobCard(jobCard, userRole),
+    getStatusColor: () => jobCardService.getStatusColor(jobCard.status),
+    getStatusText: () => jobCardService.getStatusText(jobCard.status),
+    getStatusIcon: () => jobCardService.getStatusIcon(jobCard.status),
+    getDuration: () => jobCardService.calculateDuration(jobCard.startDate, jobCard.endDate),
+  };
+};
