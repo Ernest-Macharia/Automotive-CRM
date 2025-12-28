@@ -143,30 +143,48 @@ export interface SetPrimaryImageData {
   imageUrl: string;
 }
 
-// Custom client wrapper to handle FormData properly
-const vehicleApiClient = {
-  post: async <T, R>(url: string, data: T, config?: any): Promise<R> => {
-    return apiClient.post<T, R>(url, data);
-  },
-  
-  put: async <T, R>(url: string, data: T, config?: any): Promise<R> => {
-    return apiClient.put<T, R>(url, data);
-  },
-  
-  get: async <R>(url: string): Promise<R> => {
-    return apiClient.get<R>(url);
-  },
-  
-  delete: async <R>(url: string): Promise<R> => {
-    return apiClient.delete<R>(url);
-  }
-};
-
 class VehicleService {
+  // Helper method to handle FormData uploads
+  private async uploadFormData<T>(endpoint: string, formData: FormData): Promise<T> {
+    const url = `${process.env.NEXT_PUBLIC_API_URL || ''}${endpoint}`;
+    const token = sessionStorage.getItem('accessToken');
+    
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    // Don't set Content-Type for FormData - browser will set it with boundary
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Upload Error Response:', errorText);
+      
+      if (response.status === 401) {
+        sessionStorage.removeItem('accessToken');
+        window.location.href = '/login';
+      }
+      
+      throw new Error(`Upload Error (${response.status}): ${errorText || response.statusText}`);
+    }
+
+    if (response.headers.get('content-type')?.includes('application/json')) {
+      return response.json();
+    }
+    
+    return {} as T;
+  }
+
   // POST /api/v1/vehicles - Create a new vehicle
   async createVehicle(data: CreateVehicleData): Promise<Vehicle> {
     try {
-      return await vehicleApiClient.post<CreateVehicleData, Vehicle>('/vehicles', data);
+      return await apiClient.post<CreateVehicleData, Vehicle>('/vehicles', data);
     } catch (error) {
       console.error('Error creating vehicle:', error);
       throw error;
@@ -188,7 +206,7 @@ class VehicleService {
       
       const queryString = queryParams.toString();
       const endpoint = `/vehicles${queryString ? `?${queryString}` : ''}`;
-      return await vehicleApiClient.get<Vehicle[]>(endpoint);
+      return await apiClient.get<Vehicle[]>(endpoint);
     } catch (error) {
       console.error('Error fetching vehicles:', error);
       throw error;
@@ -198,7 +216,7 @@ class VehicleService {
   // GET /api/v1/vehicles/opportunity/{opportunityId} - Get vehicles by opportunity ID
   async getVehiclesByOpportunity(opportunityId: string): Promise<Vehicle[]> {
     try {
-      return await vehicleApiClient.get<Vehicle[]>(`/vehicles/opportunity/${opportunityId}`);
+      return await apiClient.get<Vehicle[]>(`/vehicles/opportunity/${opportunityId}`);
     } catch (error) {
       console.error(`Error fetching vehicles for opportunity ${opportunityId}:`, error);
       throw error;
@@ -208,7 +226,7 @@ class VehicleService {
   // GET /api/v1/vehicles/{id} - Get a vehicle by ID
   async getVehicleById(id: string): Promise<Vehicle> {
     try {
-      return await vehicleApiClient.get<Vehicle>(`/vehicles/${id}`);
+      return await apiClient.get<Vehicle>(`/vehicles/${id}`);
     } catch (error) {
       console.error(`Error fetching vehicle ${id}:`, error);
       throw error;
@@ -218,7 +236,7 @@ class VehicleService {
   // PUT /api/v1/vehicles/{id} - Update a vehicle
   async updateVehicle(id: string, data: UpdateVehicleData): Promise<Vehicle> {
     try {
-      return await vehicleApiClient.put<UpdateVehicleData, Vehicle>(`/vehicles/${id}`, data);
+      return await apiClient.put<UpdateVehicleData, Vehicle>(`/vehicles/${id}`, data);
     } catch (error) {
       console.error(`Error updating vehicle ${id}:`, error);
       throw error;
@@ -228,7 +246,7 @@ class VehicleService {
   // DELETE /api/v1/vehicles/{id} - Delete a vehicle
   async deleteVehicle(id: string): Promise<{ message: string }> {
     try {
-      return await vehicleApiClient.delete<{ message: string }>(`/vehicles/${id}`);
+      return await apiClient.delete<{ message: string }>(`/vehicles/${id}`);
     } catch (error) {
       console.error(`Error deleting vehicle ${id}:`, error);
       throw error;
@@ -238,7 +256,7 @@ class VehicleService {
   // POST /api/v1/vehicles/{id}/images - Add images to a vehicle
   async addImages(id: string, data: AddImagesData): Promise<Vehicle> {
     try {
-      return await vehicleApiClient.post<AddImagesData, Vehicle>(`/vehicles/${id}/images`, data);
+      return await apiClient.post<AddImagesData, Vehicle>(`/vehicles/${id}/images`, data);
     } catch (error) {
       console.error(`Error adding images to vehicle ${id}:`, error);
       throw error;
@@ -249,7 +267,7 @@ class VehicleService {
   async removeImage(id: string, imageUrl: string): Promise<Vehicle> {
     try {
       const encodedImageUrl = encodeURIComponent(imageUrl);
-      return await vehicleApiClient.delete<Vehicle>(`/vehicles/${id}/images/${encodedImageUrl}`);
+      return await apiClient.delete<Vehicle>(`/vehicles/${id}/images/${encodedImageUrl}`);
     } catch (error) {
       console.error(`Error removing image from vehicle ${id}:`, error);
       throw error;
@@ -259,7 +277,7 @@ class VehicleService {
   // PUT /api/v1/vehicles/{id}/images/primary - Set primary image for a vehicle
   async setPrimaryImage(id: string, imageUrl: string): Promise<Vehicle> {
     try {
-      return await vehicleApiClient.put<SetPrimaryImageData, Vehicle>(
+      return await apiClient.put<SetPrimaryImageData, Vehicle>(
         `/vehicles/${id}/images/primary`, 
         { imageUrl }
       );
@@ -272,7 +290,7 @@ class VehicleService {
   // GET /api/v1/vehicles/{id}/images - Get all images for a vehicle
   async getVehicleImages(id: string): Promise<VehicleImage[]> {
     try {
-      return await vehicleApiClient.get<VehicleImage[]>(`/vehicles/${id}/images`);
+      return await apiClient.get<VehicleImage[]>(`/vehicles/${id}/images`);
     } catch (error) {
       console.error(`Error fetching images for vehicle ${id}:`, error);
       throw error;
@@ -287,15 +305,7 @@ class VehicleService {
         formData.append('images', file);
       });
       
-      return await vehicleApiClient.post<FormData, Vehicle>(
-        `/vehicles/${id}/upload-images`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
+      return await this.uploadFormData<Vehicle>(`/vehicles/${id}/upload-images`, formData);
     } catch (error) {
       console.error(`Error uploading images for vehicle ${id}:`, error);
       throw error;
@@ -306,7 +316,7 @@ class VehicleService {
   async deleteVehicleImageFile(id: string, filename: string): Promise<{ message: string }> {
     try {
       const encodedFilename = encodeURIComponent(filename);
-      return await vehicleApiClient.delete<{ message: string }>(`/vehicles/${id}/images/${encodedFilename}`);
+      return await apiClient.delete<{ message: string }>(`/vehicles/${id}/images/${encodedFilename}`);
     } catch (error) {
       console.error(`Error deleting image file ${filename} from vehicle ${id}:`, error);
       throw error;
