@@ -20,25 +20,26 @@ import {
   Calendar,
   ChevronRight,
   RefreshCw,
-  Loader2
+  Loader2,
+  MoreVertical
 } from 'lucide-react';
 import { quoteService, Quote } from '@/services/quoteService';
 import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
 import { invoiceService } from '@/services/invoiceService';
 
-// Skeleton Components
+// ✨ Cleaner Skeletons
 const SkeletonStats = () => (
-  <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
     {[1, 2, 3, 4, 5].map((i) => (
-      <div key={i} className={`rounded-2xl p-6 shadow-lg border ${i === 5 ? 'bg-gradient-to-r from-blue-500 to-purple-600' : 'bg-white border-gray-200'} animate-pulse`}>
+      <div key={i} className={`rounded-xl p-4 border ${i === 5 ? 'bg-white border-blue-200' : 'bg-white border-gray-200'} animate-pulse`}>
         <div className="flex items-center justify-between">
           <div>
-            <div className={`h-4 w-24 ${i === 5 ? 'bg-blue-100' : 'bg-gray-200'} rounded mb-2`}></div>
-            <div className={`h-8 w-16 ${i === 5 ? 'bg-white/50' : 'bg-gray-300'} rounded`}></div>
+            <div className={`h-4 w-20 ${i === 5 ? 'bg-blue-200' : 'bg-gray-200'} rounded mb-2`}></div>
+            <div className={`h-6 w-14 ${i === 5 ? 'bg-blue-300' : 'bg-gray-300'} rounded`}></div>
           </div>
-          <div className={`p-3 rounded-xl ${i === 5 ? 'bg-white/20' : 'bg-gray-100'}`}>
-            <div className="h-6 w-6 bg-gray-200 rounded"></div>
+          <div className={`p-2 rounded-lg ${i === 5 ? 'bg-blue-100' : 'bg-gray-100'}`}>
+            <div className="h-5 w-5 bg-gray-200 rounded"></div>
           </div>
         </div>
       </div>
@@ -47,39 +48,30 @@ const SkeletonStats = () => (
 );
 
 const SkeletonRow = () => (
-  <tr className="border-b border-gray-100 hover:bg-gray-50">
-    <td className="px-6 py-4">
+  <tr className="border-b border-gray-200">
+    <td className="px-4 py-3">
       <div className="flex items-center gap-3">
-        <div className="h-10 w-10 bg-gray-200 rounded-xl animate-pulse"></div>
+        <div className="h-8 w-8 bg-gray-200 rounded-lg animate-pulse"></div>
         <div>
-          <div className="h-4 w-24 bg-gray-300 rounded animate-pulse mb-1"></div>
-          <div className="h-3 w-20 bg-gray-200 rounded animate-pulse"></div>
+          <div className="h-4 w-20 bg-gray-200 rounded animate-pulse mb-1"></div>
+          <div className="h-3 w-16 bg-gray-200 rounded animate-pulse"></div>
         </div>
       </div>
     </td>
-    <td className="px-6 py-4">
+    <td className="px-4 py-3">
+      <div className="h-5 w-16 bg-gray-200 rounded animate-pulse"></div>
+    </td>
+    <td className="px-4 py-3">
+      <div className="h-6 w-20 bg-gray-200 rounded-full animate-pulse"></div>
+    </td>
+    <td className="px-4 py-3">
       <div className="space-y-1">
-        <div className="h-5 w-20 bg-gray-300 rounded animate-pulse"></div>
+        <div className="h-3 w-20 bg-gray-200 rounded animate-pulse"></div>
         <div className="h-3 w-16 bg-gray-200 rounded animate-pulse"></div>
       </div>
     </td>
-    <td className="px-6 py-4">
-      <div className="h-8 w-24 bg-gray-300 rounded-full animate-pulse"></div>
-    </td>
-    <td className="px-6 py-4">
-      <div className="space-y-1">
-        <div className="h-3 w-24 bg-gray-300 rounded animate-pulse"></div>
-        <div className="h-3 w-20 bg-gray-200 rounded animate-pulse"></div>
-      </div>
-    </td>
-    <td className="px-6 py-4">
-      <div className="flex items-center gap-2">
-        <div className="h-8 w-8 bg-gray-200 rounded-lg animate-pulse"></div>
-        <div className="h-8 w-8 bg-gray-200 rounded-lg animate-pulse"></div>
-        <div className="h-8 w-8 bg-gray-200 rounded-lg animate-pulse"></div>
-        <div className="h-8 w-8 bg-gray-200 rounded-lg animate-pulse"></div>
-        <div className="h-8 w-8 bg-gray-200 rounded-lg animate-pulse"></div>
-      </div>
+    <td className="px-4 py-3">
+      <div className="h-8 w-8 bg-gray-200 rounded-lg animate-pulse"></div>
     </td>
   </tr>
 );
@@ -101,13 +93,15 @@ export default function QuotesDashboard() {
     totalAmount: 0
   });
   const [statsLoading, setStatsLoading] = useState(true);
+  // ✅ Add expandedRow state for kebab menu
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   const statusOptions = [
-    { value: 'all', label: 'All Quotes', color: 'text-gray-600' },
-    { value: 'draft', label: 'Draft', color: 'text-gray-500' },
-    { value: 'pending', label: 'Pending', color: 'text-yellow-600' },
-    { value: 'approved', label: 'Approved', color: 'text-green-600' },
-    { value: 'rejected', label: 'Rejected', color: 'text-red-600' },
+    { value: 'all', label: 'All Quotes' },
+    { value: 'draft', label: 'Draft' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'rejected', label: 'Rejected' },
   ];
 
   const loadQuotes = useCallback(async () => {
@@ -272,402 +266,331 @@ export default function QuotesDashboard() {
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Header - Fixed */}
-      <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg flex items-center px-6 flex-shrink-0">
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/20 rounded-xl">
-              <FileText className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-white">Quotes</h1>
-              <p className="text-blue-100 text-sm">Create, manage, and track customer quotes</p>
-            </div>
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+              <FileText className="h-6 w-6 text-blue-600" />
+              Quotes
+            </h1>
+            <p className="text-gray-600 mt-1">Create, manage, and track customer quotes</p>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex gap-3">
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="p-2 hover:bg-white/20 rounded-xl transition-colors disabled:opacity-50"
-              title="Refresh"
+              className="flex items-center gap-2 px-3 py-2.5 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
-              {refreshing ? (
-                <Loader2 className="h-5 w-5 text-white animate-spin" />
-              ) : (
-                <RefreshCw className="h-5 w-5 text-white" />
-              )}
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
             </button>
             <Link
               href="/quotes/create"
-              className="px-4 py-2 bg-white text-blue-600 font-semibold rounded-xl hover:bg-white/90 flex items-center gap-2"
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm"
             >
               <Plus className="h-5 w-5" />
-              <span className="hidden sm:inline">New Quote</span>
+              New Quote
             </Link>
           </div>
         </div>
+
+        {/* Stats */}
+        {statsLoading ? (
+          <SkeletonStats />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            {[
+              { label: 'Total Quotes', value: stats.total, icon: FileText, color: 'text-gray-600', bg: 'bg-gray-50' },
+              { label: 'Approved', value: stats.approved, icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50' },
+              { label: 'Pending', value: stats.pending, icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50' },
+              { label: 'Total Value', value: quoteService.formatCurrency(stats.totalAmount), icon: DollarSign, color: 'text-blue-600', bg: 'bg-blue-50' },
+              { 
+                label: 'Conversion Rate', 
+                value: `${stats.total > 0 ? ((stats.approved / stats.total) * 100).toFixed(1) : 0}%`,
+                icon: TrendingUp, 
+                color: 'text-white', 
+                bg: 'bg-gradient-to-r from-blue-500 to-purple-600 text-white' 
+              },
+            ].map((stat, i) => {
+              const Icon = stat.icon;
+              return (
+                <div key={i} className={`${stat.bg} border border-gray-200 rounded-xl p-4`}>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-xs text-gray-600">{stat.label}</p>
+                      <p className="text-xl font-bold text-gray-900 mt-1">{stat.value}</p>
+                    </div>
+                    <div className={`p-2 rounded-lg ${stat.bg.includes('gradient') ? 'bg-white/20' : 'bg-gray-100'}`}>
+                      <Icon className={`h-5 w-5 ${stat.color}`} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Main Content - Scrollable */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-4 md:p-6 space-y-6">
-          {/* Stats Cards */}
-          {statsLoading ? (
-            <SkeletonStats />
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-              <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Total Quotes</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-2">{stats.total}</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-gradient-to-r from-blue-100 to-blue-200">
-                    <FileText className="h-6 w-6 text-blue-600" />
-                  </div>
-                </div>
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <div className="flex items-center gap-2 text-sm text-green-600">
-                    <TrendingUp className="h-4 w-4" />
-                    <span>+12% this month</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Approved</p>
-                    <p className="text-3xl font-bold text-green-600 mt-2">{stats.approved}</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-gradient-to-r from-green-100 to-green-200">
-                    <CheckCircle className="h-6 w-6 text-green-600" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Pending</p>
-                    <p className="text-3xl font-bold text-yellow-600 mt-2">{stats.pending}</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-gradient-to-r from-yellow-100 to-yellow-200">
-                    <Clock className="h-6 w-6 text-yellow-600" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Total Value</p>
-                    <p className="text-3xl font-bold text-blue-600 mt-2">
-                      {quoteService.formatCurrency(stats.totalAmount)}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-gradient-to-r from-purple-100 to-purple-200">
-                    <DollarSign className="h-6 w-6 text-purple-600" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl p-6 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-blue-100">Conversion Rate</p>
-                    <p className="text-3xl font-bold text-white mt-2">
-                      {stats.total > 0 ? ((stats.approved / stats.total) * 100).toFixed(1) : 0}%
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
-                    <TrendingUp className="h-6 w-6 text-white" />
-                  </div>
-                </div>
-                <div className="mt-4 pt-4 border-t border-white/20">
-                  <div className="flex items-center gap-2 text-sm text-white">
-                    <TrendingUp className="h-4 w-4" />
-                    <span>+5.2% from last month</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Main Table Container */}
-          <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-            {/* Filters - Fixed */}
-            <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50/50 to-purple-50/50 flex-shrink-0">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search quotes by number or notes..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all focus:outline-none"
-                      disabled={loading}
-                    />
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-4">
-                  <div className="relative">
-                    <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <select
-                      value={filterStatus}
-                      onChange={(e) => setFilterStatus(e.target.value)}
-                      className="pl-10 pr-8 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none appearance-none"
-                      disabled={loading}
-                    >
-                      {statusOptions.map(option => (
-                        <option key={option.value} value={option.value} className={option.color}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <button
-                    onClick={() => {
-                      setSearchTerm('');
-                      setFilterStatus('all');
-                    }}
-                    className="px-4 py-3 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors"
-                    disabled={loading}
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Quotes Table - Scrollable */}
-            <div className="p-6 flex-1 overflow-y-auto">
-              {loading ? (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gradient-to-r from-blue-50 to-purple-50">
-                      <tr>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Quote Details
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Amount
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Dates
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-100">
-                      {[1, 2, 3, 4, 5].map((i) => (
-                        <SkeletonRow key={i} />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : filteredQuotes.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 mb-4">
-                    <FileText className="h-8 w-8 text-gray-600" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">No quotes found</h3>
-                  <p className="text-gray-500 mb-6">
-                    {searchTerm || filterStatus !== 'all' 
-                      ? 'Try changing your search or filters' 
-                      : 'Create your first quote to get started'}
-                  </p>
-                  <Link
-                    href="/quotes/create"
-                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 font-medium inline-flex items-center gap-2"
-                  >
-                    <Plus className="h-5 w-5" />
-                    Create New Quote
-                  </Link>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gradient-to-r from-blue-50 to-purple-50">
-                      <tr>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Quote Details
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Amount
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Dates
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-100">
-                      {filteredQuotes.map((quote) => (
-                        <tr 
-                          key={quote.id} 
-                          className="hover:bg-gray-50/50 transition-all duration-200 group"
-                        >
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className={`p-2 rounded-xl ${getStatusColor(quote.status)}`}>
-                                {getStatusIcon(quote.status)}
-                              </div>
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <Link
-                                    href={`/quotes/${quote.id}`}
-                                    className="font-semibold text-gray-900 hover:text-blue-600 transition-colors"
-                                  >
-                                    {quote.quoteNumber}
-                                  </Link>
-                                </div>
-                                {quote.notes && (
-                                  <div className="text-xs text-gray-500 mt-1 truncate max-w-xs">
-                                    {quote.notes}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="text-lg font-bold text-gray-900">
-                              {quoteService.formatCurrency(quote.totalAmount)}
-                            </div>
-                            <div className="text-sm text-gray-600 mt-1">
-                              {quote.items.length} item{quote.items.length !== 1 ? 's' : ''}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${getStatusColor(quote.status)} text-white`}>
-                              {getStatusIcon(quote.status)}
-                              {quote.status.charAt(0).toUpperCase() + quote.status.slice(1)}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="space-y-1">
-                              <div className="text-sm text-gray-900">
-                                Created: {new Date(quote.createdAt).toLocaleDateString()}
-                              </div>
-                              {quote.validUntil && (
-                                <div className="text-xs text-gray-600">
-                                  Valid until: {new Date(quote.validUntil).toLocaleDateString()}
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-1">
-                              <Link
-                                href={`/quotes/${quote.id}`}
-                                className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                title="View Details"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Link>
-                              
-                              {quote.status === 'pending' && (
-                                <button
-                                  onClick={() => handleApprove(quote.id)}
-                                  className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-all"
-                                  title="Approve Quote"
-                                >
-                                  <CheckCircle className="h-4 w-4" />
-                                </button>
-                              )}
-                              
-                              <button
-                                onClick={() => handleCreateInvoice(quote.id)}
-                                className="p-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-all"
-                                title="Create Invoice"
-                              >
-                                <FileText className="h-4 w-4" />
-                              </button>
-                              
-                              <button
-                                onClick={() => handleExportPDF(quote.id)}
-                                className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all"
-                                title="Export PDF"
-                              >
-                                <Download className="h-4 w-4" />
-                              </button>
-                              
-                              <Link
-                                href={`/quotes/${quote.id}/edit`}
-                                className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all"
-                                title="Edit Quote"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Link>
-                              
-                              <button
-                                onClick={() => handleDelete(quote.id)}
-                                className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all"
-                                title="Delete Quote"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+      {/* Filters */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6 shadow-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
+          <div className="lg:col-span-6">
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search quotes..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-11 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
             </div>
           </div>
-
-          {/* Status Summary */}
-          {!statsLoading && (
-            <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-6">
-              <h3 className="font-semibold text-gray-800 mb-4">Quote Status Overview</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {[
-                  { _id: 'draft', count: stats.draft },
-                  { _id: 'pending', count: stats.pending },
-                  { _id: 'approved', count: stats.approved },
-                  { _id: 'rejected', count: stats.total - stats.draft - stats.pending - stats.approved }
-                ].map((status) => (
-                  <div
-                    key={status._id}
-                    className="p-3 rounded-xl bg-white border border-gray-200"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className={`h-2 w-2 rounded-full ${
-                        status._id === 'approved' ? 'bg-green-400' :
-                        status._id === 'pending' ? 'bg-yellow-400' :
-                        status._id === 'draft' ? 'bg-gray-400' :
-                        'bg-red-400'
-                      }`} />
-                      <span className="text-sm font-medium text-gray-700 capitalize">
-                        {status._id}
-                      </span>
-                    </div>
-                    <div className="text-lg font-bold text-gray-800">{status.count}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          
+          <div className="lg:col-span-4">
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              {statusOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="lg:col-span-2">
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setFilterStatus('all');
+              }}
+              className="w-full px-3 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+            >
+              Clear
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Quotes Table */}
+      {loading ? (
+        <div className="space-y-5">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <SkeletonRow key={i} />
+          ))}
+        </div>
+      ) : filteredQuotes.length === 0 ? (
+        <div className="text-center py-16">
+          <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-100 rounded-full mb-5">
+            <FileText className="h-7 w-7 text-blue-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No quotes found</h3>
+          <p className="text-gray-600 max-w-md mx-auto mb-6">
+            {searchTerm || filterStatus !== 'all' 
+              ? 'Try a different search term or filter' 
+              : 'Create your first quote to get started'}
+          </p>
+          <Link
+            href="/quotes/create"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 shadow-sm"
+          >
+            <Plus className="h-4 w-4" /> Create Quote
+          </Link>
+        </div>
+      ) : (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Quote Details</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Dates</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-12">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredQuotes.map((quote) => {
+                  const statusColor = getStatusColor(quote.status);
+                  const StatusIcon = getStatusIcon(quote.status);
+                  return (
+                    <tr key={quote.id} className="border-b border-gray-200 hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-1.5 rounded-lg ${statusColor.replace('bg-gradient-to-r from-', 'bg-').replace(' to-', ' ')}`}>
+                            <StatusIcon className="h-4 w-4 text-white" />
+                          </div>
+                          <div>
+                            <Link
+                              href={`/quotes/${quote.id}`}
+                              className="font-medium text-gray-900 hover:text-blue-600"
+                            >
+                              {quote.quoteNumber}
+                            </Link>
+                            {quote.notes && (
+                              <p className="text-sm text-gray-600 truncate max-w-[160px] mt-1">{quote.notes}</p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-gray-900">{quoteService.formatCurrency(quote.totalAmount)}</p>
+                        <p className="text-sm text-gray-600 mt-1">{quote.items.length} item{quote.items.length !== 1 ? 's' : ''}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium text-white ${
+                          statusColor.replace('bg-gradient-to-r from-', 'bg-').replace(' to-', ' ')
+                        }`}>
+                          {quote.status.charAt(0).toUpperCase() + quote.status.slice(1)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        <div>Created: {new Date(quote.createdAt).toLocaleDateString()}</div>
+                        {quote.validUntil && (
+                          <div className="text-xs mt-1">Valid until: {new Date(quote.validUntil).toLocaleDateString()}</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {/* ✅ PRIMARY ACTIONS + KEBAB MENU */}
+                        <div className="flex items-center gap-1">
+                          {/* View */}
+                          <Link
+                            href={`/quotes/${quote.id}`}
+                            className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
+                            title="View Details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Link>
+
+                          {/* Edit */}
+                          <Link
+                            href={`/quotes/${quote.id}/edit`}
+                            className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
+                            title="Edit Quote"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Link>
+
+                          {/* Kebab Menu for secondary actions */}
+                          <div className="relative">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedRow(expandedRow === quote.id ? null : quote.id);
+                              }}
+                              className="p-1.5 text-gray-500 hover:bg-gray-100 rounded"
+                              aria-haspopup="true"
+                              aria-expanded={expandedRow === quote.id}
+                              aria-label="More actions"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+
+                            {expandedRow === quote.id && (
+                              <>
+                                <div
+                                  className="fixed inset-0 z-10"
+                                  onClick={() => setExpandedRow(null)}
+                                />
+                                <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                                  {quote.status === 'pending' && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        setExpandedRow(null);
+                                        handleApprove(quote.id);
+                                      }}
+                                      className="w-full px-4 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
+                                    >
+                                      <CheckCircle className="h-4 w-4" />
+                                      Approve Quote
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setExpandedRow(null);
+                                      handleCreateInvoice(quote.id);
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm text-purple-600 hover:bg-purple-50 flex items-center gap-2"
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                    Create Invoice
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setExpandedRow(null);
+                                      handleExportPDF(quote.id);
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
+                                  >
+                                    <Download className="h-4 w-4" />
+                                    Export PDF
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setExpandedRow(null);
+                                      handleSendEmail(quote.id);
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                  >
+                                    <Mail className="h-4 w-4" />
+                                    Send Email
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setExpandedRow(null);
+                                      handleDelete(quote.id);
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Delete Quote
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Status Summary */}
+      {!statsLoading && (
+        <div className="mt-6 bg-white border border-gray-200 rounded-xl p-5">
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">Quote Status Overview</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { _id: 'draft', count: stats.draft, color: 'bg-gray-400' },
+              { _id: 'pending', count: stats.pending, color: 'bg-yellow-400' },
+              { _id: 'approved', count: stats.approved, color: 'bg-green-400' },
+              { _id: 'rejected', count: stats.total - stats.draft - stats.pending - stats.approved, color: 'bg-red-400' }
+            ].map((status) => (
+              <div key={status._id} className="p-3 bg-gray-50 rounded-lg text-center">
+                <div className="text-xs text-gray-600 capitalize mb-1">{status._id}</div>
+                <div className="text-lg font-bold text-gray-900">{status.count}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

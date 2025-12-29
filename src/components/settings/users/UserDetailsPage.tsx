@@ -36,6 +36,7 @@ import {
 import { useToast } from '@/contexts/ToastContext';
 import { userService, User as UserType, USER_ROLES } from '@/services/settings/userService';
 
+// ✅ Keep all your interfaces and types unchanged
 interface ActivityLog {
   id: string;
   action: string;
@@ -60,6 +61,7 @@ export default function UserDetailsPage({ userId }: UserDetailProps) {
   const router = useRouter();
   const { showToast } = useToast();
 
+  // ✅ Keep all your state and logic exactly as-is
   const [user, setUser] = useState<UserType | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'permissions'>('overview');
@@ -229,44 +231,44 @@ export default function UserDetailsPage({ userId }: UserDetailProps) {
       return 'Invalid Date';
     }
   };
-
+  
   const statCards: StatCard[] = [
     {
       title: 'Activity Score',
       value: '85%',
       icon: TrendingUp,
-      color: 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-500/20',
+      color: 'text-green-600 bg-green-100',
       trend: '+2% this week'
     },
     {
       title: 'Sessions',
       value: '24',
       icon: Activity,
-      color: 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-500/20',
+      color: 'text-blue-600 bg-blue-100',
       trend: 'Active now'
     },
     {
       title: 'Last Login',
       value: 'Today',
       icon: Clock,
-      color: 'text-purple-600 bg-purple-100 dark:text-purple-400 dark:bg-purple-500/20',
+      color: 'text-purple-600 bg-purple-100',
       trend: '10:30 AM'
     },
     {
       title: 'Permissions',
       value: user?.permissions?.length || 0,
       icon: Shield,
-      color: 'text-amber-600 bg-amber-100 dark:text-amber-400 dark:bg-amber-500/20',
+      color: 'text-amber-600 bg-amber-100',
       trend: 'Assigned'
     }
   ];
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading user...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading user...</p>
         </div>
       </div>
     );
@@ -278,29 +280,30 @@ export default function UserDetailsPage({ userId }: UserDetailProps) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Page Header */}
+      {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => router.push('/settings/users')}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg"
+              aria-label="Back to list"
             >
-              <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+              <ArrowLeft className="h-5 w-5" />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">User Details</h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-1">View and manage user information</p>
+              <h1 className="text-xl font-bold text-gray-900">User Details</h1>
+              <p className="text-gray-600 text-sm">View and manage user information</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => router.push(`/settings/users/${userId}/edit`)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
             >
               <Edit className="h-4 w-4" />
-              Edit User
+              Edit
             </button>
           </div>
         </div>
@@ -309,75 +312,80 @@ export default function UserDetailsPage({ userId }: UserDetailProps) {
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Left Sidebar */}
         <div className="lg:w-64">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm sticky top-8">
+          <div className="bg-white border border-gray-200 rounded-xl p-5 sticky top-8">
             {/* User Avatar */}
-            <div className="text-center mb-6">
-              <div className="h-24 w-24 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-white font-bold text-3xl">
+            <div className="text-center mb-5">
+              <div className="h-20 w-20 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                <span className="text-white font-bold text-2xl">
                   {getInitials(user.name || user.email)}
                 </span>
               </div>
-              <h3 className="font-semibold text-gray-900 dark:text-white">{user.name || 'No Name'}</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{user.email}</p>
+              <h3 className="font-semibold text-gray-900 text-base">{user.name || 'No Name'}</h3>
+              <p className="text-sm text-gray-600 truncate max-w-[180px]">{user.email}</p>
               
-              <div className="mt-4 space-y-2">
-                <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+              <div className="mt-3 space-y-1.5">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                   user.active
-                    ? 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-400'
-                    : 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-400'
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-red-100 text-red-800'
                 }`}>
                   {user.active ? 'Active' : 'Inactive'}
-                </div>
-                <div className={`px-3 py-1 rounded-full text-xs font-medium ${getRoleBadgeColor(userService.getUserRoleName(user))}`}>
+                </span>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                  getRoleBadgeColor(userService.getUserRoleName(user)).split(' ')[0]
+                }`}>
                   {getRoleDisplayName(userService.getUserRoleDisplayName(user))}
-                </div>
+                </span>
               </div>
             </div>
             
             {/* Quick Stats */}
-            <div className="space-y-4">
-              {statCards.map((stat, index) => (
-                <div key={index} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">{stat.title}</span>
-                    <stat.icon className={`h-4 w-4 ${stat.color.split(' ')[0]}`} />
+            <div className="space-y-3">
+              {statCards.map((stat, index) => {
+                const Icon = stat.icon;
+                return (
+                  <div key={index} className="p-2.5 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600">{stat.title}</span>
+                      <Icon className={`h-4 w-4 ${stat.color.split(' ')[0]}`} />
+                    </div>
+                    <p className="text-base font-semibold text-gray-900 mt-0.5">{stat.value}</p>
+                    {stat.trend && (
+                      <p className="text-[10px] text-gray-500 mt-0.5">{stat.trend}</p>
+                    )}
                   </div>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white mt-1">{stat.value}</p>
-                  {stat.trend && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{stat.trend}</p>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
             
             {/* Quick Actions */}
-            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 space-y-2">
+            <div className="mt-5 pt-4 border-t border-gray-200 space-y-1.5">
               <button
                 onClick={() => setActiveTab('activity')}
-                className="w-full flex items-center gap-2 p-2 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50 rounded transition-colors"
               >
-                <Activity className="h-4 w-4" />
+                <Activity className="h-3.5 w-3.5" />
                 View Activity Log
               </button>
               <button
                 onClick={() => setShowResetPassword(true)}
-                className="w-full flex items-center gap-2 p-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded transition-colors"
               >
-                <Key className="h-4 w-4" />
+                <Key className="h-3.5 w-3.5" />
                 Reset Password
               </button>
               <button
                 onClick={() => navigator.clipboard.writeText(user.id)}
-                className="w-full flex items-center gap-2 p-2 text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50 rounded transition-colors"
               >
-                <Copy className="h-4 w-4" />
+                <Copy className="h-3.5 w-3.5" />
                 Copy User ID
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="w-full flex items-center gap-2 p-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded transition-colors"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3.5 w-3.5" />
                 Delete User
               </button>
             </div>
@@ -388,37 +396,20 @@ export default function UserDetailsPage({ userId }: UserDetailProps) {
         <div className="flex-1">
           {/* Tabs */}
           <div className="mb-6">
-            <div className="flex space-x-1 border-b border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => setActiveTab('overview')}
-                className={`px-4 py-3 text-sm font-medium border-b-2 ${
-                  activeTab === 'overview'
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-                }`}
-              >
-                Overview
-              </button>
-              <button
-                onClick={() => setActiveTab('permissions')}
-                className={`px-4 py-3 text-sm font-medium border-b-2 ${
-                  activeTab === 'permissions'
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-                }`}
-              >
-                Permissions
-              </button>
-              <button
-                onClick={() => setActiveTab('activity')}
-                className={`px-4 py-3 text-sm font-medium border-b-2 ${
-                  activeTab === 'activity'
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-                }`}
-              >
-                Activity
-              </button>
+            <div className="flex space-x-1 border-b border-gray-200">
+              {(['overview', 'permissions', 'activity'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-3 py-2 text-sm font-medium border-b-2 ${
+                    activeTab === tab
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -426,68 +417,68 @@ export default function UserDetailsPage({ userId }: UserDetailProps) {
           {activeTab === 'overview' && (
             <div className="space-y-6">
               {/* User Information Card */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">User Information</h3>
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <h3 className="text-sm font-semibold text-gray-900 mb-4">User Information</h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-3">
                     <div>
-                      <label className="text-sm text-gray-500 dark:text-gray-400">Full Name</label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <User className="h-5 w-5 text-gray-400" />
-                        <span className="text-gray-900 dark:text-white">{user.name || 'Not specified'}</span>
+                      <div className="text-xs text-gray-500 mb-1">Full Name</div>
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-gray-400" />
+                        <span className="text-gray-900">{user.name || 'Not specified'}</span>
                       </div>
                     </div>
                     
                     <div>
-                      <label className="text-sm text-gray-500 dark:text-gray-400">Email Address</label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Mail className="h-5 w-5 text-gray-400" />
-                        <span className="text-gray-900 dark:text-white">{user.email}</span>
+                      <div className="text-xs text-gray-500 mb-1">Email Address</div>
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-gray-400" />
+                        <span className="text-gray-900">{user.email}</span>
                       </div>
                     </div>
                     
                     <div>
-                      <label className="text-sm text-gray-500 dark:text-gray-400">Account Status</label>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="text-xs text-gray-500 mb-1">Account Status</div>
+                      <div className="flex items-center gap-2">
                         {user.active ? (
-                          <CheckCircle className="h-5 w-5 text-green-500" />
+                          <CheckCircle className="h-4 w-4 text-green-500" />
                         ) : (
-                          <XCircle className="h-5 w-5 text-red-500" />
+                          <XCircle className="h-4 w-4 text-red-500" />
                         )}
-                        <span className={user.active ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}>
+                        <span className={`text-sm ${user.active ? 'text-green-700' : 'text-red-700'}`}>
                           {user.active ? 'Active' : 'Inactive'}
                         </span>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div>
-                      <label className="text-sm text-gray-500 dark:text-gray-400">Role</label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Shield className="h-5 w-5 text-gray-400" />
-                        <span className="text-gray-900 dark:text-white">{getRoleDisplayName(userService.getUserRoleDisplayName(user))}</span>
+                      <div className="text-xs text-gray-500 mb-1">Role</div>
+                      <div className="flex items-center gap-2">
+                        <Shield className="h-4 w-4 text-gray-400" />
+                        <span className="text-gray-900">{getRoleDisplayName(userService.getUserRoleDisplayName(user))}</span>
                       </div>
                     </div>
                     
                     <div>
-                      <label className="text-sm text-gray-500 dark:text-gray-400">Account Created</label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Calendar className="h-5 w-5 text-gray-400" />
-                        <span className="text-gray-900 dark:text-white">{formatDate(user.createdAt)}</span>
+                      <div className="text-xs text-gray-500 mb-1">Account Created</div>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-gray-400" />
+                        <span className="text-gray-900">{formatDate(user.createdAt)}</span>
                       </div>
                     </div>
                     
                     <div>
-                      <label className="text-sm text-gray-500 dark:text-gray-400">Summary Access</label>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="text-xs text-gray-500 mb-1">Summary Access</div>
+                      <div className="flex items-center gap-2">
                         {user.canViewSummary ? (
-                          <Eye className="h-5 w-5 text-blue-500" />
+                          <Eye className="h-4 w-4 text-blue-500" />
                         ) : (
-                          <EyeOff className="h-5 w-5 text-gray-400" />
+                          <EyeOff className="h-4 w-4 text-gray-400" />
                         )}
-                        <span className={user.canViewSummary ? 'text-blue-700 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'}>
+                        <span className={`text-sm ${user.canViewSummary ? 'text-blue-700' : 'text-gray-500'}`}>
                           {user.canViewSummary ? 'Granted' : 'Not Granted'}
                         </span>
                       </div>
@@ -497,22 +488,22 @@ export default function UserDetailsPage({ userId }: UserDetailProps) {
               </div>
 
               {/* Action Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-semibold text-blue-900 dark:text-blue-300">User Status</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="bg-white border border-gray-200 rounded-xl p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-gray-900">User Status</h4>
                     <button
                       onClick={handleToggleStatus}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                      className={`px-3 py-1.5 rounded text-xs font-medium ${
                         user.active
-                          ? 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-500/20 dark:text-red-400 dark:hover:bg-red-500/30'
-                          : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-500/20 dark:text-green-400 dark:hover:bg-green-500/30'
+                          ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                          : 'bg-green-100 text-green-700 hover:bg-green-200'
                       }`}
                     >
                       {user.active ? 'Deactivate' : 'Activate'}
                     </button>
                   </div>
-                  <p className="text-sm text-blue-700 dark:text-blue-400">
+                  <p className="text-xs text-gray-600">
                     {user.active 
                       ? 'User is currently active and can access the system.'
                       : 'User is inactive and cannot login to the system.'
@@ -520,21 +511,21 @@ export default function UserDetailsPage({ userId }: UserDetailProps) {
                   </p>
                 </div>
                 
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-800 rounded-xl p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-semibold text-purple-900 dark:text-purple-300">Summary Access</h4>
+                <div className="bg-white border border-gray-200 rounded-xl p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-gray-900">Summary Access</h4>
                     <button
                       onClick={handleToggleSummaryAccess}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                      className={`px-3 py-1.5 rounded text-xs font-medium ${
                         user.canViewSummary
-                          ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-500/20 dark:text-gray-400 dark:hover:bg-gray-500/30'
-                          : 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-500/20 dark:text-blue-400 dark:hover:bg-blue-500/30'
+                          ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                       }`}
                     >
                       {user.canViewSummary ? 'Revoke Access' : 'Grant Access'}
                     </button>
                   </div>
-                  <p className="text-sm text-purple-700 dark:text-purple-400">
+                  <p className="text-xs text-gray-600">
                     {user.canViewSummary
                       ? 'User can view summary reports and analytics.'
                       : 'User cannot view summary reports.'
@@ -546,24 +537,24 @@ export default function UserDetailsPage({ userId }: UserDetailProps) {
           )}
 
           {activeTab === 'permissions' && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-              <div className="flex items-center justify-between mb-6">
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">User Permissions</h3>
-                  <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
+                  <h3 className="text-sm font-semibold text-gray-900">User Permissions</h3>
+                  <p className="text-xs text-gray-600 mt-1">
                     {user.permissions?.length || 0} permission{user.permissions?.length !== 1 ? 's' : ''} assigned
                   </p>
                 </div>
                 <button
                   onClick={() => router.push(`/settings/users/edit?id=${user.id}&tab=permissions`)}
-                  className="px-4 py-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-500/10 rounded-lg"
+                  className="px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded"
                 >
                   Edit Permissions
                 </button>
               </div>
               
               {user.permissions && user.permissions.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {user.permissions.map((permission, index) => {
                     const parts = permission.split('.');
                     const action = parts[1] || 'access';
@@ -572,14 +563,14 @@ export default function UserDetailsPage({ userId }: UserDetailProps) {
                     return (
                       <div
                         key={index}
-                        className="flex items-center gap-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
+                        className="flex items-center gap-2 p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors"
                       >
-                        <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                        <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
                         <div>
-                          <span className="text-sm font-medium text-gray-900 dark:text-white capitalize">
+                          <span className="text-sm font-medium text-gray-900 capitalize">
                             {action.replace(/_/g, ' ')}
                           </span>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 capitalize">
+                          <p className="text-[10px] text-gray-500 mt-0.5 capitalize">
                             {module.replace(/_/g, ' ')}
                           </p>
                         </div>
@@ -588,10 +579,10 @@ export default function UserDetailsPage({ userId }: UserDetailProps) {
                   })}
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <Shield className="h-16 w-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                  <h4 className="text-gray-700 dark:text-gray-300 font-medium">No Permissions Assigned</h4>
-                  <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+                <div className="text-center py-8">
+                  <Shield className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                  <h4 className="text-gray-700 font-medium text-sm">No Permissions Assigned</h4>
+                  <p className="text-gray-500 text-xs mt-1">
                     This user doesn't have any specific permissions assigned.
                   </p>
                 </div>
@@ -600,31 +591,31 @@ export default function UserDetailsPage({ userId }: UserDetailProps) {
           )}
 
           {activeTab === 'activity' && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Recent Activity</h3>
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">Recent Activity</h3>
               
               {activityLogs.length === 0 ? (
-                <div className="text-center py-12">
-                  <Activity className="h-16 w-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                  <h4 className="text-gray-700 dark:text-gray-300 font-medium">No Activity Found</h4>
-                  <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">There's no activity recorded for this user yet.</p>
+                <div className="text-center py-8">
+                  <Activity className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                  <h4 className="text-gray-700 font-medium text-sm">No Activity Found</h4>
+                  <p className="text-gray-500 text-xs mt-1">There's no activity recorded for this user yet.</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {activityLogs.map((activity) => (
-                    <div key={activity.id} className="p-4 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                      <div className="flex items-start justify-between">
+                    <div key={activity.id} className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex items-start justify-between text-xs">
                         <div>
-                          <p className="text-sm text-gray-900 dark:text-white">{activity.action}</p>
-                          <div className="flex items-center gap-4 mt-2">
-                            <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                          <p className="text-gray-900">{activity.action}</p>
+                          <div className="flex items-center gap-2 mt-1 text-gray-500">
+                            <span className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
                               {activity.timestamp}
                             </span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">IP: {activity.ip}</span>
+                            <span>IP: {activity.ip}</span>
                           </div>
                         </div>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">{activity.userAgent}</span>
+                        <span className="text-gray-500">{activity.userAgent}</span>
                       </div>
                     </div>
                   ))}
@@ -637,35 +628,35 @@ export default function UserDetailsPage({ userId }: UserDetailProps) {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-red-100 dark:bg-red-500/20 rounded-lg">
-                <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl p-5 max-w-md w-full">
+            <div className="flex items-start gap-2.5 mb-4">
+              <div className="p-1.5 bg-red-100 rounded-lg mt-0.5">
+                <AlertCircle className="h-5 w-5 text-red-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Delete User</h3>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">This action cannot be undone</p>
+                <h3 className="font-semibold text-gray-900 text-base">Delete User</h3>
+                <p className="text-gray-600 text-xs mt-1">This action cannot be undone</p>
               </div>
             </div>
             
-            <p className="text-gray-700 dark:text-gray-300 mb-6">
+            <p className="text-gray-700 text-sm mb-5">
               Are you sure you want to delete <strong>{user.name || user.email}</strong>?
               All associated data will be permanently removed.
             </p>
             
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteUser}
-                className="px-4 py-2.5 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl hover:from-red-700 hover:to-red-800"
+                className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm"
               >
-                Delete User
+                Delete
               </button>
             </div>
           </div>
@@ -674,59 +665,59 @@ export default function UserDetailsPage({ userId }: UserDetailProps) {
 
       {/* Reset Password Modal */}
       {showResetPassword && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-blue-100 dark:bg-blue-500/20 rounded-lg">
-                <Key className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl p-5 max-w-md w-full">
+            <div className="flex items-start gap-2.5 mb-4">
+              <div className="p-1.5 bg-blue-100 rounded-lg mt-0.5">
+                <Key className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Reset Password</h3>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">Generate new password for user</p>
+                <h3 className="font-semibold text-gray-900 text-base">Reset Password</h3>
+                <p className="text-gray-600 text-xs mt-1">Generate new password for user</p>
               </div>
             </div>
             
             {newPassword ? (
-              <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+              <div className="mb-5 p-3 bg-green-50 border border-green-200 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-green-800 dark:text-green-400">New Password Generated</p>
-                    <p className="text-lg font-mono text-gray-900 dark:text-white mt-1">{newPassword}</p>
-                    <p className="text-xs text-green-600 dark:text-green-400 mt-2">
-                      This password will be displayed only once. Make sure to save it.
+                    <p className="text-xs font-medium text-green-800">New Password Generated</p>
+                    <p className="font-mono text-gray-900 mt-1">{newPassword}</p>
+                    <p className="text-[10px] text-green-600 mt-1">
+                      This password will be displayed only once.
                     </p>
                   </div>
                   <button
                     onClick={() => navigator.clipboard.writeText(newPassword)}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
+                    className="px-2.5 py-1 bg-green-600 text-white rounded text-xs font-medium"
                   >
                     Copy
                   </button>
                 </div>
               </div>
             ) : (
-              <p className="text-gray-700 dark:text-gray-300 mb-6">
+              <p className="text-gray-700 text-sm mb-5">
                 A new password will be generated for <strong>{user.name || user.email}</strong>.
                 The user will need to change it on their first login.
               </p>
             )}
             
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-2">
               <button
                 onClick={() => {
                   setShowResetPassword(false);
                   setNewPassword('');
                 }}
-                className="px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm"
               >
                 {newPassword ? 'Close' : 'Cancel'}
               </button>
               {!newPassword && (
                 <button
                   onClick={handleResetPassword}
-                  className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700"
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm"
                 >
-                  Generate New Password
+                  Generate Password
                 </button>
               )}
             </div>

@@ -24,11 +24,12 @@ import {
   Layers,
   Activity,
   Bell,
+  MoreVertical
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { workflowService, Workflow } from '@/services/settings/workflowService';
 
-// ✨ Clean Skeletons
+// ✨ Keep your clean skeletons
 const WorkflowCardSkeleton = () => (
   <div className="bg-white border border-gray-200 rounded-2xl p-5 animate-pulse shadow-sm">
     <div className="flex gap-4">
@@ -44,7 +45,7 @@ const WorkflowCardSkeleton = () => (
           <div className="h-4 w-1/4 bg-gray-200 rounded"></div>
           <div className="flex gap-2">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-8 w-8 bg-gray-200 rounded-lg"></div>
+              <div key={`skeleton-${i}`} className="h-8 w-8 bg-gray-200 rounded-lg"></div>
             ))}
           </div>
         </div>
@@ -56,7 +57,7 @@ const WorkflowCardSkeleton = () => (
 const StatsSkeleton = () => (
   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
     {[1, 2, 3, 4].map((i) => (
-      <div key={i} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm animate-pulse">
+      <div key={`stat-skeleton-${i}`} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm animate-pulse">
         <div className="flex justify-between items-start">
           <div className="space-y-2">
             <div className="h-4 w-20 bg-gray-200 rounded"></div>
@@ -72,6 +73,294 @@ const StatsSkeleton = () => (
   </div>
 );
 
+// ✅ Component for each workflow with independent state
+const WorkflowCard = ({ 
+  workflow, 
+  isExpanded, 
+  onToggleExpand,
+  onViewDetails,
+  onEdit,
+  onToggleStatus,
+  onTest,
+  onExecute,
+  onDelete,
+  isSelected,
+  onSelect,
+  isMenuOpen, // ✅ Changed from expandedRow to isMenuOpen
+  onToggleMenu // ✅ Changed from setExpandedRow to onToggleMenu
+}: {
+  workflow: Workflow;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onViewDetails: () => void;
+  onEdit: () => void;
+  onToggleStatus: () => void;
+  onTest: () => void;
+  onExecute: () => void;
+  onDelete: () => void;
+  isSelected: boolean;
+  onSelect: () => void;
+  isMenuOpen: boolean; // ✅ Changed: boolean instead of string|null
+  onToggleMenu: () => void; // ✅ Changed: simpler toggle function
+}) => {
+  const getTriggerIcon = (trigger: string) => {
+    const icons: Record<string, any> = {
+      onCreate: Plus,
+      onUpdate: Edit,
+      onDelete: Trash2,
+      scheduled: Clock,
+      fieldUpdate: Activity,
+      stageChange: Layers,
+    };
+    return icons[trigger] || Zap;
+  };
+  
+  const TriggerIcon = getTriggerIcon(workflow.triggerEvent);
+  const getModuleColor = (module: string) => {
+    const colors: Record<string, string> = {
+      opportunities: 'bg-blue-100 text-blue-800',
+      leads: 'bg-green-100 text-green-800',
+      quotes: 'bg-purple-100 text-purple-800',
+      invoices: 'bg-amber-100 text-amber-800',
+      accounts: 'bg-cyan-100 text-cyan-800',
+      contacts: 'bg-pink-100 text-pink-800',
+      payments: 'bg-emerald-100 text-emerald-800',
+    };
+    return colors[module] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getActionIcon = (actionType: string) => {
+    switch (actionType) {
+      case 'sendEmail': return Mail;
+      case 'sendNotification': return Bell;
+      case 'createTask': return Calendar;
+      case 'assignToUser': return Users;
+      default: return Zap;
+    }
+  };
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest(`.menu-container-${workflow.id}`)) {
+        if (isMenuOpen) {
+          onToggleMenu();
+        }
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [workflow.id, isMenuOpen, onToggleMenu]);
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+      <div className="p-5">
+        <div className="flex gap-4">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={onSelect}
+            className="mt-1 h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+            aria-label={`Select ${workflow.name}`}
+          />
+
+          <div className="flex-1">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">{workflow.name}</h3>
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${getModuleColor(workflow.module)}`}>
+                    {workflow.module}
+                  </span>
+                  <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${
+                    workflow.active
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {workflow.active ? 'Active' : 'Inactive'}
+                  </span>
+                  <span className="text-sm text-gray-600 flex items-center gap-1">
+                    <TriggerIcon className="h-4 w-4" />
+                    {workflow.triggerEvent.replace(/([A-Z])/g, ' $1').trim()}
+                  </span>
+                </div>
+              </div>
+
+              {/* ✅ PRIMARY ACTIONS + KEBAB MENU */}
+              <div className="flex items-center gap-2">
+                {/* Edit */}
+                <button
+                  onClick={onEdit}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  <Edit className="h-4 w-4" /> Edit
+                </button>
+
+                {/* Toggle Status */}
+                <button
+                  onClick={onToggleStatus}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border ${
+                    workflow.active
+                      ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                      : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                  }`}
+                >
+                  {workflow.active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                  {workflow.active ? 'Deactivate' : 'Activate'}
+                </button>
+
+                {/* Kebab Menu for secondary actions */}
+                <div className={`relative menu-container-${workflow.id}`}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleMenu();
+                    }}
+                    className="p-1.5 text-gray-500 hover:bg-gray-100 rounded"
+                    aria-haspopup="true"
+                    aria-expanded={isMenuOpen}
+                    aria-label="More actions"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+
+                  {isMenuOpen && (
+                    <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          onToggleMenu();
+                          onViewDetails();
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <ArrowRight className="h-4 w-4" />
+                        View Details
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          onToggleMenu();
+                          onTest();
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <Zap className="h-4 w-4" />
+                        Test Workflow
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          onToggleMenu();
+                          onExecute();
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <Play className="h-4 w-4" />
+                        Execute Now
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          onToggleMenu();
+                          onDelete();
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              {workflow.actions.length} action{workflow.actions.length !== 1 ? 's' : ''} • 
+              {workflow.isScheduled && ' Scheduled • '} 
+              Executed {workflow.executionCount || 0} time{workflow.executionCount !== 1 ? 's' : ''}
+            </p>
+
+            <button
+              onClick={onToggleExpand}
+              className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
+            >
+              {isExpanded ? (
+                <>
+                  <ChevronDown className="h-4 w-4" /> Hide details
+                </>
+              ) : (
+                <>
+                  <ChevronRight className="h-4 w-4" /> View details ({workflow.actions.length} actions)
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Expanded Details */}
+        {isExpanded && (
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Actions */}
+              <div className="lg:col-span-2 space-y-4">
+                <h4 className="text-sm font-semibold text-gray-700">Actions</h4>
+                {workflow.actions.map((action, idx) => {
+                  const ActionIcon = getActionIcon(action.actionType);
+                  return (
+                    <div key={`${workflow.id}-action-${idx}`} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                      <ActionIcon className="h-5 w-5 text-gray-600 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">
+                          {action.actionType.replace(/([A-Z])/g, ' $1').trim()}
+                        </p>
+                        {action.delayInMinutes && (
+                          <span className="text-xs bg-white px-2 py-1 rounded mt-1 inline-block">
+                            Delay: {action.delayInMinutes} min
+                          </span>
+                        )}
+                        {Object.keys(action.params).length > 0 && (
+                          <pre className="text-xs bg-white p-2 mt-2 rounded overflow-x-auto max-w-full">
+                            {JSON.stringify(action.params, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Info */}
+              <div className="space-y-4">
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <h5 className="text-xs font-medium text-gray-500 mb-2">Execution Info</h5>
+                  <p className="text-sm"><span className="text-gray-600">Frequency:</span> {workflow.executionFrequency?.replace(/_/g, ' ') || '—'}</p>
+                  <p className="text-sm"><span className="text-gray-600">Executions:</span> {workflow.executionCount || 0}</p>
+                  {workflow.lastExecution && (
+                    <p className="text-sm"><span className="text-gray-600">Last Run:</span> {new Date(workflow.lastExecution).toLocaleDateString()}</p>
+                  )}
+                </div>
+                {workflow.createdBy && (
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <h5 className="text-xs font-medium text-gray-500 mb-2">Created by</h5>
+                    <p className="text-sm">{workflow.createdBy.firstName} {workflow.createdBy.lastName}</p>
+                  </div>
+                )}
+                <div className="text-xs text-gray-500">
+                  Created: {new Date(workflow.createdAt).toLocaleDateString()}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default function WorkflowsDashboard() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -82,24 +371,32 @@ export default function WorkflowsDashboard() {
   const [filterModule, setFilterModule] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterTrigger, setFilterTrigger] = useState('all');
-  const [expandedWorkflow, setExpandedWorkflow] = useState<string | null>(null);
   const [selectedWorkflows, setSelectedWorkflows] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<any>(null);
+  
+  // ✅ Independent state management for each workflow
+  const [expandedWorkflows, setExpandedWorkflows] = useState<Record<string, boolean>>({});
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({}); // ✅ Renamed for clarity
 
   useEffect(() => {
     loadWorkflows();
     loadStats();
   }, []);
 
-  // ✅ Your existing logic functions unchanged — only UI updated below
-  // [Keep all your handlers: loadWorkflows, handleCreateWorkflow, etc.]
-
   const loadWorkflows = async () => {
     try {
       setLoading(true);
       const result = await workflowService.getAllWorkflows();
-      setWorkflows(Array.isArray(result) ? result : result?.data || []);
+      const workflowsArray = Array.isArray(result) ? result : result?.data || [];
+      
+      // Ensure each workflow has a unique ID
+      const validatedWorkflows = workflowsArray.map((workflow, index) => ({
+        ...workflow,
+        id: workflow.id || `temp-id-${index}-${Date.now()}`
+      }));
+      
+      setWorkflows(validatedWorkflows);
     } catch (error) {
       console.error('Error loading workflows:', error);
       showToast('Failed to load workflows', 'error');
@@ -173,6 +470,18 @@ export default function WorkflowsDashboard() {
     try {
       await workflowService.deleteWorkflow(workflow.id);
       setWorkflows(prev => prev.filter(w => w.id !== workflow.id));
+      // Clean up state
+      setExpandedWorkflows(prev => {
+        const newState = { ...prev };
+        delete newState[workflow.id];
+        return newState;
+      });
+      setExpandedMenus(prev => {
+        const newState = { ...prev };
+        delete newState[workflow.id];
+        return newState;
+      });
+      setSelectedWorkflows(prev => prev.filter(id => id !== workflow.id));
       loadStats(); // Refresh stats after deletion
       showToast('Workflow deleted successfully', 'success');
     } catch (error) {
@@ -219,39 +528,18 @@ export default function WorkflowsDashboard() {
     );
   };
 
-  const getModuleColor = (module: string) => {
-    const colors: Record<string, string> = {
-      opportunities: 'bg-blue-100 text-blue-800',
-      leads: 'bg-green-100 text-green-800',
-      quotes: 'bg-purple-100 text-purple-800',
-      invoices: 'bg-amber-100 text-amber-800',
-      accounts: 'bg-cyan-100 text-cyan-800',
-      contacts: 'bg-pink-100 text-pink-800',
-      payments: 'bg-emerald-100 text-emerald-800',
-    };
-    return colors[module] || 'bg-gray-100 text-gray-800';
+  const toggleExpandedWorkflow = (id: string) => {
+    setExpandedWorkflows(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
   };
 
-  const getTriggerIcon = (trigger: string) => {
-    const icons: Record<string, any> = {
-      onCreate: Plus,
-      onUpdate: Edit,
-      onDelete: Trash2,
-      scheduled: Clock,
-      fieldUpdate: Activity,
-      stageChange: Layers,
-    };
-    return icons[trigger] || Zap;
-  };
-
-  const getActionIcon = (actionType: string) => {
-    switch (actionType) {
-      case 'sendEmail': return Mail;
-      case 'sendNotification': return Bell;
-      case 'createTask': return Calendar;
-      case 'assignToUser': return Users;
-      default: return Zap;
-    }
+  const toggleMenu = (id: string) => {
+    setExpandedMenus(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
   };
 
   const filteredWorkflows = workflows.filter(workflow => {
@@ -320,7 +608,7 @@ export default function WorkflowsDashboard() {
               { label: 'Scheduled', value: stats?.scheduled || 0, icon: Clock, color: 'text-purple-600', bg: 'bg-purple-50' },
               { label: 'Total Executions', value: stats?.totalExecutions || 0, icon: Activity, color: 'text-cyan-600', bg: 'bg-cyan-50' },
             ].map((stat, i) => (
-              <div key={i} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+              <div key={`stat-${i}`} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-sm text-gray-600">{stat.label}</p>
@@ -398,7 +686,7 @@ export default function WorkflowsDashboard() {
             >
               <option value="all">All Modules</option>
               {modules.map(module => (
-                <option key={module} value={module}>
+                <option key={`module-${module}`} value={module}>
                   {module.charAt(0).toUpperCase() + module.slice(1)}
                 </option>
               ))}
@@ -413,7 +701,7 @@ export default function WorkflowsDashboard() {
             >
               <option value="all">All Triggers</option>
               {triggerEvents.map(trigger => (
-                <option key={trigger} value={trigger}>
+                <option key={`trigger-${trigger}`} value={trigger}>
                   {trigger.replace(/([A-Z])/g, ' $1').trim()}
                 </option>
               ))}
@@ -453,7 +741,7 @@ export default function WorkflowsDashboard() {
       {loading ? (
         <div className="space-y-5">
           {[1, 2, 3].map((i) => (
-            <WorkflowCardSkeleton key={i} />
+            <WorkflowCardSkeleton key={`loading-${i}`} />
           ))}
         </div>
       ) : filteredWorkflows.length === 0 ? (
@@ -474,181 +762,24 @@ export default function WorkflowsDashboard() {
         </div>
       ) : (
         <div className="space-y-5">
-          {filteredWorkflows.map((workflow) => {
-            const TriggerIcon = getTriggerIcon(workflow.triggerEvent);
-            return (
-              <div
-                key={workflow.id}
-                className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div className="p-5">
-                  <div className="flex gap-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedWorkflows.includes(workflow.id)}
-                      onChange={() => handleSelectWorkflow(workflow.id)}
-                      className="mt-1 h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                      aria-label={`Select ${workflow.name}`}
-                    />
-
-                    <div className="flex-1">
-                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900">{workflow.name}</h3>
-                          <div className="flex flex-wrap items-center gap-2 mt-2">
-                            <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${getModuleColor(workflow.module)}`}>
-                              {workflow.module}
-                            </span>
-                            <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${
-                              workflow.active
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {workflow.active ? 'Active' : 'Inactive'}
-                            </span>
-                            <span className="text-sm text-gray-600 flex items-center gap-1">
-                              <TriggerIcon className="h-4 w-4" />
-                              {workflow.triggerEvent.replace(/([A-Z])/g, ' $1').trim()}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* ✅ CLEAR, LABELED ACTIONS */}
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            onClick={() => handleEditWorkflow(workflow.id)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                          >
-                            <Edit className="h-4 w-4" /> Edit
-                          </button>
-
-                          <button
-                            onClick={() => handleViewDetails(workflow.id)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                          >
-                            <ArrowRight className="h-4 w-4" /> View
-                          </button>
-
-                          <button
-                            onClick={() => handleTestWorkflow(workflow)}
-                            className="p-2 text-cyan-600 hover:bg-cyan-50 rounded-lg"
-                            title="Test workflow"
-                          >
-                            <Zap className="h-4 w-4" />
-                          </button>
-
-                          <button
-                            onClick={() => handleExecuteWorkflow(workflow)}
-                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
-                            title="Execute now"
-                          >
-                            <Play className="h-4 w-4" />
-                          </button>
-
-                          <button
-                            onClick={() => handleToggleStatus(workflow)}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border ${
-                              workflow.active
-                                ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-                                : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
-                            }`}
-                          >
-                            {workflow.active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                            {workflow.active ? 'Deactivate' : 'Activate'}
-                          </button>
-
-                          <button
-                            onClick={() => handleDeleteWorkflow(workflow)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                            title="Delete workflow"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <p className="text-sm text-gray-600 mb-4">
-                        {workflow.actions.length} action{workflow.actions.length !== 1 ? 's' : ''} • 
-                        {workflow.isScheduled && 'Scheduled • '} 
-                        Executed {workflow.executionCount || 0} time{workflow.executionCount !== 1 ? 's' : ''}
-                      </p>
-
-                      <button
-                        onClick={() => setExpandedWorkflow(expandedWorkflow === workflow.id ? null : workflow.id)}
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
-                      >
-                        {expandedWorkflow === workflow.id ? (
-                          <>
-                            <ChevronDown className="h-4 w-4" /> Hide details
-                          </>
-                        ) : (
-                          <>
-                            <ChevronRight className="h-4 w-4" /> View details ({workflow.actions.length} actions)
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Expanded Details */}
-                  {expandedWorkflow === workflow.id && (
-                    <div className="mt-6 pt-6 border-t border-gray-200">
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Actions */}
-                        <div className="lg:col-span-2 space-y-4">
-                          <h4 className="text-sm font-semibold text-gray-700">Actions</h4>
-                          {workflow.actions.map((action, idx) => {
-                            const ActionIcon = getActionIcon(action.actionType);
-                            return (
-                              <div key={idx} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                                <ActionIcon className="h-5 w-5 text-gray-600 mt-0.5" />
-                                <div className="flex-1">
-                                  <p className="font-medium text-gray-900">
-                                    {action.actionType.replace(/([A-Z])/g, ' $1').trim()}
-                                  </p>
-                                  {action.delayInMinutes && (
-                                    <span className="text-xs bg-white px-2 py-1 rounded mt-1 inline-block">
-                                      Delay: {action.delayInMinutes} min
-                                    </span>
-                                  )}
-                                  {Object.keys(action.params).length > 0 && (
-                                    <pre className="text-xs bg-white p-2 mt-2 rounded overflow-x-auto max-w-full">
-                                      {JSON.stringify(action.params, null, 2)}
-                                    </pre>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Info */}
-                        <div className="space-y-4">
-                          <div className="p-3 bg-gray-50 rounded-lg">
-                            <h5 className="text-xs font-medium text-gray-500 mb-2">Execution Info</h5>
-                            <p className="text-sm"><span className="text-gray-600">Frequency:</span> {workflow.executionFrequency?.replace(/_/g, ' ') || '—'}</p>
-                            <p className="text-sm"><span className="text-gray-600">Executions:</span> {workflow.executionCount || 0}</p>
-                            {workflow.lastExecution && (
-                              <p className="text-sm"><span className="text-gray-600">Last Run:</span> {new Date(workflow.lastExecution).toLocaleDateString()}</p>
-                            )}
-                          </div>
-                          {workflow.createdBy && (
-                            <div className="p-3 bg-gray-50 rounded-lg">
-                              <h5 className="text-xs font-medium text-gray-500 mb-2">Created by</h5>
-                              <p className="text-sm">{workflow.createdBy.firstName} {workflow.createdBy.lastName}</p>
-                            </div>
-                          )}
-                          <div className="text-xs text-gray-500">
-                            Created: {new Date(workflow.createdAt).toLocaleDateString()}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {filteredWorkflows.map((workflow) => (
+            <WorkflowCard
+              key={workflow.id}
+              workflow={workflow}
+              isExpanded={!!expandedWorkflows[workflow.id]}
+              onToggleExpand={() => toggleExpandedWorkflow(workflow.id)}
+              onViewDetails={() => handleViewDetails(workflow.id)}
+              onEdit={() => handleEditWorkflow(workflow.id)}
+              onToggleStatus={() => handleToggleStatus(workflow)}
+              onTest={() => handleTestWorkflow(workflow)}
+              onExecute={() => handleExecuteWorkflow(workflow)}
+              onDelete={() => handleDeleteWorkflow(workflow)}
+              isSelected={selectedWorkflows.includes(workflow.id)}
+              onSelect={() => handleSelectWorkflow(workflow.id)}
+              isMenuOpen={!!expandedMenus[workflow.id]}
+              onToggleMenu={() => toggleMenu(workflow.id)}
+            />
+          ))}
         </div>
       )}
     </div>

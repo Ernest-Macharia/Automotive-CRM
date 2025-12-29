@@ -20,11 +20,12 @@ import {
   Download,
   RefreshCw,
   X,
+  MoreVertical
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { blueprintsService, Blueprint } from '@/services/settings/blueprintsService';
 
-// ✨ New: Improved Skeletons
+// ✨ Keep your improved skeletons
 const BlueprintCardSkeleton = () => (
   <div className="bg-white border border-gray-200 rounded-2xl p-6 animate-pulse shadow-sm">
     <div className="flex gap-4">
@@ -80,11 +81,14 @@ export default function BlueprintsManagementPage() {
   const [expandedBlueprint, setExpandedBlueprint] = useState<string | null>(null);
   const [selectedBlueprints, setSelectedBlueprints] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  // ✅ Add expandedRow state for kebab menu
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   useEffect(() => {
     loadBlueprints();
   }, []);
 
+  // ✅ Keep all your existing logic functions — no changes needed
   const loadBlueprints = async () => {
     try {
       setLoading(true);
@@ -148,6 +152,7 @@ export default function BlueprintsManagementPage() {
       await blueprintsService.deleteBlueprint(blueprint.id);
       setBlueprints(prev => prev.filter(b => b.id !== blueprint.id));
       showToast('Blueprint deleted successfully', 'success');
+      setExpandedRow(null);
     } catch (error) {
       console.error('Error deleting blueprint:', error);
       showToast('Failed to delete blueprint', 'error');
@@ -168,6 +173,7 @@ export default function BlueprintsManagementPage() {
         })),
       });
       showToast('Blueprint automation test completed successfully', 'success');
+      setExpandedRow(null);
     } catch (error) {
       console.error('Error testing blueprint automation:', error);
       showToast('Failed to test blueprint automation', 'error');
@@ -189,6 +195,7 @@ export default function BlueprintsManagementPage() {
         : [...prev, id]
     );
   };
+
   const filteredBlueprints = blueprints.filter(blueprint => {
     const matchesSearch = 
       blueprint.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -436,70 +443,89 @@ export default function BlueprintsManagementPage() {
                         </div>
                       </div>
 
-                      {/* Action Buttons - Now cleaner */}
-                      <div className="mt-4">
-                        <div className="flex flex-wrap items-center gap-2">
-                          {/* Edit */}
+                      {/* ✅ KEBAB MENU FOR SECONDARY ACTIONS */}
+                      <div className="flex items-center gap-2">
+                        {/* Primary Actions - with text */}
+                        <button
+                          onClick={() => handleEditBlueprint(blueprint.id)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                        >
+                          <Edit className="h-4 w-4" /> Edit
+                        </button>
+
+                        <button
+                          onClick={() => handleToggleStatus(blueprint)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border ${
+                            blueprint.isActive
+                              ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                              : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                          }`}
+                        >
+                          {blueprint.isActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                          {blueprint.isActive ? 'Deactivate' : 'Activate'}
+                        </button>
+
+                        {/* Kebab Menu */}
+                        <div className="relative">
                           <button
-                            onClick={() => handleEditBlueprint(blueprint.id)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                            aria-label={`Edit ${blueprint.name}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedRow(expandedRow === blueprint.id ? null : blueprint.id);
+                            }}
+                            className="p-1.5 text-gray-500 hover:bg-gray-100 rounded"
+                            aria-haspopup="true"
+                            aria-expanded={expandedRow === blueprint.id}
+                            aria-label="More actions"
                           >
-                            <Edit className="h-4 w-4" />
-                            Edit
+                            <MoreVertical className="h-4 w-4" />
                           </button>
 
-                          {/* View Details */}
-                          {/* <button
-                            onClick={() => handleViewDetails(blueprint.id)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                            aria-label={`View details for ${blueprint.name}`}
-                          >
-                            <ArrowRight className="h-4 w-4" />
-                            View
-                          </button> */}
-
-                          {/* Test Automation */}
-                          {/* <button
-                            onClick={() => handleTestAutomation(blueprint)}
-                            className="p-2 text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors"
-                            title="Test this blueprint's automation"
-                            aria-label="Test automation"
-                          >
-                            <Play className="h-4 w-4" />
-                            Test
-                          </button> */}
-
-                          {/* Toggle Status */}
-                          <button
-                            onClick={() => handleToggleStatus(blueprint)}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors ${
-                              blueprint.isActive
-                                ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-                                : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
-                            }`}
-                            aria-label={blueprint.isActive ? `Deactivate ${blueprint.name}` : `Activate ${blueprint.name}`}
-                          >
-                            {blueprint.isActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                            {blueprint.isActive ? 'Deactivate' : 'Activate'}
-                          </button>
-
-                          {/* Delete */}
-                          <button
-                            onClick={() => handleDeleteBlueprint(blueprint)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete blueprint (permanent)"
-                            aria-label={`Delete ${blueprint.name}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          {expandedRow === blueprint.id && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-10"
+                                onClick={() => setExpandedRow(null)}
+                              />
+                              <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    setExpandedRow(null);
+                                    handleViewDetails(blueprint.id);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                  <ArrowRight className="h-4 w-4" />
+                                  View Details
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    setExpandedRow(null);
+                                    handleTestAutomation(blueprint);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                  <Play className="h-4 w-4" />
+                                  Test Automation
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    setExpandedRow(null);
+                                    handleDeleteBlueprint(blueprint);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Delete
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
-
-                    {blueprint.description && (
-                      <p className="text-gray-600 mb-4 text-sm">{blueprint.description}</p>
-                    )}
 
                     <button
                       onClick={() => setExpandedBlueprint(expandedBlueprint === blueprint.id ? null : blueprint.id)}
@@ -507,11 +533,13 @@ export default function BlueprintsManagementPage() {
                     >
                       {expandedBlueprint === blueprint.id ? (
                         <>
-                          <ChevronDown className="h-4 w-4" /> Hide stages
+                          <ChevronDown className="h-4 w-4" />
+                          Hide stages
                         </>
                       ) : (
                         <>
-                          <ChevronRight className="h-4 w-4" /> View stages ({blueprint.stages.length})
+                          <ChevronRight className="h-4 w-4" />
+                          View stages ({blueprint.stages.length})
                         </>
                       )}
                     </button>

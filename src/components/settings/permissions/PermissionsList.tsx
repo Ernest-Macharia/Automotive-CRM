@@ -38,12 +38,13 @@ import {
   Mail,
   UserCheck,
   Download,
+  MoreVertical,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { roleService, PERMISSIONS, ROLES } from '@/services/settings/roleService';
 import Link from 'next/link';
 
-// Define Permission interface locally since it doesn't exist in the service
+// ✅ Keep your interfaces unchanged
 interface Permission {
   id: string;
   name: string;
@@ -71,6 +72,7 @@ export default function PermissionsList() {
   const [showFilters, setShowFilters] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<Permission | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [activeActionMenu, setActiveActionMenu] = useState<string | null>(null);
 
   const [filters, setFilters] = useState<PermissionFilters>({
     category: 'all',
@@ -78,18 +80,19 @@ export default function PermissionsList() {
     search: '',
   });
 
+  // ✅ Keep your categories — just updated UI below
   const categories = [
-    { id: 'all', name: 'All Categories', icon: Grid, color: 'bg-gradient-to-r from-blue-500 to-cyan-500' },
-    { id: 'users', name: 'User Management', icon: Users, color: 'bg-gradient-to-r from-purple-500 to-pink-500' },
-    { id: 'dashboard', name: 'Dashboard', icon: BarChart, color: 'bg-gradient-to-r from-green-500 to-emerald-500' },
-    { id: 'leads', name: 'Leads', icon: Phone, color: 'bg-gradient-to-r from-orange-500 to-red-500' },
-    { id: 'opportunities', name: 'Opportunities', icon: TrendingUp, color: 'bg-gradient-to-r from-yellow-500 to-amber-500' },
-    { id: 'quotes', name: 'Quotes', icon: FileText, color: 'bg-gradient-to-r from-cyan-500 to-blue-500' },
-    { id: 'sales_orders', name: 'Sales Orders', icon: ShoppingCart, color: 'bg-gradient-to-r from-indigo-500 to-purple-500' },
-    { id: 'work_orders', name: 'Work Orders', icon: Wrench, color: 'bg-gradient-to-r from-emerald-500 to-teal-500' },
-    { id: 'inventory', name: 'Inventory', icon: Database, color: 'bg-gradient-to-r from-rose-500 to-pink-500' },
-    { id: 'reports', name: 'Reports', icon: BarChart, color: 'bg-gradient-to-r from-violet-500 to-purple-500' },
-    { id: 'settings', name: 'Settings', icon: Settings, color: 'bg-gradient-to-r from-gray-500 to-slate-500' },
+    { id: 'all', name: 'All Categories', icon: Grid, color: 'bg-blue-500' },
+    { id: 'users', name: 'User Management', icon: Users, color: 'bg-purple-500' },
+    { id: 'dashboard', name: 'Dashboard', icon: BarChart, color: 'bg-green-500' },
+    { id: 'leads', name: 'Leads', icon: Phone, color: 'bg-orange-500' },
+    { id: 'opportunities', name: 'Opportunities', icon: TrendingUp, color: 'bg-yellow-500' },
+    { id: 'quotes', name: 'Quotes', icon: FileText, color: 'bg-cyan-500' },
+    { id: 'sales_orders', name: 'Sales Orders', icon: ShoppingCart, color: 'bg-indigo-500' },
+    { id: 'work_orders', name: 'Work Orders', icon: Wrench, color: 'bg-emerald-500' },
+    { id: 'inventory', name: 'Inventory', icon: Database, color: 'bg-rose-500' },
+    { id: 'reports', name: 'Reports', icon: BarChart, color: 'bg-violet-500' },
+    { id: 'settings', name: 'Settings', icon: Settings, color: 'bg-gray-500' },
   ];
 
   useEffect(() => {
@@ -99,6 +102,18 @@ export default function PermissionsList() {
   useEffect(() => {
     filterPermissions();
   }, [permissions, filters]);
+
+  // Close action menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!(event.target as Element).closest('.action-menu-container')) {
+        setActiveActionMenu(null);
+      }
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   const loadPermissions = async () => {
     try {
@@ -196,134 +211,187 @@ export default function PermissionsList() {
     }
   };
 
+  const handleViewDetails = (permission: Permission) => {
+    router.push(`/settings/permissions/${permission.id}`);
+  };
+
+  const handleEdit = (permission: Permission) => {
+    router.push(`/settings/permissions/${permission.id}/edit`);
+  };
+
+  const handleDelete = (permission: Permission) => {
+    setShowDeleteConfirm(permission);
+  };
+
+  const toggleActionMenu = (permissionId: string) => {
+    setActiveActionMenu(activeActionMenu === permissionId ? null : permissionId);
+  };
+
+  const ActionMenu = ({ permission }: { permission: Permission }) => {
+    if (activeActionMenu !== permission.id) return null;
+
+    return (
+      <div className="absolute right-0 top-6 z-50 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+        <button
+          onClick={() => handleViewDetails(permission)}
+          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+        >
+          <Eye className="h-4 w-4" />
+          View Details
+        </button>
+        <button
+          onClick={() => handleEdit(permission)}
+          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+        >
+          <Edit className="h-4 w-4" />
+          Edit Permission
+        </button>
+        <button
+          onClick={() => handleDelete(permission)}
+          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+        >
+          <Trash2 className="h-4 w-4" />
+          Delete Permission
+        </button>
+        <div className="border-t border-gray-200 my-1"></div>
+        <button
+          onClick={() => {
+            // Clone permission functionality
+            showToast('Clone functionality not implemented yet', 'info');
+            setActiveActionMenu(null);
+          }}
+          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+        >
+          <Activity className="h-4 w-4" />
+          Clone Permission
+        </button>
+      </div>
+    );
+  };
+
   const PermissionCard = ({ permission }: { permission: Permission }) => {
     const Icon = getCategoryIcon(permission.category);
+    const color = getCategoryColor(permission.category).replace('bg-gradient-to-r from-', 'bg-').replace(' to-', ' ');
     
     return (
-      <div className="bg-gradient-to-br from-white via-white to-blue-50 dark:from-gray-800 dark:via-gray-800 dark:to-blue-900/20 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-500 transition-all duration-300">
-        <div className="flex items-start justify-between mb-4">
+      <div className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow relative action-menu-container">
+        <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
-            <div className={`p-3 rounded-xl ${getCategoryColor(permission.category)}`}>
+            <div className={`p-2 rounded-lg ${color}`}>
               <Icon className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h3 className="font-bold text-gray-900 dark:text-white text-lg">
-                {permission.displayName}
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+              <h3 className="font-semibold text-gray-900 text-base">{permission.displayName}</h3>
+              <p className="text-xs text-gray-600 mt-0.5">
                 {permission.category.replace('_', ' ')} • {permission.action}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-xs font-medium">
-              {formatScope(permission.scope)}
-            </span>
-          </div>
+          <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full font-medium">
+            {formatScope(permission.scope)}
+          </span>
         </div>
         
-        <p className="text-gray-600 dark:text-gray-300 text-sm mb-4 line-clamp-2">
+        <p className="text-sm text-gray-600 mb-4 line-clamp-2">
           {permission.description || `Permission to ${permission.action} ${permission.category} records`}
         </p>
         
-        <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500 dark:text-gray-400">Identifier:</span>
-            <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs font-mono text-gray-800 dark:text-gray-300">
+        <div className="space-y-2 text-xs">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Identifier:</span>
+            <code className="bg-gray-100 px-1.5 py-0.5 rounded font-mono text-gray-800">
               {permission.name}
             </code>
           </div>
-          
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500 dark:text-gray-400">Module:</span>
-            <span className="font-medium text-gray-900 dark:text-white capitalize">
-              {permission.module}
-            </span>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Module:</span>
+            <span className="font-medium text-gray-900 capitalize">{permission.module}</span>
           </div>
-          
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500 dark:text-gray-400">Action:</span>
-            <span className="font-medium text-gray-900 dark:text-white capitalize">
-              {permission.action}
-            </span>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Action:</span>
+            <span className="font-medium text-gray-900 capitalize">{permission.action}</span>
           </div>
         </div>
         
-        <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-2">
+        <div className="mt-4 pt-3 border-t border-gray-200 flex gap-2">
+          <button
+            onClick={() => handleViewDetails(permission)}
+            className="flex-1 px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
+          >
+            View Details
+          </button>
+          <div className="relative action-menu-container">
             <button
-              onClick={() => router.push(`/settings/permissions/${permission.id}`)}
-              className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl text-sm font-medium hover:from-blue-600 hover:to-blue-700 transition-all"
+              onClick={() => toggleActionMenu(permission.id)}
+              className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
+              aria-label="More actions"
             >
-              View Details
+              <MoreVertical className="h-4 w-4" />
             </button>
-            <button
-              onClick={() => router.push(`/settings/permissions/${permission.id}/edit`)}
-              className="p-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700"
-              title="Edit"
-            >
-              <Edit className="h-4 w-4" />
-            </button>
+            <ActionMenu permission={permission} />
           </div>
         </div>
       </div>
     );
   };
 
+  // ✅ Updated: Permission Table Row with action menu dropdown
   const PermissionTableRow = ({ permission }: { permission: Permission }) => {
     const Icon = getCategoryIcon(permission.category);
+    const color = getCategoryColor(permission.category).replace('bg-gradient-to-r from-', 'bg-').replace(' to-', ' ');
     
     return (
-      <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-        <td className="px-6 py-4">
+      <tr className="border-b border-gray-200 hover:bg-gray-50">
+        <td className="px-4 py-3">
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${getCategoryColor(permission.category).replace('bg-gradient-to-r', 'bg')}`}>
+            <div className={`p-1.5 rounded ${color}`}>
               <Icon className="h-4 w-4 text-white" />
             </div>
             <div>
-              <p className="font-medium text-gray-900 dark:text-white">{permission.displayName}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{permission.name}</p>
+              <p className="font-medium text-gray-900">{permission.displayName}</p>
+              <p className="text-xs text-gray-600">{permission.name}</p>
             </div>
           </div>
         </td>
-        <td className="px-6 py-4">
-          <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 capitalize">
+        <td className="px-4 py-3">
+          <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-full capitalize">
             {permission.category.replace('_', ' ')}
           </span>
         </td>
-        <td className="px-6 py-4">
-          <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 capitalize">
+        <td className="px-4 py-3">
+          <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full capitalize">
             {permission.action}
           </span>
         </td>
-        <td className="px-6 py-4">
-          <span className="text-sm text-gray-600 dark:text-gray-400">
-            {formatScope(permission.scope)}
-          </span>
+        <td className="px-4 py-3 text-sm text-gray-600">
+          {formatScope(permission.scope)}
         </td>
-        <td className="px-6 py-4">
-          <div className="flex items-center gap-2">
+        <td className="px-4 py-3 relative action-menu-container">
+          <div className="flex gap-2">
             <button
-              onClick={() => router.push(`/settings/permissions/${permission.id}`)}
-              className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
+              onClick={() => handleViewDetails(permission)}
+              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
               title="View Details"
             >
               <Eye className="h-4 w-4" />
             </button>
             <button
-              onClick={() => router.push(`/settings/permissions/${permission.id}/edit`)}
-              className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              onClick={() => handleEdit(permission)}
+              className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
               title="Edit"
             >
               <Edit className="h-4 w-4" />
             </button>
-            <button
-              onClick={() => setShowDeleteConfirm(permission)}
-              className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10 rounded-lg transition-colors"
-              title="Delete"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => toggleActionMenu(permission.id)}
+                className="p-1.5 text-gray-500 hover:bg-gray-100 rounded"
+                aria-label="More actions"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </button>
+              <ActionMenu permission={permission} />
+            </div>
           </div>
         </td>
       </tr>
@@ -349,46 +417,46 @@ export default function PermissionsList() {
   }), [permissions, categories]);
 
   return (
-    <div className="p-6">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div className="min-w-0">
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white truncate">Permissions Management</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2 truncate">Manage system permissions and access controls</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Permissions Management</h1>
+            <p className="text-gray-600 mt-1">Manage system permissions and access controls</p>
           </div>
           
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <div className="flex items-center gap-2 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-2 rounded-lg ${viewMode === 'grid' ? 'bg-white dark:bg-gray-700 shadow-sm' : 'hover:bg-white/50 dark:hover:bg-gray-700/50'}`}
-                title="Grid View"
+                className={`p-1.5 rounded ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'}`}
+                aria-label="Grid view"
               >
-                <Grid className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                <Grid className="h-4 w-4 text-gray-600" />
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-2 rounded-lg ${viewMode === 'list' ? 'bg-white dark:bg-gray-700 shadow-sm' : 'hover:bg-white/50 dark:hover:bg-gray-700/50'}`}
-                title="List View"
+                className={`p-1.5 rounded ${viewMode === 'list' ? 'bg-white shadow-sm' : 'hover:bg-gray-200'}`}
+                aria-label="List view"
               >
-                <List className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                <List className="h-4 w-4 text-gray-600" />
               </button>
             </div>
             
             <button
               onClick={loadPermissions}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors"
-              title="Refresh"
+              className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
+              aria-label="Refresh"
             >
-              <RefreshCw className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+              <RefreshCw className="h-4 w-4" />
             </button>
             
             <Link
               href="/settings/permissions/create"
-              className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-medium hover:from-purple-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl whitespace-nowrap flex items-center gap-2"
+              className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700"
             >
-              <ShieldPlus className="h-5 w-5" />
+              <ShieldPlus className="h-4 w-4" />
               Add Permission
             </Link>
           </div>
@@ -396,76 +464,54 @@ export default function PermissionsList() {
 
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-gradient-to-br from-white to-blue-50 dark:from-gray-800 dark:to-blue-900/20 border border-blue-100 dark:border-blue-800/30 rounded-2xl p-6">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0">
-                <p className="text-sm text-blue-700 dark:text-blue-400 truncate">Total Permissions</p>
-                <p className="text-2xl font-bold text-blue-800 dark:text-blue-300 mt-1">{stats.total}</p>
+          {[
+            { label: 'Total Permissions', value: stats.total, icon: Shield, color: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: 'System Permissions', value: stats.system, icon: Key, color: 'text-green-600', bg: 'bg-green-50' },
+            { label: 'Custom Permissions', value: stats.custom, icon: Settings, color: 'text-purple-600', bg: 'bg-purple-50' },
+            { 
+              label: 'Categories', 
+              value: categories.filter(c => c.id !== 'all' && stats.byCategory[c.id] > 0).length,
+              icon: Folder, 
+              color: 'text-amber-600', 
+              bg: 'bg-amber-50' 
+            },
+          ].map((stat, i) => {
+            const Icon = stat.icon;
+            return (
+              <div key={i} className="bg-white border border-gray-200 rounded-xl p-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-xs text-gray-600">{stat.label}</p>
+                    <p className="text-xl font-bold text-gray-900 mt-1">{stat.value}</p>
+                  </div>
+                  <div className={`p-2 rounded-lg ${stat.bg}`}>
+                    <Icon className={`h-4 w-4 ${stat.color}`} />
+                  </div>
+                </div>
               </div>
-              <div className="p-3 rounded-xl bg-blue-500/20">
-                <Shield className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gradient-to-br from-white to-green-50 dark:from-gray-800 dark:to-green-900/20 border border-green-100 dark:border-green-800/30 rounded-2xl p-6">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0">
-                <p className="text-sm text-green-700 dark:text-green-400 truncate">System Permissions</p>
-                <p className="text-2xl font-bold text-green-800 dark:text-green-300 mt-1">{stats.system}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-green-500/20">
-                <Key className="h-6 w-6 text-green-600 dark:text-green-400" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gradient-to-br from-white to-purple-50 dark:from-gray-800 dark:to-purple-900/20 border border-purple-100 dark:border-purple-800/30 rounded-2xl p-6">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0">
-                <p className="text-sm text-purple-700 dark:text-purple-400 truncate">Custom Permissions</p>
-                <p className="text-2xl font-bold text-purple-800 dark:text-purple-300 mt-1">{stats.custom}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-purple-500/20">
-                <Settings className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gradient-to-br from-white to-amber-50 dark:from-gray-800 dark:to-amber-900/20 border border-amber-100 dark:border-amber-800/30 rounded-2xl p-6">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0">
-                <p className="text-sm text-amber-700 dark:text-amber-400 truncate">Categories</p>
-                <p className="text-2xl font-bold text-amber-800 dark:text-amber-300 mt-1">
-                  {categories.filter(c => c.id !== 'all' && stats.byCategory[c.id] > 0).length}
-                </p>
-              </div>
-              <div className="p-3 rounded-xl bg-amber-500/20">
-                <Folder className="h-6 w-6 text-amber-600 dark:text-amber-400" />
-              </div>
-            </div>
-          </div>
+            );
+          })}
         </div>
       </div>
 
       {/* Filters */}
-      <div className="mb-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
+      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
           <div className="flex items-center gap-3 flex-1">
             <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search permissions by name, category, or description..."
+                placeholder="Search permissions..."
                 value={filters.search}
-                onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent truncate"
+                onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}  
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
               />
             </div>
             
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-2 px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
             >
               <Filter className="h-4 w-4" />
               Filters
@@ -473,22 +519,20 @@ export default function PermissionsList() {
             </button>
           </div>
           
-          <div className="flex items-center gap-3">
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              {filteredPermissions.length} of {permissions.length} permissions
-            </div>
+          <div className="text-sm text-gray-600">
+            {filteredPermissions.length} of {permissions.length} permissions
           </div>
         </div>
 
         {showFilters && (
-          <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="pt-4 border-t border-gray-200">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Category</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
                 <select
                   value={filters.category}
                   onChange={(e) => setFilters(prev => ({ ...prev, category: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 truncate"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 >
                   {categories.map(category => (
                     <option key={category.id} value={category.id}>
@@ -499,10 +543,10 @@ export default function PermissionsList() {
               </div>
             </div>
             
-            <div className="mt-4 flex justify-end gap-3">
+            <div className="mt-4 flex justify-end">
               <button
                 onClick={() => setFilters({ category: 'all', status: 'all', search: '' })}
-                className="px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 whitespace-nowrap"
+                className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
               >
                 Clear Filters
               </button>
@@ -516,10 +560,10 @@ export default function PermissionsList() {
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setFilters(prev => ({ ...prev, category: 'all' }))}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
               filters.category === 'all'
-                ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
             All Categories
@@ -532,15 +576,15 @@ export default function PermissionsList() {
                 <button
                   key={category.id}
                   onClick={() => setFilters(prev => ({ ...prev, category: category.id }))}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium ${
                     filters.category === category.id
-                      ? `${category.color.replace('bg-gradient-to-r', 'bg')} text-white shadow-lg`
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      ? `${category.color.replace('bg-', 'bg-')} text-white`
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-3.5 w-3.5" />
                   {category.name}
-                  <span className="px-1.5 py-0.5 bg-white/20 dark:bg-black/20 rounded text-xs">
+                  <span className="px-1.5 py-0.5 bg-white/30 rounded text-[10px]">
                     {stats.byCategory[category.id] || 0}
                   </span>
                 </button>
@@ -551,47 +595,47 @@ export default function PermissionsList() {
 
       {/* Permissions Content */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-16">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading permissions...</p>
+        <div className="flex flex-col items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+          <p className="mt-4 text-gray-600">Loading permissions...</p>
         </div>
       ) : filteredPermissions.length === 0 ? (
         <div className="text-center py-16">
-          <div className="w-24 h-24 bg-gradient-to-r from-purple-100 to-indigo-100 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Shield className="h-12 w-12 text-purple-600 dark:text-purple-400" />
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-purple-100 rounded-full mb-4">
+            <Shield className="h-6 w-6 text-purple-600" />
           </div>
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No permissions found</h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-8 max-w-md mx-auto">
-            {filters.search ? 'Try adjusting your search query' : 'Create your first custom permission to get started'}
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No permissions found</h3>
+          <p className="text-gray-600 max-w-md mx-auto mb-6">
+            {filters.search ? 'Try a different search term' : 'Create your first permission to get started'}
           </p>
           <Link
             href="/settings/permissions/create"
-            className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-medium hover:from-purple-700 hover:to-indigo-700 transition-all whitespace-nowrap"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg"
           >
-            <ShieldPlus className="h-5 w-5" />
-            Create New Permission
+            <ShieldPlus className="h-4 w-4" />
+            Create Permission
           </Link>
         </div>
       ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredPermissions.map((permission) => (
             <PermissionCard key={permission.id} permission={permission} />
           ))}
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
+            <table className="w-full">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Permission</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Action</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Scope</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Permission</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Category</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Action</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Scope</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              <tbody>
                 {filteredPermissions.map((permission) => (
                   <PermissionTableRow key={permission.id} permission={permission} />
                 ))}
@@ -601,40 +645,40 @@ export default function PermissionsList() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-red-100 dark:bg-red-500/20 rounded-lg">
-                <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl p-5 max-w-md w-full">
+            <div className="flex items-start gap-2.5 mb-4">
+              <div className="p-1.5 bg-red-100 rounded-lg mt-0.5">
+                <AlertCircle className="h-5 w-5 text-red-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Delete Permission</h3>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">This action cannot be undone</p>
+                <h3 className="font-semibold text-gray-900">Delete Permission</h3>
+                <p className="text-gray-600 text-sm mt-1">This action cannot be undone</p>
               </div>
             </div>
             
-            <p className="text-gray-700 dark:text-gray-300 mb-6">
+            <p className="text-gray-700 text-sm mb-5">
               Are you sure you want to delete <strong>{showDeleteConfirm.displayName}</strong>?
               This may affect user access and system functionality.
             </p>
             
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowDeleteConfirm(null)}
-                className="px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg"
               >
                 Cancel
               </button>
               <button
                 onClick={() => {
-                  // Handle delete logic here
+                  // Your delete logic would go here
                   setShowDeleteConfirm(null);
                 }}
-                className="px-4 py-2.5 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl hover:from-red-700 hover:to-red-800"
+                className="px-3 py-1.5 bg-red-600 text-white rounded-lg"
               >
-                Delete Permission
+                Delete
               </button>
             </div>
           </div>
