@@ -78,7 +78,6 @@ export default function SalesOrderEdit() {
       setLoading(true);
       const data = await salesOrderService.getSalesOrderById(id);
       
-      // Transform the API response to match our form data
       const formData: SalesOrderFormData = {
         salesOrderNumber: data.salesOrderNumber,
         status: data.status,
@@ -111,13 +110,10 @@ export default function SalesOrderEdit() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    
     const newValue = type === 'number' ? parseFloat(value) || 0 : value;
     
     setSalesOrder(prev => {
       const updated = { ...prev, [name]: newValue };
-      
-      // Recalculate total if financial fields change
       if (['subtotal', 'tax', 'shipping', 'discount'].includes(name)) {
         const subtotal = updated.subtotal || 0;
         const tax = updated.tax || 0;
@@ -125,7 +121,6 @@ export default function SalesOrderEdit() {
         const discount = updated.discount || 0;
         updated.totalAmount = subtotal + tax + shipping - discount;
       }
-      
       return updated;
     });
   };
@@ -137,7 +132,6 @@ export default function SalesOrderEdit() {
   const handleLineItemChange = (index: number, field: keyof SalesOrderLineItem, value: string | number) => {
     setSalesOrder(prev => {
       const lineItems = [...(prev.lineItems || [])];
-      
       if (lineItems[index]) {
         const updatedItem = {
           ...lineItems[index],
@@ -145,16 +139,11 @@ export default function SalesOrderEdit() {
             ? parseFloat(value) || 0 
             : value
         };
-        
-        // Recalculate line total
         if (field === 'quantity' || field === 'unitPrice') {
           updatedItem.total = updatedItem.quantity * updatedItem.unitPrice;
         }
-        
         lineItems[index] = updatedItem;
       }
-      
-      // Recalculate subtotal and total
       const subtotal = lineItems.reduce((sum, item) => sum + (item.total || 0), 0);
       const totalAmount = subtotal + (prev.tax || 0) + (prev.shipping || 0) - (prev.discount || 0);
       
@@ -193,12 +182,9 @@ export default function SalesOrderEdit() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     try {
       setSaving(true);
-      
       if (params.id && params.id !== 'new') {
-        // Prepare update data
         const updateData: UpdateSalesOrderData = {
           status: salesOrder.status,
           orderDate: `${salesOrder.orderDate}T00:00:00.000Z`,
@@ -215,15 +201,13 @@ export default function SalesOrderEdit() {
           notes: salesOrder.notes,
           lineItems: salesOrder.lineItems
         };
-        
         await salesOrderService.updateSalesOrder(params.id as string, updateData);
         showToast('Sales order updated successfully!', 'success');
         router.push(`/orders/sales-orders/${params.id}`);
       } else {
-        // Prepare create data
         const createData: CreateSalesOrderData = {
-          opportunityId: salesOrder.opportunityId || 'default-opportunity-id', // You should get this from props or context
-          quoteId: salesOrder.quoteId || 'default-quote-id', // You should get this from props or context
+          opportunityId: salesOrder.opportunityId || 'default-opportunity-id',
+          quoteId: salesOrder.quoteId || 'default-quote-id',
           salesOrderNumber: salesOrder.salesOrderNumber,
           status: salesOrder.status,
           orderDate: `${salesOrder.orderDate}T00:00:00.000Z`,
@@ -239,13 +223,10 @@ export default function SalesOrderEdit() {
           notes: salesOrder.notes,
           lineItems: salesOrder.lineItems
         };
-        
         const newOrder = await salesOrderService.createSalesOrder(createData);
         showToast('Sales order created successfully!', 'success');
         router.push(`/orders/sales-orders/${newOrder._id}`);
-        return;
       }
-      
     } catch (error) {
       console.error('Error saving sales order:', error);
       showToast('Failed to save sales order', 'error');
@@ -282,399 +263,55 @@ export default function SalesOrderEdit() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6 shadow-lg">
+    <div className="min-h-screen bg-gray-50">
+      {/* 🔵🟣 Header */}
+      <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-4 sm:p-6 shadow-md">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-3">
               <button
                 onClick={handleCancel}
-                className="p-2 hover:bg-white/20 rounded-xl transition-colors"
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                aria-label="Back"
               >
                 <ArrowLeft className="h-5 w-5 text-white" />
               </button>
-              <div className="p-2 bg-white/20 rounded-xl">
+              <div className="p-2 bg-white/20 rounded-lg">
                 <ShoppingBag className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">
-                  {params.id === 'new' ? 'Create New Sales Order' : `Edit Sales Order`}
+                <h1 className="text-lg sm:text-xl font-bold text-white">
+                  {params.id === 'new' ? 'Create New Sales Order' : 'Edit Sales Order'}
                 </h1>
-                <p className="text-blue-100 text-sm">
-                  {params.id === 'new' ? 'Create a new sales order' : `Editing ${salesOrder.salesOrderNumber}`}
+                <p className="text-blue-100 text-xs sm:text-sm">
+                  {params.id === 'new' ? 'Fill in the details below' : `Editing ${salesOrder.salesOrderNumber}`}
                 </p>
               </div>
             </div>
             
             <div className="flex items-center gap-2">
               <button
+                type="button"
+                onClick={handleCancel}
+                className="px-3 py-2 text-white border border-white rounded-lg hover:bg-white/10 text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
                 onClick={handleSubmit}
                 disabled={saving}
-                className="px-6 py-2 bg-white text-blue-600 font-semibold rounded-xl hover:bg-white/90 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4" />
-                )}
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button>
-              <button
-                onClick={handleCancel}
-                className="px-6 py-2 border border-white text-white font-semibold rounded-xl hover:bg-white/10"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Form */}
-      <div className="max-w-7xl mx-auto p-4">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Order Status */}
-          <div className="bg-white rounded-2xl shadow-xl p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Order Status</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-              {statusOptions.map((status) => {
-                const Icon = status.icon;
-                return (
-                  <button
-                    key={status.value}
-                    type="button"
-                    onClick={() => handleStatusChange(status.value as SalesOrderFormData['status'])}
-                    className={`px-3 py-3 rounded-xl flex flex-col items-center justify-center gap-2 border-2 transition-all ${
-                      salesOrder.status === status.value
-                        ? 'border-blue-500 bg-gradient-to-r from-blue-50 to-purple-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className={`p-2 rounded-lg ${status.color}`}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <span className="text-xs font-medium text-center">{status.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left Column - Order Information */}
-            <div className="space-y-6">
-              {/* Dates */}
-              <div className="bg-white rounded-2xl shadow-xl p-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-gray-400" />
-                  Dates
-                </h2>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Order Date
-                    </label>
-                    <input
-                      type="date"
-                      name="orderDate"
-                      value={salesOrder.orderDate}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Estimated Delivery Date
-                    </label>
-                    <input
-                      type="date"
-                      name="estimatedDeliveryDate"
-                      value={salesOrder.estimatedDeliveryDate || ''}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors"
-                    />
-                  </div>
-                  
-                  {salesOrder.status === 'delivered' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Actual Delivery Date
-                      </label>
-                      <input
-                        type="date"
-                        name="actualDeliveryDate"
-                        value={salesOrder.actualDeliveryDate || ''}
-                        onChange={handleChange}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors"
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Addresses */}
-              <div className="bg-white rounded-2xl shadow-xl p-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Addresses</h2>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      Shipping Address
-                    </label>
-                    <textarea
-                      name="shippingAddress"
-                      value={salesOrder.shippingAddress || ''}
-                      onChange={handleChange}
-                      rows={3}
-                      placeholder="Enter shipping address..."
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors resize-none"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                      <Building className="h-4 w-4" />
-                      Billing Address
-                    </label>
-                    <textarea
-                      name="billingAddress"
-                      value={salesOrder.billingAddress || ''}
-                      onChange={handleChange}
-                      rows={3}
-                      placeholder="Enter billing address (leave empty to use shipping address)..."
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors resize-none"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column - Financial Information */}
-            <div className="space-y-6">
-              {/* Financial Details */}
-              <div className="bg-white rounded-2xl shadow-xl p-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-gray-400" />
-                  Financial Details
-                </h2>
-                
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Tax (KES)
-                      </label>
-                      <input
-                        type="number"
-                        name="tax"
-                        value={salesOrder.tax}
-                        onChange={handleChange}
-                        min="0"
-                        step="0.01"
-                        className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Shipping (KES)
-                      </label>
-                      <input
-                        type="number"
-                        name="shipping"
-                        value={salesOrder.shipping}
-                        onChange={handleChange}
-                        min="0"
-                        step="0.01"
-                        className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Discount (KES)
-                    </label>
-                    <input
-                      type="number"
-                      name="discount"
-                      value={salesOrder.discount}
-                      onChange={handleChange}
-                      min="0"
-                      step="0.01"
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Payment Terms
-                    </label>
-                    <div className="relative">
-                      <select
-                        name="paymentTerms"
-                        value={salesOrder.paymentTerms || 'Net 30'}
-                        onChange={handleChange}
-                        className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors appearance-none bg-white"
-                      >
-                        {paymentTermsOptions.map(term => (
-                          <option key={term} value={term}>{term}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
-                    </div>
-                  </div>
-                  
-                  <div className="pt-4 border-t border-gray-200 space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Subtotal:</span>
-                      <span className="font-medium">{salesOrder.subtotal.toLocaleString()} KES</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Total Amount:</span>
-                      <span className="text-2xl font-bold text-blue-600">
-                        {salesOrder.totalAmount.toLocaleString()} KES
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Notes */}
-              <div className="bg-white rounded-2xl shadow-xl p-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Notes</h2>
-                
-                <div>
-                  <textarea
-                    name="notes"
-                    value={salesOrder.notes || ''}
-                    onChange={handleChange}
-                    rows={4}
-                    placeholder="Add any notes or special instructions..."
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors resize-none"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Line Items */}
-          <div className="bg-white rounded-2xl shadow-xl p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-800">Line Items</h2>
-              <button
-                type="button"
-                onClick={addLineItem}
-                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 flex items-center gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Add Item
-              </button>
-            </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Product</th>
-                    <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Description</th>
-                    <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Quantity</th>
-                    <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Unit Price</th>
-                    <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Total</th>
-                    <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {salesOrder.lineItems.map((item, index) => (
-                    <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          value={item.productName}
-                          onChange={(e) => handleLineItemChange(index, 'productName', e.target.value)}
-                          placeholder="Product name"
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          value={item.description}
-                          onChange={(e) => handleLineItemChange(index, 'description', e.target.value)}
-                          placeholder="Description"
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="number"
-                          value={item.quantity}
-                          onChange={(e) => handleLineItemChange(index, 'quantity', parseInt(e.target.value) || 1)}
-                          min="1"
-                          className="w-24 px-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="number"
-                          value={item.unitPrice}
-                          onChange={(e) => handleLineItemChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                          min="0"
-                          step="0.01"
-                          className="w-32 px-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
-                        />
-                      </td>
-                      <td className="py-3 px-4 font-medium">
-                        {(item.quantity * item.unitPrice).toLocaleString()} KES
-                      </td>
-                      <td className="py-3 px-4">
-                        <button
-                          type="button"
-                          onClick={() => removeLineItem(index)}
-                          className="p-2 hover:bg-red-50 rounded-lg text-red-500 hover:text-red-600"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              
-              {salesOrder.lineItems.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  No line items added. Click "Add Item" to add products.
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Form Actions */}
-          <div className="bg-white rounded-2xl shadow-xl p-6">
-            <div className="flex items-center justify-end gap-4">
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="px-8 py-3 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 flex items-center gap-2"
-              >
-                <X className="h-4 w-4" />
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-purple-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 ${
+                  saving
+                    ? 'bg-blue-400 text-white'
+                    : 'bg-white text-blue-600 hover:bg-gray-100'
+                }`}
               >
                 {saving ? (
                   <>
@@ -684,11 +321,359 @@ export default function SalesOrderEdit() {
                 ) : (
                   <>
                     <Save className="h-4 w-4" />
-                    {params.id === 'new' ? 'Create Sales Order' : 'Save Changes'}
+                    Save Order
                   </>
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Form */}
+      <div className="max-w-7xl mx-auto p-4 sm:p-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Status */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Status</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+              {statusOptions.map((status) => {
+                const Icon = status.icon;
+                return (
+                  <button
+                    key={status.value}
+                    type="button"
+                    onClick={() => handleStatusChange(status.value as SalesOrderFormData['status'])}
+                    className={`px-3 py-2.5 rounded-lg flex flex-col items-center justify-center gap-1.5 text-xs border transition-colors ${
+                      salesOrder.status === status.value
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className={`p-1.5 rounded-md ${status.color}`}>
+                      <Icon className="h-3.5 w-3.5" />
+                    </div>
+                    {status.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left Column */}
+            <div className="space-y-6">
+              {/* Dates */}
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-gray-500" />
+                  Dates
+                </h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Order Date
+                    </label>
+                    <input
+                      type="date"
+                      name="orderDate"
+                      value={salesOrder.orderDate}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Estimated Delivery Date
+                    </label>
+                    <input
+                      type="date"
+                      name="estimatedDeliveryDate"
+                      value={salesOrder.estimatedDeliveryDate || ''}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  
+                  {salesOrder.status === 'delivered' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Actual Delivery Date
+                      </label>
+                      <input
+                        type="date"
+                        name="actualDeliveryDate"
+                        value={salesOrder.actualDeliveryDate || ''}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Addresses */}
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Addresses</h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-1.5">
+                      <MapPin className="h-4 w-4" />
+                      Shipping Address
+                    </label>
+                    <textarea
+                      name="shippingAddress"
+                      value={salesOrder.shippingAddress || ''}
+                      onChange={handleChange}
+                      rows={3}
+                      placeholder="Shipping address..."
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-1.5">
+                      <Building className="h-4 w-4" />
+                      Billing Address
+                    </label>
+                    <textarea
+                      name="billingAddress"
+                      value={salesOrder.billingAddress || ''}
+                      onChange={handleChange}
+                      rows={3}
+                      placeholder="Billing address..."
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column */}
+            <div className="space-y-6">
+              {/* Financial Details */}
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-gray-500" />
+                  Financial Details
+                </h2>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Tax (KES)
+                      </label>
+                      <input
+                        type="number"
+                        name="tax"
+                        value={salesOrder.tax}
+                        onChange={handleChange}
+                        min="0"
+                        step="0.01"
+                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Shipping (KES)
+                      </label>
+                      <input
+                        type="number"
+                        name="shipping"
+                        value={salesOrder.shipping}
+                        onChange={handleChange}
+                        min="0"
+                        step="0.01"
+                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Discount (KES)
+                    </label>
+                    <input
+                      type="number"
+                      name="discount"
+                      value={salesOrder.discount}
+                      onChange={handleChange}
+                      min="0"
+                      step="0.01"
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Payment Terms
+                    </label>
+                    <div className="relative">
+                      <select
+                        name="paymentTerms"
+                        value={salesOrder.paymentTerms || 'Net 30'}
+                        onChange={handleChange}
+                        className="w-full appearance-none px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                      >
+                        {paymentTermsOptions.map(term => (
+                          <option key={term} value={term}>{term}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                    </div>
+                  </div>
+                  
+                  <div className="pt-3 border-t border-gray-200">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Subtotal:</span>
+                      <span className="font-medium">KES {salesOrder.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between mt-1">
+                      <span className="text-gray-600">Total:</span>
+                      <span className="text-lg font-bold text-blue-600">
+                        KES {salesOrder.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Notes</h2>
+                <textarea
+                  name="notes"
+                  value={salesOrder.notes || ''}
+                  onChange={handleChange}
+                  rows={4}
+                  placeholder="Add notes or special instructions..."
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Line Items */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
+              <h2 className="text-lg font-semibold text-gray-900">Line Items</h2>
+              <button
+                type="button"
+                onClick={addLineItem}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+              >
+                <Plus className="h-4 w-4" />
+                Add Item
+              </button>
+            </div>
+            
+            {salesOrder.lineItems.length === 0 ? (
+              <div className="text-center py-6 text-gray-500 text-sm">
+                No line items added. Click "Add Item" to get started.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <th className="py-2 px-3">Product</th>
+                      <th className="py-2 px-3">Description</th>
+                      <th className="py-2 px-3">Qty</th>
+                      <th className="py-2 px-3">Unit Price</th>
+                      <th className="py-2 px-3">Total</th>
+                      <th className="py-2 px-3 w-12"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {salesOrder.lineItems.map((item, index) => (
+                      <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-3 px-3">
+                          <input
+                            type="text"
+                            value={item.productName}
+                            onChange={(e) => handleLineItemChange(index, 'productName', e.target.value)}
+                            placeholder="Product name"
+                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </td>
+                        <td className="py-3 px-3">
+                          <input
+                            type="text"
+                            value={item.description}
+                            onChange={(e) => handleLineItemChange(index, 'description', e.target.value)}
+                            placeholder="Description"
+                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </td>
+                        <td className="py-3 px-3">
+                          <input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => handleLineItemChange(index, 'quantity', parseInt(e.target.value) || 1)}
+                            min="1"
+                            className="w-20 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </td>
+                        <td className="py-3 px-3">
+                          <input
+                            type="number"
+                            value={item.unitPrice}
+                            onChange={(e) => handleLineItemChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                            min="0"
+                            step="0.01"
+                            className="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </td>
+                        <td className="py-3 px-3 text-sm font-medium">
+                          KES {(item.quantity * item.unitPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-3">
+                          <button
+                            type="button"
+                            onClick={() => removeLineItem(index)}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded"
+                            aria-label="Remove item"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Actions */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col sm:flex-row sm:justify-end gap-3">
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm"
+            >
+              <X className="h-4 w-4 inline mr-1.5" />
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm flex items-center disabled:opacity-50"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-1.5" />
+                  {params.id === 'new' ? 'Create Order' : 'Save Changes'}
+                </>
+              )}
+            </button>
           </div>
         </form>
       </div>

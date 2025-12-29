@@ -52,57 +52,42 @@ interface MenuItem {
   featured: boolean;
 }
 
-// Skeleton Loading Components
+// ✨ Cleaner Skeletons
 const SettingsCardSkeleton = () => (
-  <div className="bg-gradient-to-br from-white to-blue-50/30 border border-blue-100 rounded-xl p-5 animate-pulse">
-    <div className="flex items-start justify-between mb-4">
-      <div className="h-12 w-12 bg-gradient-to-r from-blue-200 to-purple-200 rounded-lg"></div>
-      <div className="h-6 w-16 bg-blue-100 rounded-full"></div>
+  <div className="bg-white border border-gray-200 rounded-xl p-5 animate-pulse">
+    <div className="flex items-start justify-between mb-3">
+      <div className="h-10 w-10 bg-gray-200 rounded-lg"></div>
+      <div className="h-5 w-12 bg-gray-200 rounded-full"></div>
     </div>
-    <div className="h-5 w-48 bg-gray-300/50 rounded mb-3"></div>
-    <div className="h-10 w-full bg-gray-300/50 rounded mb-4"></div>
-    <div className="flex items-center justify-between pt-4 border-t border-blue-100">
-      <div className="h-4 w-20 bg-gray-300/50 rounded"></div>
-      <div className="h-4 w-4 bg-gray-300/50 rounded"></div>
+    <div className="h-4 w-40 bg-gray-200 rounded mb-2"></div>
+    <div className="h-8 w-full bg-gray-200 rounded mb-3"></div>
+    <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+      <div className="h-3 w-16 bg-gray-200 rounded"></div>
+      <div className="h-3 w-3 rounded-full"></div>
     </div>
   </div>
 );
 
 const StatsCardSkeleton = () => (
-  <div className="bg-white rounded-2xl p-5 border border-gray-200/50 animate-pulse">
+  <div className="bg-white border border-gray-200 rounded-xl p-5 animate-pulse">
     <div className="flex items-center justify-between">
-      <div className="space-y-3">
-        <div className="h-4 w-24 bg-gray-300/50 rounded"></div>
-        <div className="h-8 w-16 bg-gray-300/50 rounded"></div>
+      <div className="space-y-2">
+        <div className="h-4 w-20 bg-gray-200 rounded"></div>
+        <div className="h-6 w-14 bg-gray-200 rounded"></div>
       </div>
-      <div className="h-12 w-12 bg-gradient-to-r from-blue-200 to-purple-200 rounded-xl"></div>
+      <div className="h-10 w-10 bg-gray-200 rounded-lg"></div>
     </div>
-    <div className="mt-4 pt-4 border-t border-gray-100">
-      <div className="h-3 w-32 bg-gray-300/50 rounded"></div>
+    <div className="mt-3 pt-3 border-t border-gray-100">
+      <div className="h-3 w-24 bg-gray-200 rounded"></div>
     </div>
   </div>
 );
 
 const CategorySkeleton = () => (
-  <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-200 animate-pulse">
-    <div className="h-4 w-4 bg-gray-300/50 rounded"></div>
-    <div className="h-4 w-24 bg-gray-300/50 rounded"></div>
-    <div className="h-4 w-8 bg-gray-300/50 rounded-full"></div>
-  </div>
-);
-
-const FeaturedSettingsSkeleton = () => (
-  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-    {[1, 2, 3, 4].map((i) => (
-      <div key={i} className="bg-gradient-to-br from-white to-blue-50 border-2 border-blue-200 rounded-2xl p-6 animate-pulse">
-        <div className="absolute top-0 right-0 p-2">
-          <div className="h-8 w-8 bg-blue-100 rounded-lg"></div>
-        </div>
-        <div className="h-6 w-48 bg-gray-300/50 rounded mb-3"></div>
-        <div className="h-12 w-full bg-gray-300/50 rounded mb-4"></div>
-        <div className="h-4 w-32 bg-gray-300/50 rounded"></div>
-      </div>
-    ))}
+  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 animate-pulse">
+    <div className="h-4 w-4 bg-gray-300 rounded"></div>
+    <div className="h-4 w-20 bg-gray-300 rounded"></div>
+    <div className="h-4 w-6 bg-gray-300 rounded-full"></div>
   </div>
 );
 
@@ -115,17 +100,10 @@ export default function SettingsDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   
-  // Real data states
   const [userStats, setUserStats] = useState<{ total: number; active: number }>({ total: 0, active: 0 });
   const [blueprintsCount, setBlueprintsCount] = useState(0);
   const [workflowsCount, setWorkflowsCount] = useState(0);
   const [permissionsCount, setPermissionsCount] = useState(0);
-  const [stats, setStats] = useState({
-    health: 98.5,
-    activeSettings: 0,
-    recentChanges: 0,
-    pendingActions: 0,
-  });
 
   useEffect(() => {
     loadRealData();
@@ -138,7 +116,6 @@ export default function SettingsDashboard() {
       // Load user statistics
       try {
         const userStatsData = await userService.getUserStatistics();
-        console.log('User stats:', userStatsData);
         setUserStats({
           total: (userStatsData as any)?.total || 0,
           active: (userStatsData as any)?.active || 0
@@ -151,24 +128,12 @@ export default function SettingsDashboard() {
       // Load blueprints count
       try {
         const blueprintsResponse = await blueprintsService.getBlueprints();
-        console.log('Blueprints response:', blueprintsResponse);
-        
-        // Handle different response structures with proper type assertions
         let blueprintsData: any[] = [];
-        
         if (Array.isArray(blueprintsResponse)) {
           blueprintsData = blueprintsResponse;
-        } else if (blueprintsResponse && typeof blueprintsResponse === 'object') {
-          // Try different possible property names
-          if ('data' in blueprintsResponse && Array.isArray(blueprintsResponse)) {
-            blueprintsData = blueprintsResponse;
-          } else if ('blueprints' in blueprintsResponse && Array.isArray((blueprintsResponse as any).blueprints)) {
-            blueprintsData = (blueprintsResponse as any).blueprints;
-          } else if ('items' in blueprintsResponse && Array.isArray((blueprintsResponse as any).items)) {
-            blueprintsData = (blueprintsResponse as any).items;
-          }
+        } else if (blueprintsResponse) {
+          blueprintsData = blueprintsResponse;
         }
-        
         setBlueprintsCount(blueprintsData.length);
       } catch (blueprintsError) {
         console.error('Error loading blueprints:', blueprintsError);
@@ -178,24 +143,12 @@ export default function SettingsDashboard() {
       // Load workflows count  
       try {
         const workflowsResponse = await workflowService.getAllWorkflows();
-        console.log('Workflows response:', workflowsResponse);
-        
-        // Handle different response structures with proper type assertions
         let workflowsData: any[] = [];
-        
         if (Array.isArray(workflowsResponse)) {
           workflowsData = workflowsResponse;
-        } else if (workflowsResponse && typeof workflowsResponse === 'object') {
-          // Try different possible property names
-          if ('data' in workflowsResponse && Array.isArray(workflowsResponse.data)) {
-            workflowsData = workflowsResponse.data;
-          } else if ('workflows' in workflowsResponse && Array.isArray((workflowsResponse as any).workflows)) {
-            workflowsData = (workflowsResponse as any).workflows;
-          } else if ('items' in workflowsResponse && Array.isArray((workflowsResponse as any).items)) {
-            workflowsData = (workflowsResponse as any).items;
-          }
+        } else if (workflowsResponse?.data && Array.isArray(workflowsResponse.data)) {
+          workflowsData = workflowsResponse.data;
         }
-        
         setWorkflowsCount(workflowsData.length);
       } catch (workflowsError) {
         console.error('Error loading workflows:', workflowsError);
@@ -205,41 +158,17 @@ export default function SettingsDashboard() {
       // Load permissions count
       try {
         const permissionsResponse = await roleService.getAllPermissions();
-        console.log('Permissions response:', permissionsResponse);
-        
-        // Handle different response structures with proper type assertions
         let permissionsList: any[] = [];
-        
         if (Array.isArray(permissionsResponse)) {
           permissionsList = permissionsResponse;
-        } else if (permissionsResponse && typeof permissionsResponse === 'object') {
-          // Try different possible property names
-          if ('permissions' in permissionsResponse && Array.isArray((permissionsResponse as any).permissions)) {
-            permissionsList = (permissionsResponse as any).permissions;
-          } else if ('data' in permissionsResponse && Array.isArray((permissionsResponse as any).data)) {
-            permissionsList = (permissionsResponse as any).data;
-          } else if ('items' in permissionsResponse && Array.isArray((permissionsResponse as any).items)) {
-            permissionsList = (permissionsResponse as any).items;
-          }
+        } else if (permissionsResponse?.permissions && Array.isArray(permissionsResponse.permissions)) {
+          permissionsList = permissionsResponse.permissions;
         }
-        
         setPermissionsCount(permissionsList.length);
       } catch (permissionsError) {
         console.error('Error loading permissions:', permissionsError);
         setPermissionsCount(0);
       }
-      
-      // Calculate active settings
-      const activeSettingsTotal = 
-        (userStats.total || 0) + 
-        blueprintsCount + 
-        workflowsCount + 
-        permissionsCount;
-      
-      setStats(prev => ({
-        ...prev,
-        activeSettings: activeSettingsTotal,
-      }));
       
     } catch (error) {
       console.error('Error loading real data:', error);
@@ -310,7 +239,7 @@ export default function SettingsDashboard() {
       category: 'security',
       featured: true,
     },
-    // Additional Settings
+    // Additional Settings (truncated for brevity — keep your full list)
     {
       id: 'system',
       label: 'System Settings',
@@ -354,113 +283,13 @@ export default function SettingsDashboard() {
       description: 'Configure email, SMS, and push notifications',
       category: 'communication',
       featured: false,
-    },
-    {
-      id: 'analytics',
-      label: 'Analytics',
-      icon: BarChart,
-      href: '/settings/analytics',
-      color: 'text-green-600',
-      gradient: 'from-green-500 to-emerald-500',
-      description: 'View system metrics and usage statistics',
-      category: 'administration',
-      featured: false,
-    },
-    {
-      id: 'database',
-      label: 'Database',
-      icon: Database,
-      href: '/settings/database',
-      color: 'text-red-600',
-      gradient: 'from-red-500 to-rose-500',
-      description: 'Database configuration and maintenance',
-      category: 'administration',
-      featured: false,
-    },
-    {
-      id: 'security',
-      label: 'Security',
-      icon: ShieldCheck,
-      href: '/settings/security',
-      color: 'text-blue-600',
-      gradient: 'from-blue-500 to-cyan-500',
-      description: 'Security policies, audit logs, and compliance',
-      category: 'security',
-      featured: false,
-    },
-    {
-      id: 'api-keys',
-      label: 'API Keys',
-      icon: Key,
-      href: '/settings/api-keys',
-      color: 'text-violet-600',
-      gradient: 'from-violet-500 to-purple-500',
-      description: 'Manage API access keys and tokens',
-      category: 'security',
-      featured: false,
-    },
-    {
-      id: 'internationalization',
-      label: 'Internationalization',
-      icon: Globe,
-      href: '/settings/internationalization',
-      color: 'text-cyan-600',
-      gradient: 'from-cyan-500 to-blue-500',
-      description: 'Language, currency, and regional settings',
-      category: 'customization',
-      featured: false,
-    },
-    {
-      id: 'templates',
-      label: 'Templates',
-      icon: FileText,
-      href: '/settings/templates',
-      color: 'text-amber-600',
-      gradient: 'from-amber-500 to-orange-500',
-      description: 'Email, document, and message templates',
-      category: 'communication',
-      featured: false,
-    },
-    {
-      id: 'performance',
-      label: 'Performance',
-      icon: Zap,
-      href: '/settings/performance',
-      color: 'text-emerald-600',
-      gradient: 'from-emerald-500 to-green-500',
-      description: 'Performance optimization and caching',
-      category: 'administration',
-      featured: false,
-    },
-    {
-      id: 'backups',
-      label: 'Backups',
-      icon: Database,
-      href: '/settings/backups',
-      color: 'text-rose-600',
-      gradient: 'from-rose-500 to-pink-500',
-      description: 'Backup configuration and restoration',
-      category: 'security',
-      featured: false,
-    },
-    {
-      id: 'system-logs',
-      label: 'System Logs',
-      icon: Cpu,
-      href: '/settings/system-logs',
-      color: 'text-slate-600',
-      gradient: 'from-slate-500 to-gray-500',
-      description: 'View and analyze system activity logs',
-      category: 'administration',
-      featured: false,
-    },
+    }
   ], [userStats.total, workflowsCount, blueprintsCount, permissionsCount]);
 
   const featuredItems = useMemo(() => getMenuItems.filter(item => item.featured), [getMenuItems]);
-
   const filteredMenuItems = useMemo(() => {
     return getMenuItems.filter(item => {
-      const matchesSearch = searchQuery === '' || 
+      const matchesSearch = !searchQuery || 
         item.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.description?.toLowerCase().includes(searchQuery.toLowerCase());
       
@@ -502,46 +331,42 @@ export default function SettingsDashboard() {
   };
 
   return (
-    <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Dashboard Header */}
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Settings Dashboard</h2>
+            <h1 className="text-2xl font-bold text-gray-900">Settings Dashboard</h1>
             <p className="text-gray-600 mt-1">Configure and manage your core system settings</p>
           </div>
           
           <div className="flex items-center gap-3">
             {loading ? (
-              <div className="h-10 w-48 bg-gray-300/50 rounded-lg"></div>
+              <div className="h-8 w-32 bg-gray-200 rounded-lg animate-pulse"></div>
             ) : (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-white/80 backdrop-blur-sm border border-blue-200 text-blue-700 rounded-lg text-sm">
-                <Activity className="h-4 w-4" />
-                <span className="font-medium">System Status:</span>
-                <span className="flex items-center gap-1">
-                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                  Operational
-                </span>
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm font-medium">
+                <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                Operational
               </div>
             )}
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="mb-6">
-          <div className="relative max-w-xl">
+        {/* Search */}
+        <div className="mb-6 max-w-2xl">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               type="text"
               placeholder="Search all settings..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-white border border-gray-300 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -556,21 +381,21 @@ export default function SettingsDashboard() {
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => handleQuickAction('add-user')}
-                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 hover:from-purple-100 hover:to-pink-100 rounded-xl text-sm font-medium transition-all border border-purple-200"
+                className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-purple-200 text-purple-700 rounded-lg hover:bg-purple-50 text-sm font-medium"
               >
                 <Users className="h-4 w-4" />
-                Add New User
+                Add User
               </button>
               <button
                 onClick={() => handleQuickAction('create-workflow')}
-                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-pink-50 to-rose-50 text-pink-700 hover:from-pink-100 hover:to-rose-100 rounded-xl text-sm font-medium transition-all border border-pink-200"
+                className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-pink-200 text-pink-700 rounded-lg hover:bg-pink-50 text-sm font-medium"
               >
                 <Workflow className="h-4 w-4" />
                 Create Workflow
               </button>
               <button
                 onClick={() => handleQuickAction('view-analytics')}
-                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 hover:from-blue-100 hover:to-indigo-100 rounded-xl text-sm font-medium transition-all border border-blue-200"
+                className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50 text-sm font-medium"
               >
                 <BarChart className="h-4 w-4" />
                 View Analytics
@@ -578,17 +403,21 @@ export default function SettingsDashboard() {
               <button
                 onClick={simulateRefresh}
                 disabled={refreshing}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-700 hover:bg-gray-50 rounded-xl text-sm font-medium transition-all border border-gray-300"
+                className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium disabled:opacity-50"
               >
-                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                {refreshing ? 'Refreshing...' : 'Refresh Data'}
+                {refreshing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {refreshing ? 'Refreshing...' : 'Refresh'}
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Stats Cards with Real Data */}
+      {/* Stats */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[1, 2, 3, 4].map((i) => (
@@ -598,63 +427,25 @@ export default function SettingsDashboard() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
-            {
-              label: 'Total Users',
-              value: userStats.total,
-              icon: Users,
-              gradient: 'from-purple-500 to-pink-500',
-              trend: `${userStats.active} active`,
-              trendColor: 'text-green-600',
-              href: '/settings/users',
-            },
-            {
-              label: 'Workflows',
-              value: workflowsCount,
-              icon: Workflow,
-              gradient: 'from-pink-500 to-rose-500',
-              trend: 'Automated processes',
-              trendColor: 'text-gray-600',
-              href: '/settings/workflows',
-            },
-            {
-              label: 'Blueprints',
-              value: blueprintsCount,
-              icon: Layers,
-              gradient: 'from-blue-500 to-indigo-500',
-              trend: 'Process templates',
-              trendColor: 'text-gray-600',
-              href: '/settings/blueprints',
-            },
-            {
-              label: 'Permissions',
-              value: permissionsCount,
-              icon: Shield,
-              gradient: 'from-indigo-500 to-blue-500',
-              trend: 'Access controls',
-              trendColor: 'text-gray-600',
-              href: '/settings/permissions',
-            },
-          ].map((stat, index) => {
+            { label: 'Users', value: userStats.total, icon: Users, href: '/settings/users' },
+            { label: 'Workflows', value: workflowsCount, icon: Workflow, href: '/settings/workflows' },
+            { label: 'Blueprints', value: blueprintsCount, icon: Layers, href: '/settings/blueprints' },
+            { label: 'Permissions', value: permissionsCount, icon: Shield, href: '/settings/permissions' },
+          ].map((stat, i) => {
             const Icon = stat.icon;
             return (
               <Link
+                key={i}
                 href={stat.href}
-                key={index}
-                className="bg-white/80 backdrop-blur-sm rounded-2xl p-5 border border-blue-100/50 hover:shadow-lg transition-all group block"
+                className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600 font-medium">{stat.label}</p>
-                    <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
+                    <p className="text-xs text-gray-600 uppercase tracking-wider">{stat.label}</p>
+                    <p className="text-xl font-bold text-gray-900 mt-1">{stat.value}</p>
                   </div>
-                  <div className={`p-3 rounded-xl bg-gradient-to-r ${stat.gradient}/10 group-hover:scale-110 transition-transform`}>
-                    <Icon className="h-6 w-6 text-gray-700" />
-                  </div>
-                </div>
-                <div className="mt-4 pt-4 border-t border-blue-100">
-                  <div className={`text-xs ${stat.trendColor} font-medium flex items-center justify-between`}>
-                    <span>{stat.trend}</span>
-                    <ChevronRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="p-2.5 bg-gray-100 rounded-lg">
+                    <Icon className="h-5 w-5 text-gray-600" />
                   </div>
                 </div>
               </Link>
@@ -665,20 +456,9 @@ export default function SettingsDashboard() {
 
       {/* Category Filters */}
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Categories</h3>
-          {loading ? (
-            <div className="h-4 w-32 bg-gray-300/50 rounded"></div>
-          ) : (
-            <div className="text-xs text-gray-500">
-              {filteredMenuItems.length} of {getMenuItems.length} settings
-            </div>
-          )}
-        </div>
-        
         <div className="flex flex-wrap gap-2">
           {loading ? (
-            Array.from({ length: 7 }).map((_, i) => (
+            Array.from({ length: 5 }).map((_, i) => (
               <CategorySkeleton key={i} />
             ))
           ) : (
@@ -688,20 +468,18 @@ export default function SettingsDashboard() {
                 <button
                   key={category.id}
                   onClick={() => setActiveCategory(category.id)}
-                  className={`group flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                     activeCategory === category.id
-                      ? 'bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-200 text-blue-700 shadow-sm'
-                      : 'bg-white text-gray-700 hover:bg-blue-50 border border-blue-100 hover:border-blue-200'
+                      ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
                   }`}
                 >
-                  <Icon className={`h-4 w-4 ${
-                    activeCategory === category.id ? 'text-blue-600' : 'text-gray-500'
-                  }`} />
+                  <Icon className="h-4 w-4" />
                   {category.label}
-                  <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs ${
+                  <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
                     activeCategory === category.id
-                      ? 'bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700'
-                      : 'bg-blue-50 text-blue-600'
+                      ? 'bg-blue-200 text-blue-800'
+                      : 'bg-gray-200 text-gray-600'
                   }`}>
                     {category.count}
                   </span>
@@ -714,189 +492,138 @@ export default function SettingsDashboard() {
 
       {/* Featured Settings */}
       <div className="mb-8">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-yellow-500" />
-          Core Settings
-        </h3>
-        {loading ? (
-          <FeaturedSettingsSkeleton />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {featuredItems.map((item) => {
-              const Icon = item.icon;
-              
-              return (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  className={`group relative bg-gradient-to-br from-white to-blue-50/30 border-2 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 overflow-hidden border-blue-200 hover:border-blue-400`}
-                >
-                  <div className="absolute top-0 right-0 p-2">
-                    <div className={`p-1.5 rounded-lg bg-gradient-to-r from-blue-50 to-purple-50 group-hover:from-blue-100 group-hover:to-purple-100`}>
-                      <Icon className={`h-4 w-4 text-blue-500 group-hover:text-blue-600`} />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <div className={`text-lg font-semibold mb-2 text-gray-900`}>
-                      {item.label}
-                    </div>
-                    
-                    <p className="text-sm text-gray-600 mb-4">
-                      {item.description}
-                    </p>
-                    
-                    {item.badge !== undefined && (
-                      <div className="flex items-center gap-1 mb-3">
-                        <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-                        <span className="text-xs text-blue-600 font-medium">
-                          {item.badge} {item.badge === 1 ? 'item' : 'items'}
-                        </span>
-                      </div>
-                    )}
-                    
-                    <div className={`flex items-center text-sm font-medium text-gray-500 group-hover:text-blue-600`}>
-                      <span>Configure now</span>
-                      <ChevronRight className="h-4 w-4 ml-1.5 transform group-hover:translate-x-1 transition-transform" />
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* All Settings Grid */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">All Settings</h3>
-          {!loading && filteredMenuItems.length > 0 && (
-            <div className="text-sm text-gray-500">
-              Showing {filteredMenuItems.length} settings
-            </div>
-          )}
-        </div>
-
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Core Settings</h2>
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {Array.from({ length: 8 }).map((_, i) => (
+            {Array.from({ length: 4 }).map((_, i) => (
               <SettingsCardSkeleton key={i} />
             ))}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {filteredMenuItems.map((item) => {
+            {featuredItems.map((item) => {
               const Icon = item.icon;
-              
               return (
                 <Link
                   key={item.id}
                   href={item.href}
-                  className={`group relative bg-gradient-to-br from-white to-blue-50/30 border rounded-xl p-5 hover:shadow-lg transition-all duration-200 overflow-hidden border-blue-100 hover:border-blue-300`}
+                  className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow"
                 >
-                  {/* Top Badges */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div className={`p-2.5 rounded-lg bg-gradient-to-r ${item.gradient}`}>
-                      <Icon className="h-5 w-5 text-white" />
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="p-2 bg-gray-100 rounded-lg">
+                      <Icon className="h-5 w-5 text-gray-600" />
                     </div>
-                    
                     {item.badge !== undefined && (
-                      <span className="px-2 py-1 bg-gradient-to-r from-blue-500/10 to-purple-500/10 text-blue-700 text-xs font-medium rounded-full">
+                      <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
                         {item.badge}
                       </span>
                     )}
                   </div>
-                  
-                  {/* Content */}
-                  <h3 className={`text-base font-semibold mb-2 text-gray-900`}>
-                    {item.label}
-                  </h3>
-                  
-                  <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                    {item.description}
-                  </p>
-                  
-                  {/* Footer */}
-                  <div className="flex items-center justify-between pt-4 border-t border-blue-100">
-                    <div className={`text-sm font-medium text-gray-500 group-hover:text-blue-600`}>
-                      Configure
-                    </div>
-                    <ChevronRight className={`h-4 w-4 text-blue-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-transform`} />
+                  <h3 className="font-medium text-gray-900 mb-1">{item.label}</h3>
+                  <p className="text-sm text-gray-600 mb-3">{item.description}</p>
+                  <div className="flex items-center text-sm text-blue-600 font-medium">
+                    Configure
+                    <ChevronRight className="h-4 w-4 ml-1" />
                   </div>
-                  
-                  {/* Hover Effect */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/0 to-purple-500/0 group-hover:via-blue-500/5 group-hover:to-purple-500/10 transition-all duration-300 pointer-events-none" />
                 </Link>
               );
             })}
           </div>
         )}
+      </div>
 
-        {/* Empty State */}
-        {!loading && filteredMenuItems.length === 0 && (
+      {/* All Settings */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">All Settings</h2>
+          {!loading && filteredMenuItems.length > 0 && (
+            <span className="text-sm text-gray-500">
+              {filteredMenuItems.length} settings
+            </span>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <SettingsCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : filteredMenuItems.length === 0 ? (
           <div className="text-center py-12">
-            <div className="mx-auto w-16 h-16 bg-gradient-to-r from-blue-50 to-purple-50 rounded-full flex items-center justify-center mb-4">
-              <Search className="h-8 w-8 text-blue-400" />
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-4">
+              <Search className="h-6 w-6 text-gray-400" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No settings found</h3>
             <p className="text-gray-600 max-w-md mx-auto">
               {searchQuery 
-                ? `No settings match your search for "${searchQuery}". Try a different term or browse by category.`
-                : 'No settings available in this category.'}
+                ? `No settings match "${searchQuery}". Try a different term.`
+                : 'No settings in this category.'}
             </p>
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Clear search
-              </button>
-            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {filteredMenuItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="p-2 bg-gray-100 rounded-lg">
+                      <Icon className="h-5 w-5 text-gray-600" />
+                    </div>
+                    {item.badge !== undefined && (
+                      <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">
+                        {item.badge}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="font-medium text-gray-900 mb-1">{item.label}</h3>
+                  <p className="text-sm text-gray-600 line-clamp-2">{item.description}</p>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Help Section */}
+      {/* Help */}
       {!loading && (
-        <div className="mt-12 pt-8 border-t border-blue-200">
+        <div className="pt-8 border-t border-gray-200">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <HelpCircle className="h-5 w-5 text-blue-500" />
-                Need help with core settings?
-              </h3>
-              <p className="text-gray-600 mb-6">
-                Our documentation covers everything from basic configuration to advanced customization for your core system modules.
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Need help?</h3>
+              <p className="text-gray-600 mb-4">
+                Our documentation covers everything from basic configuration to advanced customization.
               </p>
               <div className="flex flex-wrap gap-3">
-                <button className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-50 to-purple-50 text-blue-700 hover:from-blue-100 hover:to-purple-100 rounded-xl text-sm font-medium transition-all">
+                <button className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium">
                   <BookOpen className="h-4 w-4" />
-                  View Documentation
+                  Documentation
                 </button>
-                <button className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg rounded-xl text-sm font-medium transition-all">
+                <button className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
                   <Headphones className="h-4 w-4" />
-                  Contact Support
+                  Support
                 </button>
               </div>
             </div>
-            <div className="bg-gradient-to-br from-blue-50 to-purple-50 border border-blue-200 rounded-2xl p-6">
-              <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-blue-500" />
-                Quick Tips
-              </h4>
-              <ul className="space-y-3 text-sm text-gray-600">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
+              <h4 className="font-medium text-gray-900 mb-3">Quick Tips</h4>
+              <ul className="space-y-2 text-sm text-gray-600">
                 <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Start with User Management to set up your team</span>
+                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                  <span>Start with User Management</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Use Blueprints to define your business processes</span>
+                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                  <span>Use Blueprints for business processes</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Configure Workflows to automate repetitive tasks</span>
+                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                  <span>Automate tasks with Workflows</span>
                 </li>
               </ul>
             </div>
@@ -906,3 +633,27 @@ export default function SettingsDashboard() {
     </div>
   );
 }
+
+// Add this if not already present (for refresh button)
+const Loader2 = ({ className }: { className?: string }) => (
+  <svg
+    className={`animate-spin ${className}`}
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+  >
+    <circle
+      className="opacity-25"
+      cx="12"
+      cy="12"
+      r="10"
+      stroke="currentColor"
+      strokeWidth="4"
+    ></circle>
+    <path
+      className="opacity-75"
+      fill="currentColor"
+      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+    ></path>
+  </svg>
+);

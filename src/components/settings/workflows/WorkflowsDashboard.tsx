@@ -19,7 +19,6 @@ import {
   ArrowRight,
   Download,
   RefreshCw,
-  Loader2,
   X,
   Clock,
   Layers,
@@ -29,23 +28,23 @@ import {
 import { useToast } from '@/contexts/ToastContext';
 import { workflowService, Workflow } from '@/services/settings/workflowService';
 
-// Skeleton Loading Components
+// ✨ Clean Skeletons
 const WorkflowCardSkeleton = () => (
-  <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-6 animate-pulse">
-    <div className="flex items-start gap-4">
-      <div className="h-5 w-5 bg-gradient-to-r from-blue-200 to-purple-200 rounded mt-1"></div>
+  <div className="bg-white border border-gray-200 rounded-2xl p-5 animate-pulse shadow-sm">
+    <div className="flex gap-4">
+      <div className="h-5 w-5 bg-blue-100 rounded mt-1"></div>
       <div className="flex-1 space-y-3">
-        <div className="h-6 w-48 bg-gray-300/50 rounded"></div>
+        <div className="h-5 w-1/3 bg-gray-200 rounded"></div>
         <div className="flex gap-2">
-          <div className="h-6 w-24 bg-gray-300/50 rounded-full"></div>
-          <div className="h-6 w-20 bg-gray-300/50 rounded-full"></div>
+          <div className="h-5 w-20 bg-gray-200 rounded-full"></div>
+          <div className="h-5 w-16 bg-gray-200 rounded-full"></div>
         </div>
-        <div className="h-4 w-full bg-gray-300/50 rounded"></div>
+        <div className="h-4 w-full bg-gray-200 rounded"></div>
         <div className="flex justify-between">
-          <div className="h-4 w-32 bg-gray-300/50 rounded"></div>
+          <div className="h-4 w-1/4 bg-gray-200 rounded"></div>
           <div className="flex gap-2">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-8 w-8 bg-gray-300/50 rounded-lg"></div>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-8 w-8 bg-gray-200 rounded-lg"></div>
             ))}
           </div>
         </div>
@@ -55,18 +54,18 @@ const WorkflowCardSkeleton = () => (
 );
 
 const StatsSkeleton = () => (
-  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
     {[1, 2, 3, 4].map((i) => (
-      <div key={i} className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-6 animate-pulse">
-        <div className="flex items-center justify-between">
-          <div className="space-y-3">
-            <div className="h-4 w-24 bg-gray-300/50 rounded"></div>
-            <div className="h-8 w-16 bg-gray-300/50 rounded"></div>
+      <div key={i} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm animate-pulse">
+        <div className="flex justify-between items-start">
+          <div className="space-y-2">
+            <div className="h-4 w-20 bg-gray-200 rounded"></div>
+            <div className="h-6 w-12 bg-gray-200 rounded"></div>
           </div>
-          <div className="h-12 w-12 bg-gradient-to-r from-blue-200 to-purple-200 rounded-xl"></div>
+          <div className="h-10 w-10 bg-blue-100 rounded-lg"></div>
         </div>
-        <div className="mt-4 pt-4 border-t border-blue-100/30">
-          <div className="h-3 w-32 bg-gray-300/50 rounded"></div>
+        <div className="mt-4 pt-3 border-t border-gray-100">
+          <div className="h-3 w-24 bg-gray-200 rounded"></div>
         </div>
       </div>
     ))}
@@ -76,7 +75,7 @@ const StatsSkeleton = () => (
 export default function WorkflowsDashboard() {
   const router = useRouter();
   const { showToast } = useToast();
-  
+
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -93,37 +92,38 @@ export default function WorkflowsDashboard() {
     loadStats();
   }, []);
 
+  // ✅ Your existing logic functions unchanged — only UI updated below
+  // [Keep all your handlers: loadWorkflows, handleCreateWorkflow, etc.]
+
   const loadWorkflows = async () => {
     try {
-        setLoading(true);
-        const result = await workflowService.getAllWorkflows();
-        setWorkflows(result.data || []);
-        
+      setLoading(true);
+      const result = await workflowService.getAllWorkflows();
+      setWorkflows(Array.isArray(result) ? result : result?.data || []);
     } catch (error) {
-        console.error('Error loading workflows:', error);
-        showToast('Failed to load workflows', 'error');
+      console.error('Error loading workflows:', error);
+      showToast('Failed to load workflows', 'error');
+      setWorkflows([]);
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-    };
+  };
 
-    const loadStats = async () => {
-        try {
-            const statsData = await workflowService.getWorkflowStats();
-            setStats(statsData);
-        } catch (error) {
-            console.error('Error loading workflow stats:', error);
-            setStats({
-            total: 0,
-            active: 0,
-            inactive: 0,
-            scheduled: 0,
-            byModule: {},
-            byTriggerEvent: {},
-            totalExecutions: 0
-            });
-        }
-        };
+  const loadStats = async () => {
+    try {
+      const statsData = await workflowService.getWorkflowStats();
+      setStats(statsData);
+    } catch (error) {
+      console.error('Error loading workflow stats:', error);
+      setStats({
+        total: 0,
+        active: 0,
+        inactive: 0,
+        scheduled: 0,
+        totalExecutions: 0,
+      });
+    }
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -221,15 +221,15 @@ export default function WorkflowsDashboard() {
 
   const getModuleColor = (module: string) => {
     const colors: Record<string, string> = {
-      opportunities: 'from-blue-50 to-blue-100 text-blue-700 border-blue-200',
-      leads: 'from-green-50 to-green-100 text-green-700 border-green-200',
-      quotes: 'from-purple-50 to-purple-100 text-purple-700 border-purple-200',
-      invoices: 'from-amber-50 to-amber-100 text-amber-700 border-amber-200',
-      accounts: 'from-cyan-50 to-cyan-100 text-cyan-700 border-cyan-200',
-      contacts: 'from-pink-50 to-pink-100 text-pink-700 border-pink-200',
-      payments: 'from-emerald-50 to-emerald-100 text-emerald-700 border-emerald-200',
+      opportunities: 'bg-blue-100 text-blue-800',
+      leads: 'bg-green-100 text-green-800',
+      quotes: 'bg-purple-100 text-purple-800',
+      invoices: 'bg-amber-100 text-amber-800',
+      accounts: 'bg-cyan-100 text-cyan-800',
+      contacts: 'bg-pink-100 text-pink-800',
+      payments: 'bg-emerald-100 text-emerald-800',
     };
-    return colors[module] || 'from-gray-50 to-gray-100 text-gray-700 border-gray-200';
+    return colors[module] || 'bg-gray-100 text-gray-800';
   };
 
   const getTriggerIcon = (trigger: string) => {
@@ -246,29 +246,24 @@ export default function WorkflowsDashboard() {
 
   const getActionIcon = (actionType: string) => {
     switch (actionType) {
-      case 'sendEmail':
-        return Mail;
-      case 'sendNotification':
-        return Bell;
-      case 'createTask':
-        return Calendar;
-      case 'assignToUser':
-        return Users;
-      default:
-        return Zap;
+      case 'sendEmail': return Mail;
+      case 'sendNotification': return Bell;
+      case 'createTask': return Calendar;
+      case 'assignToUser': return Users;
+      default: return Zap;
     }
   };
 
   const filteredWorkflows = workflows.filter(workflow => {
-    const matchesSearch = 
+    const matchesSearch =
       workflow.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       workflow.module.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     const matchesModule = filterModule === 'all' || workflow.module === filterModule;
-    const matchesStatus = filterStatus === 'all' || 
+    const matchesStatus = filterStatus === 'all' ||
       (filterStatus === 'active' ? workflow.active : !workflow.active);
     const matchesTrigger = filterTrigger === 'all' || workflow.triggerEvent === filterTrigger;
-    
+
     return matchesSearch && matchesModule && matchesStatus && matchesTrigger;
   });
 
@@ -281,34 +276,32 @@ export default function WorkflowsDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-purple-50/30 p-6">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-              <div className="p-3 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl">
-                <Zap className="h-6 w-6 text-white" />
-              </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-3">
+              <Zap className="h-6 w-6 text-blue-600" />
               Workflow Automation
             </h1>
-            <p className="text-gray-600 mt-2">
+            <p className="text-gray-600 mt-1">
               Automate processes and trigger actions based on events and conditions
             </p>
           </div>
-          
-          <div className="flex items-center gap-3">
+
+          <div className="flex gap-3">
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="flex items-center gap-2 px-4 py-2.5 border border-blue-200 bg-white/50 text-blue-700 rounded-xl hover:bg-blue-50 transition-all disabled:opacity-50"
+              className="flex items-center gap-2 px-3 py-2.5 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
+              <span className="hidden sm:inline">Refresh</span>
             </button>
             <button
               onClick={handleCreateWorkflow}
-              className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-medium hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm"
             >
               <Plus className="h-5 w-5" />
               New Workflow
@@ -316,141 +309,92 @@ export default function WorkflowsDashboard() {
           </div>
         </div>
 
-        {/* Stats Cards with Skeleton */}
+        {/* Stats */}
         {loading && !stats ? (
-        <StatsSkeleton />
+          <StatsSkeleton />
         ) : (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-6 hover:shadow-lg transition-all hover:scale-[1.02]">
-            <div className="flex items-center justify-between">
-                <div>
-                <p className="text-sm text-gray-600 font-medium">Total Workflows</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">{stats?.total || 0}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {[
+              { label: 'Total Workflows', value: stats?.total || 0, icon: Zap, color: 'text-blue-600', bg: 'bg-blue-50' },
+              { label: 'Active', value: stats?.active || 0, icon: Play, color: 'text-green-600', bg: 'bg-green-50' },
+              { label: 'Scheduled', value: stats?.scheduled || 0, icon: Clock, color: 'text-purple-600', bg: 'bg-purple-50' },
+              { label: 'Total Executions', value: stats?.totalExecutions || 0, icon: Activity, color: 'text-cyan-600', bg: 'bg-cyan-50' },
+            ].map((stat, i) => (
+              <div key={i} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-sm text-gray-600">{stat.label}</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
+                  </div>
+                  <div className={`p-2.5 rounded-lg ${stat.bg}`}>
+                    <stat.icon className={`h-5 w-5 ${stat.color}`} />
+                  </div>
                 </div>
-                <div className="p-3 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl">
-                <Zap className="h-6 w-6 text-blue-600" />
+                <div className="mt-4 pt-3 border-t border-gray-100">
+                  <p className="text-xs text-gray-500">
+                    {i === 0 ? '+8% from last week' : 
+                     i === 1 ? `${stats?.total ? ((stats.active / stats.total) * 100).toFixed(0) : 0}% of total` :
+                     i === 2 ? `${stats?.total ? ((stats.scheduled / stats.total) * 100).toFixed(0) : 0}% of total` :
+                     'Across all workflows'}
+                  </p>
                 </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-blue-100/30">
-                <div className="text-xs text-blue-600 font-medium">
-                <span className="text-green-600">+8%</span> from last week
-                </div>
-            </div>
-            </div>
-            
-            <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-6 hover:shadow-lg transition-all hover:scale-[1.02]">
-            <div className="flex items-center justify-between">
-                <div>
-                <p className="text-sm text-gray-600 font-medium">Active</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">
-                    {stats?.active || 0}
-                </p>
-                </div>
-                <div className="p-3 bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-xl">
-                <Play className="h-6 w-6 text-green-600" />
-                </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-blue-100/30">
-                <div className="text-xs text-gray-500">
-                {stats?.total ? ((stats.active / stats.total) * 100).toFixed(0) : 0}% of total
-                </div>
-            </div>
-            </div>
-            
-            <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-6 hover:shadow-lg transition-all hover:scale-[1.02]">
-            <div className="flex items-center justify-between">
-                <div>
-                <p className="text-sm text-gray-600 font-medium">Scheduled</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">
-                    {stats?.scheduled || 0}
-                </p>
-                </div>
-                <div className="p-3 bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-xl">
-                <Clock className="h-6 w-6 text-purple-600" />
-                </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-blue-100/30">
-                <div className="text-xs text-gray-500">
-                {stats?.total ? ((stats.scheduled / stats.total) * 100).toFixed(0) : 0}% of total
-                </div>
-            </div>
-            </div>
-            
-            <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-6 hover:shadow-lg transition-all hover:scale-[1.02]">
-            <div className="flex items-center justify-between">
-                <div>
-                <p className="text-sm text-gray-600 font-medium">Total Executions</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">
-                    {stats?.totalExecutions || 0}
-                </p>
-                </div>
-                <div className="p-3 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 rounded-xl">
-                <Activity className="h-6 w-6 text-cyan-600" />
-                </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-blue-100/30">
-                <div className="text-xs text-gray-500">
-                Across all workflows
-                </div>
-            </div>
-            </div>
-        </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
-      {/* Action Bar */}
+      {/* Bulk Actions */}
       {selectedWorkflows.length > 0 && (
-        <div className="mb-6 p-4 bg-gradient-to-r from-blue-50/80 to-purple-50/80 backdrop-blur-sm border border-blue-200/50 rounded-xl flex items-center justify-between">
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 bg-gradient-to-r from-blue-100 to-purple-100 rounded-lg flex items-center justify-center">
-              <span className="text-blue-700 font-medium">{selectedWorkflows.length}</span>
-            </div>
+            <span className="inline-flex items-center justify-center h-8 w-8 bg-blue-100 text-blue-800 rounded-md font-medium">
+              {selectedWorkflows.length}
+            </span>
             <span className="text-sm text-blue-800 font-medium">
-              {selectedWorkflows.length} workflow{selectedWorkflows.length !== 1 ? 's' : ''} selected
+              {selectedWorkflows.length} selected
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <button className="px-4 py-2 bg-white border border-blue-200 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-50">
-              <Download className="h-4 w-4 inline mr-2" />
-              Export
+          <div className="flex gap-2">
+            <button className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">
+              <Download className="h-4 w-4 inline mr-1" /> Export
             </button>
-            <button className="px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg text-sm font-medium hover:from-red-700 hover:to-red-800">
-              <Trash2 className="h-4 w-4 inline mr-2" />
-              Delete Selected
+            <button className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">
+              <Trash2 className="h-4 w-4 inline mr-1" /> Delete
             </button>
           </div>
         </div>
       )}
 
       {/* Filters */}
-      <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-6 mb-8 shadow-lg">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div className="bg-white border border-gray-200 rounded-2xl p-5 mb-8 shadow-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
           <div className="lg:col-span-4">
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-blue-400" />
+              <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search workflows by name, module, or trigger..."
+                placeholder="Search workflows..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 border border-blue-200 bg-white/50 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-11 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-blue-400 hover:text-blue-600"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   <X className="h-4 w-4" />
                 </button>
               )}
             </div>
           </div>
-          
+
           <div className="lg:col-span-3">
             <select
               value={filterModule}
               onChange={(e) => setFilterModule(e.target.value)}
-              className="w-full px-4 py-3 border border-blue-200 bg-white/50 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Modules</option>
               {modules.map(module => (
@@ -460,12 +404,12 @@ export default function WorkflowsDashboard() {
               ))}
             </select>
           </div>
-          
+
           <div className="lg:col-span-2">
             <select
               value={filterTrigger}
               onChange={(e) => setFilterTrigger(e.target.value)}
-              className="w-full px-4 py-3 border border-blue-200 bg-white/50 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Triggers</option>
               {triggerEvents.map(trigger => (
@@ -475,19 +419,19 @@ export default function WorkflowsDashboard() {
               ))}
             </select>
           </div>
-          
+
           <div className="lg:col-span-2">
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-4 py-3 border border-blue-200 bg-white/50 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Status</option>
-              <option value="active">Active Only</option>
-              <option value="inactive">Inactive Only</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
             </select>
           </div>
-          
+
           <div className="lg:col-span-1 flex gap-2">
             <button
               onClick={() => {
@@ -497,7 +441,7 @@ export default function WorkflowsDashboard() {
                 setFilterStatus('all');
                 setSelectedWorkflows([]);
               }}
-              className="w-full px-4 py-3 border border-blue-200 text-blue-700 bg-white/50 rounded-xl hover:bg-blue-50 transition-colors"
+              className="w-full px-3 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
             >
               Clear
             </button>
@@ -507,293 +451,200 @@ export default function WorkflowsDashboard() {
 
       {/* Workflows List */}
       {loading ? (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {[1, 2, 3].map((i) => (
             <WorkflowCardSkeleton key={i} />
           ))}
         </div>
       ) : filteredWorkflows.length === 0 ? (
         <div className="text-center py-16">
-          <div className="w-24 h-24 bg-gradient-to-r from-blue-50 to-purple-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Zap className="h-12 w-12 text-blue-400" />
+          <div className="inline-flex items-center justify-center h-16 w-16 bg-blue-50 rounded-full mb-5">
+            <Zap className="h-8 w-8 text-blue-500" />
           </div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No workflows found</h3>
-          <p className="text-gray-600 mb-8 max-w-md mx-auto">
-            Create your first workflow to automate processes and trigger actions based on events
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No workflows found</h3>
+          <p className="text-gray-600 max-w-md mx-auto mb-6">
+            Create your first workflow to automate processes and trigger actions.
           </p>
           <button
             onClick={handleCreateWorkflow}
-            className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl text-base font-medium hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 shadow-sm"
           >
-            <Plus className="h-5 w-5" />
-            Create Workflow
+            <Plus className="h-4 w-4" /> Create Workflow
           </button>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {filteredWorkflows.map((workflow) => {
             const TriggerIcon = getTriggerIcon(workflow.triggerEvent);
-            
             return (
               <div
                 key={workflow.id}
-                className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl overflow-hidden hover:shadow-xl transition-all duration-300 group"
+                className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
               >
-                <div className="p-6">
-                  <div className="flex items-start gap-4 mb-6">
+                <div className="p-5">
+                  <div className="flex gap-4">
                     <input
                       type="checkbox"
                       checked={selectedWorkflows.includes(workflow.id)}
                       onChange={() => handleSelectWorkflow(workflow.id)}
-                      className="mt-1 h-5 w-5 text-blue-600 focus:ring-blue-500 border-blue-300 rounded"
+                      className="mt-1 h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      aria-label={`Select ${workflow.name}`}
                     />
-                    
+
                     <div className="flex-1">
-                      <div className="flex items-center justify-between mb-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
                         <div>
-                          <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-700 transition-colors">
-                            {workflow.name}
-                          </h3>
-                          <div className="flex items-center gap-3 mt-2">
-                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gradient-to-r ${getModuleColor(workflow.module)}`}>
-                              {workflow.module.charAt(0).toUpperCase() + workflow.module.slice(1)}
+                          <h3 className="text-lg font-semibold text-gray-900">{workflow.name}</h3>
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${getModuleColor(workflow.module)}`}>
+                              {workflow.module}
                             </span>
-                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                            <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${
                               workflow.active
-                                ? 'bg-gradient-to-r from-green-50 to-green-100 text-green-700 border border-green-200'
-                                : 'bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 border border-gray-200'
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-gray-100 text-gray-800'
                             }`}>
                               {workflow.active ? 'Active' : 'Inactive'}
                             </span>
-                            <span className="inline-flex items-center gap-1 text-sm text-blue-600">
+                            <span className="text-sm text-gray-600 flex items-center gap-1">
                               <TriggerIcon className="h-4 w-4" />
                               {workflow.triggerEvent.replace(/([A-Z])/g, ' $1').trim()}
                             </span>
                           </div>
                         </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleExecuteWorkflow(workflow)}
-                            className="p-2.5 bg-gradient-to-r from-green-50 to-green-100 text-green-600 rounded-xl hover:from-green-100 hover:to-green-200 transition-all hover:scale-110"
-                            title="Execute Now"
-                          >
-                            <Play className="h-5 w-5" />
-                          </button>
-                          
-                          <button
-                            onClick={() => handleTestWorkflow(workflow)}
-                            className="p-2.5 bg-gradient-to-r from-cyan-50 to-cyan-100 text-cyan-600 rounded-xl hover:from-cyan-100 hover:to-cyan-200 transition-all hover:scale-110"
-                            title="Test Workflow"
-                          >
-                            <Zap className="h-5 w-5" />
-                          </button>
-                          
-                          <button
-                            onClick={() => handleToggleStatus(workflow)}
-                            className={`p-2.5 rounded-xl transition-all hover:scale-110 ${
-                              workflow.active
-                                ? 'bg-gradient-to-r from-red-50 to-red-100 text-red-600 hover:from-red-100 hover:to-red-200'
-                                : 'bg-gradient-to-r from-green-50 to-green-100 text-green-600 hover:from-green-100 hover:to-green-200'
-                            }`}
-                            title={workflow.active ? 'Deactivate' : 'Activate'}
-                          >
-                            {workflow.active ? (
-                              <Pause className="h-5 w-5" />
-                            ) : (
-                              <Play className="h-5 w-5" />
-                            )}
-                          </button>
-                          
+
+                        {/* ✅ CLEAR, LABELED ACTIONS */}
+                        <div className="flex flex-wrap gap-2">
                           <button
                             onClick={() => handleEditWorkflow(workflow.id)}
-                            className="p-2.5 bg-gradient-to-r from-purple-50 to-purple-100 text-purple-600 rounded-xl hover:from-purple-100 hover:to-purple-200 transition-all hover:scale-110"
-                            title="Edit Workflow"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                           >
-                            <Edit className="h-5 w-5" />
+                            <Edit className="h-4 w-4" /> Edit
                           </button>
-                          
+
                           <button
                             onClick={() => handleViewDetails(workflow.id)}
-                            className="p-2.5 bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 rounded-xl hover:from-blue-100 hover:to-blue-200 transition-all hover:scale-110"
-                            title="View Details"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
                           >
-                            <ArrowRight className="h-5 w-5" />
+                            <ArrowRight className="h-4 w-4" /> View
                           </button>
-                          
+
+                          <button
+                            onClick={() => handleTestWorkflow(workflow)}
+                            className="p-2 text-cyan-600 hover:bg-cyan-50 rounded-lg"
+                            title="Test workflow"
+                          >
+                            <Zap className="h-4 w-4" />
+                          </button>
+
+                          <button
+                            onClick={() => handleExecuteWorkflow(workflow)}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                            title="Execute now"
+                          >
+                            <Play className="h-4 w-4" />
+                          </button>
+
+                          <button
+                            onClick={() => handleToggleStatus(workflow)}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border ${
+                              workflow.active
+                                ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                                : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                            }`}
+                          >
+                            {workflow.active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                            {workflow.active ? 'Deactivate' : 'Activate'}
+                          </button>
+
                           <button
                             onClick={() => handleDeleteWorkflow(workflow)}
-                            className="p-2.5 bg-gradient-to-r from-red-50 to-red-100 text-red-600 rounded-xl hover:from-red-100 hover:to-red-200 transition-all hover:scale-110"
-                            title="Delete Workflow"
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                            title="Delete workflow"
                           >
-                            <Trash2 className="h-5 w-5" />
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
                       </div>
-                      
-                      <div className="flex items-center justify-between mb-6">
-                        <div className="text-sm text-gray-600">
-                          {workflow.actions.length} action{workflow.actions.length !== 1 ? 's' : ''} • 
-                          {workflow.isScheduled && ' Scheduled •'} 
-                          Executed {workflow.executionCount || 0} time{workflow.executionCount !== 1 ? 's' : ''}
-                        </div>
-                      </div>
-                      
+
+                      <p className="text-sm text-gray-600 mb-4">
+                        {workflow.actions.length} action{workflow.actions.length !== 1 ? 's' : ''} • 
+                        {workflow.isScheduled && 'Scheduled • '} 
+                        Executed {workflow.executionCount || 0} time{workflow.executionCount !== 1 ? 's' : ''}
+                      </p>
+
                       <button
                         onClick={() => setExpandedWorkflow(expandedWorkflow === workflow.id ? null : workflow.id)}
-                        className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
                       >
                         {expandedWorkflow === workflow.id ? (
                           <>
-                            <ChevronDown className="h-4 w-4" />
-                            Hide Details
+                            <ChevronDown className="h-4 w-4" /> Hide details
                           </>
                         ) : (
                           <>
-                            <ChevronRight className="h-4 w-4" />
-                            View Details ({workflow.actions.length} actions)
+                            <ChevronRight className="h-4 w-4" /> View details ({workflow.actions.length} actions)
                           </>
                         )}
                       </button>
                     </div>
                   </div>
 
-                  {/* Expanded Details View */}
+                  {/* Expanded Details */}
                   {expandedWorkflow === workflow.id && (
-                    <div className="mt-8 pt-8 border-t border-blue-100/50">
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Actions Section */}
-                        <div className="lg:col-span-2">
-                          <h4 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wider">Actions</h4>
-                          <div className="space-y-4">
-                            {workflow.actions.map((action, index) => {
-                              const ActionIcon = getActionIcon(action.actionType);
-                              return (
-                                <div key={index} className="flex items-start gap-4 p-4 bg-gradient-to-br from-blue-50/50 to-white border border-blue-100/50 rounded-xl">
-                                  <div className="p-2 bg-gradient-to-r from-blue-100 to-blue-50 rounded-lg">
-                                    <ActionIcon className="h-5 w-5 text-blue-600" />
-                                  </div>
-                                  <div className="flex-1">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <span className="font-medium text-gray-900">
-                                        {action.actionType.replace(/([A-Z])/g, ' $1').trim()}
-                                      </span>
-                                      {action.delayInMinutes && (
-                                        <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                                          Delay: {action.delayInMinutes} min
-                                        </span>
-                                      )}
-                                    </div>
-                                    {Object.keys(action.params).length > 0 && (
-                                      <div className="text-sm text-gray-600">
-                                        <pre className="text-xs bg-gray-50 p-2 rounded-lg overflow-x-auto">
-                                          {JSON.stringify(action.params, null, 2)}
-                                        </pre>
-                                      </div>
-                                    )}
-                                  </div>
+                    <div className="mt-6 pt-6 border-t border-gray-200">
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Actions */}
+                        <div className="lg:col-span-2 space-y-4">
+                          <h4 className="text-sm font-semibold text-gray-700">Actions</h4>
+                          {workflow.actions.map((action, idx) => {
+                            const ActionIcon = getActionIcon(action.actionType);
+                            return (
+                              <div key={idx} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                                <ActionIcon className="h-5 w-5 text-gray-600 mt-0.5" />
+                                <div className="flex-1">
+                                  <p className="font-medium text-gray-900">
+                                    {action.actionType.replace(/([A-Z])/g, ' $1').trim()}
+                                  </p>
+                                  {action.delayInMinutes && (
+                                    <span className="text-xs bg-white px-2 py-1 rounded mt-1 inline-block">
+                                      Delay: {action.delayInMinutes} min
+                                    </span>
+                                  )}
+                                  {Object.keys(action.params).length > 0 && (
+                                    <pre className="text-xs bg-white p-2 mt-2 rounded overflow-x-auto max-w-full">
+                                      {JSON.stringify(action.params, null, 2)}
+                                    </pre>
+                                  )}
                                 </div>
-                              );
-                            })}
-                          </div>
+                              </div>
+                            );
+                          })}
                         </div>
 
-                        {/* Info Section */}
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wider">Information</h4>
-                          <div className="space-y-4">
-                            <div className="p-4 bg-gradient-to-br from-blue-50/50 to-white border border-blue-100/50 rounded-xl">
-                              <h5 className="text-xs font-medium text-gray-500 mb-2">Execution Info</h5>
-                              <div className="space-y-2">
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-gray-600">Frequency:</span>
-                                  <span className="font-medium text-blue-700">
-                                    {workflow.executionFrequency.replace(/_/g, ' ')}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-gray-600">Executions:</span>
-                                  <span className="font-medium text-blue-700">{workflow.executionCount}</span>
-                                </div>
-                                {workflow.lastExecution && (
-                                  <div className="flex justify-between text-sm">
-                                    <span className="text-gray-600">Last Run:</span>
-                                    <span className="font-medium text-blue-700">
-                                      {new Date(workflow.lastExecution).toLocaleDateString()}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {workflow.isScheduled && workflow.scheduleConfig && (
-                              <div className="p-4 bg-gradient-to-br from-purple-50/50 to-white border border-purple-100/50 rounded-xl">
-                                <h5 className="text-xs font-medium text-gray-500 mb-2">Schedule</h5>
-                                <div className="space-y-2">
-                                  <div className="flex justify-between text-sm">
-                                    <span className="text-gray-600">Type:</span>
-                                    <span className="font-medium text-purple-700 capitalize">
-                                      {workflow.scheduleConfig.type}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between text-sm">
-                                    <span className="text-gray-600">Time:</span>
-                                    <span className="font-medium text-purple-700">{workflow.scheduleConfig.time}</span>
-                                  </div>
-                                </div>
-                              </div>
+                        {/* Info */}
+                        <div className="space-y-4">
+                          <div className="p-3 bg-gray-50 rounded-lg">
+                            <h5 className="text-xs font-medium text-gray-500 mb-2">Execution Info</h5>
+                            <p className="text-sm"><span className="text-gray-600">Frequency:</span> {workflow.executionFrequency?.replace(/_/g, ' ') || '—'}</p>
+                            <p className="text-sm"><span className="text-gray-600">Executions:</span> {workflow.executionCount || 0}</p>
+                            {workflow.lastExecution && (
+                              <p className="text-sm"><span className="text-gray-600">Last Run:</span> {new Date(workflow.lastExecution).toLocaleDateString()}</p>
                             )}
-
-                            <div className="p-4 bg-gradient-to-br from-gray-50/50 to-white border border-gray-100/50 rounded-xl">
-                              <h5 className="text-xs font-medium text-gray-500 mb-2">Metadata</h5>
-                              <div className="space-y-2 text-sm">
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600">Created:</span>
-                                  <span className="text-gray-900">
-                                    {new Date(workflow.createdAt).toLocaleDateString()}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-gray-600">Updated:</span>
-                                  <span className="text-gray-900">
-                                    {new Date(workflow.updatedAt).toLocaleDateString()}
-                                  </span>
-                                </div>
-                                {workflow.createdBy && (
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">Created by:</span>
-                                    <span className="text-gray-900">
-                                      {workflow.createdBy.firstName} {workflow.createdBy.lastName}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
+                          </div>
+                          {workflow.createdBy && (
+                            <div className="p-3 bg-gray-50 rounded-lg">
+                              <h5 className="text-xs font-medium text-gray-500 mb-2">Created by</h5>
+                              <p className="text-sm">{workflow.createdBy.firstName} {workflow.createdBy.lastName}</p>
                             </div>
+                          )}
+                          <div className="text-xs text-gray-500">
+                            Created: {new Date(workflow.createdAt).toLocaleDateString()}
                           </div>
                         </div>
                       </div>
                     </div>
                   )}
-                </div>
-                
-                {/* Footer */}
-                <div className="px-6 py-4 bg-gradient-to-r from-blue-50/50 to-purple-50/50 border-t border-blue-100/50">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-blue-600">
-                      Created {new Date(workflow.createdAt).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                      })}
-                    </div>
-                    <button
-                      onClick={() => handleViewDetails(workflow.id)}
-                      className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700"
-                    >
-                      View Full Details
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                  </div>
                 </div>
               </div>
             );

@@ -81,6 +81,7 @@ export interface CreateSalesOrderData {
   shipping?: number;
   discount?: number;
   totalAmount?: number;
+  salesOrderNumber?: string;
   shippingAddress?: string;
   billingAddress?: string;
   paymentTerms?: string;

@@ -14,61 +14,49 @@ import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
 import { format } from 'date-fns';
 
-// Skeleton Loading Components
+// ✨ Cleaner Skeletons
 const SkeletonRow = () => (
-  <tr className="border-b border-gray-100 hover:bg-gray-50">
+  <tr className="border-b border-gray-100">
     <td className="py-4 px-4">
       <div className="flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-gray-200 animate-pulse">
-          <div className="h-4 w-4 bg-gray-300 rounded"></div>
-        </div>
-        <div>
-          <div className="h-4 w-24 bg-gray-300 rounded animate-pulse mb-1"></div>
+        <div className="h-8 w-8 bg-gray-200 rounded-lg animate-pulse"></div>
+        <div className="space-y-2">
+          <div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div>
           <div className="h-3 w-16 bg-gray-200 rounded animate-pulse"></div>
         </div>
       </div>
     </td>
     <td className="py-4 px-4">
-      <div>
-        <div className="h-4 w-32 bg-gray-300 rounded animate-pulse mb-1"></div>
+      <div className="space-y-2">
+        <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
         <div className="h-3 w-24 bg-gray-200 rounded animate-pulse"></div>
       </div>
     </td>
     <td className="py-4 px-4">
-      <div className="flex items-center gap-2">
-        <div className="h-4 w-4 bg-gray-300 rounded animate-pulse"></div>
-        <div className="h-3 w-20 bg-gray-300 rounded animate-pulse"></div>
-      </div>
+      <div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div>
     </td>
     <td className="py-4 px-4">
-      <div className="h-6 w-20 bg-gray-300 rounded-full animate-pulse"></div>
+      <div className="h-6 w-20 bg-gray-200 rounded-full animate-pulse"></div>
     </td>
     <td className="py-4 px-4">
-      <div className="h-4 w-20 bg-gray-300 rounded animate-pulse"></div>
+      <div className="h-4 w-16 bg-gray-200 rounded animate-pulse"></div>
     </td>
     <td className="py-4 px-4">
-      <div className="flex items-center gap-2">
-        <div className="h-8 w-8 bg-gray-200 rounded-lg animate-pulse"></div>
-        <div className="h-8 w-8 bg-gray-200 rounded-lg animate-pulse"></div>
-        <div className="h-8 w-8 bg-gray-200 rounded-lg animate-pulse"></div>
-        <div className="h-8 w-24 bg-gray-300 rounded-lg animate-pulse"></div>
-      </div>
+      <div className="h-8 w-8 bg-gray-200 rounded-lg animate-pulse"></div>
     </td>
   </tr>
 );
 
 const SkeletonStats = () => (
-  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
     {[1, 2, 3, 4].map((i) => (
-      <div key={i} className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-2xl p-4 border border-blue-200 animate-pulse">
+      <div key={i} className="bg-white border border-gray-200 rounded-2xl p-4 animate-pulse">
         <div className="flex items-center justify-between">
-          <div>
-            <div className="h-4 w-24 bg-blue-200 rounded mb-2"></div>
-            <div className="h-8 w-16 bg-blue-300 rounded"></div>
+          <div className="space-y-2">
+            <div className="h-4 w-20 bg-gray-200 rounded"></div>
+            <div className="h-6 w-14 bg-gray-200 rounded"></div>
           </div>
-          <div className="p-3 rounded-xl bg-blue-200">
-            <div className="h-6 w-6 bg-blue-300 rounded"></div>
-          </div>
+          <div className="h-10 w-10 bg-gray-200 rounded-lg"></div>
         </div>
       </div>
     ))}
@@ -89,29 +77,29 @@ export default function WorkOrdersList() {
   const [refreshing, setRefreshing] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [deletingOrder, setDeletingOrder] = useState<string | null>(null);
+  // ✅ Add expandedRow state for kebab menu
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   const statusOptions = [
-    { value: 'all', label: 'All Status', color: 'bg-gray-100 text-gray-800' },
-    { value: 'draft', label: 'Draft', color: 'bg-gray-100 text-gray-800' },
-    { value: 'in_progress', label: 'In Progress', color: 'bg-blue-100 text-blue-800' },
-    { value: 'on_hold', label: 'On Hold', color: 'bg-yellow-100 text-yellow-800' },
-    { value: 'completed', label: 'Completed', color: 'bg-green-100 text-green-800' },
-    { value: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800' },
+    { value: 'all', label: 'All Status' },
+    { value: 'draft', label: 'Draft' },
+    { value: 'in_progress', label: 'In Progress' },
+    { value: 'on_hold', label: 'On Hold' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'cancelled', label: 'Cancelled' },
   ];
 
+  // ✅ Keep all your existing logic functions — no changes needed
   const fetchWorkOrders = useCallback(async () => {
     try {
       setLoading(true);
       const params: any = {};
-      
       if (searchTerm) params.search = searchTerm;
       if (statusFilter !== 'all') params.status = statusFilter;
       if (dateRange.from) params.fromDate = dateRange.from;
       if (dateRange.to) params.toDate = dateRange.to;
-      
       const response = await workOrderService.getAllWorkOrders(params);
       setWorkOrders(response);
-      
     } catch (error) {
       console.error('Error fetching work orders:', error);
       showToast('Failed to load work orders', 'error');
@@ -164,12 +152,13 @@ export default function WorkOrdersList() {
   };
 
   const handleDelete = async (orderId: string) => {
-    if (window.confirm('Are you sure you want to delete this work order?')) {
+    if (window.confirm('Are you sure you want to delete this work order? This action cannot be undone.')) {
       try {
         setDeletingOrder(orderId);
         await workOrderService.deleteWorkOrder(orderId);
         showToast('Work order deleted successfully!', 'success');
         fetchWorkOrders();
+        setExpandedRow(null);
       } catch (error) {
         console.error('Error deleting work order:', error);
         showToast('Failed to delete work order', 'error');
@@ -206,7 +195,7 @@ export default function WorkOrdersList() {
     switch (currentStatus) {
       case 'draft': return { label: 'Start Work', value: 'in_progress' };
       case 'in_progress': return { label: 'Put On Hold', value: 'on_hold' };
-      case 'on_hold': return { label: 'Resume', value: 'in_progress' };
+      case 'on_hold': return { label: 'Resume Work', value: 'in_progress' };
       default: return null;
     }
   };
@@ -216,9 +205,9 @@ export default function WorkOrdersList() {
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Header - Fixed */}
-      <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg flex items-center px-6 flex-shrink-0">
+    <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
+      {/* 🔵🟣 Header - Preserved */}
+      <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-md flex items-center px-6 flex-shrink-0">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-white/20 rounded-xl">
@@ -235,7 +224,7 @@ export default function WorkOrdersList() {
               onClick={handleRefresh}
               disabled={refreshing || loading}
               className="p-2 hover:bg-white/20 rounded-xl transition-colors disabled:opacity-50"
-              title="Refresh"
+              aria-label="Refresh"
             >
               {refreshing ? (
                 <Loader2 className="h-5 w-5 text-white animate-spin" />
@@ -245,7 +234,7 @@ export default function WorkOrdersList() {
             </button>
             <Link
               href="/orders/work-orders/create"
-              className="px-4 py-2 bg-white text-blue-600 font-semibold rounded-xl hover:bg-white/90 flex items-center gap-2"
+              className="px-4 py-2 bg-white text-blue-600 font-semibold rounded-xl hover:bg-gray-100 flex items-center gap-2 transition-colors"
             >
               <Plus className="h-5 w-5" />
               <span className="hidden sm:inline">New Order</span>
@@ -254,329 +243,287 @@ export default function WorkOrdersList() {
         </div>
       </div>
 
-      {/* Main Content - Scrollable */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-4 md:p-6 space-y-6">
-          {/* Stats Overview */}
-          {statsLoading ? (
-            <SkeletonStats />
-          ) : stats && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-2xl p-4 border border-blue-200">
-                <div className="flex items-center justify-between">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        {/* Stats */}
+        {statsLoading ? (
+          <SkeletonStats />
+        ) : stats && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {[
+              { label: 'Total Orders', value: stats.total, icon: Wrench, color: 'text-blue-600', bg: 'bg-blue-50' },
+              { label: 'In Progress', value: stats.byStatus?.find(s => s._id === 'in_progress')?.count || 0, icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50' },
+              { label: 'Total Cost', value: formatCurrency(stats.totalCost || 0), icon: DollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+              { label: 'Avg Hours', value: `${(stats.avgHours || 0).toFixed(1)} hrs`, icon: TrendingUp, color: 'text-teal-600', bg: 'bg-teal-50' },
+            ].map((item, i) => (
+              <div key={i} className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+                <div className="flex justify-between items-start">
                   <div>
-                    <p className="text-sm text-green-700">Total Work Orders</p>
-                    <p className="text-2xl font-bold text-green-800">{stats.total}</p>
+                    <p className="text-xs text-gray-600 uppercase tracking-wider">{item.label}</p>
+                    <p className="text-xl font-bold text-gray-900 mt-1">{item.value}</p>
                   </div>
-                  <div className="p-3 rounded-xl bg-blue-500/20">
-                    <Wrench className="h-6 w-6 text-blue-600" />
+                  <div className={`p-2.5 rounded-lg ${item.bg}`}>
+                    <item.icon className={`h-5 w-5 ${item.color}`} />
                   </div>
                 </div>
               </div>
-              
-              <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-2xl p-4 border border-blue-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-blue-700">In Progress</p>
-                    <p className="text-2xl font-bold text-blue-800">
-                      {stats.byStatus?.find(s => s._id === 'in_progress')?.count || 0}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-blue-500/20">
-                    <Clock className="h-6 w-6 text-blue-600" />
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-gradient-to-r from-teal-50 to-teal-100 rounded-2xl p-4 border border-teal-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-teal-700">Total Cost</p>
-                    <p className="text-2xl font-bold text-teal-800">
-                      {formatCurrency(stats.totalCost || 0)}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-teal-500/20">
-                    <DollarSign className="h-6 w-6 text-teal-600" />
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 rounded-2xl p-4 border border-yellow-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-yellow-700">Avg Hours</p>
-                    <p className="text-2xl font-bold text-yellow-800">
-                      {(stats.avgHours || 0).toFixed(1)} hrs
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-yellow-500/20">
-                    <TrendingUp className="h-6 w-6 text-yellow-600" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+            ))}
+          </div>
+        )}
 
-          {/* Main Table Container */}
-          <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-            {/* Filters - Fixed */}
-            <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50/50 to-purple-50/50 flex-shrink-0">
-              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="flex-1 w-full">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search work orders by number, customer, or description..."
-                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
+        {/* Table Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          {/* Filters */}
+          <div className="p-4 sm:p-6 border-b border-gray-200 bg-gray-50">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search by order number, customer..."
+                  className="w-full pl-11 pr-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              
+              <div className="flex gap-3">
+                <div className="relative min-w-[160px]">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full appearance-none pl-4 pr-10 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  >
+                    {statusOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
                 </div>
                 
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                  <div className="relative">
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      className="appearance-none pl-4 pr-10 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                    >
-                      {statusOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
-                  </div>
-                  
-                  <button
-                    onClick={() => {
-                      const today = new Date();
-                      const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-                      setDateRange({
-                        from: lastMonth.toISOString().split('T')[0],
-                        to: today.toISOString().split('T')[0]
-                      });
-                    }}
-                    className="px-4 py-3 rounded-xl border border-gray-200 hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <Calendar className="h-5 w-5 text-gray-600" />
-                    <span>Last Month</span>
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    const today = new Date();
+                    const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                    setDateRange({
+                      from: lastMonth.toISOString().split('T')[0],
+                      to: today.toISOString().split('T')[0]
+                    });
+                  }}
+                  className="px-4 py-2.5 rounded-lg border border-gray-300 hover:bg-gray-50 flex items-center gap-2 text-sm"
+                >
+                  <Calendar className="h-4 w-4 text-gray-600" />
+                  <span>Last Month</span>
+                </button>
               </div>
-            </div>
-
-            {/* Orders Table - Scrollable */}
-            <div className="p-6 flex-1 overflow-y-auto">
-              {loading ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-max">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Order #</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Customer</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Start Date</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Status</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Total Cost</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[1, 2, 3, 4, 5].map((i) => (
-                        <SkeletonRow key={i} />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : workOrders.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 mb-4">
-                    <Wrench className="h-8 w-8 text-gray-600" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">No work orders found</h3>
-                  <p className="text-gray-500 mb-6">Create your first work order from an opportunity</p>
-                  <Link
-                    href="/orders/work-orders/create"
-                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 font-medium inline-flex items-center gap-2"
-                  >
-                    <Plus className="h-5 w-5" />
-                    Create New Work Order
-                  </Link>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-max">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Order #</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Customer</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Start Date</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Status</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Total Cost</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {workOrders.map((order) => (
-                        <tr key={order._id} className="border-b border-gray-100 hover:bg-gray-50">
-                          <td className="py-4 px-4">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 rounded-lg bg-gradient-to-r from-blue-100 to-blue-200">
-                                <Wrench className="h-4 w-4 text-blue-600" />
-                              </div>
-                              <div>
-                                <p className="font-medium text-gray-800">{order.workOrderNumber}</p>
-                                <p className="text-xs text-gray-500">
-                                  {formatDate(order.createdAt)}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-4 px-4">
-                            <div>
-                              <p className="font-medium text-gray-800">
-                                {typeof order.opportunityId === 'object' 
-                                  ? order.opportunityId.customer.name
-                                  : 'Loading...'
-                                }
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {typeof order.opportunityId === 'object' 
-                                  ? order.opportunityId.customer.email || 'No email'
-                                  : ''
-                                }
-                              </p>
-                            </div>
-                          </td>
-                          <td className="py-4 px-4">
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-gray-400" />
-                              <span className="text-sm text-gray-600">
-                                {order.startDate ? formatDate(order.startDate) : 'Not scheduled'}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-4 px-4">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
-                              {order.status.replace('_', ' ')}
-                            </span>
-                          </td>
-                          <td className="py-4 px-4">
-                            <p className="font-bold text-gray-800">
-                              {formatCurrency((order.laborCost || 0) + (order.partsCost || 0))}
-                            </p>
-                          </td>
-                          <td className="py-4 px-4">
-                            <div className="flex items-center gap-2">
-                              <Link
-                                href={`/orders/work-orders/${order._id}`}
-                                className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
-                                title="View Details"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Link>
-                              <Link
-                                href={`/orders/work-orders/${order._id}/edit`}
-                                className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 transition-colors"
-                                title="Edit"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Link>
-                              <button
-                                onClick={() => handleDelete(order._id)}
-                                disabled={deletingOrder === order._id}
-                                className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition-colors disabled:opacity-50"
-                                title="Delete"
-                              >
-                                {deletingOrder === order._id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Trash2 className="h-4 w-4" />
-                                )}
-                              </button>
-                              {order.status !== 'completed' && order.status !== 'cancelled' && (
-                                <>
-                                  {getNextStatus(order.status) && (
-                                    <button
-                                      onClick={() => handleStatusChange(order._id, getNextStatus(order.status)!.value)}
-                                      disabled={updatingStatus === order._id}
-                                      className="px-3 py-1 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 flex items-center gap-1"
-                                    >
-                                      {updatingStatus === order._id ? (
-                                        <>
-                                          <Loader2 className="h-3 w-3 animate-spin" />
-                                          Updating...
-                                        </>
-                                      ) : (
-                                        getNextStatus(order.status)!.label
-                                      )}
-                                    </button>
-                                  )}
-                                  {canComplete(order.status) && (
-                                    <button
-                                      onClick={() => handleStatusChange(order._id, 'completed')}
-                                      disabled={updatingStatus === order._id}
-                                      className="px-3 py-1 rounded-lg bg-gradient-to-r from-green-500 to-teal-600 text-white text-sm hover:from-green-600 hover:to-teal-700 disabled:opacity-50 flex items-center gap-1"
-                                    >
-                                      {updatingStatus === order._id ? (
-                                        <>
-                                          <Loader2 className="h-3 w-3 animate-spin" />
-                                          Updating...
-                                        </>
-                                      ) : (
-                                        'Complete'
-                                      )}
-                                    </button>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
             </div>
           </div>
 
-          {/* Status Summary */}
-          {!statsLoading && stats?.byStatus && (
-            <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-6">
-              <h3 className="font-semibold text-gray-800 mb-4">Status Overview</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                {stats.byStatus.map((status: any) => (
-                  <div
-                    key={status._id}
-                    className="p-3 rounded-xl bg-white border border-gray-200"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className={`h-2 w-2 rounded-full ${
-                        status._id === 'draft' ? 'bg-gray-400' :
-                        status._id === 'in_progress' ? 'bg-blue-400' :
-                        status._id === 'on_hold' ? 'bg-yellow-400' :
-                        status._id === 'completed' ? 'bg-green-400' :
-                        'bg-red-400'
-                      }`} />
-                      <span className="text-sm font-medium text-gray-700 capitalize">
-                        {status._id.replace('_', ' ')}
-                      </span>
-                    </div>
-                    <div className="text-lg font-bold text-gray-800">{status.count}</div>
-                    <div className="text-xs text-gray-500">
-                      {formatCurrency(status.totalCost || 0)}
-                    </div>
-                  </div>
-                ))}
+          {/* Table */}
+          <div className="overflow-x-auto">
+            {loading ? (
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Order #</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Start Date</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Cost</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <SkeletonRow key={i} />
+                  ))}
+                </tbody>
+              </table>
+            ) : workOrders.length === 0 ? (
+              <div className="text-center py-12 px-4">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-blue-100 mb-4">
+                  <Wrench className="h-7 w-7 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No work orders found</h3>
+                <p className="text-gray-600 max-w-md mx-auto mb-6">
+                  Create your first work order to get started.
+                </p>
+                <Link
+                  href="/orders/work-orders/create"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 shadow-sm"
+                >
+                  <Plus className="h-4 w-4" /> Create Work Order
+                </Link>
               </div>
-            </div>
-          )}
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Order #</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Start Date</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Cost</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {workOrders.map((order) => (
+                    <tr key={order._id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                      <td className="py-4 px-4">
+                        <p className="font-medium text-gray-900">{order.workOrderNumber}</p>
+                        <p className="text-xs text-gray-500">{formatDate(order.createdAt)}</p>
+                      </td>
+                      <td className="py-4 px-4">
+                        <p className="font-medium text-gray-900">
+                          {typeof order.opportunityId === 'object' 
+                            ? order.opportunityId.customer?.name || '—'
+                            : '—'
+                          }
+                        </p>
+                        <p className="text-xs text-gray-500 truncate max-w-[160px]">
+                          {typeof order.opportunityId === 'object' 
+                            ? order.opportunityId.customer?.email || ''
+                            : ''
+                          }
+                        </p>
+                      </td>
+                      <td className="py-4 px-4 text-gray-700">
+                        {order.startDate ? formatDate(order.startDate) : 'Not scheduled'}
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
+                          {order.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 font-semibold text-gray-900">
+                        {formatCurrency((order.laborCost || 0) + (order.partsCost || 0))}
+                      </td>
+                      <td className="py-4 px-4">
+                        {/* ✅ KEBAB MENU WITH TEXT ACTIONS */}
+                        <div className="relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedRow(expandedRow === order._id ? null : order._id);
+                            }}
+                            className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                            aria-haspopup="true"
+                            aria-expanded={expandedRow === order._id}
+                            aria-label="More actions"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+
+                          {expandedRow === order._id && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-10"
+                                onClick={() => setExpandedRow(null)}
+                              />
+                              <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                                <Link
+                                  href={`/orders/work-orders/${order._id}`}
+                                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                                  onClick={() => setExpandedRow(null)}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                  View Details
+                                </Link>
+                                <Link
+                                  href={`/orders/work-orders/${order._id}/edit`}
+                                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                                  onClick={() => setExpandedRow(null)}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                  Edit
+                                </Link>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    setExpandedRow(null);
+                                    handleDelete(order._id);
+                                  }}
+                                  className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Delete
+                                </button>
+                                
+                                {/* Contextual Status Actions */}
+                                {order.status !== 'completed' && order.status !== 'cancelled' && (
+                                  <>
+                                    {getNextStatus(order.status) && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          setExpandedRow(null);
+                                          handleStatusChange(order._id, getNextStatus(order.status)!.value);
+                                        }}
+                                        disabled={updatingStatus === order._id}
+                                        className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 w-full text-left disabled:opacity-50"
+                                      >
+                                        {updatingStatus === order._id ? (
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <Sparkles className="h-4 w-4" />
+                                        )}
+                                        {getNextStatus(order.status)!.label}
+                                      </button>
+                                    )}
+                                    {canComplete(order.status) && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          setExpandedRow(null);
+                                          handleStatusChange(order._id, 'completed');
+                                        }}
+                                        disabled={updatingStatus === order._id}
+                                        className="flex items-center gap-2 px-4 py-2 text-sm text-green-600 hover:bg-green-50 w-full text-left disabled:opacity-50"
+                                      >
+                                        {updatingStatus === order._id ? (
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <CheckCircle className="h-4 w-4" />
+                                        )}
+                                        Complete Order
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
+
+        {/* Status Summary */}
+        {!statsLoading && stats?.byStatus && (
+          <div className="mt-6 bg-white border border-gray-200 rounded-2xl p-4 sm:p-6">
+            <h3 className="font-semibold text-gray-900 text-sm uppercase tracking-wider mb-4">Status Overview</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {stats.byStatus.map((status: any) => (
+                <div key={status._id} className="p-3 bg-gray-50 rounded-lg text-center">
+                  <div className="text-xs text-gray-600 capitalize mb-1">
+                    {status._id.replace('_', ' ')}
+                  </div>
+                  <div className="text-lg font-bold text-gray-900">{status.count}</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {formatCurrency(status.totalCost || 0)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
