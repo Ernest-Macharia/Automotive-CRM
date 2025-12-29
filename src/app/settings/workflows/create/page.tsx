@@ -1,14 +1,14 @@
 'use client';
 
-import WorkflowsDashboard from '@/components/settings/workflows/WorkflowsDashboard';
+import CreateWorkflow from '@/components/settings/workflows/CreateWorkflow';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import SettingsLayoutWrapper from '@/components/settings/SettingsLayoutWrapper';
 
-export default function WorkflowsRoute() {
+export default function CreateWorkflowRoute() {
   return (
     <ProtectedRoute>
       <SettingsLayoutWrapper>
-        <WorkflowsDashboard />
+        <CreateWorkflow />
       </SettingsLayoutWrapper>
     </ProtectedRoute>
   );

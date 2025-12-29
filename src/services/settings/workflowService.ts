@@ -284,11 +284,53 @@ class WorkflowService {
           }
         });
       }
+      const result = await extendedApiClient.get<any>('/workflows', queryParams);
       
-      return await extendedApiClient.get<PaginatedWorkflows>('/workflows', queryParams);
+      // Check if the response is an array (direct workflow list)
+      let workflows: Workflow[] = [];
+      let pagination = {
+        total: 0,
+        page: 1,
+        limit: 20,
+        totalPages: 0
+      };
+      
+      if (Array.isArray(result)) {
+        // Response is an array of workflows
+        workflows = result;
+        pagination.total = result.length;
+      } else if (result && result.data && Array.isArray(result.data)) {
+        // Response has the expected PaginatedWorkflows structure
+        workflows = result.data;
+        pagination = result.pagination || pagination;
+      } else if (result && Array.isArray(result.items)) {
+        // Alternative structure: { items: [], total: number }
+        workflows = result.items;
+        pagination.total = result.total || result.items.length;
+      } else {
+        console.warn('⚠️ Unexpected API response format:', result);
+        workflows = [];
+      }
+      
+      const response = {
+        data: workflows,
+        pagination: pagination
+      };
+      return response;
+      
     } catch (error) {
-      console.error('Error getting all workflows:', error);
-      throw error;
+      console.error('❌ Error getting all workflows:', error);
+      
+      // Return empty structure on error
+      return {
+        data: [],
+        pagination: {
+          total: 0,
+          page: 1,
+          limit: 20,
+          totalPages: 0
+        }
+      };
     }
   }
 
@@ -592,7 +634,7 @@ class WorkflowService {
   }> {
     try {
       const allWorkflows = await this.getAllWorkflows();
-      const workflows = allWorkflows.data;
+      const workflows = allWorkflows.data || [];
       
       const stats = {
         total: workflows.length,
@@ -613,11 +655,21 @@ class WorkflowService {
       workflows.forEach(w => {
         stats.byTriggerEvent[w.triggerEvent] = (stats.byTriggerEvent[w.triggerEvent] || 0) + 1;
       });
-
       return stats;
+      
     } catch (error) {
       console.error('Error getting workflow stats:', error);
-      throw error;
+      
+      // Return default stats on error
+      return {
+        total: 0,
+        active: 0,
+        inactive: 0,
+        scheduled: 0,
+        byModule: {},
+        byTriggerEvent: {},
+        totalExecutions: 0
+      };
     }
   }
 
