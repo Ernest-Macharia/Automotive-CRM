@@ -71,6 +71,7 @@ export interface CreateContactDto {
   whatsappEnabled?: boolean;
   whatsappStatus?: string;
   customFields?: Record<string, any>;
+  active?: boolean;
 }
 
 export interface UpdateContactDto {
