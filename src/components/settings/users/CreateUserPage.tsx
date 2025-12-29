@@ -18,7 +18,8 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
-import { userService, CreateUserData } from '@/services/settings/userService';
+import { userService, RegisterUserData, USER_ROLES } from '@/services/settings/userService';
+import { roleService } from '@/services/settings/roleService';
 
 interface FormData {
   name: string;
@@ -26,49 +27,25 @@ interface FormData {
   password: string;
   confirmPassword: string;
   roleName: string;
-  rolePermissions: string[];
-  additionalPermissions: string[];
   active: boolean;
   generatePassword: boolean;
   sendWelcomeEmail: boolean;
 }
 
-interface PermissionOption {
-  value: string;
-  label: string;
-  category: string;
+interface RoleOption {
+  id: string;
+  name: string;
+  display_name: string;
+  description?: string;
 }
 
-interface CreateUserPageProps {
-  onBack?: () => void;
-}
-
-export default function CreateUserPage({ onBack }: CreateUserPageProps) {
+export default function CreateUserPage() {
   const router = useRouter();
   const { showToast } = useToast();
-
-  const handleBack = () => {
-    onBack?.() || router.push('/settings/users');
-  };
   
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [availableRoles, setAvailableRoles] = useState<Array<{ 
-    id: string; 
-    name: string; 
-    display_name: string; 
-    description?: string; 
-    permissions: string[] 
-  }>>([]);
-  const [availablePermissions, setAvailablePermissions] = useState<PermissionOption[]>([]);
-  const [selectedRoleDetails, setSelectedRoleDetails] = useState<{ 
-    id: string; 
-    name: string; 
-    display_name: string; 
-    description?: string; 
-    permissions: string[] 
-  } | null>(null);
-  const [loadingRolePermissions, setLoadingRolePermissions] = useState(false);
+  const [availableRoles, setAvailableRoles] = useState<RoleOption[]>([]);
   const [rolesLoaded, setRolesLoaded] = useState(false);
   
   const [formData, setFormData] = useState<FormData>({
@@ -76,9 +53,7 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
     email: '',
     password: '',
     confirmPassword: '',
-    roleName: '',
-    rolePermissions: [],
-    additionalPermissions: [],
+    roleName: USER_ROLES.ADMIN,
     active: true,
     generatePassword: false,
     sendWelcomeEmail: true,
@@ -88,32 +63,25 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
   const [formStep, setFormStep] = useState(1);
 
   useEffect(() => {
-    loadRolesAndPermissions();
+    loadRoles();
   }, []);
 
-  useEffect(() => {
-    if (formData.roleName && rolesLoaded) {
-      fetchRolePermissions(formData.roleName);
-    } else {
-      setSelectedRoleDetails(null);
-      setFormData(prev => ({ ...prev, rolePermissions: [] }));
-    }
-  }, [formData.roleName, rolesLoaded]);
-
-  const loadRolesAndPermissions = async () => {
+  const loadRoles = async () => {
     try {
-      console.log('Loading roles...');
+      const roles = await roleService.getAllRoles();
+
+      const formattedRoles = roles.map(role => ({
+        id: role.id || role._id || '',
+        name: role.name,
+        display_name: role.display_name || role.name,
+        description: role.description || undefined,
+      }));
       
-      const roles = await userService.getRoles();
-      console.log('Loaded roles:', roles);
-      
-      setAvailableRoles(roles);
+      setAvailableRoles(formattedRoles);
       setRolesLoaded(true);
       
       if (roles.length === 0) {
         showToast('No roles found. Please create roles first.', 'warning');
-      } else {
-        console.log(`Successfully loaded ${roles.length} roles`);
       }
       
     } catch (error) {
@@ -122,47 +90,6 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
       setAvailableRoles([]);
       setRolesLoaded(true);
     }
-  };
-
-  const fetchRolePermissions = async (roleName: string) => {
-    try {
-      setLoadingRolePermissions(true);
-      
-      const role = availableRoles.find(r => r.name === roleName);
-      if (role) {
-        setSelectedRoleDetails(role);
-        
-        const permissions = role.permissions || [];
-        setFormData(prev => ({
-          ...prev,
-          rolePermissions: permissions,
-          additionalPermissions: prev.additionalPermissions.filter(
-            p => !permissions.includes(p)
-          ),
-        }));
-      } else {
-        console.warn(`Role "${roleName}" not found in available roles`);
-        setSelectedRoleDetails(null);
-        setFormData(prev => ({ ...prev, rolePermissions: [] }));
-      }
-    } catch (error) {
-      console.error('Error fetching role permissions:', error);
-    } finally {
-      setLoadingRolePermissions(false);
-    }
-  };
-
-  const formatPermissionLabel = (permission: string): string => {
-    const parts = permission.split('.');
-    if (parts.length >= 2) {
-      const [entity, action] = parts;
-      const actionLabel = action.charAt(0).toUpperCase() + action.slice(1);
-      const entityLabel = entity.split('_').map(word => 
-        word.charAt(0).toUpperCase() + word.slice(1)
-      ).join(' ');
-      return `${actionLabel} ${entityLabel}`;
-    }
-    return permission;
   };
 
   const handleInputChange = (field: keyof FormData, value: any) => {
@@ -214,8 +141,8 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
     if (!formData.generatePassword) {
       if (!formData.password) {
         newErrors.password = 'Password is required';
-      } else if (formData.password.length < 6) {
-        newErrors.password = 'Password must be at least 6 characters';
+      } else if (formData.password.length < 8) {
+        newErrors.password = 'Password must be at least 8 characters';
       }
       
       if (formData.password !== formData.confirmPassword) {
@@ -225,8 +152,6 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
     
     if (!formData.roleName) {
       newErrors.roleName = 'Role is required';
-    } else if (!availableRoles.find(r => r.name === formData.roleName)) {
-      newErrors.roleName = 'Please select a valid role';
     }
     
     setErrors(newErrors);
@@ -243,34 +168,23 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
     setLoading(true);
     
     try {
-      const userData: CreateUserData = {
+      const userData: RegisterUserData = {
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
+        password: formData.generatePassword ? formData.password : formData.password,
         roleName: formData.roleName,
-        // active: formData.active,
       };
-
-      // Set password
-      if (formData.password) {
-        userData.password = formData.password;
-      } else {
-        userData.password = generateSecurePassword();
-      }
       
-      console.log('Creating user with:', userData);
-      
-      const newUser = await userService.createUser(userData);
+      const newUser = await userService.registerUser(userData);
       
       showToast('User created successfully!', 'success');
 
-      // Show password if auto-generated
       if (formData.generatePassword && !formData.sendWelcomeEmail) {
         setTimeout(() => {
           showToast(`Generated password: ${userData.password}`, 'info', 10000);
         }, 1000);
       }
       
-      // Redirect after delay
       setTimeout(() => {
         router.push('/settings/users');
       }, 1500);
@@ -283,7 +197,6 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
       if (error.message) {
         errorMessage = error.message;
         
-        // Check for specific backend errors
         if (errorMessage.includes('Only admin')) {
           errorMessage = 'You need administrator privileges to create users';
         } else if (errorMessage.includes('already exists')) {
@@ -297,7 +210,7 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
         } else if (errorMessage.includes('Invalid email')) {
           errorMessage = 'Please enter a valid email address';
         } else if (errorMessage.includes('Password must be at least')) {
-          errorMessage = 'Password must be at least 6 characters long';
+          errorMessage = 'Password must be at least 8 characters long';
         }
       }
       
@@ -313,12 +226,6 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
         showToast('Please fill in all required fields', 'error');
         return;
       }
-      
-      // Validate role exists
-      if (!availableRoles.find(r => r.name === formData.roleName)) {
-        showToast('Please select a valid role from the dropdown', 'error');
-        return;
-      }
     }
     setFormStep(prev => prev + 1);
   };
@@ -327,41 +234,29 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
     setFormStep(prev => prev - 1);
   };
 
-  // Get unique permission categories for display
-  const getPermissionCategories = () => {
-    const categories = new Set<string>();
-    formData.rolePermissions.forEach(permission => {
-      const category = permission.split('.')[0] || 'general';
-      categories.add(category);
-    });
-    return Array.from(categories);
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50/30 dark:from-gray-900 dark:via-gray-800 dark:to-blue-900/20">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 shadow-lg">
-        <div className="max-w-4xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={handleBack}
-                className="p-2 bg-white/20 hover:bg-white/30 rounded-xl backdrop-blur-sm transition-colors"
-              >
-                <ArrowLeft className="h-5 w-5 text-white" />
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-white">Create New User</h1>
-                <p className="text-blue-100 mt-1">Add a new user to your system</p>
-              </div>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Page Header */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.push('/settings/users')}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create New User</h1>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">Add a new user to your system</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Progress Steps */}
-      <div className="max-w-4xl mx-auto px-6 py-6">
-        <div className="flex items-center justify-between mb-8">
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-6">
           {[1, 2, 3].map((step) => (
             <div key={step} className="flex items-center">
               <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
@@ -382,397 +277,329 @@ export default function CreateUserPage({ onBack }: CreateUserPageProps) {
             Step {formStep} of 3
           </div>
         </div>
+      </div>
 
-        <form className="space-y-8">
-          {/* Step 1: Basic Info */}
-          {formStep === 1 && (
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-8 shadow-sm">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Basic Information</h3>
-              
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Full Name *
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <User className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => handleInputChange('name', e.target.value)}
-                      className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 ${
-                        errors.name ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
-                      }`}
-                      placeholder="John Doe"
-                    />
+      <form className="space-y-8">
+        {/* Step 1: Basic Info */}
+        {formStep === 1 && (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Basic Information</h3>
+            
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Full Name *
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-gray-400" />
                   </div>
-                  {errors.name && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3" />
-                      {errors.name}
-                    </p>
-                  )}
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 ${
+                      errors.name ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
+                    }`}
+                    placeholder="John Doe"
+                  />
                 </div>
+                {errors.name && (
+                  <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {errors.name}
+                  </p>
+                )}
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Email Address *
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Mail className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => handleInputChange('email', e.target.value)}
-                      className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 ${
-                        errors.email ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
-                      }`}
-                      placeholder="john.doe@example.com"
-                    />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Email Address *
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className="h-5 w-5 text-gray-400" />
                   </div>
-                  {errors.email && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3" />
-                      {errors.email}
-                    </p>
-                  )}
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange('email', e.target.value)}
+                    className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 ${
+                      errors.email ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
+                    }`}
+                    placeholder="john.doe@example.com"
+                  />
                 </div>
+                {errors.email && (
+                  <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {errors.email}
+                  </p>
+                )}
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Role *
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Shield className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <select
-                      value={formData.roleName}
-                      onChange={(e) => handleInputChange('roleName', e.target.value)}
-                      className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 ${
-                        errors.roleName ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
-                      }`}
-                      disabled={!rolesLoaded || loadingRolePermissions}
-                    >
-                      <option value="">Select a role</option>
-                      {availableRoles.length === 0 ? (
-                        <option value="" disabled>Loading roles...</option>
-                      ) : (
-                        availableRoles.map((role) => (
-                          <option key={role.id || role.name} value={role.name}>
-                            {role.display_name || role.name}
-                          </option>
-                        ))
-                      )}
-                    </select>
-                    {(!rolesLoaded || loadingRolePermissions) && (
-                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                      </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Role *
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Shield className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <select
+                    value={formData.roleName}
+                    onChange={(e) => handleInputChange('roleName', e.target.value)}
+                    className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 ${
+                      errors.roleName ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
+                    }`}
+                    disabled={!rolesLoaded}
+                  >
+                    <option value="">Select a role</option>
+                    {availableRoles.length === 0 ? (
+                      <option value="" disabled>Loading roles...</option>
+                    ) : (
+                      availableRoles.map((role) => (
+                        <option key={role.id || role.name} value={role.name}>
+                          {role.display_name || role.name}
+                        </option>
+                      ))
                     )}
-                  </div>
-                  {errors.roleName && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3" />
-                      {errors.roleName}
-                    </p>
-                  )}
-
-                  {/* Role Description */}
-                  {selectedRoleDetails && (
-                    <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-800 rounded-lg">
-                      <div className="flex items-start gap-3">
-                        <ShieldCheck className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
-                        <div>
-                          <h4 className="font-medium text-blue-800 dark:text-blue-300">
-                            {selectedRoleDetails.display_name}
-                          </h4>
-                          {selectedRoleDetails.description && (
-                            <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
-                              {selectedRoleDetails.description}
-                            </p>
-                          )}
-                          {formData.rolePermissions.length > 0 && (
-                            <div className="mt-2">
-                              <p className="text-xs font-medium text-blue-800 dark:text-blue-300">
-                                Includes {formData.rolePermissions.length} permissions
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                  </select>
+                  {!rolesLoaded && (
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                     </div>
                   )}
                 </div>
+                {errors.roleName && (
+                  <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {errors.roleName}
+                  </p>
+                )}
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Step 2: Security */}
-          {formStep === 2 && (
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-8 shadow-sm">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Security Settings</h3>
+        {/* Step 2: Security */}
+        {formStep === 2 && (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Security Settings</h3>
+            
+            <div className="space-y-6">
+              <div className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-500/10 rounded-xl">
+                <input
+                  type="checkbox"
+                  id="generatePassword"
+                  checked={formData.generatePassword}
+                  onChange={(e) => handleInputChange('generatePassword', e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="generatePassword" className="text-sm text-gray-700 dark:text-gray-300">
+                  Auto-generate secure password
+                </label>
+              </div>
               
-              <div className="space-y-6">
-                <div className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-500/10 rounded-xl">
-                  <input
-                    type="checkbox"
-                    id="generatePassword"
-                    checked={formData.generatePassword}
-                    onChange={(e) => handleInputChange('generatePassword', e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="generatePassword" className="text-sm text-gray-700 dark:text-gray-300">
-                    Auto-generate secure password
-                  </label>
-                </div>
-                
-                {!formData.generatePassword && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Password *
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Key className="h-5 w-5 text-gray-400" />
-                        </div>
-                        <input
-                          type={showPassword ? "text" : "password"}
-                          value={formData.password}
-                          onChange={(e) => handleInputChange('password', e.target.value)}
-                          className={`w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 ${
-                            errors.password ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
-                          }`}
-                          placeholder="Enter password"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-5 w-5 text-gray-400" />
-                          ) : (
-                            <Eye className="h-5 w-5 text-gray-400" />
-                          )}
-                        </button>
+              {!formData.generatePassword && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Password *
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Key className="h-5 w-5 text-gray-400" />
                       </div>
-                      {errors.password && (
-                        <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {errors.password}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Confirm Password *
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Key className="h-5 w-5 text-gray-400" />
-                        </div>
-                        <input
-                          type={showPassword ? "text" : "password"}
-                          value={formData.confirmPassword}
-                          onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                          className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 ${
-                            errors.confirmPassword ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
-                          }`}
-                          placeholder="Confirm password"
-                        />
-                      </div>
-                      {errors.confirmPassword && (
-                        <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {errors.confirmPassword}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {formData.generatePassword && formData.password && (
-                  <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-xl">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-green-800 dark:text-green-400">Generated Password</p>
-                        <p className="text-lg font-mono text-gray-900 dark:text-white mt-1">{formData.password}</p>
-                        <p className="text-xs text-green-600 dark:text-green-400 mt-2">
-                          This password will be displayed only once. Make sure to save it.
-                        </p>
-                      </div>
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={formData.password}
+                        onChange={(e) => handleInputChange('password', e.target.value)}
+                        className={`w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 ${
+                          errors.password ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
+                        }`}
+                        placeholder="Enter password (min 8 characters)"
+                      />
                       <button
                         type="button"
-                        onClick={() => navigator.clipboard.writeText(formData.password)}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
                       >
-                        Copy
+                        {showPassword ? (
+                          <EyeOff className="h-5 w-5 text-gray-400" />
+                        ) : (
+                          <Eye className="h-5 w-5 text-gray-400" />
+                        )}
                       </button>
                     </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Review & Settings */}
-          {formStep === 3 && (
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-8 shadow-sm">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Review & Settings</h3>
-              
-              <div className="space-y-8">
-                {/* User Summary */}
-                <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-100 dark:border-blue-800">
-                  <h4 className="font-medium text-gray-900 dark:text-white mb-4">User Summary</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Name</p>
-                      <p className="font-medium text-gray-900 dark:text-white">{formData.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Email</p>
-                      <p className="font-medium text-gray-900 dark:text-white">{formData.email}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Role</p>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {selectedRoleDetails?.display_name || formData.roleName}
+                    {errors.password && (
+                      <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.password}
                       </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Status</p>
-                      <p className="font-medium text-green-600 dark:text-green-400">Active</p>
-                    </div>
+                    )}
                   </div>
-                </div>
 
-                {/* Role Permissions Summary */}
-                {selectedRoleDetails && formData.rolePermissions.length > 0 && (
                   <div>
-                    <div className="flex items-center gap-2 mb-4">
-                      <ShieldCheck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                      <h4 className="font-medium text-gray-900 dark:text-white">
-                        Role Permissions ({formData.rolePermissions.length})
-                      </h4>
-                    </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                      This user will inherit all permissions from the <span className="font-medium">{selectedRoleDetails.display_name}</span> role
-                    </p>
-                    <div className="max-h-60 overflow-y-auto p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {getPermissionCategories().map((category) => (
-                          <div key={category} className="mb-3">
-                            <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">
-                              {category.replace('_', ' ')}
-                            </h5>
-                            <div className="space-y-1">
-                              {formData.rolePermissions
-                                .filter(p => p.startsWith(`${category}.`))
-                                .slice(0, 5)
-                                .map((permission: string, index: number) => (
-                                  <div
-                                    key={`permission-${index}-${permission}`}
-                                    className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 rounded"
-                                  >
-                                    <ShieldCheck className="h-3 w-3 text-green-500 dark:text-green-400" />
-                                    <span className="text-xs text-gray-700 dark:text-gray-300">
-                                      {formatPermissionLabel(permission)}
-                                    </span>
-                                  </div>
-                                ))}
-                            </div>
-                          </div>
-                        ))}
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Confirm Password *
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Key className="h-5 w-5 text-gray-400" />
                       </div>
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={formData.confirmPassword}
+                        onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+                        className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 ${
+                          errors.confirmPassword ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
+                        }`}
+                        placeholder="Confirm password"
+                      />
                     </div>
+                    {errors.confirmPassword && (
+                      <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.confirmPassword}
+                      </p>
+                    )}
                   </div>
-                )}
-
-                {/* Email Settings */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-500/10 rounded-xl border border-blue-100 dark:border-blue-800">
-                    <input
-                      type="checkbox"
-                      id="sendWelcomeEmail"
-                      checked={formData.sendWelcomeEmail}
-                      onChange={(e) => handleInputChange('sendWelcomeEmail', e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
+                </div>
+              )}
+              
+              {formData.generatePassword && formData.password && (
+                <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <label htmlFor="sendWelcomeEmail" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Send welcome email
-                      </label>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        User will receive email with login credentials and instructions
+                      <p className="text-sm font-medium text-green-800 dark:text-green-400">Generated Password</p>
+                      <p className="text-lg font-mono text-gray-900 dark:text-white mt-1">{formData.password}</p>
+                      <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                        This password will be displayed only once. Make sure to save it.
                       </p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(formData.password)}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Review & Settings */}
+        {formStep === 3 && (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Review & Settings</h3>
+            
+            <div className="space-y-8">
+              {/* User Summary */}
+              <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-100 dark:border-blue-800">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-4">User Summary</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Name</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{formData.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Email</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{formData.email}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Role</p>
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {availableRoles.find(r => r.name === formData.roleName)?.display_name || formData.roleName}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Status</p>
+                    <p className="font-medium text-green-600 dark:text-green-400">Active</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Email Settings */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-500/10 rounded-xl border border-blue-100 dark:border-blue-800">
+                  <input
+                    type="checkbox"
+                    id="sendWelcomeEmail"
+                    checked={formData.sendWelcomeEmail}
+                    onChange={(e) => handleInputChange('sendWelcomeEmail', e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <div>
+                    <label htmlFor="sendWelcomeEmail" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Send welcome email
+                    </label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      User will receive email with login credentials and instructions
+                    </p>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Navigation Buttons */}
+        <div className="flex items-center justify-between pt-6 border-t border-gray-200 dark:border-gray-700">
+          {formStep > 1 ? (
+            <button
+              type="button"
+              onClick={prevStep}
+              className="flex items-center gap-2 px-6 py-3 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Previous
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => router.push('/settings/users')}
+              className="flex items-center gap-2 px-6 py-3 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              <X className="h-4 w-4" />
+              Cancel
+            </button>
           )}
 
-          {/* Navigation Buttons */}
-          <div className="flex items-center justify-between pt-6 border-t border-gray-200 dark:border-gray-700">
-            {formStep > 1 ? (
-              <button
-                type="button"
-                onClick={prevStep}
-                className="flex items-center gap-2 px-6 py-3 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Previous
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleBack}
-                className="flex items-center gap-2 px-6 py-3 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                <X className="h-4 w-4" />
-                Cancel
-              </button>
-            )}
-
-            {formStep < 3 ? (
-              <button
-                type="button"
-                onClick={nextStep}
-                className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-medium hover:from-blue-700 hover:to-purple-700 transition-all"
-              >
-                Next
-                <ArrowLeft className="h-4 w-4 rotate-180" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={loading}
-                className="flex items-center gap-3 px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-medium hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50"
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="h-5 w-5" />
-                    Create User
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-        </form>
-      </div>
+          {formStep < 3 ? (
+            <button
+              type="button"
+              onClick={nextStep}
+              className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-medium hover:from-blue-700 hover:to-purple-700 transition-all"
+            >
+              Next
+              <ArrowLeft className="h-4 w-4 rotate-180" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={loading}
+              className="flex items-center gap-3 px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-medium hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50"
+            >
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <UserPlus className="h-5 w-5" />
+                  Create User
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      </form>
     </div>
   );
 }

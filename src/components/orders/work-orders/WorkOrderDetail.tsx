@@ -304,7 +304,7 @@ export default function WorkOrderDetail({ orderId }: WorkOrderDetailProps) {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="font-medium text-gray-800">Job Card #{index + 1}</p>
-                            <p className="text-sm text-gray-500">ID: {jobCard}</p>
+                            <p className="text-sm text-gray-500">ID: {1}</p>
                           </div>
                           <button
                             onClick={() => router.push(`/job-cards/${jobCard}`)}
@@ -355,11 +355,16 @@ export default function WorkOrderDetail({ orderId }: WorkOrderDetailProps) {
                   {workOrder.status !== 'completed' && workOrder.status !== 'cancelled' && (
                     <button
                       onClick={async () => {
+                        if (!workOrder._id) {
+                          showToast('Cannot update status: Work order ID is missing', 'error');
+                          return;
+                        }
+                        
                         try {
                           const nextStatus = workOrder.status === 'draft' ? 'in_progress' :
-                                           workOrder.status === 'in_progress' ? 'on_hold' :
-                                           workOrder.status === 'on_hold' ? 'completed' :
-                                           'cancelled';
+                                            workOrder.status === 'in_progress' ? 'on_hold' :
+                                            workOrder.status === 'on_hold' ? 'completed' :
+                                            'cancelled';
                           await workOrderService.updateWorkOrderStatus(workOrder._id, nextStatus);
                           showToast(`Work order status updated to ${nextStatus.replace('_', ' ')}`, 'success');
                           fetchWorkOrder(workOrder._id);
@@ -372,9 +377,9 @@ export default function WorkOrderDetail({ orderId }: WorkOrderDetailProps) {
                     >
                       <CheckCircle className="h-5 w-5" />
                       {workOrder.status === 'draft' ? 'Start Work' :
-                       workOrder.status === 'in_progress' ? 'Put on Hold' :
-                       workOrder.status === 'on_hold' ? 'Mark as Complete' :
-                       'Cancel Order'}
+                      workOrder.status === 'in_progress' ? 'Put on Hold' :
+                      workOrder.status === 'on_hold' ? 'Mark as Complete' :
+                      'Cancel Order'}
                     </button>
                   )}
                 </div>

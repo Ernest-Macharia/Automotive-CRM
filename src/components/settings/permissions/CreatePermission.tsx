@@ -192,57 +192,37 @@ export default function CreatePermission() {
 
   const getCategoryColor = (categoryId: string) => {
     switch (categoryId) {
-      case 'users': return 'bg-gradient-to-r from-purple-500 to-pink-500';
-      case 'dashboard': return 'bg-gradient-to-r from-green-500 to-emerald-500';
-      case 'leads': return 'bg-gradient-to-r from-orange-500 to-red-500';
-      case 'opportunities': return 'bg-gradient-to-r from-yellow-500 to-amber-500';
-      case 'quotes': return 'bg-gradient-to-r from-cyan-500 to-blue-500';
-      case 'sales_orders': return 'bg-gradient-to-r from-indigo-500 to-purple-500';
-      case 'work_orders': return 'bg-gradient-to-r from-emerald-500 to-teal-500';
-      case 'inventory': return 'bg-gradient-to-r from-rose-500 to-pink-500';
-      case 'reports': return 'bg-gradient-to-r from-violet-500 to-purple-500';
-      case 'settings': return 'bg-gradient-to-r from-gray-500 to-slate-500';
-      default: return 'bg-gradient-to-r from-blue-500 to-cyan-500';
+      case 'users': return 'bg-blue-500';
+      case 'dashboard': return 'bg-green-500';
+      case 'leads': return 'bg-orange-500';
+      case 'opportunities': return 'bg-yellow-500';
+      case 'quotes': return 'bg-cyan-500';
+      case 'sales_orders': return 'bg-indigo-500';
+      case 'work_orders': return 'bg-emerald-500';
+      case 'inventory': return 'bg-rose-500';
+      case 'reports': return 'bg-violet-500';
+      case 'settings': return 'bg-gray-500';
+      default: return 'bg-blue-500';
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-indigo-50/30">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg">
-        <div className="max-w-4xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push('/settings/permissions')}
-                className="p-2 bg-white/20 hover:bg-white/30 rounded-xl backdrop-blur-sm transition-colors"
-              >
-                <ArrowLeft className="h-5 w-5 text-white" />
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-white">Create New Permission</h1>
-                <p className="text-indigo-100 mt-1">Define a new permission for your CRM system</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Progress Steps */}
-      <div className="max-w-4xl mx-auto px-6 py-6">
-        <div className="flex items-center justify-between mb-8">
+      <div className="mb-8">
+        <div className="flex items-center justify-between">
           {[1, 2, 3].map((step) => (
             <div key={step} className="flex items-center">
               <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
                 formStep >= step 
-                  ? 'bg-indigo-600 text-white' 
+                  ? 'bg-blue-600 text-white' 
                   : 'bg-gray-200 text-gray-500'
               }`}>
                 {formStep > step ? <Check className="h-5 w-5" /> : step}
               </div>
               {step < 3 && (
                 <div className={`w-20 h-1 mx-2 ${
-                  formStep > step ? 'bg-indigo-600' : 'bg-gray-200'
+                  formStep > step ? 'bg-blue-600' : 'bg-gray-200'
                 }`} />
               )}
             </div>
@@ -255,7 +235,7 @@ export default function CreatePermission() {
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Step 1: Basic Info */}
           {formStep === 1 && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+            <div className="bg-white rounded-2xl border border-gray-200 p-8">
               <h3 className="text-xl font-semibold text-gray-900 mb-6">Basic Information</h3>
               
               <div className="space-y-6">
@@ -271,7 +251,7 @@ export default function CreatePermission() {
                       type="text"
                       value={formData.displayName}
                       onChange={(e) => handleInputChange('displayName', e.target.value)}
-                      className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                      className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                         errors.displayName ? 'border-red-300' : 'border-gray-300'
                       }`}
                       placeholder="e.g., View User Profiles"
@@ -296,7 +276,7 @@ export default function CreatePermission() {
                     value={formData.description}
                     onChange={(e) => handleInputChange('description', e.target.value)}
                     rows={3}
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                       errors.description ? 'border-red-300' : 'border-gray-300'
                     }`}
                     placeholder="Describe what this permission allows users to do..."
@@ -314,7 +294,7 @@ export default function CreatePermission() {
 
           {/* Step 2: Category & Action */}
           {formStep === 2 && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+            <div className="bg-white rounded-2xl border border-gray-200 p-8">
               <h3 className="text-xl font-semibold text-gray-900 mb-6">Category & Action</h3>
               
               <div className="space-y-6">
@@ -330,7 +310,7 @@ export default function CreatePermission() {
                           key={category.id}
                           className={`relative rounded-xl border-2 p-4 cursor-pointer transition-all ${
                             formData.category === category.id
-                              ? 'border-indigo-500 bg-indigo-50 shadow-lg'
+                              ? 'border-blue-500 bg-blue-50'
                               : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                           }`}
                         >
@@ -353,7 +333,7 @@ export default function CreatePermission() {
                           </div>
                           {formData.category === category.id && (
                             <div className="absolute top-2 right-2">
-                              <Check className="h-5 w-5 text-indigo-600" />
+                              <Check className="h-5 w-5 text-blue-600" />
                             </div>
                           )}
                         </label>
@@ -377,7 +357,7 @@ export default function CreatePermission() {
                       type="text"
                       value={formData.module}
                       onChange={(e) => handleInputChange('module', e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Enter custom module name"
                     />
                     <p className="mt-1 text-sm text-gray-500">
@@ -396,7 +376,7 @@ export default function CreatePermission() {
                         key={action.id}
                         className={`relative rounded-xl border-2 p-4 cursor-pointer transition-all ${
                           formData.action === action.id
-                            ? 'border-indigo-500 bg-indigo-50 shadow-lg'
+                            ? 'border-blue-500 bg-blue-50'
                             : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                         }`}
                       >
@@ -414,7 +394,7 @@ export default function CreatePermission() {
                         </div>
                         {formData.action === action.id && (
                           <div className="absolute top-2 right-2">
-                            <Check className="h-5 w-5 text-indigo-600" />
+                            <Check className="h-5 w-5 text-blue-600" />
                           </div>
                         )}
                       </label>
@@ -433,7 +413,7 @@ export default function CreatePermission() {
 
           {/* Step 3: Scope & Review */}
           {formStep === 3 && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+            <div className="bg-white rounded-2xl border border-gray-200 p-8">
               <h3 className="text-xl font-semibold text-gray-900 mb-6">Scope & Review</h3>
               
               <div className="space-y-6">
@@ -449,7 +429,7 @@ export default function CreatePermission() {
                           key={scope.id}
                           className={`relative rounded-xl border-2 p-4 cursor-pointer transition-all ${
                             formData.scope === scope.id
-                              ? 'border-indigo-500 bg-indigo-50 shadow-lg'
+                              ? 'border-blue-500 bg-blue-50'
                               : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                           }`}
                         >
@@ -462,8 +442,8 @@ export default function CreatePermission() {
                             className="sr-only"
                           />
                           <div className="flex items-start gap-3">
-                            <div className="p-2 rounded-lg bg-indigo-100">
-                              <Icon className="h-5 w-5 text-indigo-600" />
+                            <div className="p-2 rounded-lg bg-blue-100">
+                              <Icon className="h-5 w-5 text-blue-600" />
                             </div>
                             <div>
                               <span className="font-medium text-gray-900">{scope.name}</span>
@@ -472,7 +452,7 @@ export default function CreatePermission() {
                           </div>
                           {formData.scope === scope.id && (
                             <div className="absolute top-2 right-2">
-                              <Check className="h-5 w-5 text-indigo-600" />
+                              <Check className="h-5 w-5 text-blue-600" />
                             </div>
                           )}
                         </label>
@@ -482,7 +462,7 @@ export default function CreatePermission() {
                 </div>
 
                 {/* Review Card */}
-                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-2xl p-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6">
                   <h4 className="text-lg font-semibold text-gray-900 mb-4">Permission Summary</h4>
                   
                   <div className="space-y-4">
@@ -493,7 +473,7 @@ export default function CreatePermission() {
                     
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Generated Identifier:</span>
-                      <code className="bg-indigo-100 px-3 py-1 rounded-lg text-sm font-mono text-indigo-700">
+                      <code className="bg-blue-100 px-3 py-1 rounded-lg text-sm font-mono text-blue-700">
                         {generatedName}
                       </code>
                     </div>
@@ -520,7 +500,7 @@ export default function CreatePermission() {
                       </span>
                     </div>
                     
-                    <div className="pt-4 border-t border-indigo-200">
+                    <div className="pt-4 border-t border-blue-200">
                       <p className="text-sm text-gray-600">{formData.description}</p>
                     </div>
                   </div>
@@ -555,7 +535,7 @@ export default function CreatePermission() {
               <button
                 type="button"
                 onClick={nextStep}
-                className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium hover:from-indigo-700 hover:to-purple-700 transition-all"
+                className="flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-all"
               >
                 Next
                 <ArrowLeft className="h-4 w-4 rotate-180" />
@@ -564,7 +544,7 @@ export default function CreatePermission() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex items-center gap-3 px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-medium hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50"
+                className="flex items-center gap-3 px-8 py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-all disabled:opacity-50"
               >
                 {loading ? (
                   <>

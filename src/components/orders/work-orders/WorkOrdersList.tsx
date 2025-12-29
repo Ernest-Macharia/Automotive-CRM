@@ -110,11 +110,8 @@ export default function WorkOrdersList() {
       if (dateRange.to) params.toDate = dateRange.to;
       
       const response = await workOrderService.getAllWorkOrders(params);
-      setWorkOrders(response.data);
+      setWorkOrders(response);
       
-      if (response.stats) {
-        setStats(response.stats);
-      }
     } catch (error) {
       console.error('Error fetching work orders:', error);
       showToast('Failed to load work orders', 'error');

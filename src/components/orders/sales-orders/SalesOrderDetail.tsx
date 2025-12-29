@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   ShoppingBag, ArrowLeft, Calendar, User, DollarSign, 
@@ -13,8 +13,11 @@ import { salesOrderService } from '@/services/salesOrderService';
 import { useToast } from '@/contexts/ToastContext';
 import { format } from 'date-fns';
 
-export default function SalesOrderDetailPage() {
-  const params = useParams();
+interface SalesOrderDetailProps {
+  orderId: string;
+}
+
+export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailProps) {
   const router = useRouter();
   const { showToast } = useToast();
   
@@ -22,7 +25,6 @@ export default function SalesOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [workflowLoading, setWorkflowLoading] = useState(false);
 
-  const orderId = params.id as string;
 
   useEffect(() => {
     fetchSalesOrder();

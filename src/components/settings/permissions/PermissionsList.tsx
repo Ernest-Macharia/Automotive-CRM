@@ -40,8 +40,20 @@ import {
   Download,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
-import { roleService, Permission, ROLE_NAMES, PERMISSIONS } from '@/services/settings/roleService';
+import { roleService, PERMISSIONS, ROLES } from '@/services/settings/roleService';
 import Link from 'next/link';
+
+// Define Permission interface locally since it doesn't exist in the service
+interface Permission {
+  id: string;
+  name: string;
+  displayName: string;
+  description?: string;
+  category: string;
+  module: string;
+  action: string;
+  scope?: string;
+}
 
 interface PermissionFilters {
   category: string;
@@ -91,11 +103,29 @@ export default function PermissionsList() {
   const loadPermissions = async () => {
     try {
       setLoading(true);
-      const grouped = await roleService.getPermissionsByCategory();
+      // Use getPermissionsGrouped which returns Record<string, string[]>
+      const grouped = await roleService.getPermissionsGrouped();
       const allPermissions: Permission[] = [];
       
-      Object.values(grouped).forEach(categoryPermissions => {
-        allPermissions.push(...categoryPermissions);
+      Object.entries(grouped).forEach(([category, permissionStrings]) => {
+        permissionStrings.forEach(permissionString => {
+          const parts = permissionString.split('.');
+          const module = parts[0];
+          const action = parts[1];
+          
+          const permission: Permission = {
+            id: permissionString,
+            name: permissionString,
+            displayName: roleService.formatPermission(permissionString),
+            description: `Permission to ${action} ${module}`,
+            category: module,
+            module: module,
+            action: action,
+            scope: 'global'
+          };
+          
+          allPermissions.push(permission);
+        });
       });
       
       setPermissions(allPermissions);
@@ -308,14 +338,15 @@ export default function PermissionsList() {
       ).length;
       return acc;
     }, {}),
+    // Get all default permissions as a flat array
+    defaultPermissions: Object.values(roleService.getDefaultPermissions()).flat(),
     custom: permissions.filter(
-      p => !Object.values(PERMISSIONS).includes(p.name as any)
+      p => !Object.values(roleService.getDefaultPermissions()).flat().includes(p.name)
     ).length,
     system: permissions.filter(
-      p => Object.values(PERMISSIONS).includes(p.name as any)
+      p => Object.values(roleService.getDefaultPermissions()).flat().includes(p.name)
     ).length,
   }), [permissions, categories]);
-
 
   return (
     <div className="p-6">

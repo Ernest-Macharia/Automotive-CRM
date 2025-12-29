@@ -32,7 +32,19 @@ import {
   Calendar,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
-import { roleService, Permission } from '@/services/settings/roleService';
+import { roleService } from '@/services/settings/roleService';
+
+// Define Permission interface locally
+interface Permission {
+  id: string;
+  name: string;
+  displayName: string;
+  description?: string;
+  category: string;
+  module: string;
+  action: string;
+  scope?: string;
+}
 
 interface FormData {
   name: string;
@@ -119,15 +131,33 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
   const loadPermission = async () => {
     try {
       setLoading(true);
-      // For now, we'll simulate loading since we don't have a getPermissionById method
-      const grouped = await roleService.getPermissionsByCategory();
-      const allPermissions: Permission[] = [];
+      // Get all permissions grouped and find the specific one
+      const grouped = await roleService.getPermissionsGrouped();
+      let foundPermission: Permission | null = null;
       
-      Object.values(grouped).forEach(categoryPermissions => {
-        allPermissions.push(...categoryPermissions);
-      });
-      
-      const foundPermission = allPermissions.find(p => p.id === permissionId);
+      // Search through all categories to find the permission
+      for (const [category, permissionStrings] of Object.entries(grouped)) {
+        for (const permissionString of permissionStrings) {
+          if (permissionString === permissionId) {
+            const parts = permissionString.split('.');
+            const module = parts[0];
+            const action = parts[1];
+            
+            foundPermission = {
+              id: permissionString,
+              name: permissionString,
+              displayName: roleService.formatPermission(permissionString),
+              description: `Permission to ${action} ${module}`,
+              category: module,
+              module: module,
+              action: action,
+              scope: 'global'
+            };
+            break;
+          }
+        }
+        if (foundPermission) break;
+      }
       
       if (!foundPermission) {
         showToast('Permission not found', 'error');
@@ -297,17 +327,17 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
 
   const getCategoryColor = (categoryId: string) => {
     switch (categoryId) {
-      case 'users': return 'bg-gradient-to-r from-purple-500 to-pink-500';
-      case 'dashboard': return 'bg-gradient-to-r from-green-500 to-emerald-500';
-      case 'leads': return 'bg-gradient-to-r from-orange-500 to-red-500';
-      case 'opportunities': return 'bg-gradient-to-r from-yellow-500 to-amber-500';
-      case 'quotes': return 'bg-gradient-to-r from-cyan-500 to-blue-500';
-      case 'sales_orders': return 'bg-gradient-to-r from-indigo-500 to-purple-500';
-      case 'work_orders': return 'bg-gradient-to-r from-emerald-500 to-teal-500';
-      case 'inventory': return 'bg-gradient-to-r from-rose-500 to-pink-500';
-      case 'reports': return 'bg-gradient-to-r from-violet-500 to-purple-500';
-      case 'settings': return 'bg-gradient-to-r from-gray-500 to-slate-500';
-      default: return 'bg-gradient-to-r from-blue-500 to-cyan-500';
+      case 'users': return 'bg-blue-500';
+      case 'dashboard': return 'bg-green-500';
+      case 'leads': return 'bg-orange-500';
+      case 'opportunities': return 'bg-yellow-500';
+      case 'quotes': return 'bg-cyan-500';
+      case 'sales_orders': return 'bg-indigo-500';
+      case 'work_orders': return 'bg-emerald-500';
+      case 'inventory': return 'bg-rose-500';
+      case 'reports': return 'bg-violet-500';
+      case 'settings': return 'bg-gray-500';
+      default: return 'bg-blue-500';
     }
   };
 
@@ -315,7 +345,7 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading permission...</p>
         </div>
       </div>
@@ -327,91 +357,89 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-indigo-50/30 dark:from-gray-900 dark:via-gray-800 dark:to-indigo-900/20">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg">
-        <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="mb-8">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleBack}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="h-5 w-5 text-gray-600" />
+            </button>
+            <div className="p-2 bg-blue-100 rounded-xl">
+              <Shield className="h-6 w-6 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Edit Permission</h1>
+              <p className="text-gray-600 text-sm">Update permission details and settings</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={loadPermission}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw className="h-5 w-5 text-gray-600" />
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Delete"
+            >
+              <Trash2 className="h-5 w-5 text-gray-600" />
+            </button>
+          </div>
+        </div>
+        
+        {/* Permission Info Header */}
+        <div className="mt-6 pt-6 border-t border-gray-200">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <button
-                onClick={handleBack}
-                className="p-2 bg-white/20 hover:bg-white/30 rounded-xl backdrop-blur-sm transition-colors"
-              >
-                <ArrowLeft className="h-5 w-5 text-white" />
-              </button>
-              <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
-                <Shield className="h-6 w-6 text-white" />
+              <div className="h-16 w-16 bg-blue-600 rounded-2xl flex items-center justify-center">
+                <span className="text-white font-bold text-xl">
+                  <Shield className="h-8 w-8" />
+                </span>
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">Edit Permission</h1>
-                <p className="text-indigo-100 text-sm">Update permission details and settings</p>
+                <h2 className="text-xl font-bold text-gray-900">{permission.displayName}</h2>
+                <div className="flex items-center gap-3 mt-2">
+                  <code className="px-3 py-1 bg-gray-100 rounded-lg text-gray-700 text-sm font-mono">
+                    {permission.name}
+                  </code>
+                  <span className="text-gray-600 text-sm">
+                    ID: {permission.id?.slice(0, 8)}...
+                  </span>
+                </div>
               </div>
             </div>
             
             <div className="flex items-center gap-2">
-              <button
-                onClick={loadPermission}
-                className="p-2 hover:bg-white/20 rounded-xl transition-colors"
-                title="Refresh"
-              >
-                <RefreshCw className="h-5 w-5 text-white" />
+              <button className="p-2 hover:bg-gray-100 rounded-lg">
+                <History className="h-4 w-4 text-gray-600" />
               </button>
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="p-2 hover:bg-white/20 rounded-xl transition-colors"
-                title="Delete"
-              >
-                <Trash2 className="h-5 w-5 text-white" />
+              <button className="p-2 hover:bg-gray-100 rounded-lg">
+                <Activity className="h-4 w-4 text-gray-600" />
               </button>
-            </div>
-          </div>
-          
-          {/* Permission Info Header */}
-          <div className="mt-6 pt-6 border-t border-white/20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="h-16 w-16 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center">
-                  <span className="text-white font-bold text-xl">
-                    <Shield className="h-8 w-8" />
-                  </span>
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">{permission.displayName}</h2>
-                  <div className="flex items-center gap-3 mt-2">
-                    <code className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-lg text-white text-sm font-mono">
-                      {permission.name}
-                    </code>
-                    <span className="text-white/80 text-sm">
-                      ID: {permission.id?.slice(0, 8)}...
-                    </span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <button className="p-2 bg-white/10 hover:bg-white/20 rounded-lg">
-                  <History className="h-4 w-4 text-white" />
-                </button>
-                <button className="p-2 bg-white/10 hover:bg-white/20 rounded-lg">
-                  <Activity className="h-4 w-4 text-white" />
-                </button>
-              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div>
         {/* Tabs */}
         <div className="mb-6">
-          <div className="flex space-x-1 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex space-x-1 border-b border-gray-200">
             <button
               onClick={() => setActiveTab('edit')}
               className={`px-4 py-3 text-sm font-medium border-b-2 ${
                 activeTab === 'edit'
-                  ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
               Edit Permission
@@ -420,8 +448,8 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
               onClick={() => setActiveTab('usage')}
               className={`px-4 py-3 text-sm font-medium border-b-2 ${
                 activeTab === 'usage'
-                  ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
               Usage History
@@ -430,8 +458,8 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
               onClick={() => setActiveTab('history')}
               className={`px-4 py-3 text-sm font-medium border-b-2 ${
                 activeTab === 'history'
-                  ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
               Change History
@@ -449,19 +477,19 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
                   <div key={step} className="flex items-center">
                     <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
                       formStep >= step 
-                        ? 'bg-indigo-600 text-white' 
-                        : 'bg-gray-200 dark:bg-gray-700 text-gray-500'
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-200 text-gray-500'
                     }`}>
                       {formStep > step ? <Check className="h-5 w-5" /> : step}
                     </div>
                     {step < 3 && (
                       <div className={`w-20 h-1 mx-2 ${
-                        formStep > step ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'
+                        formStep > step ? 'bg-blue-600' : 'bg-gray-200'
                       }`} />
                     )}
                   </div>
                 ))}
-                <div className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="text-sm text-gray-600">
                   Step {formStep} of 3
                 </div>
               </div>
@@ -470,12 +498,12 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Step 1: Basic Info */}
               {formStep === 1 && (
-                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-8 shadow-sm">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Basic Information</h3>
+                <div className="bg-white rounded-2xl border border-gray-200 p-8">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-6">Basic Information</h3>
                   
                   <div className="space-y-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         Display Name *
                       </label>
                       <div className="relative">
@@ -486,38 +514,38 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
                           type="text"
                           value={formData.displayName}
                           onChange={(e) => handleInputChange('displayName', e.target.value)}
-                          className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-700 ${
-                            errors.displayName ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
+                          className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                            errors.displayName ? 'border-red-300' : 'border-gray-300'
                           }`}
                           placeholder="e.g., View User Profiles"
                         />
                       </div>
                       {errors.displayName && (
-                        <p className="mt-1 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
+                        <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
                           <AlertCircle className="h-3 w-3" />
                           {errors.displayName}
                         </p>
                       )}
-                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      <p className="mt-1 text-sm text-gray-500">
                         User-friendly name for the permission
                       </p>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         Description *
                       </label>
                       <textarea
                         value={formData.description}
                         onChange={(e) => handleInputChange('description', e.target.value)}
                         rows={3}
-                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-700 ${
-                          errors.description ? 'border-red-300' : 'border-gray-300 dark:border-gray-600'
+                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                          errors.description ? 'border-red-300' : 'border-gray-300'
                         }`}
                         placeholder="Describe what this permission allows users to do..."
                       />
                       {errors.description && (
-                        <p className="mt-1 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
+                        <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
                           <AlertCircle className="h-3 w-3" />
                           {errors.description}
                         </p>
@@ -525,11 +553,11 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         Permission Identifier
                       </label>
                       <div className="flex items-center gap-2">
-                        <code className="flex-1 bg-gray-100 dark:bg-gray-700 px-4 py-3 rounded-xl text-sm font-mono text-gray-800 dark:text-gray-300">
+                        <code className="flex-1 bg-gray-100 px-4 py-3 rounded-xl text-sm font-mono text-gray-800">
                           {generatePermissionName()}
                         </code>
                         <button
@@ -538,12 +566,12 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
                             navigator.clipboard.writeText(generatePermissionName());
                             showToast('Permission identifier copied!', 'success');
                           }}
-                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                          className="p-2 hover:bg-gray-100 rounded-lg"
                         >
                           <Copy className="h-4 w-4 text-gray-500" />
                         </button>
                       </div>
-                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      <p className="mt-1 text-sm text-gray-500">
                         Auto-generated based on category, action, and scope
                       </p>
                     </div>
@@ -553,12 +581,12 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
 
               {/* Step 2: Category & Action */}
               {formStep === 2 && (
-                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-8 shadow-sm">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Category & Action</h3>
+                <div className="bg-white rounded-2xl border border-gray-200 p-8">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-6">Category & Action</h3>
                   
                   <div className="space-y-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-4">
                         Select Category *
                       </label>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -569,8 +597,8 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
                               key={category.id}
                               className={`relative rounded-xl border-2 p-4 cursor-pointer transition-all ${
                                 formData.category === category.id
-                                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 shadow-lg'
-                                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                  ? 'border-blue-500 bg-blue-50'
+                                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                               }`}
                             >
                               <input
@@ -586,13 +614,13 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
                                   <Icon className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
-                                  <span className="font-medium text-gray-900 dark:text-white">{category.name}</span>
-                                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{category.description}</p>
+                                  <span className="font-medium text-gray-900">{category.name}</span>
+                                  <p className="text-sm text-gray-500 mt-1">{category.description}</p>
                                 </div>
                               </div>
                               {formData.category === category.id && (
                                 <div className="absolute top-2 right-2">
-                                  <Check className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                                  <Check className="h-5 w-5 text-blue-600" />
                                 </div>
                               )}
                             </label>
@@ -600,7 +628,7 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
                         })}
                       </div>
                       {errors.category && (
-                        <p className="mt-1 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
+                        <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
                           <AlertCircle className="h-3 w-3" />
                           {errors.category}
                         </p>
@@ -609,24 +637,24 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
 
                     {formData.category === 'custom' && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
                           Custom Module Name
                         </label>
                         <input
                           type="text"
                           value={formData.module}
                           onChange={(e) => handleInputChange('module', e.target.value)}
-                          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-700"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           placeholder="Enter custom module name"
                         />
-                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        <p className="mt-1 text-sm text-gray-500">
                           Enter the name for your custom module (lowercase, no spaces)
                         </p>
                       </div>
                     )}
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-4">
                         Select Action *
                       </label>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -635,8 +663,8 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
                             key={action.id}
                             className={`relative rounded-xl border-2 p-4 cursor-pointer transition-all ${
                               formData.action === action.id
-                                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 shadow-lg'
-                                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                             }`}
                           >
                             <input
@@ -648,19 +676,19 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
                               className="sr-only"
                             />
                             <div>
-                              <span className="font-medium text-gray-900 dark:text-white">{action.name}</span>
-                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{action.description}</p>
+                              <span className="font-medium text-gray-900">{action.name}</span>
+                              <p className="text-sm text-gray-500 mt-1">{action.description}</p>
                             </div>
                             {formData.action === action.id && (
                               <div className="absolute top-2 right-2">
-                                <Check className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                                <Check className="h-5 w-5 text-blue-600" />
                               </div>
                             )}
                           </label>
                         ))}
                       </div>
                       {errors.action && (
-                        <p className="mt-1 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
+                        <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
                           <AlertCircle className="h-3 w-3" />
                           {errors.action}
                         </p>
@@ -672,12 +700,12 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
 
               {/* Step 3: Scope & Review */}
               {formStep === 3 && (
-                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-8 shadow-sm">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Scope & Review</h3>
+                <div className="bg-white rounded-2xl border border-gray-200 p-8">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-6">Scope & Review</h3>
                   
                   <div className="space-y-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-4">
                         Select Scope *
                       </label>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -688,8 +716,8 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
                               key={scope.id}
                               className={`relative rounded-xl border-2 p-4 cursor-pointer transition-all ${
                                 formData.scope === scope.id
-                                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 shadow-lg'
-                                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                  ? 'border-blue-500 bg-blue-50'
+                                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                               }`}
                             >
                               <input
@@ -701,17 +729,17 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
                                 className="sr-only"
                               />
                               <div className="flex items-start gap-3">
-                                <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
-                                  <Icon className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                                <div className="p-2 rounded-lg bg-blue-100">
+                                  <Icon className="h-5 w-5 text-blue-600" />
                                 </div>
                                 <div>
-                                  <span className="font-medium text-gray-900 dark:text-white">{scope.name}</span>
-                                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{scope.description}</p>
+                                  <span className="font-medium text-gray-900">{scope.name}</span>
+                                  <p className="text-sm text-gray-500 mt-1">{scope.description}</p>
                                 </div>
                               </div>
                               {formData.scope === scope.id && (
                                 <div className="absolute top-2 right-2">
-                                  <Check className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                                  <Check className="h-5 w-5 text-blue-600" />
                                 </div>
                               )}
                             </label>
@@ -721,46 +749,46 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
                     </div>
 
                     {/* Review Card */}
-                    <div className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-6">
-                      <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Permission Summary</h4>
+                    <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Permission Summary</h4>
                       
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600 dark:text-gray-400">Display Name:</span>
-                          <span className="font-medium text-gray-900 dark:text-white">{formData.displayName}</span>
+                          <span className="text-sm text-gray-600">Display Name:</span>
+                          <span className="font-medium text-gray-900">{formData.displayName}</span>
                         </div>
                         
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600 dark:text-gray-400">Generated Identifier:</span>
-                          <code className="bg-indigo-100 dark:bg-indigo-900/30 px-3 py-1 rounded-lg text-sm font-mono text-indigo-700 dark:text-indigo-300">
+                          <span className="text-sm text-gray-600">Generated Identifier:</span>
+                          <code className="bg-blue-100 px-3 py-1 rounded-lg text-sm font-mono text-blue-700">
                             {generatePermissionName()}
                           </code>
                         </div>
                         
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600 dark:text-gray-400">Category:</span>
+                          <span className="text-sm text-gray-600">Category:</span>
                           <div className="flex items-center gap-2">
                             <div className={`w-3 h-3 rounded-full ${getCategoryColor(formData.category)}`} />
-                            <span className="font-medium text-gray-900 dark:text-white capitalize">
+                            <span className="font-medium text-gray-900 capitalize">
                               {formData.category.replace('_', ' ')}
                             </span>
                           </div>
                         </div>
                         
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600 dark:text-gray-400">Action:</span>
-                          <span className="font-medium text-gray-900 dark:text-white capitalize">{formData.action}</span>
+                          <span className="text-sm text-gray-600">Action:</span>
+                          <span className="font-medium text-gray-900 capitalize">{formData.action}</span>
                         </div>
                         
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600 dark:text-gray-400">Scope:</span>
-                          <span className="font-medium text-gray-900 dark:text-white">
+                          <span className="text-sm text-gray-600">Scope:</span>
+                          <span className="font-medium text-gray-900">
                             {scopes.find(s => s.id === formData.scope)?.name}
                           </span>
                         </div>
                         
-                        <div className="pt-4 border-t border-indigo-200 dark:border-indigo-800">
-                          <p className="text-sm text-gray-600 dark:text-gray-400">{formData.description}</p>
+                        <div className="pt-4 border-t border-blue-200">
+                          <p className="text-sm text-gray-600">{formData.description}</p>
                         </div>
                       </div>
                     </div>
@@ -769,12 +797,12 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
               )}
 
               {/* Navigation Buttons */}
-              <div className="flex items-center justify-between pt-6 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between pt-6 border-t border-gray-200">
                 {formStep > 1 ? (
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="flex items-center gap-2 px-6 py-3 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    className="flex items-center gap-2 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors"
                   >
                     <ArrowLeft className="h-4 w-4" />
                     Previous
@@ -783,7 +811,7 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
                   <button
                     type="button"
                     onClick={handleBack}
-                    className="flex items-center gap-2 px-6 py-3 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    className="flex items-center gap-2 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors"
                   >
                     <ArrowLeft className="h-4 w-4" />
                     Cancel
@@ -794,7 +822,7 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
                   <button
                     type="button"
                     onClick={nextStep}
-                    className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium hover:from-indigo-700 hover:to-purple-700 transition-all"
+                    className="flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-all"
                   >
                     Next
                     <ArrowLeft className="h-4 w-4 rotate-180" />
@@ -803,7 +831,7 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
                   <button
                     type="submit"
                     disabled={saving}
-                    className="flex items-center gap-3 px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-medium hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50"
+                    className="flex items-center gap-3 px-8 py-3 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-all disabled:opacity-50"
                   >
                     {saving ? (
                       <>
@@ -822,28 +850,28 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
             </form>
           </div>
         ) : activeTab === 'usage' ? (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-8 shadow-sm">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Usage History</h3>
+          <div className="bg-white rounded-2xl border border-gray-200 p-8">
+            <h3 className="text-xl font-semibold text-gray-900 mb-6">Usage History</h3>
             
             <div className="text-center py-12">
-              <div className="w-20 h-20 bg-gradient-to-r from-indigo-100 to-purple-100 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Activity className="h-10 w-10 text-indigo-600 dark:text-indigo-400" />
+              <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Activity className="h-10 w-10 text-blue-600" />
               </div>
-              <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Usage Data Available</h4>
-              <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+              <h4 className="text-lg font-semibold text-gray-900 mb-2">No Usage Data Available</h4>
+              <p className="text-gray-600 mb-6 max-w-md mx-auto">
                 Usage tracking for this permission is not currently enabled. Enable usage tracking in system settings.
               </p>
               <button
                 onClick={() => router.push('/settings/system')}
-                className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium hover:from-indigo-700 hover:to-purple-700"
+                className="px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700"
               >
                 Go to System Settings
               </button>
             </div>
           </div>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-8 shadow-sm">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Change History</h3>
+          <div className="bg-white rounded-2xl border border-gray-200 p-8">
+            <h3 className="text-xl font-semibold text-gray-900 mb-6">Change History</h3>
             
             <div className="space-y-4">
               {[
@@ -851,23 +879,23 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
                 { action: 'Display name updated', user: 'John Doe', time: 'Jan 5, 2025, 02:15 PM', details: 'Changed from "View Users" to "View User Profiles"' },
                 { action: 'Scope modified', user: 'Jane Smith', time: 'Jan 12, 2025, 09:45 AM', details: 'Changed scope from "global" to "team"' },
               ].map((history, index) => (
-                <div key={index} className="p-4 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                <div key={index} className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="font-medium text-gray-900 dark:text-white">{history.action}</p>
+                      <p className="font-medium text-gray-900">{history.action}</p>
                       <div className="flex items-center gap-4 mt-2">
-                        <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
+                        <span className="text-sm text-gray-600 flex items-center gap-1">
                           <Users className="h-3 w-3" />
                           {history.user}
                         </span>
-                        <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
+                        <span className="text-sm text-gray-600 flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
                           {history.time}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">{history.details}</p>
+                      <p className="text-sm text-gray-500 mt-2">{history.details}</p>
                     </div>
-                    <button className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                    <button className="p-1.5 hover:bg-gray-100 rounded-lg">
                       <Eye className="h-4 w-4 text-gray-500" />
                     </button>
                   </div>
@@ -881,18 +909,18 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full">
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-red-100 dark:bg-red-500/20 rounded-lg">
-                <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+              <div className="p-2 bg-red-100 rounded-lg">
+                <AlertCircle className="h-6 w-6 text-red-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Delete Permission</h3>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">This action cannot be undone</p>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Permission</h3>
+                <p className="text-gray-600 text-sm mt-1">This action cannot be undone</p>
               </div>
             </div>
             
-            <p className="text-gray-700 dark:text-gray-300 mb-6">
+            <p className="text-gray-700 mb-6">
               Are you sure you want to delete <strong>{permission.displayName}</strong>?
               This may affect user access and system functionality.
             </p>
@@ -900,13 +928,13 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
-                className="px-4 py-2.5 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl hover:from-red-700 hover:to-red-800"
+                className="px-4 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700"
               >
                 Delete Permission
               </button>

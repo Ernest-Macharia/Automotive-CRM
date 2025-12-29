@@ -2,6 +2,7 @@
 
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import EditBlueprintPage from '@/components/settings/blueprints/EditBlueprintPage';
+import SettingsLayoutWrapper from '@/components/settings/SettingsLayoutWrapper';
 import { useParams } from 'next/navigation';
 
 export default function EditBlueprintRoute() {
@@ -9,7 +10,9 @@ export default function EditBlueprintRoute() {
   
   return (
     <ProtectedRoute>
-      <EditBlueprintPage blueprintId={params.id as string} />
+      <SettingsLayoutWrapper>
+        <EditBlueprintPage blueprintId={params.id as string} />
+      </SettingsLayoutWrapper>
     </ProtectedRoute>
   );
 }

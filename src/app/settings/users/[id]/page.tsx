@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import UserDetailsPage from '@/components/settings/users/UserDetailsPage';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import SettingsLayoutWrapper from '@/components/settings/SettingsLayoutWrapper';
 
 export default function UserDetailsRoute() {
   const params = useParams();
@@ -31,7 +32,10 @@ export default function UserDetailsRoute() {
   
   return (
     <ProtectedRoute>
-      <UserDetailsPage userId={userId} />
+      <SettingsLayoutWrapper>
+        <UserDetailsPage userId={userId} />
+      </SettingsLayoutWrapper>
+
     </ProtectedRoute>
   );
 }

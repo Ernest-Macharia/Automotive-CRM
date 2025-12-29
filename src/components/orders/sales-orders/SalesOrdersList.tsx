@@ -108,7 +108,7 @@ export default function SalesOrdersList() {
       if (statusFilter !== 'all') params.status = statusFilter;
       
       const response = await salesOrderService.getAllSalesOrders(params);
-      setSalesOrders(response.data);
+      setSalesOrders(response);
     } catch (error) {
       console.error('Error fetching sales orders:', error);
       showToast('Failed to load sales orders', 'error');

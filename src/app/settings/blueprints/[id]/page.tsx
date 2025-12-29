@@ -2,6 +2,7 @@
 
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import BlueprintDetailsPage from '@/components/settings/blueprints/BlueprintDetailsPage';
+import SettingsLayoutWrapper from '@/components/settings/SettingsLayoutWrapper';
 import { useParams } from 'next/navigation';
 
 export default function BlueprintDetailsRoute() {
@@ -9,7 +10,9 @@ export default function BlueprintDetailsRoute() {
   
   return (
     <ProtectedRoute>
-      <BlueprintDetailsPage blueprintId={params.id as string} />
+      <SettingsLayoutWrapper>
+        <BlueprintDetailsPage blueprintId={params.id as string} />
+      </SettingsLayoutWrapper>
     </ProtectedRoute>
   );
 }

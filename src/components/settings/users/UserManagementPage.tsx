@@ -25,9 +25,10 @@ import {
   Activity,
   TrendingUp,
   CalendarDays,
+  EllipsisVertical,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
-import { userService, User } from '@/services/settings/userService';
+import { userService, User, USER_ROLES } from '@/services/settings/userService';
 
 interface UserFilters {
   role: string;
@@ -55,6 +56,7 @@ export default function UserManagementPage({
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<User | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [filters, setFilters] = useState<UserFilters>({
     role: 'all',
@@ -62,7 +64,8 @@ export default function UserManagementPage({
     search: '',
   });
 
-  const roles = ['admin', 'manager', 'technician', 'sales_representative', 'customer_success', 'finance', 'operations'];
+  const usersPerPage = 10;
+  const roles = Object.values(USER_ROLES);
 
   useEffect(() => {
     loadUsers();
@@ -70,12 +73,13 @@ export default function UserManagementPage({
 
   useEffect(() => {
     filterUsers();
+    setCurrentPage(1); // Reset to first page when filters change
   }, [users, filters]);
 
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const data = await userService.getUsers();
+      const data = await userService.getAllUsers();
       setUsers(data);
     } catch (error) {
       console.error('Error loading users:', error);
@@ -93,7 +97,7 @@ export default function UserManagementPage({
       result = result.filter(user => {
         const userName = user.name?.toLowerCase() || '';
         const userEmail = user.email.toLowerCase();
-        const userRole = user.roleName?.toLowerCase() || '';
+        const userRole = userService.getUserRoleName(user).toLowerCase();
         
         return (
           userName.includes(searchTerm) ||
@@ -104,7 +108,7 @@ export default function UserManagementPage({
     }
 
     if (filters.role !== 'all') {
-      result = result.filter(user => user.roleName === filters.role);
+      result = result.filter(user => userService.getUserRoleName(user) === filters.role);
     }
 
     if (filters.status !== 'all') {
@@ -129,7 +133,7 @@ export default function UserManagementPage({
 
   const handleToggleSummaryAccess = async (user: User) => {
     try {
-      const updatedUser = await userService.updateUserSummaryAccess(user.id, !user.canViewSummary);
+      const updatedUser = await userService.updateSummaryAccess(user.id, !user.canViewSummary);
       setUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
       showToast(
         `Summary access ${user.canViewSummary ? 'revoked' : 'granted'} successfully`,
@@ -154,10 +158,11 @@ export default function UserManagementPage({
   };
 
   const handleSelectAll = () => {
-    if (selectedUsers.length === filteredUsers.length) {
+    const currentUsers = getCurrentUsers();
+    if (selectedUsers.length === currentUsers.length) {
       setSelectedUsers([]);
     } else {
-      setSelectedUsers(filteredUsers.map(user => user.id));
+      setSelectedUsers(currentUsers.map(user => user.id));
     }
   };
 
@@ -169,11 +174,21 @@ export default function UserManagementPage({
     );
   };
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+  const getCurrentUsers = () => {
+    const startIndex = (currentPage - 1) * usersPerPage;
+    return filteredUsers.slice(startIndex, startIndex + usersPerPage);
+  };
+  const currentUsers = getCurrentUsers();
+  const indexOfFirstUser = (currentPage - 1) * usersPerPage + 1;
+  const indexOfLastUser = Math.min(currentPage * usersPerPage, filteredUsers.length);
+
   const stats = useMemo(() => ({
     total: users.length,
     active: users.filter(u => u.active).length,
     inactive: users.filter(u => !u.active).length,
-    admins: users.filter(u => u.roleName === 'admin').length,
+    admins: users.filter(u => userService.getUserRoleName(u) === USER_ROLES.ADMIN).length,
     withSummaryAccess: users.filter(u => u.canViewSummary).length,
     recent: users.filter(u => {
       if (!u.createdAt) return false;
@@ -185,13 +200,16 @@ export default function UserManagementPage({
 
   const getRoleBadgeColor = (role: string) => {
     const colors: Record<string, string> = {
-      admin: 'bg-red-500/10 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800',
-      manager: 'bg-blue-500/10 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800',
-      technician: 'bg-green-500/10 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
-      sales_representative: 'bg-purple-500/10 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800',
-      customer_success: 'bg-indigo-500/10 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800',
-      finance: 'bg-amber-500/10 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800',
-      operations: 'bg-gray-500/10 text-gray-700 border-gray-200 dark:bg-gray-700/50 dark:text-gray-300 dark:border-gray-600',
+      [USER_ROLES.ADMIN]: 'bg-red-500/10 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800',
+      [USER_ROLES.MANAGEMENT]: 'bg-blue-500/10 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800',
+      [USER_ROLES.TECHNICIAN]: 'bg-green-500/10 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
+      [USER_ROLES.SALES_REPRESENTATIVE]: 'bg-purple-500/10 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800',
+      'customer_success': 'bg-indigo-500/10 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800',
+      'finance': 'bg-amber-500/10 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800',
+      'operations': 'bg-gray-500/10 text-gray-700 border-gray-200 dark:bg-gray-700/50 dark:text-gray-300 dark:border-gray-600',
+      [USER_ROLES.SUPPORT]: 'bg-emerald-500/10 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800',
+      [USER_ROLES.CUSTOMER]: 'bg-stone-500/10 text-stone-700 border-stone-200 dark:bg-stone-900/30 dark:text-stone-400 dark:border-stone-800',
+      [USER_ROLES.DEVELOPER]: 'bg-violet-500/10 text-violet-700 border-violet-200 dark:bg-violet-900/30 dark:text-violet-400 dark:border-violet-800',
     };
     return colors[role] || 'bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300';
   };
@@ -237,7 +255,7 @@ export default function UserManagementPage({
 
   const UserTableRow = ({ user }: { user: User }) => (
     <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-      <td className="px-6 py-4">
+      <td className="px-3 py-3">
         <input
           type="checkbox"
           checked={selectedUsers.includes(user.id)}
@@ -245,74 +263,83 @@ export default function UserManagementPage({
           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:border-gray-600"
         />
       </td>
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-medium">
+      <td className="px-3 py-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="h-8 w-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-md flex items-center justify-center flex-shrink-0">
+            <span className="text-white text-xs font-medium">
               {getInitials(user.name)}
             </span>
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="font-medium text-gray-900 dark:text-white truncate" title={user.name || 'No Name'}>
+          <div className="min-w-0">
+            <div className="font-medium text-gray-900 dark:text-white text-sm truncate" title={user.name || 'No Name'}>
               {user.name || 'No Name'}
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-[200px]" title={user.email}>
+            <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[160px]" title={user.email}>
               {user.email}
             </div>
           </div>
         </div>
       </td>
-      <td className="px-6 py-4">
-        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRoleBadgeColor(user.roleName)} whitespace-nowrap`}>
-          {getRoleDisplayName(user.roleName)}
+      <td className="px-3 py-3">
+        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeColor(userService.getUserRoleName(user))} whitespace-nowrap`}>
+          {getRoleDisplayName(userService.getUserRoleDisplayName(user))}
         </span>
       </td>
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-2">
+      <td className="px-3 py-3">
+        <div className="flex items-center gap-1">
           {user.active ? (
-            <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+            <CheckCircle className="h-3.5 w-3.5 text-green-500" />
           ) : (
-            <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+            <XCircle className="h-3.5 w-3.5 text-red-500" />
           )}
-          <span className="text-sm whitespace-nowrap">{user.active ? 'Active' : 'Inactive'}</span>
+          <span className="text-xs">{user.active ? 'Active' : 'Inactive'}</span>
         </div>
       </td>
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-2">
+      <td className="px-3 py-3">
+        <div className="flex items-center gap-1">
           {user.canViewSummary ? (
-            <Eye className="h-4 w-4 text-blue-500 flex-shrink-0" />
+            <Eye className="h-3.5 w-3.5 text-blue-500" />
           ) : (
-            <EyeOff className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            <EyeOff className="h-3.5 w-3.5 text-gray-400" />
           )}
-          <span className="text-xs whitespace-nowrap">{user.canViewSummary ? 'Yes' : 'No'}</span>
+          <span className="text-xs">{user.canViewSummary ? 'Yes' : 'No'}</span>
         </div>
       </td>
-      <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
+      <td className="px-3 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
         {formatDate(user.createdAt)}
       </td>
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => router.push(`/settings/users/${user.id}`)}
-            className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700 rounded-lg transition-colors"
-            title="View Details"
-          >
-            <Eye className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => router.push(`/settings/users/${user.id}/edit`)}
-            className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
-            title="Edit User"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setShowDeleteConfirm(user)}
-            className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10 rounded-lg transition-colors"
-            title="Delete User"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+      <td className="px-3 py-3">
+        <div className="flex items-center justify-end">
+          <div className="relative group">
+            <button className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700 rounded-md transition-colors">
+              <EllipsisVertical className="h-4 w-4" />
+            </button>
+            <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-150">
+              <div className="py-1">
+                <button
+                  onClick={() => router.push(`/settings/users/${user.id}`)}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-t-lg"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  View Details
+                </button>
+                <button
+                  onClick={() => router.push(`/settings/users/${user.id}/edit`)}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-500/10"
+                >
+                  <Edit className="h-3.5 w-3.5" />
+                  Edit User
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(user)}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10 rounded-b-lg"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete User
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </td>
     </tr>
@@ -510,33 +537,107 @@ export default function UserManagementPage({
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
-                  <th className="px-6 py-4 w-12">
+                  <th className="px-3 py-3 w-8">
                     <input
                       type="checkbox"
-                      checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0}
+                      checked={selectedUsers.length === currentUsers.length && currentUsers.length > 0}
                       onChange={handleSelectAll}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:border-gray-600"
                     />
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider min-w-[250px]">User</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Role</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Summary Access</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Created</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider min-w-[180px]">User</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">Role</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24">Status</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28">Summary</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28">Created</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-12">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredUsers.map((user, index) => {
+                {currentUsers.map((user, index) => {
                   const key = user.id 
                     ? `${user.id}-${user.email}-${index}`
                     : `user-${user.email}-${index}`;
-
                   return <UserTableRow key={key} user={user} />;
                 })}
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Showing {indexOfFirstUser} to {indexOfLastUser} of {filteredUsers.length} users
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Previous
+                </button>
+
+                {[...Array(totalPages)].map((_, i) => {
+                  const pageNum = i + 1;
+                  if (totalPages <= 5) {
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-10 h-10 rounded-lg ${
+                          currentPage === pageNum
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  }
+
+                  if (
+                    pageNum === 1 ||
+                    pageNum === totalPages ||
+                    (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                  ) {
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-10 h-10 rounded-lg ${
+                          currentPage === pageNum
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  }
+
+                  if (pageNum === 2 && currentPage > 3) {
+                    return <span key="ellipsis-start" className="px-2">...</span>;
+                  }
+                  if (pageNum === totalPages - 1 && currentPage < totalPages - 2) {
+                    return <span key="ellipsis-end" className="px-2">...</span>;
+                  }
+
+                  return null;
+                })}
+
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
