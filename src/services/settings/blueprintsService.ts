@@ -107,8 +107,11 @@ class BlueprintsService {
    * Create a new blueprint
    * POST /api/v1/blueprints
    */
+  // Update your createBlueprint method with better debugging
   async createBlueprint(data: CreateBlueprintData): Promise<Blueprint> {
     try {
+      console.log('🔍 ORIGINAL FRONTEND DATA:', JSON.stringify(data, null, 2));
+      
       // Transform frontend data to match backend DTO
       const backendData = {
         name: data.name,
@@ -121,16 +124,44 @@ class BlueprintsService {
           exitActions: stage.exitActions || []
         })),
         description: data.description,
-        active: data.isActive || false
+        // Try both 'active' and 'isActive' to see what backend expects
+        active: data.isActive !== undefined ? data.isActive : true,
+        isActive: data.isActive !== undefined ? data.isActive : true
       };
 
+      console.log('🔍 BACKEND DATA BEING SENT:', JSON.stringify(backendData, null, 2));
+      console.log('🔍 Endpoint: /blueprints');
+      
+      // Fix: Add both type arguments for apiClient.post
       const response = await apiClient.post<typeof backendData, any>(
-        '/blueprints',
+        '/blueprints/',
         backendData
       );
+      
+      console.log('✅ SUCCESS Response:', JSON.stringify(response, null, 2));
       return normalizeBlueprint(response);
-    } catch (error) {
-      console.error('Error creating blueprint:', error);
+    } catch (error: any) {
+      console.error('❌ ERROR Details:');
+      console.error('Message:', error.message);
+      
+      // Axios specific error details
+      if (error.isAxiosError) {
+        console.error('❌ Axios Error Details:');
+        console.error('URL:', error.config?.url);
+        console.error('Method:', error.config?.method);
+        console.error('Request Data:', JSON.parse(error.config?.data || '{}'));
+        console.error('Status:', error.response?.status);
+        console.error('Status Text:', error.response?.statusText);
+        console.error('Response Headers:', error.response?.headers);
+        console.error('Response Data:', error.response?.data);
+        
+        // Try to parse the error message
+        if (error.response?.data) {
+          console.error('❌ Backend Error Message:', error.response.data.message || error.response.data);
+          console.error('❌ Backend Error Code:', error.response.data.statusCode);
+        }
+      }
+      
       throw error;
     }
   }
