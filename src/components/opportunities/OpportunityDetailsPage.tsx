@@ -27,7 +27,7 @@ interface LeadScoreBreakdown {
 interface OpportunityWithDetails extends Opportunity {
   invoices?: any[];
   payments?: any[];
-  opportunityType?: 'SERVICE' | 'PRODUCT';
+  opportunityType?: 'SERVICE' | 'SALE' | 'REPAIR' | 'MAINTENANCE' | 'INSPECTION';
   servicesProducts?: Array<{
     id?: string;
     title: string;
@@ -1143,71 +1143,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
             </div>
 
             <div className="space-y-6">
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 shadow-lg">
-                <h3 className="font-semibold text-gray-800 mb-4">Quick Stats</h3>
-                
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-gradient-to-br from-blue-100 to-blue-50 rounded-lg">
-                        <FileText className="h-4 w-4 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Quotes</p>
-                        <p className="text-lg font-semibold text-gray-900">{opportunity.quotes?.length || 0}</p>
-                      </div>
-                    </div>
-                    <button className="text-xs text-blue-600 hover:text-blue-700 font-medium">
-                      Create
-                    </button>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-gradient-to-br from-green-100 to-green-50 rounded-lg">
-                        <Briefcase className="h-4 w-4 text-green-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Job Cards</p>
-                        <p className="text-lg font-semibold text-gray-900">{opportunity.jobCards?.length || 0}</p>
-                      </div>
-                    </div>
-                    <button className="text-xs text-blue-600 hover:text-blue-700 font-medium">
-                      Create
-                    </button>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-gradient-to-br from-purple-100 to-purple-50 rounded-lg">
-                        <Receipt className="h-4 w-4 text-purple-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Invoices</p>
-                        <p className="text-lg font-semibold text-gray-900">{opportunity.invoices?.length || 0}</p>
-                      </div>
-                    </div>
-                    <button className="text-xs text-blue-600 hover:text-blue-700 font-medium">
-                      View All
-                    </button>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-gradient-to-br from-amber-100 to-amber-50 rounded-lg">
-                        <Wallet className="h-4 w-4 text-amber-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">Payments</p>
-                        <p className="text-lg font-semibold text-gray-900">{opportunity.payments?.length || 0}</p>
-                      </div>
-                    </div>
-                    <button className="text-xs text-blue-600 hover:text-blue-700 font-medium">
-                      View All
-                    </button>
-                  </div>
-                </div>
-              </div>
 
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 shadow-lg">
                 <h3 className="font-semibold text-gray-800 mb-4">Recent Activity</h3>

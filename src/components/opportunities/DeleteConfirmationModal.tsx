@@ -1,4 +1,3 @@
-// components/opportunities/DeleteConfirmationModal.tsx
 'use client';
 
 import { useState } from 'react';

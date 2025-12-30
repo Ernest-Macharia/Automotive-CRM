@@ -34,7 +34,7 @@ interface ServiceProductForm {
   id?: string;
   title: string;
   description: string;
-  type: 'SERVICE' | 'PRODUCT';
+  type: 'SERVICE' | 'SALE';
   quantity: number;
   unitPrice: number;
   discount: number;
@@ -151,7 +151,6 @@ const sources = [
   { value: 'website', label: 'Website' },
   { value: 'referral', label: 'Referral' },
   { value: 'manual', label: 'Manual' },
-  { value: 'test', label: 'Test' },
   { value: 'phone', label: 'Phone Call' },
   { value: 'email', label: 'Email' },
   { value: 'social_media', label: 'Social Media' }
@@ -159,7 +158,7 @@ const sources = [
 
 const opportunityTypes = [
   { value: 'SERVICE', label: 'Service', icon: Settings, color: 'bg-blue-100 text-blue-600' },
-  { value: 'PRODUCT', label: 'Product', icon: Package, color: 'bg-green-100 text-green-600' }
+  { value: 'SALE', label: 'Product', icon: Package, color: 'bg-green-100 text-green-600' }
 ];
 
 export default function EditOpportunityPage() {
@@ -184,9 +183,9 @@ export default function EditOpportunityPage() {
   
   const [formData, setFormData] = useState({
     type: 'individual' as 'individual' | 'organization',
-    source: 'walk_in',
+    source: 'walk_in' as 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner',
     subject: '',
-    opportunityType: 'SERVICE' as 'SERVICE' | 'PRODUCT',
+    opportunityType: 'SERVICE' as 'SERVICE' | 'SALE',
     customer: {
       name: '',
       email: '',
@@ -314,12 +313,16 @@ export default function EditOpportunityPage() {
       
       // Get customer fields safely
       const customer = data.customer || {};
+
+      const opportunityType = data.opportunityType || 'SERVICE';
+      const mappedOpportunityType: 'SERVICE' | 'SALE' = 
+        opportunityType === 'SALE' ? 'SALE' : 'SERVICE';
       
       setFormData({
         type: data.type || 'individual',
-        source: data.source || 'walk_in',
+        source: data.source as any || 'walk_in',
         subject: data.subject || '',
-        opportunityType: data.opportunityType || 'SERVICE',
+        opportunityType: mappedOpportunityType,
         customer: {
           name: customer.name || '',
           email: customer.email || '',
@@ -506,6 +509,22 @@ export default function EditOpportunityPage() {
         customerName = formData.customer.companyName || '';
       }
 
+      const mappedServicesProducts = formData.servicesProducts.map(item => {
+        const mappedType: 'SERVICE' | 'PRODUCT' | 'PART' | 'LABOR' = 
+          item.type === 'SALE' ? 'PRODUCT' : 'SERVICE';
+        
+        return {
+          title: item.title,
+          description: item.description,
+          type: mappedType,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: item.discount,
+          subtotal: item.subtotal,
+          total: item.total
+        };
+      });
+
       // Prepare update data according to UpdateOpportunityData interface
       const updateData = {
         type: formData.type,
@@ -515,7 +534,7 @@ export default function EditOpportunityPage() {
         customer: {
           name: customerName,
           email: formData.customer.email,
-          phone: `+254${formData.customer.phone}`, // Default to Kenya
+          phone: `+254${formData.customer.phone}`,
           ...(formData.type === 'organization' && {
             companyName: formData.customer.companyName,
             companyAddress: formData.customer.companyAddress,
@@ -539,21 +558,13 @@ export default function EditOpportunityPage() {
           chassisNumber: vehicle.chassisNumber,
           bodyType: vehicle.bodyType
         })),
-        servicesProducts: formData.servicesProducts.map(item => ({
-          title: item.title,
-          description: item.description,
-          type: item.type,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          discount: item.discount,
-          subtotal: item.subtotal,
-          total: item.total
-        })),
+        servicesProducts: mappedServicesProducts,
         notes: formData.notes,
         subtotal: calculateSubtotal(),
         totalDiscount: calculateTotalDiscount(),
         total: calculateTotal(),
-        status: opportunity?.status as 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost' | undefined
+        status: opportunity?.status as 'new' | 'attempted_to_contact' | 'prospecting'
+          | 'appointment_scheduled' | 'non_progressive' | 'lost' | 'won' | undefined
       };
 
       console.log('Updating opportunity with data:', updateData);
@@ -653,7 +664,8 @@ export default function EditOpportunityPage() {
               }}
               onFocus={() => setShowDropdown(index)}
               placeholder={placeholder}
-              className="pl-3 pr-8 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+              className="pl-3 pr-8 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1
+                focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
             />
             <button
               type="button"
@@ -713,7 +725,8 @@ export default function EditOpportunityPage() {
             value={vehicleValue}
             onChange={(e) => handleVehicleChange(index, field, e.target.value)}
             placeholder={placeholder}
-            className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+            className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none
+              focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
           />
         </div>
       );
@@ -1452,7 +1465,7 @@ export default function EditOpportunityPage() {
                             // Update all items to match the selected type
                             const updatedItems = formData.servicesProducts.map(item => ({
                               ...item,
-                              type: type.value as 'SERVICE' | 'PRODUCT'
+                              type: type.value as 'SERVICE' | 'SALE'
                             }));
                             setFormData(prev => ({ ...prev, servicesProducts: updatedItems }));
                           }}
@@ -1746,7 +1759,7 @@ export default function EditOpportunityPage() {
                     <div className="text-xs text-gray-500 mt-2">
                       {formData.servicesProducts.length} item{formData.servicesProducts.length !== 1 ? 's' : ''} | 
                       {formData.servicesProducts.filter(item => item.type === 'SERVICE').length} service{formData.servicesProducts.filter(item => item.type === 'SERVICE').length !== 1 ? 's' : ''} | 
-                      {formData.servicesProducts.filter(item => item.type === 'PRODUCT').length} product{formData.servicesProducts.filter(item => item.type === 'PRODUCT').length !== 1 ? 's' : ''}
+                      {formData.servicesProducts.filter(item => item.type === 'SALE').length} product{formData.servicesProducts.filter(item => item.type === 'SALE').length !== 1 ? 's' : ''}
                     </div>
                   </div>
                 </div>

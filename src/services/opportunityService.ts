@@ -143,7 +143,7 @@ export interface UpdateOpportunityData {
   subject?: string;
   type?: 'individual' | 'organization';
   status?: 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost' | 'won';
-  source?: 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner';
+  source: 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner';
   assignedTo?: string;
   isNurturing?: boolean;
   notes?: string;

@@ -35,7 +35,7 @@ interface ServiceProduct {
   id: string;
   title: string;
   description: string;
-  type: 'SERVICE' | 'PRODUCT';
+  type: 'SERVICE' | 'SALE' | 'REPAIR' | 'MAINTENANCE' | 'INSPECTION';
   quantity: number;
   unitPrice: number;
   discount: number;
@@ -52,7 +52,7 @@ interface CountryCode {
 
 interface OpportunityFormData {
   accountType: 'individual' | 'organization';
-  source: string;
+  source?: 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner';
   firstName: string;
   lastName: string;
   companyName: string;
@@ -63,7 +63,7 @@ interface OpportunityFormData {
   servicesProducts: ServiceProduct[];
   notes: string;
   currentStep: number;
-  opportunityType: 'SERVICE' | 'PRODUCT';
+  opportunityType: 'SERVICE' | 'SALE' | 'REPAIR' | 'MAINTENANCE' | 'INSPECTION';
   contactPersonName?: string;
   contactPersonPhone?: string;
   contactPersonEmail?: string;
@@ -361,15 +361,15 @@ export default function CreateOpportunityPage() {
     { value: 'website', label: 'Website' },
     { value: 'referral', label: 'Referral' },
     { value: 'manual', label: 'Manual' },
-    { value: 'test', label: 'Test' },
     { value: 'phone', label: 'Phone Call' },
     { value: 'email', label: 'Email' },
-    { value: 'social_media', label: 'Social Media' }
+    { value: 'social_media', label: 'Social Media' },
+    { value: 'partner', label: 'Partner' },
   ];
 
   const opportunityTypes = [
     { value: 'SERVICE', label: 'Service', icon: Settings, color: 'bg-blue-100 text-blue-600' },
-    { value: 'PRODUCT', label: 'Product', icon: Package, color: 'bg-green-100 text-green-600' }
+    { value: 'SALE', label: 'Product', icon: Package, color: 'bg-green-100 text-green-600' },
   ];
 
   const totalSteps = 3;
@@ -747,7 +747,6 @@ export default function CreateOpportunityPage() {
     setTimeout(() => setDraftSaved(false), 3000);
   };
 
-  // Replace the entire handleSubmit function with this:
   const handleSubmit = async () => {
     if (!validateStep()) {
       showToast('Please fix the validation errors before submitting.', 'error', 3000);
@@ -770,6 +769,37 @@ export default function CreateOpportunityPage() {
 
       // Determine the package type based on opportunity type
       const packageType = formData.opportunityType === 'SERVICE' ? 'work_order' : 'sales_order';
+
+      // Map service products to match the expected type
+      const mappedServicesProducts = formData.servicesProducts.map(item => {
+        // Map opportunity types to service/product types
+        let mappedType: 'SERVICE' | 'PRODUCT' | 'PART' | 'LABOR';
+        
+        switch (formData.opportunityType) {
+          case 'SERVICE':
+          case 'REPAIR':
+          case 'MAINTENANCE':
+          case 'INSPECTION':
+            mappedType = 'SERVICE';
+            break;
+          case 'SALE':
+            mappedType = 'PRODUCT';
+            break;
+          default:
+            mappedType = 'SERVICE';
+        }
+
+        return {
+          title: item.title,
+          description: item.description,
+          type: mappedType,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: item.discount,
+          subtotal: item.subtotal,
+          total: item.total
+        };
+      });
 
       const apiFormData: CreateOpportunityData = {
         type: formData.accountType,
@@ -800,13 +830,7 @@ export default function CreateOpportunityPage() {
           ? formData.vehicles.map(mapVehicle)
           : undefined,
 
-        servicesProducts: formData.servicesProducts?.length
-          ? formData.servicesProducts.map(item => ({
-              ...item,
-              // Ensure type matches the selected opportunity type
-              type: formData.opportunityType,
-            }))
-          : undefined,
+        servicesProducts: mappedServicesProducts.length > 0 ? mappedServicesProducts : undefined,
 
         notes: formData.notes || undefined,
         subtotal,
@@ -814,21 +838,13 @@ export default function CreateOpportunityPage() {
         total,
       };
 
-      console.log('Creating opportunity with type:', formData.opportunityType);
-      console.log('Package type will be:', packageType);
-      console.log('Services/Products count:', formData.servicesProducts?.length);
-
       const result = await opportunityService.createOpportunity(apiFormData);
 
       setCreatedOpportunity(result);
       setShowSuccessModal(true);
       localStorage.removeItem('opportunityDraft');
       
-      // Show success message based on type
-      const successMessage = formData.opportunityType === 'SERVICE' 
-        ? 'Work Order created successfully!' 
-        : 'Sales Order created successfully!';
-      showToast(successMessage, 'success', 3000);
+      showToast('Opportunity created successfully!', 'success', 3000);
 
     } catch (error: any) {
       handleCreateOpportunityError(error);
@@ -1976,11 +1992,11 @@ export default function CreateOpportunityPage() {
                             key={type.value}
                             type="button"
                             onClick={() => {
-                              handleInputChange('opportunityType', type.value);
+                              handleInputChange('opportunityType', type.value as 'SERVICE' | 'SALE' | 'REPAIR' | 'MAINTENANCE' | 'INSPECTION');
                               // Update all items to match the selected type
                               const updatedItems = formData.servicesProducts.map(item => ({
                                 ...item,
-                                type: type.value as 'SERVICE' | 'PRODUCT'
+                                type: type.value as 'SERVICE' | 'SALE' | 'REPAIR' | 'MAINTENANCE' | 'INSPECTION'
                               }));
                               setFormData(prev => ({ ...prev, servicesProducts: updatedItems }));
                             }}
@@ -2332,7 +2348,7 @@ export default function CreateOpportunityPage() {
                         <div className="text-xs text-gray-500 mt-2">
                           {formData.servicesProducts.length} item{formData.servicesProducts.length !== 1 ? 's' : ''} | 
                           {formData.servicesProducts.filter(item => item.type === 'SERVICE').length} service{formData.servicesProducts.filter(item => item.type === 'SERVICE').length !== 1 ? 's' : ''} | 
-                          {formData.servicesProducts.filter(item => item.type === 'PRODUCT').length} product{formData.servicesProducts.filter(item => item.type === 'PRODUCT').length !== 1 ? 's' : ''}
+                          {formData.servicesProducts.filter(item => item.type === 'SALE').length} product{formData.servicesProducts.filter(item => item.type === 'SALE').length !== 1 ? 's' : ''}
                         </div>
                       </div>
                     </div>
