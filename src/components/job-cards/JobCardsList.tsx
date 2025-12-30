@@ -81,11 +81,9 @@ export default function JobCardsList() {
   const statusOptions = [
     { value: 'all', label: 'All Status' },
     { value: 'pending', label: 'Pending' },
-    { value: 'assigned', label: 'Assigned' },
     { value: 'in_progress', label: 'In Progress' },
     { value: 'completed', label: 'Completed' },
     { value: 'cancelled', label: 'Cancelled' },
-    { value: 'on_hold', label: 'On Hold' },
   ];
 
   const priorityOptions = [
@@ -106,7 +104,7 @@ export default function JobCardsList() {
       if (priorityFilter !== 'all') params.priority = priorityFilter;
       
       const response = await jobCardService.getAllJobCards(params);
-      setJobCards(response.data || []);
+      setJobCards(response || []);
     } catch (error) {
       console.error('Error fetching job cards:', error);
       showToast('Failed to load job cards', 'error');
@@ -166,7 +164,13 @@ export default function JobCardsList() {
   };
 
   const getStatusColor = (status: string) => {
-    return jobCardService.getStatusColor(status || 'pending');
+    switch (status?.toLowerCase()) {
+      case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'in_progress': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'completed': return 'bg-green-100 text-green-800 border-green-200';
+      case 'cancelled': return 'bg-red-100 text-red-800 border-red-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
   };
 
   const getPriorityColor = (priority: string) => {
@@ -211,7 +215,7 @@ export default function JobCardsList() {
 
   const getStatusText = (status: any) => {
     if (!status) return 'PENDING';
-    return status.replace('_', ' ').toUpperCase();
+    return status.toUpperCase();
   };
 
   return (

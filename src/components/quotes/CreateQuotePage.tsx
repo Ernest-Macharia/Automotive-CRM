@@ -1,18 +1,26 @@
-// components/quotes/CreateQuotePage.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   FileText, ArrowLeft, Save, Plus, Trash2,
-  DollarSign, Percent, ShoppingBag, Loader2,
+  DollarSign, ShoppingBag, Loader2,
   Calendar, Building, Car, Eye, User,
-  CheckCircle, Clock, AlertCircle
+  CheckCircle, Clock, AlertCircle, Package
 } from 'lucide-react';
-import { quoteService, QuoteItem } from '@/services/quoteService';
-import { salesOrderService } from '@/services/salesOrderService';
+import { quoteService } from '@/services/quoteService';
+import { opportunityService, Opportunity } from '@/services/opportunityService';
 import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
+
+interface QuoteItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  productId?: string;
+  serviceId?: string;
+}
 
 export default function CreateQuotePage() {
   const router = useRouter();
@@ -21,124 +29,117 @@ export default function CreateQuotePage() {
   
   const [loading, setLoading] = useState(false);
   const [generatingNumber, setGeneratingNumber] = useState(false);
-  const [salesOrder, setSalesOrder] = useState<any>(null);
+  const [loadingOpportunity, setLoadingOpportunity] = useState(false);
+  const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [formData, setFormData] = useState({
     quoteNumber: '',
     opportunityId: '',
     vehicleId: '',
-    items: [] as Array<{
-      description: string;
-      quantity: number;
-      unitPrice: number;
-      total: number;
-      sku?: string;
-      taxRate?: number;
-      discount?: number;
-    }>,
-    subtotal: 0,
-    tax: 0,
+    items: [] as QuoteItem[],
     totalAmount: 0,
     notes: '',
-    terms: 'Payment due in 30 days. Prices subject to change.',
-    validUntil: '',
-    status: 'draft' as 'draft' | 'pending',
   });
 
-  const taxRate = 16; // Default VAT rate in Kenya
-  const orderId = searchParams.get('orderId');
-  const source = searchParams.get('source');
+  const opportunityId = searchParams.get('opportunityId');
+  const vehicleId = searchParams.get('vehicleId');
 
   useEffect(() => {
     generateQuoteNumber();
     
-    if (orderId && source === 'sales-order') {
-      loadSalesOrderData(orderId);
+    // Load opportunity data if ID is provided
+    if (opportunityId) {
+      loadOpportunityData(opportunityId);
     }
-  }, [orderId, source]);
+  }, [opportunityId]);
 
   const generateQuoteNumber = async () => {
     try {
       setGeneratingNumber(true);
       const number = await quoteService.generateQuoteNumber();
       setFormData(prev => ({ ...prev, quoteNumber: number }));
-      
-      // Set default valid until (30 days from now)
-      const thirtyDaysLater = new Date();
-      thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
-      setFormData(prev => ({ 
-        ...prev, 
-        validUntil: thirtyDaysLater.toISOString().split('T')[0]
-      }));
     } catch (error) {
       console.error('Error generating quote number:', error);
+      // Fallback quote number
+      const year = new Date().getFullYear();
+      const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
       setFormData(prev => ({ 
         ...prev, 
-        quoteNumber: `Q-${new Date().getFullYear()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-        validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        quoteNumber: `Q-${year}-${random}`
       }));
     } finally {
       setGeneratingNumber(false);
     }
   };
 
-  const loadSalesOrderData = async (id: string) => {
+  const loadOpportunityData = async (id: string) => {
     try {
-      setLoading(true);
-      const order = await salesOrderService.getSalesOrderById(id);
-      setSalesOrder(order);
+      setLoadingOpportunity(true);
+      const opportunityData = await opportunityService.getOpportunityById(id);
+      setOpportunity(opportunityData);
       
-      // Pre-fill form with sales order data
-      const items = order.lineItems?.map((item: any) => ({
-        description: item.description || item.productName || 'Product/Service',
+      // Get first vehicle if available
+      const firstVehicle = opportunityData.vehicles?.[0];
+      const vehicleId = firstVehicle?._id || firstVehicle?.id;
+      
+      // Pre-fill form with opportunity data
+      const items: QuoteItem[] = opportunityData.servicesProducts?.map((item: any) => ({
+        description: item.title || item.description || 'Product/Service',
         quantity: item.quantity || 1,
         unitPrice: item.unitPrice || 0,
-        total: item.total || 0,
-        sku: item.sku || ''
+        total: item.total || (item.quantity || 1) * (item.unitPrice || 0),
+        productId: item._id || item.id
       })) || [];
       
-      const subtotal = items.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
-      const tax = subtotal * (taxRate / 100);
-      const totalAmount = subtotal + tax;
+      // If no servicesProducts, create a default item
+      if (items.length === 0) {
+        items.push({
+          description: 'Service for ' + (opportunityData.subject || 'Opportunity'),
+          quantity: 1,
+          unitPrice: opportunityData.total || 0,
+          total: opportunityData.total || 0
+        });
+      }
+      
+      const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
       
       setFormData(prev => ({
         ...prev,
-        opportunityId: typeof order.opportunityId === 'object' 
-          ? order.opportunityId._id 
-          : (order.opportunityId || ''),
+        opportunityId: id,
+        vehicleId: vehicleId || '',
         items,
-        subtotal,
-        tax,
         totalAmount,
-        notes: `Quote generated from Sales Order ${order.salesOrderNumber}`,
-        validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        notes: `Quote for opportunity: ${opportunityData.subject}`
       }));
       
     } catch (error) {
-      console.error('Error loading sales order:', error);
-      showToast('Failed to load sales order data', 'error');
+      console.error('Error loading opportunity:', error);
+      showToast('Failed to load opportunity data', 'error');
+      // Still set the ID even if loading fails
+      setFormData(prev => ({ ...prev, opportunityId: id }));
     } finally {
-      setLoading(false);
+      setLoadingOpportunity(false);
     }
   };
 
-  const calculateItemTotal = (item: any) => {
-    const itemTotal = item.quantity * item.unitPrice;
-    const discountAmount = item.discount ? (itemTotal * item.discount / 100) : 0;
-    const taxAmount = item.taxRate ? ((itemTotal - discountAmount) * item.taxRate / 100) : 0;
-    return itemTotal - discountAmount + taxAmount;
+  const calculateItemTotal = (quantity: number, unitPrice: number): number => {
+    return quantity * unitPrice;
   };
 
-  const calculateTotals = () => {
-    const subtotal = formData.items.reduce((sum, item) => sum + calculateItemTotal(item), 0);
-    const tax = subtotal * (taxRate / 100);
-    const totalAmount = subtotal + tax;
+  const calculateTotalAmount = (items: QuoteItem[]): number => {
+    return items.reduce((sum, item) => sum + item.total, 0);
+  };
+
+  const updateItemTotal = (index: number) => {
+    const newItems = [...formData.items];
+    const item = newItems[index];
+    item.total = calculateItemTotal(item.quantity, item.unitPrice);
     
-    setFormData(prev => ({ ...prev, subtotal, tax, totalAmount }));
+    setFormData(prev => ({ 
+      ...prev, 
+      items: newItems,
+      totalAmount: calculateTotalAmount(newItems)
+    }));
   };
-
-  useEffect(() => {
-    calculateTotals();
-  }, [formData.items]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -147,65 +148,69 @@ export default function CreateQuotePage() {
   const handleItemChange = (index: number, field: string, value: string | number) => {
     const newItems = [...formData.items];
     
-    if (field === 'quantity' || field === 'unitPrice' || field === 'taxRate' || field === 'discount') {
-      newItems[index] = {
-        ...newItems[index],
-        [field]: Number(value)
-      };
-      
+    if (field === 'description') {
+      newItems[index] = { ...newItems[index], [field]: value.toString() };
+    } else if (field === 'quantity' || field === 'unitPrice') {
+      newItems[index] = { ...newItems[index], [field]: Number(value) };
       // Recalculate item total
-      newItems[index].total = calculateItemTotal(newItems[index]);
+      updateItemTotal(index);
     } else {
       newItems[index] = { ...newItems[index], [field]: value };
     }
-    
-    setFormData(prev => ({ ...prev, items: newItems }));
   };
 
   const addItem = () => {
+    const newItems = [...formData.items, { 
+      description: '', 
+      quantity: 1, 
+      unitPrice: 0, 
+      total: 0
+    }];
+    
     setFormData(prev => ({
       ...prev,
-      items: [...prev.items, { 
-        description: '', 
-        quantity: 1, 
-        unitPrice: 0, 
-        total: 0,
-        sku: ''
-      }]
+      items: newItems,
+      totalAmount: calculateTotalAmount(newItems)
     }));
   };
 
   const removeItem = (index: number) => {
     if (formData.items.length > 1) {
       const newItems = formData.items.filter((_, i) => i !== index);
-      setFormData(prev => ({ ...prev, items: newItems }));
+      setFormData(prev => ({ 
+        ...prev, 
+        items: newItems,
+        totalAmount: calculateTotalAmount(newItems)
+      }));
     }
   };
 
-  const validateForm = () => {
-    if (!formData.quoteNumber.trim()) {
-      showToast('Quote number is required', 'error');
-      return false;
-    }
-    
+  const validateForm = (): boolean => {
     if (!formData.opportunityId.trim()) {
-      showToast('Opportunity is required', 'error');
+      showToast('Opportunity ID is required', 'error');
       return false;
     }
     
-    for (const item of formData.items) {
+    if (formData.items.length === 0) {
+      showToast('At least one item is required', 'error');
+      return false;
+    }
+    
+    for (let i = 0; i < formData.items.length; i++) {
+      const item = formData.items[i];
+      
       if (!item.description.trim()) {
-        showToast('All items must have a description', 'error');
+        showToast(`Item ${i + 1}: Description is required`, 'error');
         return false;
       }
       
       if (item.quantity <= 0) {
-        showToast('Quantity must be greater than 0', 'error');
+        showToast(`Item ${i + 1}: Quantity must be greater than 0`, 'error');
         return false;
       }
       
       if (item.unitPrice <= 0) {
-        showToast('Unit price must be greater than 0', 'error');
+        showToast(`Item ${i + 1}: Unit price must be greater than 0`, 'error');
         return false;
       }
     }
@@ -227,47 +232,23 @@ export default function CreateQuotePage() {
     
     try {
       const quoteData = {
-        ...formData,
+        quoteNumber: formData.quoteNumber || undefined,
+        opportunityId: formData.opportunityId,
+        vehicleId: formData.vehicleId || undefined,
         items: formData.items.map(item => ({
           description: item.description,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          total: item.total,
-          sku: item.sku,
-          taxRate: item.taxRate,
-          discount: item.discount
-        }))
+          total: item.total
+        })),
+        totalAmount: formData.totalAmount,
+        notes: formData.notes || undefined,
       };
       
       const quote = await quoteService.createQuote(quoteData);
       
-      // Update sales order with quote ID if from sales order
-      if (orderId && source === 'sales-order') {
-        try {
-          await salesOrderService.updateSalesOrder(orderId, { 
-            quoteId: quote.id 
-          } as any);
-        } catch (updateError) {
-          console.error('Error updating sales order:', updateError);
-          // Continue even if update fails
-        }
-        
-        showToast('Quote created and linked to sales order!', 'success');
-        
-        // Ask if user wants to create invoice
-        setTimeout(() => {
-          const createInvoice = window.confirm('Quote created successfully! Would you like to create an invoice now?');
-          if (createInvoice) {
-            router.push(`/invoices/create?quoteId=${quote.id}&orderId=${orderId}`);
-            return;
-          }
-          router.push(`/quotes/${quote.id}`);
-        }, 100);
-        
-      } else {
-        showToast('Quote created successfully!', 'success');
-        router.push(`/quotes/${quote.id}`);
-      }
+      showToast('Quote created successfully!', 'success');
+      router.push(`/quotes/${quote.id}`);
       
     } catch (error: any) {
       console.error('Error creating quote:', error);
@@ -279,8 +260,21 @@ export default function CreateQuotePage() {
 
   const handleClose = () => {
     if (!loading) {
-      router.push(orderId ? `/orders/sales-orders/${orderId}` : '/quotes');
+      if (opportunityId) {
+        router.push(`/opportunities/${opportunityId}`);
+      } else {
+        router.push('/quotes');
+      }
     }
+  };
+
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat('en-KE', {
+      style: 'currency',
+      currency: 'KES',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
   };
 
   return (
@@ -302,10 +296,10 @@ export default function CreateQuotePage() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-white">
-                  {salesOrder ? `Create Quote from ${salesOrder.salesOrderNumber}` : 'Create New Quote'}
+                  {opportunity ? `Create Quote for ${opportunity.subject}` : 'Create New Quote'}
                 </h1>
                 <p className="text-blue-100 text-sm">
-                  {salesOrder ? 'Quote will be linked to sales order' : 'Create a new quote document'}
+                  {opportunity ? 'Quote will be linked to opportunity' : 'Create a new quote document'}
                 </p>
               </div>
             </div>
@@ -313,7 +307,7 @@ export default function CreateQuotePage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleSubmit}
-                disabled={loading || generatingNumber}
+                disabled={loading || generatingNumber || loadingOpportunity}
                 className="px-6 py-2 bg-white text-blue-600 font-semibold rounded-xl hover:bg-white/90 flex items-center gap-2 disabled:opacity-50"
               >
                 {loading ? (
@@ -334,38 +328,73 @@ export default function CreateQuotePage() {
           {/* Left Column - Form */}
           <div className="lg:col-span-2">
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Sales Order Info Banner */}
-              {salesOrder && (
+              {/* Opportunity Info Banner */}
+              {opportunity && (
                 <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 border border-blue-200">
                   <div className="flex items-center gap-4">
                     <div className="p-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600">
-                      <ShoppingBag className="h-6 w-6 text-white" />
+                      <Building className="h-6 w-6 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-bold text-gray-800">Source Sales Order</h3>
+                      <h3 className="font-bold text-gray-800">Source Opportunity</h3>
                       <p className="text-gray-600">
-                        {salesOrder.salesOrderNumber} • {salesOrderService.formatCurrency(salesOrder.totalAmount)}
+                        {opportunity.subject} • {formatCurrency(opportunity.total || 0)}
                       </p>
                       <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                         <span className="flex items-center gap-1">
                           <User className="h-3 w-3" />
-                          {typeof salesOrder.opportunityId === 'object' 
-                            ? salesOrder.opportunityId.customer?.name
-                            : 'N/A'
-                          }
+                          {opportunity.customer?.name}
+                          {opportunity.customer?.companyName && ` • ${opportunity.customer.companyName}`}
                         </span>
-                        <span className={`px-2 py-1 rounded-full text-xs ${salesOrder.status === 'draft' ? 'bg-gray-100 text-gray-800' : 'bg-blue-100 text-blue-800'}`}>
-                          {salesOrder.status}
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          opportunity.status === 'new' ? 'bg-blue-100 text-blue-800' :
+                          opportunity.status === 'won' ? 'bg-green-100 text-green-800' :
+                          opportunity.status === 'lost' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {opportunity.status?.replace(/_/g, ' ').toUpperCase()}
                         </span>
                       </div>
                     </div>
                     <Link
-                      href={`/orders/sales-orders/${salesOrder._id}`}
+                      href={`/opportunities/${opportunity._id || opportunity.id}`}
                       className="px-4 py-2 text-blue-600 hover:text-blue-700 font-medium text-sm flex items-center gap-2"
                     >
                       <Eye className="h-4 w-4" />
-                      View Order
+                      View Opportunity
                     </Link>
+                  </div>
+                </div>
+              )}
+
+              {/* Vehicle Info Banner */}
+              {opportunity?.vehicles?.[0] && (
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-200">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600">
+                      <Car className="h-6 w-6 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold text-gray-800">Vehicle Information</h3>
+                      <p className="text-gray-600">
+                        {opportunity.vehicles[0].registrationNumber || 'No registration'} • 
+                        {opportunity.vehicles[0].make} {opportunity.vehicles[0].model} • 
+                        {opportunity.vehicles[0].year}
+                      </p>
+                      <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                        {opportunity.vehicles[0].color && (
+                          <span className="flex items-center gap-1">
+                            Color: {opportunity.vehicles[0].color}
+                          </span>
+                        )}
+                        {opportunity.vehicles[0].mileage && (
+                          <span className="flex items-center gap-1">
+                            <Package className="h-3 w-3" />
+                            Mileage: {opportunity.vehicles[0].mileage}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -378,7 +407,8 @@ export default function CreateQuotePage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Quote Number *
+                        Quote Number (Optional)
+                        <span className="text-xs text-gray-500 ml-1">- Auto-generated if empty</span>
                       </label>
                       <div className="relative">
                         <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -387,8 +417,7 @@ export default function CreateQuotePage() {
                           value={formData.quoteNumber}
                           onChange={(e) => handleInputChange('quoteNumber', e.target.value)}
                           className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
-                          placeholder="Q-2024-001"
-                          required
+                          placeholder="Will be auto-generated"
                           disabled={loading || generatingNumber}
                         />
                       </div>
@@ -402,41 +431,24 @@ export default function CreateQuotePage() {
                     
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Valid Until *
-                      </label>
-                      <div className="relative">
-                        <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <input
-                          type="date"
-                          value={formData.validUntil}
-                          onChange={(e) => handleInputChange('validUntil', e.target.value)}
-                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
-                          required
-                          disabled={loading}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Opportunity ID *
+                        Opportunity ID
                       </label>
                       <div className="relative">
                         <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                         <input
                           type="text"
                           value={formData.opportunityId}
-                          onChange={(e) => handleInputChange('opportunityId', e.target.value)}
-                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
-                          placeholder="Enter Opportunity ID"
-                          required
-                          disabled={loading || !!salesOrder}
+                          readOnly
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 bg-gray-50 text-gray-900 focus:outline-none"
                         />
                       </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {opportunity ? `Linked to: ${opportunity.subject}` : 'Loading opportunity...'}
+                      </p>
                     </div>
-                    
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Vehicle ID
@@ -446,18 +458,37 @@ export default function CreateQuotePage() {
                         <input
                           type="text"
                           value={formData.vehicleId}
-                          onChange={(e) => handleInputChange('vehicleId', e.target.value)}
-                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
-                          placeholder="Enter Vehicle ID"
-                          disabled={loading}
+                          readOnly
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 bg-gray-50 text-gray-900 focus:outline-none"
                         />
                       </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {opportunity?.vehicles?.[0] ? 
+                          `Linked to: ${opportunity.vehicles[0].registrationNumber || 'No registration'} ${opportunity.vehicles[0].make} ${opportunity.vehicles[0].model}` : 
+                          'No vehicle linked'}
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Total Amount
+                      </label>
+                      <div className="relative">
+                        <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <input
+                          type="text"
+                          value={quoteService.formatCurrency(formData.totalAmount)}
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 bg-gray-50 text-gray-900 focus:outline-none"
+                          readOnly
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Auto-calculated from items</p>
                     </div>
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Notes
+                      Notes (Optional)
                     </label>
                     <textarea
                       value={formData.notes}
@@ -465,20 +496,6 @@ export default function CreateQuotePage() {
                       rows={3}
                       className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none resize-none"
                       placeholder="Additional notes for this quote..."
-                      disabled={loading}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Terms & Conditions
-                    </label>
-                    <textarea
-                      value={formData.terms}
-                      onChange={(e) => handleInputChange('terms', e.target.value)}
-                      rows={3}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none resize-none"
-                      placeholder="Payment terms, delivery conditions, etc..."
                       disabled={loading}
                     />
                   </div>
@@ -491,7 +508,8 @@ export default function CreateQuotePage() {
                   <div>
                     <h2 className="text-xl font-bold text-gray-800">Quote Items</h2>
                     <p className="text-sm text-gray-600 mt-1">
-                      Add items and services to include in this quote
+                      {opportunity ? 'Items from opportunity' : 'Add items and services'}
+                      {opportunity?.servicesProducts && ` • ${opportunity.servicesProducts.length} item(s) loaded`}
                     </p>
                   </div>
                   <button
@@ -501,7 +519,7 @@ export default function CreateQuotePage() {
                     disabled={loading}
                   >
                     <Plus className="h-4 w-4" />
-                    Add Item
+                    Add Custom Item
                   </button>
                 </div>
                 
@@ -518,7 +536,8 @@ export default function CreateQuotePage() {
                             value={item.description}
                             onChange={(e) => handleItemChange(index, 'description', e.target.value)}
                             className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex-1"
-                            placeholder="Item description"
+                            placeholder="Item description (e.g., Oil change, Brake repair)"
+                            required
                             disabled={loading}
                           />
                         </div>
@@ -543,9 +562,11 @@ export default function CreateQuotePage() {
                           <input
                             type="number"
                             min="1"
+                            step="1"
                             value={item.quantity}
                             onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                            required
                             disabled={loading}
                           />
                         </div>
@@ -561,22 +582,7 @@ export default function CreateQuotePage() {
                             value={item.unitPrice}
                             onChange={(e) => handleItemChange(index, 'unitPrice', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                            disabled={loading}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-2">
-                            Discount (%)
-                          </label>
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={item.discount || ''}
-                            onChange={(e) => handleItemChange(index, 'discount', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                            placeholder="0"
+                            required
                             disabled={loading}
                           />
                         </div>
@@ -589,9 +595,40 @@ export default function CreateQuotePage() {
                             {quoteService.formatCurrency(item.total)}
                           </div>
                         </div>
+                        
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-2">
+                            Actions
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => updateItemTotal(index)}
+                            className="w-full px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200"
+                            disabled={loading}
+                          >
+                            Recalculate
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
+                  
+                  {formData.items.length === 0 && (
+                    <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-xl">
+                      {loadingOpportunity ? (
+                        <>
+                          <Loader2 className="h-12 w-12 text-gray-400 mx-auto mb-3 animate-spin" />
+                          <p className="text-gray-600">Loading opportunity items...</p>
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                          <p className="text-gray-600">No items added yet</p>
+                          <p className="text-sm text-gray-500 mt-1">Click "Add Custom Item" to start</p>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -603,27 +640,49 @@ export default function CreateQuotePage() {
                 </h2>
                 
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <p className="text-sm text-gray-600">Subtotal</p>
-                      <p className="text-xl font-bold text-gray-900">
-                        {quoteService.formatCurrency(formData.subtotal)}
-                      </p>
+                  <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="text-sm text-blue-700 font-medium">Total Amount</p>
+                          <p className="text-3xl font-bold text-blue-800 mt-2">
+                            {quoteService.formatCurrency(formData.totalAmount)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-600">{formData.items.length} item(s)</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Recalculate all items
+                              const newItems = [...formData.items];
+                              newItems.forEach((item, index) => {
+                                item.total = calculateItemTotal(item.quantity, item.unitPrice);
+                              });
+                              setFormData(prev => ({
+                                ...prev,
+                                items: newItems,
+                                totalAmount: calculateTotalAmount(newItems)
+                              }));
+                            }}
+                            className="mt-2 px-3 py-1 bg-blue-100 text-blue-700 text-xs rounded hover:bg-blue-200"
+                            disabled={loading}
+                          >
+                            Recalculate All
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    
-                    <div className="bg-blue-50 rounded-xl p-4">
-                      <p className="text-sm text-blue-600">Tax ({taxRate}% VAT)</p>
-                      <p className="text-xl font-bold text-blue-700">
-                        {quoteService.formatCurrency(formData.tax)}
-                      </p>
-                    </div>
-                    
-                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 border border-blue-200">
-                      <p className="text-sm text-blue-700 font-medium">Total Amount</p>
-                      <p className="text-2xl font-bold text-blue-800">
-                        {quoteService.formatCurrency(formData.totalAmount)}
-                      </p>
-                    </div>
+                  </div>
+                  
+                  <div className="text-sm text-gray-600 p-3 bg-gray-50 rounded-lg">
+                    <p className="font-medium mb-1">Note:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>All amounts are in Kenyan Shillings (KES)</li>
+                      <li>Item totals are calculated automatically as: Quantity × Unit Price</li>
+                      <li>Total amount is the sum of all item totals</li>
+                      <li>Items are prefilled from the opportunity if available</li>
+                    </ul>
                   </div>
                 </div>
               </div>
@@ -642,21 +701,8 @@ export default function CreateQuotePage() {
                   
                   <div className="flex items-center gap-4">
                     <button
-                      type="button"
-                      onClick={() => {
-                        setFormData(prev => ({ ...prev, status: 'pending' }));
-                        handleSubmit(new Event('submit') as any);
-                      }}
-                      disabled={loading}
-                      className="px-6 py-3 border border-green-300 bg-white text-green-700 rounded-xl hover:bg-green-50 font-medium flex items-center gap-2"
-                    >
-                      <CheckCircle className="h-4 w-4" />
-                      Create & Submit
-                    </button>
-                    
-                    <button
                       type="submit"
-                      disabled={loading}
+                      disabled={loading || generatingNumber || loadingOpportunity}
                       className="px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 flex items-center gap-2"
                     >
                       {loading ? (
@@ -679,36 +725,69 @@ export default function CreateQuotePage() {
 
           {/* Right Column - Sidebar */}
           <div className="space-y-6">
-            {/* Status & Actions */}
-            <div className="bg-white rounded-2xl shadow-xl p-6">
-              <h3 className="font-bold text-gray-800 mb-4">Quote Status</h3>
-              
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                  {formData.status === 'draft' ? (
-                    <AlertCircle className="h-5 w-5 text-yellow-500" />
-                  ) : (
-                    <CheckCircle className="h-5 w-5 text-green-500" />
+            {/* Opportunity Details */}
+            {opportunity && (
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <h3 className="font-bold text-gray-800 mb-4">Opportunity Details</h3>
+                
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <Building className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-gray-800">{opportunity.subject}</p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Customer: {opportunity.customer?.name}
+                        {opportunity.customer?.companyName && ` (${opportunity.customer.companyName})`}
+                      </p>
+                      {opportunity.customer?.email && (
+                        <p className="text-xs text-gray-500 mt-1">{opportunity.customer.email}</p>
+                      )}
+                      {opportunity.customer?.phone && (
+                        <p className="text-xs text-gray-500 mt-1">{opportunity.customer.phone}</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {opportunity.vehicles?.[0] && (
+                    <div className="flex items-start gap-2 p-3 bg-green-50 rounded-lg border border-green-200">
+                      <Car className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-gray-800">Vehicle</p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {opportunity.vehicles[0].make} {opportunity.vehicles[0].model} {opportunity.vehicles[0].year}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Registration: {opportunity.vehicles[0].registrationNumber || 'N/A'} • 
+                          Color: {opportunity.vehicles[0].color || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
                   )}
-                  <div>
-                    <p className="font-medium text-gray-800">
-                      {formData.status === 'draft' ? 'Draft Mode' : 'Pending Approval'}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {formData.status === 'draft' 
-                        ? 'Save as draft for later editing' 
-                        : 'Submit for customer approval'}
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <p className="text-xs text-gray-500">Status</p>
+                      <p className="font-medium text-gray-800">
+                        {opportunity.status?.replace(/_/g, ' ').toUpperCase()}
+                      </p>
+                    </div>
+                    
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <p className="text-xs text-gray-500">Type</p>
+                      <p className="font-medium text-gray-800">
+                        {opportunity.opportunityType || 'SERVICE'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <p className="text-sm text-gray-700">
+                      Quote will be created as draft. You can approve it later from the quotes page.
                     </p>
                   </div>
                 </div>
-                
-                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="text-sm text-blue-700">
-                    Quotes are valid for 30 days by default. Customers will receive email notifications.
-                  </p>
-                </div>
               </div>
-            </div>
+            )}
 
             {/* Help Tips */}
             <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-6 border border-gray-200">
@@ -722,61 +801,69 @@ export default function CreateQuotePage() {
               <ul className="space-y-3 text-sm text-gray-600">
                 <li className="flex items-start gap-2">
                   <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Add detailed descriptions for clarity</span>
+                  <span>Review prefilled items from the opportunity</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Include all relevant terms and conditions</span>
+                  <span>Adjust quantities and prices as needed</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Set appropriate validity period</span>
+                  <span>Add custom items if required</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Review all calculations before submitting</span>
+                  <span>Double-check all calculations before submitting</span>
                 </li>
               </ul>
             </div>
 
             {/* Workflow Progress */}
-            {salesOrder && (
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 border border-blue-200">
-                <h4 className="font-bold text-gray-800 mb-4">Workflow Progress</h4>
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 border border-blue-200">
+              <h4 className="font-bold text-gray-800 mb-4">Workflow Progress</h4>
+              
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-500 to-green-600 flex items-center justify-center">
+                    <CheckCircle className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-800">Opportunity Created</p>
+                    <p className="text-sm text-gray-600">Customer request captured</p>
+                  </div>
+                </div>
                 
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-500 to-green-600 flex items-center justify-center">
-                      <CheckCircle className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-800">Sales Order</p>
-                      <p className="text-sm text-gray-600">Created and ready</p>
-                    </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+                    <FileText className="h-4 w-4 text-white" />
                   </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                      <FileText className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-800">Create Quote</p>
-                      <p className="text-sm text-gray-600">Current step</p>
-                    </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-800">Create Quote</p>
+                    <p className="text-sm text-gray-600">Current step</p>
                   </div>
-                  
-                  <div className="flex items-center gap-3 opacity-50">
-                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                      <DollarSign className="h-4 w-4 text-gray-500" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-500">Create Invoice</p>
-                      <p className="text-sm text-gray-400">Next step</p>
-                    </div>
+                </div>
+                
+                <div className="flex items-center gap-3 opacity-50">
+                  <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                    <CheckCircle className="h-4 w-4 text-gray-500" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-500">Approve Quote</p>
+                    <p className="text-sm text-gray-400">Next step</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 opacity-50">
+                  <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                    <DollarSign className="h-4 w-4 text-gray-500" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-500">Create Invoice</p>
+                    <p className="text-sm text-gray-400">Future step</p>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>

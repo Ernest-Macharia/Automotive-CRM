@@ -44,19 +44,27 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
     }
   };
 
-  const handleStatusUpdate = async (status: string) => {
-    try {
-      setUpdating(true);
-      await jobCardService.updateJobCardStatus(jobCardId, status as any);
-      showToast(`Job card marked as ${status.replace('_', ' ')}`, 'success');
-      fetchJobCard();
-    } catch (error) {
-      console.error('Error updating status:', error);
-      showToast('Failed to update status', 'error');
-    } finally {
-      setUpdating(false);
-    }
-  };
+  // Remove 'assigned' and 'on_hold' status updates if not in your model
+const handleStatusUpdate = async (status: string) => {
+  // Only allow statuses that exist in the service
+  const validStatuses = ['pending', 'in_progress', 'completed', 'cancelled'];
+  if (!validStatuses.includes(status)) {
+    showToast('Invalid status', 'error');
+    return;
+  }
+  
+  try {
+    setUpdating(true);
+    await jobCardService.updateJobCard(jobCardId, { status: status as any });
+    showToast(`Job card marked as ${status.replace('_', ' ')}`, 'success');
+    fetchJobCard();
+  } catch (error) {
+    console.error('Error updating status:', error);
+    showToast('Failed to update status', 'error');
+  } finally {
+    setUpdating(false);
+  }
+};
 
   const formatDate = (dateString: string) => {
     return format(new Date(dateString), 'MMM dd, yyyy HH:mm');

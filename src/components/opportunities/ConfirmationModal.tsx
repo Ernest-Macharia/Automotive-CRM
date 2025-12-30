@@ -112,12 +112,12 @@ export default function ConfirmationModal({
             <div className="text-sm text-gray-700 space-y-2">
               <p>This action will:</p>
               <ul className="list-disc pl-5 space-y-1">
-                <li>Create a new lead record for this customer</li>
+                <li>Create a new Opportunity record for this customer</li>
                 <li>Move the opportunity to the "Attempeted to Contact" stage</li>
                 <li>Allow you to track detailed customer interactions</li>
               </ul>
               <p className="mt-3 font-medium">
-                You can always edit the lead details later.
+                You can always edit the opportunity details later.
               </p>
             </div>
           </div>

@@ -40,7 +40,19 @@ export interface JobCard {
   active?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  estimatedHours?: number;
+  actualHours?: number;
+  laborCost?: number;
+  partsCost?: number;
+  totalCost?: number;
+  jobNumber?: string;
+  notes?: string[];
+  partsUsed?: any[];
+  completedDate?: string;
 }
+
+// In your jobCardService.ts file, update the CreateJobCardData interface
 
 export interface CreateJobCardData {
   opportunityId: string;
@@ -189,6 +201,16 @@ class JobCardService {
       active: data.active !== undefined ? data.active : true,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
+      priority: data.priority || 'medium',
+      estimatedHours: data.estimatedHours || 0,
+      actualHours: data.actualHours || 0,
+      laborCost: data.laborCost || 0,
+      partsCost: data.partsCost || 0,
+      totalCost: data.totalCost || 0,
+      jobNumber: data.jobNumber || `JC-${(data._id || data.id).slice(-6)}`,
+      notes: data.notes || [],
+      partsUsed: data.partsUsed || [],
+      completedDate: data.completedDate
     };
   }
 
@@ -537,6 +559,88 @@ class JobCardService {
       console.error('Error getting job cards for select:', error);
       throw error;
     }
+  }
+
+  /**
+   * Get job card statistics
+   */
+  async getJobCardStats(): Promise<any> {
+    try {
+      const jobCards = await this.getAllJobCards();
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      // Calculate statistics
+      const byStatus = [
+        { _id: 'pending', count: jobCards.filter(jc => jc.status === 'pending').length },
+        { _id: 'assigned', count: jobCards.filter(jc => jc.status === 'pending' && jc.assignedTo).length },
+        { _id: 'in_progress', count: jobCards.filter(jc => jc.status === 'in_progress').length },
+        { _id: 'completed', count: jobCards.filter(jc => jc.status === 'completed').length },
+        { _id: 'cancelled', count: jobCards.filter(jc => jc.status === 'cancelled').length },
+        { _id: 'on_hold', count: 0 } // Default to 0 if not in your model
+      ].filter(item => item.count > 0);
+
+      const todayCompleted = jobCards.filter(jc => {
+        if (jc.status !== 'completed' || !jc.endDate) return false;
+        const endDate = new Date(jc.endDate);
+        return endDate >= today;
+      }).length;
+
+      return {
+        total: jobCards.length,
+        byStatus,
+        todayCompleted
+      };
+    } catch (error) {
+      console.error('Error fetching job card stats:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get priority color
+   */
+  getPriorityColor(priority: string): string {
+    switch (priority?.toLowerCase()) {
+      case 'low': return 'bg-green-100 text-green-800 border-green-200';
+      case 'medium': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'high': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'urgent': return 'bg-red-100 text-red-800 border-red-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  }
+
+  /**
+   * Calculate completion percentage
+   */
+  calculateCompletionPercentage(jobCard: any): number {
+    switch (jobCard.status) {
+      case 'pending': return 0;
+      case 'assigned': return 10;
+      case 'in_progress': return 50;
+      case 'on_hold': return 25;
+      case 'completed': return 100;
+      case 'cancelled': return 0;
+      default: return 0;
+    }
+  }
+
+  /**
+   * Format currency
+   */
+  formatCurrency(amount: number): string {
+    return new Intl.NumberFormat('en-KE', {
+      style: 'currency',
+      currency: 'KES',
+      minimumFractionDigits: 2
+    }).format(amount || 0);
+  }
+
+  /**
+   * Update job card status (wrapper for updateJobCard)
+   */
+  async updateJobCardStatus(id: string, status: string): Promise<JobCard> {
+    return this.updateJobCard(id, { status: status as any });
   }
 }
 

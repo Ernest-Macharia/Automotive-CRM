@@ -1,6 +1,6 @@
 'use client';
 
-import { X, Download, Mail, CheckCircle, Printer, Copy, Calendar, User, Building, Car } from 'lucide-react';
+import { X, Download, Mail, CheckCircle, Printer, Copy, User, Building, Car } from 'lucide-react';
 import { Quote } from '@/services/quoteService';
 import { quoteService } from '@/services/quoteService';
 
@@ -29,7 +29,7 @@ export default function QuoteDetailModal({
         return 'bg-yellow-100 text-yellow-800';
       case 'rejected':
         return 'bg-red-100 text-red-800';
-      case 'expired':
+      case 'draft':
         return 'bg-gray-100 text-gray-800';
       default:
         return 'bg-blue-100 text-blue-800';
@@ -120,27 +120,41 @@ Created: ${new Date(quote.createdAt).toLocaleDateString()}
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <div>
-                      <p className="text-sm text-gray-500">Opportunity ID</p>
-                      <p className="font-medium text-gray-900">{quote.opportunityId}</p>
+                      <p className="text-sm text-gray-500">Opportunity</p>
+                      <p className="font-medium text-gray-900">
+                        {typeof quote.opportunityId === 'object' 
+                          ? quote.opportunityId.subject || quote.opportunityId._id
+                          : quote.opportunityId}
+                      </p>
                     </div>
                     
                     {quote.vehicleId && (
                       <div>
-                        <p className="text-sm text-gray-500">Vehicle ID</p>
-                        <p className="font-medium text-gray-900">{quote.vehicleId}</p>
+                        <p className="text-sm text-gray-500">Vehicle</p>
+                        <p className="font-medium text-gray-900">
+                          {typeof quote.vehicleId === 'object'
+                            ? `${quote.vehicleId.registrationNumber || ''} ${quote.vehicleId.make || ''} ${quote.vehicleId.model || ''}`.trim()
+                            : quote.vehicleId}
+                        </p>
                       </div>
                     )}
                     
                     <div>
                       <p className="text-sm text-gray-500">Created By</p>
-                      <p className="font-medium text-gray-900">{quote.createdBy || 'System'}</p>
+                      <p className="font-medium text-gray-900">
+                        {typeof quote.createdBy === 'object'
+                          ? quote.createdBy.name || quote.createdBy.email || 'System'
+                          : quote.createdBy || 'System'}
+                      </p>
                     </div>
                     
-                    {quote.validUntil && (
+                    {quote.jobCardId && (
                       <div>
-                        <p className="text-sm text-gray-500">Valid Until</p>
+                        <p className="text-sm text-gray-500">Job Card</p>
                         <p className="font-medium text-gray-900">
-                          {new Date(quote.validUntil).toLocaleDateString()}
+                          {typeof quote.jobCardId === 'object'
+                            ? quote.jobCardId.jobCardNumber || quote.jobCardId._id
+                            : quote.jobCardId}
                         </p>
                       </div>
                     )}
@@ -172,9 +186,6 @@ Created: ${new Date(quote.createdAt).toLocaleDateString()}
                             <tr key={index}>
                               <td className="px-4 py-3 text-sm text-gray-900">
                                 {item.description}
-                                {item.sku && (
-                                  <div className="text-xs text-gray-500">SKU: {item.sku}</div>
-                                )}
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-900">{item.quantity}</td>
                               <td className="px-4 py-3 text-sm text-gray-900">
@@ -199,16 +210,6 @@ Created: ${new Date(quote.createdAt).toLocaleDateString()}
                       </p>
                     </div>
                   )}
-
-                  {/* Terms */}
-                  {quote.terms && (
-                    <div>
-                      <h5 className="text-sm font-semibold text-gray-700 mb-2">Terms & Conditions</h5>
-                      <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-                        {quote.terms}
-                      </p>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -222,14 +223,14 @@ Created: ${new Date(quote.createdAt).toLocaleDateString()}
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Subtotal</span>
                       <span className="font-medium text-gray-900">
-                        {quoteService.formatCurrency(quote.subtotal)}
+                        {quoteService.formatCurrency(quote.subtotal || 0)}
                       </span>
                     </div>
                     
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Tax</span>
                       <span className="font-medium text-gray-900">
-                        {quoteService.formatCurrency(quote.tax)}
+                        {quoteService.formatCurrency(quote.tax || 0)}
                       </span>
                     </div>
                     
@@ -254,7 +255,7 @@ Created: ${new Date(quote.createdAt).toLocaleDateString()}
                       className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 text-blue-700 rounded-lg hover:from-blue-100 hover:to-blue-200 transition-all"
                     >
                       <Download className="h-4 w-4" />
-                      Export PDF
+                      Export PDF/JSON
                     </button>
                     
                     <button
@@ -297,7 +298,11 @@ Created: ${new Date(quote.createdAt).toLocaleDateString()}
                         <p className="text-xs text-gray-500">
                           {new Date(quote.createdAt).toLocaleString()}
                         </p>
-                        <p className="text-xs text-gray-500">By: {quote.createdBy || 'System'}</p>
+                        <p className="text-xs text-gray-500">
+                          By: {typeof quote.createdBy === 'object' 
+                            ? quote.createdBy.name || quote.createdBy.email 
+                            : quote.createdBy || 'System'}
+                        </p>
                       </div>
                     </div>
                     
@@ -309,22 +314,23 @@ Created: ${new Date(quote.createdAt).toLocaleDateString()}
                           <p className="text-xs text-gray-500">
                             {new Date(quote.approvedAt).toLocaleString()}
                           </p>
-                          <p className="text-xs text-gray-500">By: {quote.approvedBy}</p>
+                          <p className="text-xs text-gray-500">
+                            By: {typeof quote.approvedBy === 'object'
+                              ? quote.approvedBy.name || quote.approvedBy.email
+                              : quote.approvedBy}
+                          </p>
                         </div>
                       </div>
                     )}
                     
-                    {quote.validUntil && (
+                    {quote.updatedAt && quote.updatedAt !== quote.createdAt && (
                       <div className="flex items-start gap-3">
                         <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2"></div>
                         <div>
-                          <p className="text-sm font-medium text-gray-900">Valid Until</p>
+                          <p className="text-sm font-medium text-gray-900">Last Updated</p>
                           <p className="text-xs text-gray-500">
-                            {new Date(quote.validUntil).toLocaleDateString()}
+                            {new Date(quote.updatedAt).toLocaleString()}
                           </p>
-                          <div className="text-xs text-yellow-600 mt-1">
-                            {new Date(quote.validUntil) > new Date() ? 'Active' : 'Expired'}
-                          </div>
                         </div>
                       </div>
                     )}
