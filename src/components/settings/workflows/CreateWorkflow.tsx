@@ -543,8 +543,17 @@ export default function CreateWorkflow() {
       }
       
       const createdWorkflow = await workflowService.createWorkflow(submitData);
-      showToast('Workflow created successfully', 'success');
-      router.push(`/settings/workflows/${createdWorkflow.id}`);
+
+      console.log('Created workflow object:', createdWorkflow);
+        console.log('Workflow ID to redirect to:', createdWorkflow.id);
+        
+        // Ensure we have a valid ID before redirecting
+        if (createdWorkflow && createdWorkflow.id) {
+            showToast('Workflow created successfully', 'success');
+            router.push(`/settings/workflows/${createdWorkflow.id}`);
+        } else {
+            throw new Error('Created workflow does not contain a valid ID');
+        }
       
     } catch (error: any) {
       console.error('Error creating workflow:', error);

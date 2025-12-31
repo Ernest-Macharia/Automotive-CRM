@@ -121,7 +121,6 @@ export default function CreateBlueprintPage() {
     { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700', darkBg: 'bg-cyan-100', name: 'Cyan' },
   ];
 
-  // Zoho-inspired action types with icons and descriptions
   const actionTypes = [
     { 
       value: 'sendEmail', 
@@ -494,40 +493,52 @@ export default function CreateBlueprintPage() {
     setLoading(true);
     
     try {
-      // Fix: Convert params to string before sending to API
+      // Transform data to match backend CreateBlueprintDto exactly
       const blueprintData = {
         name: formData.name,
         module: formData.module,
-        description: formData.description,
-        isActive: formData.isActive,
+        // The backend only expects these three fields according to CreateBlueprintDto
+        // Remove description, isActive, etc. if they're not in the DTO
         stages: formData.stages.map(stage => ({
           name: stage.name,
           order: stage.order,
           allowedRoles: stage.allowedRoles,
+          // Transform actions to match StageDto
           entryActions: stage.entryActions.map(action => ({
-            ...action,
-            params: Object.fromEntries(
-              Object.entries(action.params).map(([key, value]) => [key, String(value)])
-            ) as Record<string, string>
+            actionType: action.actionType,
+            // Backend expects params as Record<string, any>
+            params: action.params
+            // Remove name and enabled if backend doesn't expect them
           })),
           exitActions: stage.exitActions.map(action => ({
-            ...action,
-            params: Object.fromEntries(
-              Object.entries(action.params).map(([key, value]) => [key, String(value)])
-            ) as Record<string, string>
+            actionType: action.actionType,
+            params: action.params
           })),
         })),
       };
+      
+      console.log('🔍 FINAL DATA TO SEND (MATCHING BACKEND DTO):', 
+        JSON.stringify(blueprintData, null, 2));
       
       await blueprintsService.createBlueprint(blueprintData);
       showToast('Blueprint created successfully!', 'success');
       router.push('/settings/blueprints');
     } catch (error: any) {
-      console.error('Error creating blueprint:', error);
-      showToast(
-        error.response?.data?.message || error.message || 'Failed to create blueprint',
-        'error'
-      );
+      console.error('❌ Error creating blueprint:', error);
+      
+      // Show more specific error messages
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        if (errorData.message) {
+          showToast(`Backend error: ${errorData.message}`, 'error');
+        } else if (errorData.error) {
+          showToast(`Backend error: ${errorData.error}`, 'error');
+        } else {
+          showToast('Failed to create blueprint', 'error');
+        }
+      } else {
+        showToast(error.message || 'Failed to create blueprint', 'error');
+      }
     } finally {
       setLoading(false);
     }

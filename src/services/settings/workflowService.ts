@@ -265,7 +265,27 @@ class WorkflowService {
         headers['X-User-Id'] = userId;
       }
       
-      return await extendedApiClient.post<CreateWorkflowDto, Workflow>('/workflows', data, headers);
+      const response = await extendedApiClient.post<CreateWorkflowDto, any>('/workflows', data, headers);
+
+      let workflowData;
+        if (response.data) {
+            workflowData = response.data; // Pattern A
+        } else if (response.workflow) {
+            workflowData = response.workflow; // Pattern B
+        } else {
+            workflowData = response; // Pattern C
+        }
+        
+        // 3. ENSURE THE ID FIELD IS POPULATED
+        // Some backends use _id, others use id
+        if (!workflowData.id && workflowData._id) {
+            workflowData.id = workflowData._id;
+        }
+        
+        // 1. LOG THE RESPONSE to see its structure
+        console.log('Create workflow response:', response);
+        console.log('Extracted workflow data:', workflowData);
+        return workflowData;
     } catch (error) {
       console.error('Error creating workflow:', error);
       throw error;
@@ -335,12 +355,45 @@ class WorkflowService {
   }
 
   // 4. Get a workflow by ID
+  // 4. Get a workflow by ID
   async getWorkflowById(id: string): Promise<Workflow> {
     try {
-      return await extendedApiClient.get<Workflow>(`/workflows/${id}`);
+        console.log('Fetching workflow with ID:', id); // Debug log
+        
+        // Make the API call
+        const response = await extendedApiClient.get<any>(`/workflows/${id}`);
+        
+        // 1. LOG THE RESPONSE to see its structure
+        console.log('Get workflow response:', response);
+        
+        let workflowData;
+        if (response.data) {
+            workflowData = response.data; // Pattern A
+        } else if (response.workflow) {
+            workflowData = response.workflow; // Pattern B
+        } else if (response._id || response.id) {
+            workflowData = response; // Pattern C
+        } else {
+            // If no workflow data found in expected structures
+            console.error('No workflow data found in response:', response);
+            throw new Error('Workflow not found in response');
+        }
+        if (!workflowData.id && workflowData._id) {
+            workflowData.id = workflowData._id;
+        }
+        
+        // 4. VALIDATE THE WORKFLOW OBJECT
+        if (!workflowData.id) {
+            console.error('Workflow data missing ID:', workflowData);
+            throw new Error('Invalid workflow data: missing ID');
+        }
+        
+        console.log('Extracted workflow data:', workflowData);
+        return workflowData;
+        
     } catch (error) {
-      console.error(`Error getting workflow ${id}:`, error);
-      throw error;
+        console.error(`Error getting workflow ${id}:`, error)        
+        throw error;
     }
   }
 

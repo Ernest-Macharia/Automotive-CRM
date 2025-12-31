@@ -52,7 +52,6 @@ interface MenuItem {
   featured: boolean;
 }
 
-// ✨ Cleaner Skeletons
 const SettingsCardSkeleton = () => (
   <div className="bg-white border border-gray-200 rounded-xl p-5 animate-pulse">
     <div className="flex items-start justify-between mb-3">
@@ -190,7 +189,6 @@ export default function SettingsDashboard() {
 
   // Get menu items dynamically based on fetched data
   const getMenuItems = useMemo((): MenuItem[] => [
-    // Featured - Most Used
     {
       id: 'users',
       label: 'User Management',
@@ -239,7 +237,6 @@ export default function SettingsDashboard() {
       category: 'security',
       featured: true,
     },
-    // Additional Settings (truncated for brevity — keep your full list)
     {
       id: 'system',
       label: 'System Settings',

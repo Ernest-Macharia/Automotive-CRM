@@ -112,7 +112,8 @@ class BlueprintsService {
     try {
       console.log('🔍 ORIGINAL FRONTEND DATA:', JSON.stringify(data, null, 2));
       
-      // Transform frontend data to match backend DTO
+      // Transform to match EXACTLY what backend CreateBlueprintDto expects
+      // Based on your DTO: only name, module, stages
       const backendData = {
         name: data.name,
         module: data.module,
@@ -120,45 +121,50 @@ class BlueprintsService {
           name: stage.name,
           order: stage.order,
           allowedRoles: stage.allowedRoles,
-          entryActions: stage.entryActions || [],
-          exitActions: stage.exitActions || []
-        })),
-        description: data.description,
-        // Try both 'active' and 'isActive' to see what backend expects
-        active: data.isActive !== undefined ? data.isActive : true,
-        isActive: data.isActive !== undefined ? data.isActive : true
+          // Only include entryActions and exitActions if they exist
+          ...(stage.entryActions && stage.entryActions.length > 0 && {
+            entryActions: stage.entryActions.map(action => ({
+              actionType: action.actionType,
+              params: action.params || {}
+            }))
+          }),
+          ...(stage.exitActions && stage.exitActions.length > 0 && {
+            exitActions: stage.exitActions.map(action => ({
+              actionType: action.actionType,
+              params: action.params || {}
+            }))
+          })
+        }))
+        // DO NOT include description, active, isActive if not in DTO
       };
 
-      console.log('🔍 BACKEND DATA BEING SENT:', JSON.stringify(backendData, null, 2));
-      console.log('🔍 Endpoint: /blueprints');
+      console.log('🔍 BACKEND DATA (EXACT DTO MATCH):', JSON.stringify(backendData, null, 2));
+      console.log('🔍 POSTing to: /blueprints');
       
-      // Fix: Add both type arguments for apiClient.post
+      // Make sure the endpoint is correct
       const response = await apiClient.post<typeof backendData, any>(
-        '/blueprints/',
+        '/blueprints', // or '/api/v1/blueprints' depending on your baseURL
         backendData
       );
       
       console.log('✅ SUCCESS Response:', JSON.stringify(response, null, 2));
       return normalizeBlueprint(response);
     } catch (error: any) {
-      console.error('❌ ERROR Details:');
-      console.error('Message:', error.message);
+      console.error('❌ CREATE BLUEPRINT ERROR:');
       
-      // Axios specific error details
+      // Log full error details
       if (error.isAxiosError) {
-        console.error('❌ Axios Error Details:');
-        console.error('URL:', error.config?.url);
-        console.error('Method:', error.config?.method);
-        console.error('Request Data:', JSON.parse(error.config?.data || '{}'));
-        console.error('Status:', error.response?.status);
-        console.error('Status Text:', error.response?.statusText);
-        console.error('Response Headers:', error.response?.headers);
-        console.error('Response Data:', error.response?.data);
+        console.error('❌ Full Axios Error:', error);
+        console.error('❌ Request URL:', error.config?.url);
+        console.error('❌ Request Method:', error.config?.method);
+        console.error('❌ Request Data:', error.config?.data);
+        console.error('❌ Response Status:', error.response?.status);
+        console.error('❌ Response Headers:', error.response?.headers);
+        console.error('❌ Response Data:', error.response?.data);
         
-        // Try to parse the error message
-        if (error.response?.data) {
-          console.error('❌ Backend Error Message:', error.response.data.message || error.response.data);
-          console.error('❌ Backend Error Code:', error.response.data.statusCode);
+        // Try to parse validation errors
+        if (error.response?.data?.message) {
+          console.error('❌ Validation Errors:', error.response.data.message);
         }
       }
       
