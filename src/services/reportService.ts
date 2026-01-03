@@ -1,3 +1,4 @@
+// services/reportService.ts
 import { apiClient } from '@/lib/api/client';
 
 export interface ReportSummary {
@@ -91,125 +92,24 @@ export interface DateRangeDto {
   salesRepId?: string;
 }
 
-// Extended ApiClient for report service
-class ExtendedApiClient {
-  private getApiBaseUrl(): string {
-    if ((apiClient as any).API_BASE_URL) {
-      return (apiClient as any).API_BASE_URL;
-    }
-    try {
-      const config = require('@/lib/api/config');
-      return config.API_BASE_URL || '';
-    } catch {
-      return '';
-    }
-  }
-
-  private getHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    const token = sessionStorage.getItem('accessToken');
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    return headers;
-  }
-
-  private async requestWithHeaders<T>(
-    endpoint: string, 
-    options: RequestInit = {},
-    customHeaders?: Record<string, string>
-  ): Promise<T> {
-    const url = `${this.getApiBaseUrl()}${endpoint}`;
-    
-    const headers = {
-      ...this.getHeaders(),
-      ...options.headers,
-      ...customHeaders,
-    };
-
-    const config: RequestInit = {
-      ...options,
-      headers,
-      mode: 'cors',
-      credentials: 'include',
-    };
-
-    const response = await fetch(url, config);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API Error Response:', errorText);
-      
-      if (response.status === 401) {
-        sessionStorage.removeItem('accessToken');
-        window.location.href = '/login';
-      }
-      
-      throw new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
-    }
-    
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      return response.json();
-    }
-    return {} as T;
-  }
-
-  async get<T>(endpoint: string, params?: Record<string, string>, headers?: Record<string, string>): Promise<T> {
-    let url = endpoint;
-    if (params) {
-      const queryParams = new URLSearchParams(params);
-      url += `?${queryParams.toString()}`;
-    }
-    return this.requestWithHeaders<T>(url, { method: 'GET' }, headers);
-  }
-
-  async post<D, T>(endpoint: string, data: D, headers?: Record<string, string>): Promise<T> {
-    return this.requestWithHeaders<T>(endpoint, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }, headers);
-  }
-
-  async put<D, T>(endpoint: string, data: D, headers?: Record<string, string>): Promise<T> {
-    return this.requestWithHeaders<T>(endpoint, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }, headers);
-  }
-
-  async patch<D, T>(endpoint: string, data: D, headers?: Record<string, string>): Promise<T> {
-    return this.requestWithHeaders<T>(endpoint, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }, headers);
-  }
-
-  async delete<T>(endpoint: string, headers?: Record<string, string>): Promise<T> {
-    return this.requestWithHeaders<T>(endpoint, {
-      method: 'DELETE',
-    }, headers);
-  }
-}
-
-const extendedApiClient = new ExtendedApiClient();
-
 class ReportService {
+  // Helper method to build query params
+  private buildQueryParams(params?: DateRangeDto): Record<string, string> {
+    const queryParams: Record<string, string> = {};
+    
+    if (params?.from) queryParams.from = params.from;
+    if (params?.to) queryParams.to = params.to;
+    if (params?.branchId) queryParams.branchId = params.branchId;
+    if (params?.salesRepId) queryParams.salesRepId = params.salesRepId;
+    
+    return queryParams;
+  }
+
   // 1. Get dashboard summary
   async getSummary(params?: DateRangeDto): Promise<ReportSummary> {
     try {
-      const queryParams: Record<string, string> = {};
-      
-      if (params?.from) queryParams.from = params.from;
-      if (params?.to) queryParams.to = params.to;
-      if (params?.branchId) queryParams.branchId = params.branchId;
-      if (params?.salesRepId) queryParams.salesRepId = params.salesRepId;
-      
-      return await extendedApiClient.get<ReportSummary>('/reports/summary', queryParams);
+      const queryParams = this.buildQueryParams(params);
+      return await apiClient.get<ReportSummary>('/reports/summary', queryParams);
     } catch (error) {
       console.error('Error getting report summary:', error);
       throw error;
@@ -219,14 +119,8 @@ class ReportService {
   // 2. Get sales performance
   async getSalesPerformance(params?: DateRangeDto): Promise<SalesPerformance> {
     try {
-      const queryParams: Record<string, string> = {};
-      
-      if (params?.from) queryParams.from = params.from;
-      if (params?.to) queryParams.to = params.to;
-      if (params?.branchId) queryParams.branchId = params.branchId;
-      if (params?.salesRepId) queryParams.salesRepId = params.salesRepId;
-      
-      return await extendedApiClient.get<SalesPerformance>('/reports/sales-performance', queryParams);
+      const queryParams = this.buildQueryParams(params);
+      return await apiClient.get<SalesPerformance>('/reports/sales-performance', queryParams);
     } catch (error) {
       console.error('Error getting sales performance:', error);
       throw error;
@@ -236,14 +130,8 @@ class ReportService {
   // 3. Get revenue timeline
   async getRevenueTimeline(params?: DateRangeDto): Promise<RevenueTimelinePoint[]> {
     try {
-      const queryParams: Record<string, string> = {};
-      
-      if (params?.from) queryParams.from = params.from;
-      if (params?.to) queryParams.to = params.to;
-      if (params?.branchId) queryParams.branchId = params.branchId;
-      if (params?.salesRepId) queryParams.salesRepId = params.salesRepId;
-      
-      return await extendedApiClient.get<RevenueTimelinePoint[]>('/reports/revenue-timeline', queryParams);
+      const queryParams = this.buildQueryParams(params);
+      return await apiClient.get<RevenueTimelinePoint[]>('/reports/revenue-timeline', queryParams);
     } catch (error) {
       console.error('Error getting revenue timeline:', error);
       throw error;
@@ -253,14 +141,8 @@ class ReportService {
   // 4. Get technician productivity
   async getTechnicianProductivity(params?: DateRangeDto): Promise<TechnicianProductivity[]> {
     try {
-      const queryParams: Record<string, string> = {};
-      
-      if (params?.from) queryParams.from = params.from;
-      if (params?.to) queryParams.to = params.to;
-      if (params?.branchId) queryParams.branchId = params.branchId;
-      if (params?.salesRepId) queryParams.salesRepId = params.salesRepId;
-      
-      return await extendedApiClient.get<TechnicianProductivity[]>('/reports/technician-productivity', queryParams);
+      const queryParams = this.buildQueryParams(params);
+      return await apiClient.get<TechnicianProductivity[]>('/reports/technician-productivity', queryParams);
     } catch (error) {
       console.error('Error getting technician productivity:', error);
       throw error;
@@ -270,16 +152,8 @@ class ReportService {
   // 5. Get top customers by invoiced amount
   async getTopCustomers(params?: DateRangeDto, limit: number = 10): Promise<TopCustomer[]> {
     try {
-      const queryParams: Record<string, string> = {
-        limit: limit.toString()
-      };
-      
-      if (params?.from) queryParams.from = params.from;
-      if (params?.to) queryParams.to = params.to;
-      if (params?.branchId) queryParams.branchId = params.branchId;
-      if (params?.salesRepId) queryParams.salesRepId = params.salesRepId;
-      
-      return await extendedApiClient.get<TopCustomer[]>('/reports/top-customers', queryParams);
+      const queryParams = { ...this.buildQueryParams(params), limit: limit.toString() };
+      return await apiClient.get<TopCustomer[]>('/reports/top-customers', queryParams);
     } catch (error) {
       console.error('Error getting top customers:', error);
       throw error;
@@ -289,16 +163,8 @@ class ReportService {
   // 6. Get top customers by opportunity count
   async getTopCustomersByOpportunities(params?: DateRangeDto, limit: number = 5): Promise<TopCustomer[]> {
     try {
-      const queryParams: Record<string, string> = {
-        limit: limit.toString()
-      };
-      
-      if (params?.from) queryParams.from = params.from;
-      if (params?.to) queryParams.to = params.to;
-      if (params?.branchId) queryParams.branchId = params.branchId;
-      if (params?.salesRepId) queryParams.salesRepId = params.salesRepId;
-      
-      return await extendedApiClient.get<TopCustomer[]>('/reports/top-customers/opportunities', queryParams);
+      const queryParams = { ...this.buildQueryParams(params), limit: limit.toString() };
+      return await apiClient.get<TopCustomer[]>('/reports/top-customers/opportunities', queryParams);
     } catch (error) {
       console.error('Error getting top customers by opportunities:', error);
       throw error;
@@ -308,14 +174,8 @@ class ReportService {
   // 7. Get opportunity sources distribution
   async getOpportunitySources(params?: DateRangeDto): Promise<OpportunitySource[]> {
     try {
-      const queryParams: Record<string, string> = {};
-      
-      if (params?.from) queryParams.from = params.from;
-      if (params?.to) queryParams.to = params.to;
-      if (params?.branchId) queryParams.branchId = params.branchId;
-      if (params?.salesRepId) queryParams.salesRepId = params.salesRepId;
-      
-      return await extendedApiClient.get<OpportunitySource[]>('/reports/opportunity-sources', queryParams);
+      const queryParams = this.buildQueryParams(params);
+      return await apiClient.get<OpportunitySource[]>('/reports/opportunity-sources', queryParams);
     } catch (error) {
       console.error('Error getting opportunity sources:', error);
       throw error;
@@ -325,14 +185,8 @@ class ReportService {
   // 8. Get scoped summary (branch or sales-rep filtered)
   async getScopedSummary(params?: DateRangeDto): Promise<ReportSummary> {
     try {
-      const queryParams: Record<string, string> = {};
-      
-      if (params?.from) queryParams.from = params.from;
-      if (params?.to) queryParams.to = params.to;
-      if (params?.branchId) queryParams.branchId = params.branchId;
-      if (params?.salesRepId) queryParams.salesRepId = params.salesRepId;
-      
-      return await extendedApiClient.get<ReportSummary>('/reports/summary/scoped', queryParams);
+      const queryParams = this.buildQueryParams(params);
+      return await apiClient.get<ReportSummary>('/reports/summary/scoped', queryParams);
     } catch (error) {
       console.error('Error getting scoped summary:', error);
       throw error;
@@ -342,14 +196,8 @@ class ReportService {
   // 9. Get unified CRM dashboard summary
   async getDashboardSummary(params?: DateRangeDto): Promise<DashboardSummary> {
     try {
-      const queryParams: Record<string, string> = {};
-      
-      if (params?.from) queryParams.from = params.from;
-      if (params?.to) queryParams.to = params.to;
-      if (params?.branchId) queryParams.branchId = params.branchId;
-      if (params?.salesRepId) queryParams.salesRepId = params.salesRepId;
-      
-      return await extendedApiClient.get<DashboardSummary>('/reports/dashboard', queryParams);
+      const queryParams = this.buildQueryParams(params);
+      return await apiClient.get<DashboardSummary>('/reports/dashboard', queryParams);
     } catch (error) {
       console.error('Error getting dashboard summary:', error);
       throw error;
@@ -551,7 +399,7 @@ class ReportService {
     lastEngagement: Date | null;
   }> {
     try {
-      const allTopCustomers = await this.getTopCustomers({}, 100); // Get more customers to find the specific one
+      const allTopCustomers = await this.getTopCustomers({}, 100);
       const customerData = allTopCustomers.find(c => c.customer?.email === customerEmail);
       
       if (!customerData) {
@@ -565,8 +413,6 @@ class ReportService {
         };
       }
       
-      // Note: This is a simplified calculation. In a real scenario, you'd want
-      // to query for all invoices/opportunities for this specific customer
       const totalInvoiced = customerData.totalInvoiced || 0;
       const totalPaid = customerData.totalPaid || 0;
       const totalOpportunities = customerData.opportunitiesCount || 1;
@@ -577,8 +423,8 @@ class ReportService {
         totalPaid,
         totalOpportunities,
         averageInvoiceValue: parseFloat(averageInvoiceValue.toFixed(2)),
-        firstEngagement: null, // Would need additional API endpoint
-        lastEngagement: null   // Would need additional API endpoint
+        firstEngagement: null,
+        lastEngagement: null
       };
     } catch (error) {
       console.error(`Error getting lifetime value for customer ${customerEmail}:`, error);
@@ -725,7 +571,7 @@ class ReportService {
     try {
       const now = new Date();
       const currentDay = now.getDay();
-      const startOffset = currentDay === 0 ? -6 : 1 - currentDay; // Adjust for Sunday
+      const startOffset = currentDay === 0 ? -6 : 1 - currentDay;
       
       const weekStart = new Date(now);
       weekStart.setDate(now.getDate() + startOffset - (weekOffset * 7));
@@ -797,6 +643,33 @@ class ReportService {
     } catch (error) {
       console.error('Error comparing periods:', error);
       throw error;
+    }
+  }
+
+  // Debug method to test API connection
+  async testConnection(): Promise<{ success: boolean; message: string; data?: any }> {
+    try {
+      console.log('🔍 Testing API connection...');
+      console.log('API Base URL:', process.env.NEXT_PUBLIC_API_URL);
+      
+      // Try to fetch a simple endpoint
+      const testData = await this.getSummary({
+        from: '2025-01-01',
+        to: '2025-01-31'
+      });
+      
+      console.log('✅ API Connection successful:', testData);
+      return {
+        success: true,
+        message: 'API Connection successful',
+        data: testData
+      };
+    } catch (error: any) {
+      console.error('❌ API Connection failed:', error);
+      return {
+        success: false,
+        message: error.message || 'API Connection failed'
+      };
     }
   }
 }

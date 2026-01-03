@@ -1,3 +1,4 @@
+// services/contactService.ts
 import { apiClient } from '@/lib/api/client';
 
 export interface CallLog {
@@ -239,118 +240,11 @@ export interface CallInitiationResult {
   message: string;
 }
 
-// Extended ApiClient for contact service
-class ExtendedApiClient {
-  private getApiBaseUrl(): string {
-    if ((apiClient as any).API_BASE_URL) {
-      return (apiClient as any).API_BASE_URL;
-    }
-    try {
-      const config = require('@/lib/api/config');
-      return config.API_BASE_URL || '';
-    } catch {
-      return '';
-    }
-  }
-
-  private getHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    const token = sessionStorage.getItem('accessToken');
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    return headers;
-  }
-
-  private async requestWithHeaders<T>(
-    endpoint: string, 
-    options: RequestInit = {},
-    customHeaders?: Record<string, string>
-  ): Promise<T> {
-    const url = `${this.getApiBaseUrl()}${endpoint}`;
-    
-    const headers = {
-      ...this.getHeaders(),
-      ...options.headers,
-      ...customHeaders,
-    };
-
-    const config: RequestInit = {
-      ...options,
-      headers,
-      mode: 'cors',
-      credentials: 'include',
-    };
-
-    const response = await fetch(url, config);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API Error Response:', errorText);
-      
-      if (response.status === 401) {
-        sessionStorage.removeItem('accessToken');
-        window.location.href = '/login';
-      }
-      
-      throw new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
-    }
-    
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      return response.json();
-    }
-    return {} as T;
-  }
-
-  async get<T>(endpoint: string, params?: Record<string, string>, headers?: Record<string, string>): Promise<T> {
-    let url = endpoint;
-    if (params) {
-      const queryParams = new URLSearchParams(params);
-      url += `?${queryParams.toString()}`;
-    }
-    return this.requestWithHeaders<T>(url, { method: 'GET' }, headers);
-  }
-
-  async post<D, T>(endpoint: string, data: D, headers?: Record<string, string>): Promise<T> {
-    return this.requestWithHeaders<T>(endpoint, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }, headers);
-  }
-
-  async put<D, T>(endpoint: string, data: D, headers?: Record<string, string>): Promise<T> {
-    return this.requestWithHeaders<T>(endpoint, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }, headers);
-  }
-
-  async patch<D, T>(endpoint: string, data: D, headers?: Record<string, string>): Promise<T> {
-    return this.requestWithHeaders<T>(endpoint, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }, headers);
-  }
-
-  async delete<T>(endpoint: string, headers?: Record<string, string>): Promise<T> {
-    return this.requestWithHeaders<T>(endpoint, {
-      method: 'DELETE',
-    }, headers);
-  }
-}
-
-const extendedApiClient = new ExtendedApiClient();
-
 class ContactService {
   // 1. Create a new contact
   async createContact(data: CreateContactDto): Promise<Contact> {
     try {
-      return await extendedApiClient.post<CreateContactDto, Contact>('/contacts', data);
+      return await apiClient.post<CreateContactDto, Contact>('/contacts', data);
     } catch (error) {
       console.error('Error creating contact:', error);
       throw error;
@@ -360,7 +254,7 @@ class ContactService {
   // 2. Get all contacts
   async getAllContacts(): Promise<Contact[]> {
     try {
-      return await extendedApiClient.get<Contact[]>('/contacts');
+      return await apiClient.get<Contact[]>('/contacts');
     } catch (error) {
       console.error('Error getting all contacts:', error);
       throw error;
@@ -370,7 +264,7 @@ class ContactService {
   // 3. Get contacts statistics
   async getContactsStats(): Promise<ContactStats> {
     try {
-      return await extendedApiClient.get<ContactStats>('/contacts/stats');
+      return await apiClient.get<ContactStats>('/contacts/stats');
     } catch (error) {
       console.error('Error getting contacts stats:', error);
       throw error;
@@ -380,7 +274,7 @@ class ContactService {
   // 4. Find contacts by email
   async findContactsByEmail(email: string): Promise<Contact[]> {
     try {
-      return await extendedApiClient.get<Contact[]>(`/contacts/email/${encodeURIComponent(email)}`);
+      return await apiClient.get<Contact[]>(`/contacts/email/${encodeURIComponent(email)}`);
     } catch (error) {
       console.error(`Error finding contacts by email ${email}:`, error);
       throw error;
@@ -390,7 +284,7 @@ class ContactService {
   // 5. Find contacts by phone
   async findContactsByPhone(phone: string): Promise<Contact[]> {
     try {
-      return await extendedApiClient.get<Contact[]>(`/contacts/phone/${encodeURIComponent(phone)}`);
+      return await apiClient.get<Contact[]>(`/contacts/phone/${encodeURIComponent(phone)}`);
     } catch (error) {
       console.error(`Error finding contacts by phone ${phone}:`, error);
       throw error;
@@ -400,7 +294,7 @@ class ContactService {
   // 6. Find contacts by opportunity
   async findContactsByOpportunity(opportunityId: string): Promise<Contact[]> {
     try {
-      return await extendedApiClient.get<Contact[]>(`/contacts/opportunity/${opportunityId}`);
+      return await apiClient.get<Contact[]>(`/contacts/opportunity/${opportunityId}`);
     } catch (error) {
       console.error(`Error finding contacts by opportunity ${opportunityId}:`, error);
       throw error;
@@ -410,7 +304,7 @@ class ContactService {
   // 7. Get contact by ID
   async getContactById(id: string): Promise<Contact> {
     try {
-      return await extendedApiClient.get<Contact>(`/contacts/${id}`);
+      return await apiClient.get<Contact>(`/contacts/${id}`);
     } catch (error) {
       console.error(`Error getting contact ${id}:`, error);
       throw error;
@@ -420,7 +314,7 @@ class ContactService {
   // 8. Update contact
   async updateContact(id: string, data: UpdateContactDto): Promise<Contact> {
     try {
-      return await extendedApiClient.put<UpdateContactDto, Contact>(`/contacts/${id}`, data);
+      return await apiClient.put<UpdateContactDto, Contact>(`/contacts/${id}`, data);
     } catch (error) {
       console.error(`Error updating contact ${id}:`, error);
       throw error;
@@ -430,7 +324,7 @@ class ContactService {
   // 9. Delete contact
   async deleteContact(id: string): Promise<{ message: string }> {
     try {
-      return await extendedApiClient.delete<{ message: string }>(`/contacts/${id}`);
+      return await apiClient.delete<{ message: string }>(`/contacts/${id}`);
     } catch (error) {
       console.error(`Error deleting contact ${id}:`, error);
       throw error;
@@ -440,7 +334,7 @@ class ContactService {
   // 10. Get contact call history
   async getContactCallHistory(id: string): Promise<CallLog[]> {
     try {
-      return await extendedApiClient.get<CallLog[]>(`/contacts/${id}/call-history`);
+      return await apiClient.get<CallLog[]>(`/contacts/${id}/call-history`);
     } catch (error) {
       console.error(`Error getting call history for contact ${id}:`, error);
       throw error;
@@ -450,7 +344,7 @@ class ContactService {
   // 11. Get contact call statistics
   async getContactCallStats(id: string): Promise<CallStats> {
     try {
-      return await extendedApiClient.get<CallStats>(`/contacts/${id}/call-stats`);
+      return await apiClient.get<CallStats>(`/contacts/${id}/call-stats`);
     } catch (error) {
       console.error(`Error getting call stats for contact ${id}:`, error);
       throw error;
@@ -461,7 +355,7 @@ class ContactService {
   async getContactsWithRecentCalls(days: number): Promise<Contact[]> {
     try {
       const params = { days: days.toString() };
-      return await extendedApiClient.get<Contact[]>('/contacts/analytics/recent-calls', params);
+      return await apiClient.get<Contact[]>('/contacts/analytics/recent-calls', params);
     } catch (error) {
       console.error(`Error getting contacts with recent calls (${days} days):`, error);
       throw error;
@@ -472,7 +366,7 @@ class ContactService {
   async getTopContactsByCallDuration(limit: number): Promise<Contact[]> {
     try {
       const params = { limit: limit.toString() };
-      return await extendedApiClient.get<Contact[]>('/contacts/analytics/top-callers', params);
+      return await apiClient.get<Contact[]>('/contacts/analytics/top-callers', params);
     } catch (error) {
       console.error(`Error getting top contacts by call duration (limit: ${limit}):`, error);
       throw error;
@@ -482,7 +376,7 @@ class ContactService {
   // 14. Initiate a call to contact
   async makeCall(id: string, data: MakeCallDto): Promise<CallInitiationResult> {
     try {
-      return await extendedApiClient.post<MakeCallDto, CallInitiationResult>(`/contacts/${id}/make-call`, data);
+      return await apiClient.post<MakeCallDto, CallInitiationResult>(`/contacts/${id}/make-call`, data);
     } catch (error) {
       console.error(`Error making call to contact ${id}:`, error);
       throw error;
@@ -492,7 +386,7 @@ class ContactService {
   // 15. Send WhatsApp message to contact
   async sendWhatsApp(id: string, data: SendWhatsAppDto): Promise<WhatsAppResult> {
     try {
-      return await extendedApiClient.post<SendWhatsAppDto, WhatsAppResult>(`/contacts/${id}/whatsapp/send`, data);
+      return await apiClient.post<SendWhatsAppDto, WhatsAppResult>(`/contacts/${id}/whatsapp/send`, data);
     } catch (error) {
       console.error(`Error sending WhatsApp to contact ${id}:`, error);
       throw error;
@@ -502,7 +396,7 @@ class ContactService {
   // 16. Send WhatsApp broadcast to multiple contacts
   async sendWhatsAppBroadcast(data: BroadcastWhatsAppDto): Promise<BroadcastResult> {
     try {
-      return await extendedApiClient.post<BroadcastWhatsAppDto, BroadcastResult>('/contacts/whatsapp/broadcast', data);
+      return await apiClient.post<BroadcastWhatsAppDto, BroadcastResult>('/contacts/whatsapp/broadcast', data);
     } catch (error) {
       console.error('Error sending WhatsApp broadcast:', error);
       throw error;
@@ -512,7 +406,7 @@ class ContactService {
   // 17. Send WhatsApp to filtered contacts
   async sendWhatsAppToFiltered(data: FilteredWhatsAppDto): Promise<FilteredSendResult> {
     try {
-      return await extendedApiClient.post<FilteredWhatsAppDto, FilteredSendResult>('/contacts/whatsapp/filtered-send', data);
+      return await apiClient.post<FilteredWhatsAppDto, FilteredSendResult>('/contacts/whatsapp/filtered-send', data);
     } catch (error) {
       console.error('Error sending WhatsApp to filtered contacts:', error);
       throw error;
@@ -522,7 +416,7 @@ class ContactService {
   // 18. Update contact field and send notification
   async updateContactAndNotify(id: string, data: UpdateAndNotifyDto): Promise<UpdateNotifyResult> {
     try {
-      return await extendedApiClient.put<UpdateAndNotifyDto, UpdateNotifyResult>(`/contacts/${id}/update-notify`, data);
+      return await apiClient.put<UpdateAndNotifyDto, UpdateNotifyResult>(`/contacts/${id}/update-notify`, data);
     } catch (error) {
       console.error(`Error updating and notifying contact ${id}:`, error);
       throw error;
@@ -532,7 +426,7 @@ class ContactService {
   // 19. Bulk update contacts with notifications
   async bulkUpdateContacts(data: BulkUpdateDto): Promise<BulkUpdateResult[]> {
     try {
-      return await extendedApiClient.put<BulkUpdateDto, BulkUpdateResult[]>('/contacts/whatsapp/bulk-update-notify', data);
+      return await apiClient.put<BulkUpdateDto, BulkUpdateResult[]>('/contacts/whatsapp/bulk-update-notify', data);
     } catch (error) {
       console.error('Error bulk updating contacts:', error);
       throw error;
@@ -543,7 +437,7 @@ class ContactService {
   async getWhatsAppHistory(id: string, limit: number = 50): Promise<WhatsAppMessageLog[]> {
     try {
       const params = limit ? { limit: limit.toString() } : undefined;
-      return await extendedApiClient.get<WhatsAppMessageLog[]>(`/contacts/${id}/whatsapp/history`, params);
+      return await apiClient.get<WhatsAppMessageLog[]>(`/contacts/${id}/whatsapp/history`, params);
     } catch (error) {
       console.error(`Error getting WhatsApp history for contact ${id}:`, error);
       throw error;
@@ -553,7 +447,7 @@ class ContactService {
   // 21. Get WhatsApp messaging statistics
   async getWhatsAppStats(): Promise<WhatsAppStats> {
     try {
-      return await extendedApiClient.get<WhatsAppStats>('/contacts/whatsapp/stats');
+      return await apiClient.get<WhatsAppStats>('/contacts/whatsapp/stats');
     } catch (error) {
       console.error('Error getting WhatsApp stats:', error);
       throw error;
@@ -576,7 +470,7 @@ class ContactService {
         });
       }
 
-      return await extendedApiClient.get<ContactsWhatsAppView>('/contacts/whatsapp/view', params);
+      return await apiClient.get<ContactsWhatsAppView>('/contacts/whatsapp/view', params);
     } catch (error) {
       console.error('Error getting contacts WhatsApp view:', error);
       throw error;
@@ -586,14 +480,14 @@ class ContactService {
   // 23. Test TextMeBot connection
   async testWhatsAppConnection(): Promise<TestWhatsAppResult> {
     try {
-      return await extendedApiClient.post<any, TestWhatsAppResult>('/contacts/whatsapp/test', {});
+      return await apiClient.post<any, TestWhatsAppResult>('/contacts/whatsapp/test', {});
     } catch (error) {
       console.error('Error testing WhatsApp connection:', error);
       throw error;
     }
   }
 
-  // Utility methods
+  // Utility methods (optimized for better performance)
   async getActiveContacts(): Promise<Contact[]> {
     try {
       const allContacts = await this.getAllContacts();
@@ -620,9 +514,9 @@ class ContactService {
       const searchLower = searchTerm.toLowerCase();
       
       return allContacts.filter(contact =>
-        contact.name.toLowerCase().includes(searchLower) ||
+        contact.name?.toLowerCase().includes(searchLower) ||
         contact.email?.toLowerCase().includes(searchLower) ||
-        contact.phone.includes(searchTerm) ||
+        contact.phone?.includes(searchTerm) ||
         contact.companyName?.toLowerCase().includes(searchLower)
       );
     } catch (error) {
@@ -714,7 +608,7 @@ class ContactService {
     totalDuration: number;
     averageDuration: number;
     lastCall: CallLog | null;
-    callFrequency: number; // calls per month
+    callFrequency: number;
   }> {
     try {
       const callHistory = await this.getContactCallHistory(id);
@@ -730,8 +624,8 @@ class ContactService {
       let callFrequency = 0;
       if (callHistory.length > 1) {
         const firstCall = new Date(callHistory[callHistory.length - 1].callDate);
-        const lastCall = new Date(callHistory[0].callDate);
-        const monthsDiff = (lastCall.getTime() - firstCall.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+        const lastCallDate = new Date(callHistory[0].callDate);
+        const monthsDiff = (lastCallDate.getTime() - firstCall.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
         callFrequency = monthsDiff > 0 ? callHistory.length / monthsDiff : callHistory.length;
       }
       
@@ -812,7 +706,7 @@ class ContactService {
         score += 10;
       }
       
-      return Math.min(score, 100); // Cap at 100
+      return Math.min(score, 100);
     } catch (error) {
       console.error(`Error calculating engagement score for contact ${id}:`, error);
       throw error;
@@ -873,6 +767,111 @@ class ContactService {
       console.error(`Error exporting contacts in ${format} format:`, error);
       throw error;
     }
+  }
+
+  // New utility method for better error handling
+  async getAllContactsWithFallback(): Promise<Contact[]> {
+    try {
+      const contacts = await this.getAllContacts();
+      return Array.isArray(contacts) ? contacts : [];
+    } catch (error) {
+      console.error('Error in getAllContactsWithFallback:', error);
+      // Return empty array instead of throwing
+      return [];
+    }
+  }
+
+  // New method to calculate stats locally if API fails
+  async getContactsStatsWithFallback(): Promise<ContactStats> {
+    try {
+      try {
+        return await this.getContactsStats();
+      } catch (apiError) {
+        console.log('Contacts stats API failed, calculating locally...');
+        const contacts = await this.getAllContactsWithFallback();
+        return this.calculateLocalStats(contacts);
+      }
+    } catch (error) {
+      console.error('Error in getContactsStatsWithFallback:', error);
+      return this.getDefaultStats();
+    }
+  }
+
+  public calculateLocalStats(contacts: Contact[]): ContactStats {
+    const contactsWithEmail = contacts.filter(c => c.email).length;
+    const contactsWithPhone = contacts.filter(c => c.phone).length;
+    
+    // Calculate contacts by type
+    const typeCounts: Record<string, number> = {};
+    contacts.forEach(contact => {
+      const type = contact.type || 'unknown';
+      typeCounts[type] = (typeCounts[type] || 0) + 1;
+    });
+    
+    const contactsByType = Object.entries(typeCounts).map(([_id, count]) => ({
+      _id,
+      count
+    }));
+
+    // Calculate call stats
+    const totalCalls = contacts.reduce((sum, c) => sum + (c.totalCalls || 0), 0);
+    const totalDuration = contacts.reduce((sum, c) => sum + (c.totalCallDuration || 0), 0);
+    const contactsWithCalls = contacts.filter(c => (c.totalCalls || 0) > 0).length;
+    const avgDuration = totalCalls > 0 ? totalDuration / totalCalls : 0;
+
+    // Calculate WhatsApp stats
+    const whatsappEnabled = contacts.filter(c => c.whatsappEnabled).length;
+    const whatsappActive = contacts.filter(c => c.whatsappStatus === 'active').length;
+    const totalMessagesSent = contacts.reduce((sum, c) => sum + (c.totalWhatsAppSent || 0), 0);
+    const totalMessagesReceived = contacts.reduce((sum, c) => sum + (c.totalWhatsAppReceived || 0), 0);
+
+    return {
+      totalContacts: contacts.length,
+      contactsWithEmail,
+      contactsWithPhone,
+      contactsByType,
+      emailCoverage: contacts.length > 0 ? `${Math.round((contactsWithEmail / contacts.length) * 100)}%` : '0%',
+      phoneCoverage: contacts.length > 0 ? `${Math.round((contactsWithPhone / contacts.length) * 100)}%` : '0%',
+      callStats: {
+        totalCalls,
+        totalDuration,
+        avgDuration,
+        contactsWithCalls
+      },
+      whatsappStats: {
+        totalContacts: contacts.length,
+        whatsappEnabled,
+        whatsappActive,
+        totalMessagesSent,
+        totalMessagesReceived,
+        messagesByStatus: {} // Not available locally
+      }
+    };
+  }
+
+  public getDefaultStats(): ContactStats {
+    return {
+      totalContacts: 0,
+      contactsWithEmail: 0,
+      contactsWithPhone: 0,
+      contactsByType: [],
+      emailCoverage: '0%',
+      phoneCoverage: '0%',
+      callStats: {
+        totalCalls: 0,
+        totalDuration: 0,
+        avgDuration: 0,
+        contactsWithCalls: 0
+      },
+      whatsappStats: {
+        totalContacts: 0,
+        whatsappEnabled: 0,
+        whatsappActive: 0,
+        totalMessagesSent: 0,
+        totalMessagesReceived: 0,
+        messagesByStatus: {}
+      }
+    };
   }
 }
 

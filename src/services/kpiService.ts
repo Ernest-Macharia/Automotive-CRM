@@ -163,6 +163,16 @@ export interface DashboardStats {
   recentKpis: number;
   completionRate: number;
   averageScore: number;
+  inProgressKpis?: number;
+  averageCompletion?: number;
+  thisMonth?: {
+    created: number;
+    completed: number;
+    overdue: number;
+  };
+  byFrequency?: Record<string, any>;
+  byStatus?: Record<string, any>;
+  topPerformers?: any[];
 }
 
 export interface RoleReport {
@@ -266,7 +276,7 @@ class KpiService {
    * Get my KPIs
    * GET /api/v1/kpi/me
    */
-  async getMyKpis(params?: {
+  async getMyKPIs(params?: {
     status?: string;
     periodStart?: string;
     periodEnd?: string;
@@ -581,7 +591,7 @@ class KpiService {
    * Get overdue KPIs
    * GET /api/v1/kpi/overdue
    */
-  async getOverdueKpis(): Promise<Kpi[]> {
+  async getOverdueKPIs(): Promise<Kpi[]> {
     try {
       const response = await apiClient.get<any[]>('/kpi/overdue');
       return response.map(kpi => this.normalizeKpi(kpi));
@@ -813,6 +823,10 @@ class KpiService {
     }, 0);
     
     return Math.min(100, Math.round(weightedProgress));
+  }
+
+  calculateKPIProgress(kpi: Kpi): number {
+    return this.calculateKpiProgress(kpi); // Use existing method
   }
 
   /**

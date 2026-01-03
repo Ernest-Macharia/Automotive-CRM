@@ -111,14 +111,216 @@ export default function CreateBlueprintPage() {
   const [selectedStage, setSelectedStage] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Module options with icons
+  const modules = [
+    { id: 'opportunities', name: 'Opportunities', icon: '💼' },
+    { id: 'quotes', name: 'Quotes', icon: '📝' },
+    { id: 'customers', name: 'Customers', icon: '👥' },
+    { id: 'jobs', name: 'Jobs', icon: '🔧' },
+    { id: 'inventory', name: 'Inventory', icon: '📦' },
+    { id: 'projects', name: 'Projects', icon: '📊' },
+    { id: 'tickets', name: 'Support Tickets', icon: '🎫' },
+    { id: 'leads', name: 'Leads', icon: '🎯' },
+  ];
+
+  // Role categories
+  const roleCategories = [
+    {
+      category: 'Administrative',
+      roles: [
+        { id: 'admin', name: 'Administrator', description: 'Full system access' },
+        { id: 'supervisor', name: 'Supervisor', description: 'Team management access' },
+        { id: 'manager', name: 'Manager', description: 'Department management' },
+      ]
+    },
+    {
+      category: 'Sales',
+      roles: [
+        { id: 'sales_rep', name: 'Sales Representative', description: 'Sales team member' },
+        { id: 'account_exec', name: 'Account Executive', description: 'Key account management' },
+        { id: 'sales_manager', name: 'Sales Manager', description: 'Sales team leadership' },
+      ]
+    },
+    {
+      category: 'Operations',
+      roles: [
+        { id: 'technician', name: 'Technician', description: 'Field service operations' },
+        { id: 'dispatcher', name: 'Dispatcher', description: 'Job scheduling and dispatch' },
+        { id: 'operations_manager', name: 'Operations Manager', description: 'Operations oversight' },
+      ]
+    },
+    {
+      category: 'Support',
+      roles: [
+        { id: 'support_agent', name: 'Support Agent', description: 'Customer support' },
+        { id: 'customer_success', name: 'Customer Success', description: 'Customer relationship management' },
+        { id: 'quality_assurance', name: 'Quality Assurance', description: 'Service quality monitoring' },
+      ]
+    },
+    {
+      category: 'Finance',
+      roles: [
+        { id: 'accountant', name: 'Accountant', description: 'Financial management' },
+        { id: 'finance_manager', name: 'Finance Manager', description: 'Budget oversight' },
+        { id: 'auditor', name: 'Auditor', description: 'Financial compliance' },
+      ]
+    },
+  ];
+
+  // Template options
+  const blueprintTemplates = [
+    { id: 'sales_pipeline', name: 'Sales Pipeline', icon: '📈', description: 'Standard sales process workflow' },
+    { id: 'support_ticket', name: 'Support Ticket', icon: '🎫', description: 'Customer support ticket workflow' },
+    { id: 'project_management', name: 'Project Management', icon: '📊', description: 'Project lifecycle management' },
+    { id: 'recruitment', name: 'Recruitment', icon: '👥', description: 'Candidate hiring process' },
+    { id: 'purchase_order', name: 'Purchase Order', icon: '📝', description: 'Procurement approval workflow' },
+    { id: 'incident_response', name: 'Incident Response', icon: '🚨', description: 'Emergency incident handling' },
+    { id: 'content_approval', name: 'Content Approval', icon: '✍️', description: 'Content review and approval process' },
+    { id: 'customer_onboarding', name: 'Customer Onboarding', icon: '🚀', description: 'New customer setup process' },
+  ];
+
   // Stage colors inspired by Zoho
   const stageColors = [
-    { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', darkBg: 'bg-blue-100', name: 'Blue' },
-    { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', darkBg: 'bg-green-100', name: 'Green' },
-    { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', darkBg: 'bg-purple-100', name: 'Purple' },
-    { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', darkBg: 'bg-amber-100', name: 'Amber' },
-    { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', darkBg: 'bg-rose-100', name: 'Rose' },
-    { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700', darkBg: 'bg-cyan-100', name: 'Cyan' },
+    { 
+      id: 'blue', name: 'Blue Ocean', 
+      bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', 
+      darkBg: 'bg-blue-100'
+    },
+    { 
+      id: 'green', name: 'Green Forest', 
+      bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', 
+      darkBg: 'bg-green-100'
+    },
+    { 
+      id: 'purple', name: 'Purple Haze', 
+      bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', 
+      darkBg: 'bg-purple-100'
+    },
+    { 
+      id: 'amber', name: 'Amber Sun', 
+      bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', 
+      darkBg: 'bg-amber-100'
+    },
+    { 
+      id: 'rose', name: 'Rose Garden', 
+      bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', 
+      darkBg: 'bg-rose-100'
+    },
+    { 
+      id: 'cyan', name: 'Cyan Sky', 
+      bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700', 
+      darkBg: 'bg-cyan-100'
+    },
+    { 
+      id: 'indigo', name: 'Indigo Night', 
+      bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700', 
+      darkBg: 'bg-indigo-100'
+    },
+    { 
+      id: 'emerald', name: 'Emerald Green', 
+      bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', 
+      darkBg: 'bg-emerald-100'
+    },
+  ];
+
+  // Stage icon options
+  const stageIcons = [
+    { value: 'clipboard', icon: '📋', label: 'Clipboard' },
+    { value: 'check-circle', icon: '✅', label: 'Check Circle' },
+    { value: 'flag', icon: '🏁', label: 'Flag' },
+    { value: 'star', icon: '⭐', label: 'Star' },
+    { value: 'rocket', icon: '🚀', label: 'Rocket' },
+    { value: 'target', icon: '🎯', label: 'Target' },
+    { value: 'lightbulb', icon: '💡', label: 'Lightbulb' },
+    { value: 'gear', icon: '⚙️', label: 'Gear' },
+    { value: 'shield', icon: '🛡️', label: 'Shield' },
+    { value: 'clock', icon: '⏰', label: 'Clock' },
+    { value: 'bell', icon: '🔔', label: 'Bell' },
+    { value: 'lock', icon: '🔒', label: 'Lock' },
+    { value: 'unlock', icon: '🔓', label: 'Unlock' },
+    { value: 'warning', icon: '⚠️', label: 'Warning' },
+    { value: 'trophy', icon: '🏆', label: 'Trophy' },
+    { value: 'dollar', icon: '💰', label: 'Dollar' },
+    { value: 'message', icon: '💬', label: 'Message' },
+    { value: 'phone', icon: '📞', label: 'Phone' },
+    { value: 'email', icon: '📧', label: 'Email' },
+    { value: 'calendar', icon: '📅', label: 'Calendar' },
+  ];
+
+  // Predefined stage templates
+  const stageTemplates = [
+    { 
+      id: 'initial', 
+      name: 'Initial Contact', 
+      color: 'blue',
+      icon: 'phone',
+      description: 'First contact with prospect',
+      entryActions: ['sendEmail'],
+      exitActions: ['createTask']
+    },
+    { 
+      id: 'qualification', 
+      name: 'Qualification', 
+      color: 'green',
+      icon: 'target',
+      description: 'Assess prospect needs and fit',
+      entryActions: ['sendNotification'],
+      exitActions: ['updateField']
+    },
+    { 
+      id: 'proposal', 
+      name: 'Proposal Sent', 
+      color: 'purple',
+      icon: 'clipboard',
+      description: 'Proposal delivered to client',
+      entryActions: ['sendEmail', 'createTask'],
+      exitActions: ['assignRecord']
+    },
+    { 
+      id: 'negotiation', 
+      name: 'Negotiation', 
+      color: 'amber',
+      icon: 'message',
+      description: 'Contract terms discussion',
+      entryActions: ['sendNotification'],
+      exitActions: ['webhook']
+    },
+    { 
+      id: 'review', 
+      name: 'Under Review', 
+      color: 'cyan',
+      icon: 'clock',
+      description: 'Proposal being reviewed',
+      entryActions: ['sendNotification'],
+      exitActions: ['sendEmail']
+    },
+    { 
+      id: 'approval', 
+      name: 'Awaiting Approval', 
+      color: 'indigo',
+      icon: 'shield',
+      description: 'Waiting for management approval',
+      entryActions: ['sendNotification'],
+      exitActions: ['createRecord']
+    },
+    { 
+      id: 'closed_won', 
+      name: 'Closed Won', 
+      color: 'emerald',
+      icon: 'trophy',
+      description: 'Deal successfully closed',
+      entryActions: ['sendEmail', 'createRecord'],
+      exitActions: []
+    },
+    { 
+      id: 'closed_lost', 
+      name: 'Closed Lost', 
+      color: 'rose',
+      icon: 'warning',
+      description: 'Deal lost to competition',
+      entryActions: ['sendNotification', 'updateField'],
+      exitActions: ['createTask']
+    },
   ];
 
   const actionTypes = [
@@ -228,28 +430,19 @@ export default function CreateBlueprintPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const modules = await blueprintsService.getAvailableModules();
-        setAvailableModules(modules);
+        const modulesData = await blueprintsService.getAvailableModules();
+        setAvailableModules(modulesData);
         
-        const roles = await blueprintsService.getAvailableRoles();
-        setAvailableRoles(roles);
+        const rolesData = await blueprintsService.getAvailableRoles();
+        setAvailableRoles(rolesData);
         
-        if (modules.length > 0 && !formData.module) {
-          setFormData(prev => ({ ...prev, module: modules[0] }));
+        if (modulesData.length > 0 && !formData.module) {
+          setFormData(prev => ({ ...prev, module: modulesData[0] }));
         }
       } catch (error) {
         console.error('Error loading data:', error);
-        setAvailableModules(['opportunities', 'quotes', 'customers', 'jobs', 'inventory']);
-        setAvailableRoles([
-          'admin',
-          'manager',
-          'sales_representative',
-          'technician',
-          'customer_success',
-          'finance',
-          'operations',
-          'viewer',
-        ]);
+        setAvailableModules(modules.map(m => m.id));
+        setAvailableRoles(roleCategories.flatMap(cat => cat.roles.map(r => r.id)));
       }
     };
     
@@ -279,6 +472,7 @@ export default function CreateBlueprintPage() {
 
   const addStage = useCallback(() => {
     const colorIndex = formData.stages.length % stageColors.length;
+    const iconIndex = formData.stages.length % stageIcons.length;
     const newStage: StageForm = {
       name: `Stage ${formData.stages.length + 1}`,
       order: formData.stages.length + 1,
@@ -286,7 +480,8 @@ export default function CreateBlueprintPage() {
       entryActions: [],
       exitActions: [],
       isExpanded: true,
-      color: stageColors[colorIndex].name.toLowerCase(),
+      color: stageColors[colorIndex].id,
+      icon: stageIcons[iconIndex].value,
       description: '',
     };
     setFormData(prev => ({
@@ -304,7 +499,7 @@ export default function CreateBlueprintPage() {
       name: `${stageToDuplicate.name} (Copy)`,
       order: formData.stages.length + 1,
       isExpanded: true,
-      color: stageColors[colorIndex].name.toLowerCase(),
+      color: stageColors[colorIndex].id,
     };
     
     const newStages = [...formData.stages];
@@ -402,14 +597,14 @@ export default function CreateBlueprintPage() {
     actionType: 'entryActions' | 'exitActions', 
     actionIndex: number, 
     field: string, 
-    value: any // Changed from string | boolean to any
+    value: any
   ) => {
     const newStages = [...formData.stages];
     
     if (field === 'actionType') {
       const selectedAction = actionTypes.find(a => a.value === value);
       newStages[stageIndex][actionType][actionIndex] = { 
-        actionType: value as string, // Cast to string
+        actionType: value as string,
         params: selectedAction?.params.reduce((acc, param) => ({
           ...acc,
           [param.key]: param.type === 'checkbox' ? (param.default || false) : ''
@@ -497,22 +692,26 @@ export default function CreateBlueprintPage() {
       const blueprintData = {
         name: formData.name,
         module: formData.module,
-        // The backend only expects these three fields according to CreateBlueprintDto
-        // Remove description, isActive, etc. if they're not in the DTO
+        description: formData.description,
+        isActive: formData.isActive,
         stages: formData.stages.map(stage => ({
           name: stage.name,
           order: stage.order,
           allowedRoles: stage.allowedRoles,
-          // Transform actions to match StageDto
+          color: stage.color,
+          icon: stage.icon,
+          description: stage.description,
           entryActions: stage.entryActions.map(action => ({
             actionType: action.actionType,
-            // Backend expects params as Record<string, any>
-            params: action.params
-            // Remove name and enabled if backend doesn't expect them
+            params: action.params,
+            name: action.name,
+            enabled: action.enabled
           })),
           exitActions: stage.exitActions.map(action => ({
             actionType: action.actionType,
-            params: action.params
+            params: action.params,
+            name: action.name,
+            enabled: action.enabled
           })),
         })),
       };
@@ -555,8 +754,13 @@ export default function CreateBlueprintPage() {
   };
 
   const getStageColor = (index: number) => {
-    const colorName = formData.stages[index]?.color || stageColors[index % stageColors.length].name.toLowerCase();
-    return stageColors.find(c => c.name.toLowerCase() === colorName) || stageColors[0];
+    const colorId = formData.stages[index]?.color || stageColors[index % stageColors.length].id;
+    return stageColors.find(c => c.id === colorId) || stageColors[0];
+  };
+
+  const getStageIcon = (stage: StageForm) => {
+    const iconValue = stage.icon || stageIcons[0].value;
+    return stageIcons.find(i => i.value === iconValue) || stageIcons[0];
   };
 
   const handleTestBlueprint = () => {
@@ -580,6 +784,83 @@ export default function CreateBlueprintPage() {
     linkElement.click();
     
     showToast('Blueprint exported successfully', 'success');
+  };
+
+  const loadTemplate = (templateId: string) => {
+    const template = blueprintTemplates.find(t => t.id === templateId);
+    if (!template) return;
+
+    // Set basic info
+    setFormData(prev => ({
+      ...prev,
+      name: template.name,
+      description: template.description,
+    }));
+
+    // Load template-specific stages
+    if (templateId === 'sales_pipeline') {
+      const salesStages: StageForm[] = [
+        {
+          name: 'Lead',
+          order: 1,
+          allowedRoles: ['sales_rep', 'sales_manager'],
+          entryActions: [],
+          exitActions: [],
+          color: 'blue',
+          icon: 'target',
+          description: 'Initial lead qualification',
+          isExpanded: true,
+        },
+        {
+          name: 'Qualified',
+          order: 2,
+          allowedRoles: ['sales_rep', 'account_exec', 'sales_manager'],
+          entryActions: [],
+          exitActions: [],
+          color: 'green',
+          icon: 'check-circle',
+          description: 'Lead qualified and ready for contact',
+          isExpanded: true,
+        },
+        {
+          name: 'Proposal',
+          order: 3,
+          allowedRoles: ['account_exec', 'sales_manager'],
+          entryActions: [],
+          exitActions: [],
+          color: 'purple',
+          icon: 'clipboard',
+          description: 'Proposal sent to client',
+          isExpanded: true,
+        },
+        {
+          name: 'Negotiation',
+          order: 4,
+          allowedRoles: ['account_exec', 'sales_manager', 'manager'],
+          entryActions: [],
+          exitActions: [],
+          color: 'amber',
+          icon: 'message',
+          description: 'Contract negotiation phase',
+          isExpanded: true,
+        },
+        {
+          name: 'Closed Won',
+          order: 5,
+          allowedRoles: ['account_exec', 'sales_manager', 'admin'],
+          entryActions: [],
+          exitActions: [],
+          color: 'emerald',
+          icon: 'trophy',
+          description: 'Deal successfully closed',
+          isExpanded: true,
+        },
+      ];
+      setFormData(prev => ({ ...prev, stages: salesStages }));
+    }
+
+    showToast(`"${template.name}" template loaded`, 'success');
+    setCurrentStep('stages');
   };
 
   // Step 1: Basic Info
@@ -611,20 +892,50 @@ export default function CreateBlueprintPage() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Module *
             </label>
-            <select
-              value={formData.module}
-              onChange={(e) => handleInputChange('module', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={loading}
-            >
-              <option value="">Select a module</option>
-              {availableModules.map(module => (
-                <option key={module} value={module}>
-                  {module.charAt(0).toUpperCase() + module.slice(1)}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={formData.module}
+                onChange={(e) => handleInputChange('module', e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none pr-10"
+                disabled={loading}
+              >
+                <option value="">Select a module</option>
+                {modules.map(module => (
+                  <option key={module.id} value={module.id}>
+                    {module.icon} {module.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="h-5 w-5 text-gray-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+            </div>
             <p className="mt-1 text-sm text-gray-500">Select which module this blueprint will apply to</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Start from Template (Optional)
+            </label>
+            <div className="relative">
+              <select
+                onChange={(e) => {
+                  if (e.target.value) {
+                    loadTemplate(e.target.value);
+                    e.target.value = '';
+                  }
+                }}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none pr-10"
+                disabled={loading}
+              >
+                <option value="">Select a template to start from</option>
+                {blueprintTemplates.map(template => (
+                  <option key={template.id} value={template.id}>
+                    {template.icon} {template.name} - {template.description}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="h-5 w-5 text-gray-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+            </div>
+            <p className="mt-1 text-sm text-gray-500">Choose a pre-built template to speed up setup</p>
           </div>
 
           <div>
@@ -667,405 +978,543 @@ export default function CreateBlueprintPage() {
 
   // Step 2: Stages
   const renderStepStages = () => (
-  <div className="max-w-6xl mx-auto">
-    <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Configure Stages</h2>
-            <p className="text-gray-600">Define the stages of your workflow</p>
-          </div>
-          <button
-            onClick={addStage}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" />
-            Add Stage
-          </button>
-        </div>
-      </div>
-
-      {formData.stages.length === 0 ? (
-        <div className="text-center py-16 border-2 border-dashed border-gray-300 rounded-2xl">
-          <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-            <Workflow className="h-8 w-8 text-gray-400" />
-          </div>
-          <h4 className="text-xl font-medium text-gray-900 mb-2">No stages yet</h4>
-          <p className="text-gray-600 mb-6 max-w-md mx-auto">
-            Start by adding stages to create your workflow. Each stage represents a step in your process.
-          </p>
-          <button
-            onClick={addStage}
-            disabled={loading}
-            className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
-            Add First Stage
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {formData.stages.map((stage, index) => {
-            const color = getStageColor(index);
-            return (
-              <div
-                key={index}
-                className={`${color.bg} ${color.border} border-2 rounded-xl p-6 transition-all ${
-                  selectedStage === index ? 'ring-2 ring-blue-500 ring-offset-2' : ''
-                }`}
-                onClick={() => setSelectedStage(index)}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-start gap-4">
-                    <div className={`h-12 w-12 rounded-full ${color.darkBg} flex items-center justify-center flex-shrink-0`}>
-                      <span className="font-bold text-lg text-gray-800">{stage.order}</span>
-                    </div>
-                    <div className="flex-1">
-                      <input
-                        type="text"
-                        value={stage.name}
-                        onChange={(e) => updateStage(index, 'name', e.target.value)}
-                        className="text-xl font-semibold text-gray-900 bg-transparent border-none focus:outline-none focus:ring-0 px-0 py-1 w-full"
-                        placeholder="Stage name"
-                        disabled={loading}
-                      />
-                      <textarea
-                        value={stage.description || ''}
-                        onChange={(e) => updateStage(index, 'description', e.target.value)}
-                        rows={1}
-                        className="mt-2 text-sm text-gray-600 bg-transparent border-none focus:outline-none focus:ring-0 px-0 py-1 w-full resize-none"
-                        placeholder="Stage description (optional)"
-                        disabled={loading}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        duplicateStage(index);
-                      }}
-                      className="p-2 hover:bg-white/50 rounded-lg text-gray-600 hover:text-gray-900"
-                      title="Duplicate stage"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeStage(index);
-                      }}
-                      className="p-2 hover:bg-red-50 rounded-lg text-red-600 hover:text-red-700"
-                      title="Delete stage"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                  {/* Allowed Roles */}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-3">Allowed Roles</h4>
-                    <div className="space-y-2">
-                      {availableRoles.map(role => (
-                        <label
-                          key={role}
-                          className="flex items-center gap-3 p-2 hover:bg-white/50 rounded-lg cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={stage.allowedRoles.includes(role)}
-                            onChange={() => updateStage(index, 'allowedRoles', role)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                          <div className="flex items-center gap-2">
-                            <Shield className="h-4 w-4 text-gray-500" />
-                            <span className="text-sm capitalize">{role.replace('_', ' ')}</span>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Actions Summary */}
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-medium text-gray-700">Entry Actions</h4>
-                        <div className="relative">
-                          <select
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              if (e.target.value) {
-                                addAction(index, 'entryActions', e.target.value);
-                                e.target.value = '';
-                              }
-                            }}
-                            className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 appearance-none pr-6 cursor-pointer"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <option value="">+ Add Action</option>
-                            {actionTypes.map(type => (
-                              <option key={type.value} value={type.value}>
-                                {type.label}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="h-3 w-3 absolute right-1 top-1/2 transform -translate-y-1/2 pointer-events-none" />
-                        </div>
-                      </div>
-                      {stage.entryActions.length > 0 ? (
-                        <div className="space-y-2">
-                          {stage.entryActions.map((action, i) => {
-                            const config = getActionConfig(action.actionType);
-                            const Icon = config.icon;
-                            return (
-                              <div key={i} className="bg-white rounded-lg p-3 border border-gray-200">
-                                <div className="flex items-center justify-between mb-3">
-                                  <div className="flex items-center gap-2">
-                                    <div className={`p-1.5 rounded ${config.color}`}>
-                                      <Icon className="h-3 w-3" />
-                                    </div>
-                                    <div>
-                                      <div className="text-sm font-medium">{config.label}</div>
-                                      <div className="text-xs text-gray-500">{config.category}</div>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={action.enabled !== false}
-                                        onChange={(e) => {
-                                          e.stopPropagation();
-                                          toggleActionEnabled(index, 'entryActions', i);
-                                        }}
-                                        className="sr-only peer"
-                                      />
-                                      <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
-                                    </label>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        removeAction(index, 'entryActions', i);
-                                      }}
-                                      className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-red-600"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </button>
-                                  </div>
-                                </div>
-                                
-                                {/* Action Parameters */}
-                                <div className="space-y-2">
-                                  {config.params.map(param => (
-                                    <div key={param.key}>
-                                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                                        {param.label}
-                                      </label>
-                                      {param.type === 'select' ? (
-                                        <select
-                                          value={String(action.params[param.key] || '')}
-                                          onChange={(e) => updateAction(index, 'entryActions', i, `params.${param.key}`, e.target.value)}
-                                          className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                                          disabled={loading}
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <option value="">Select {param.label.toLowerCase()}</option>
-                                          {param.options?.map(option => (
-                                            <option key={option} value={option}>{option}</option>
-                                          ))}
-                                        </select>
-                                      ) : param.type === 'checkbox' ? (
-                                        <label className="flex items-center gap-2">
-                                          <input
-                                            type="checkbox"
-                                            checked={Boolean(action.params[param.key])}
-                                            onChange={(e) => updateAction(index, 'entryActions', i, `params.${param.key}`, e.target.checked)}
-                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                            onClick={(e) => e.stopPropagation()}
-                                          />
-                                          <span className="text-xs text-gray-700">{param.placeholder}</span>
-                                        </label>
-                                      ) : param.type === 'textarea' ? (
-                                        <textarea
-                                          value={String(action.params[param.key] || '')}
-                                          onChange={(e) => updateAction(index, 'entryActions', i, `params.${param.key}`, e.target.value)}
-                                          rows={2}
-                                          className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                                          placeholder={param.placeholder}
-                                          disabled={loading}
-                                          onClick={(e) => e.stopPropagation()}
-                                        />
-                                      ) : (
-                                        <input
-                                          type={param.type}
-                                          value={String(action.params[param.key] || '')}
-                                          onChange={(e) => updateAction(index, 'entryActions', i, `params.${param.key}`, e.target.value)}
-                                          className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                                          placeholder={param.placeholder}
-                                          disabled={loading}
-                                          onClick={(e) => e.stopPropagation()}
-                                        />
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="text-center py-4 border-2 border-dashed border-gray-200 rounded-lg">
-                          <p className="text-sm text-gray-400">No entry actions configured</p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-medium text-gray-700">Exit Actions</h4>
-                        <div className="relative">
-                          <select
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              if (e.target.value) {
-                                addAction(index, 'exitActions', e.target.value);
-                                e.target.value = '';
-                              }
-                            }}
-                            className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 appearance-none pr-6 cursor-pointer"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <option value="">+ Add Action</option>
-                            {actionTypes.map(type => (
-                              <option key={type.value} value={type.value}>
-                                {type.label}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="h-3 w-3 absolute right-1 top-1/2 transform -translate-y-1/2 pointer-events-none" />
-                        </div>
-                      </div>
-                      {stage.exitActions.length > 0 ? (
-                        <div className="space-y-2">
-                          {stage.exitActions.map((action, i) => {
-                            const config = getActionConfig(action.actionType);
-                            const Icon = config.icon;
-                            return (
-                              <div key={i} className="bg-white rounded-lg p-3 border border-gray-200">
-                                <div className="flex items-center justify-between mb-3">
-                                  <div className="flex items-center gap-2">
-                                    <div className={`p-1.5 rounded ${config.color}`}>
-                                      <Icon className="h-3 w-3" />
-                                    </div>
-                                    <div>
-                                      <div className="text-sm font-medium">{config.label}</div>
-                                      <div className="text-xs text-gray-500">{config.category}</div>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={action.enabled !== false}
-                                        onChange={(e) => {
-                                          e.stopPropagation();
-                                          toggleActionEnabled(index, 'exitActions', i);
-                                        }}
-                                        className="sr-only peer"
-                                      />
-                                      <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
-                                    </label>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        removeAction(index, 'exitActions', i);
-                                      }}
-                                      className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-red-600"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </button>
-                                  </div>
-                                </div>
-                                
-                                {/* Action Parameters */}
-                                <div className="space-y-2">
-                                  {config.params.map(param => (
-                                    <div key={param.key}>
-                                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                                        {param.label}
-                                      </label>
-                                      {param.type === 'select' ? (
-                                        <select
-                                          value={String(action.params[param.key] || '')}
-                                          onChange={(e) => updateAction(index, 'exitActions', i, `params.${param.key}`, e.target.value)}
-                                          className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                                          disabled={loading}
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <option value="">Select {param.label.toLowerCase()}</option>
-                                          {param.options?.map(option => (
-                                            <option key={option} value={option}>{option}</option>
-                                          ))}
-                                        </select>
-                                      ) : param.type === 'checkbox' ? (
-                                        <label className="flex items-center gap-2">
-                                          <input
-                                            type="checkbox"
-                                            checked={Boolean(action.params[param.key])}
-                                            onChange={(e) => updateAction(index, 'exitActions', i, `params.${param.key}`, e.target.checked)}
-                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                            onClick={(e) => e.stopPropagation()}
-                                          />
-                                          <span className="text-xs text-gray-700">{param.placeholder}</span>
-                                        </label>
-                                      ) : param.type === 'textarea' ? (
-                                        <textarea
-                                          value={String(action.params[param.key] || '')}
-                                          onChange={(e) => updateAction(index, 'exitActions', i, `params.${param.key}`, e.target.value)}
-                                          rows={2}
-                                          className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                                          placeholder={param.placeholder}
-                                          disabled={loading}
-                                          onClick={(e) => e.stopPropagation()}
-                                        />
-                                      ) : (
-                                        <input
-                                          type={param.type}
-                                          value={String(action.params[param.key] || '')}
-                                          onChange={(e) => updateAction(index, 'exitActions', i, `params.${param.key}`, e.target.value)}
-                                          className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                                          placeholder={param.placeholder}
-                                          disabled={loading}
-                                          onClick={(e) => e.stopPropagation()}
-                                        />
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="text-center py-4 border-2 border-dashed border-gray-200 rounded-lg">
-                          <p className="text-sm text-gray-400">No exit actions configured</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+    <div className="max-w-6xl mx-auto">
+      <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Configure Stages</h2>
+              <p className="text-gray-600">Define the stages of your workflow</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const template = stageTemplates.find(t => t.id === e.target.value);
+                      if (template) {
+                        const color = stageColors.find(c => c.id === template.color) || stageColors[0];
+                        const icon = stageIcons.find(i => i.value === template.icon) || stageIcons[0];
+                        const newStage: StageForm = {
+                          name: template.name,
+                          order: formData.stages.length + 1,
+                          allowedRoles: ['admin', 'manager'],
+                          entryActions: template.entryActions.map(action => ({
+                            actionType: action,
+                            params: {},
+                            enabled: true
+                          })),
+                          exitActions: template.exitActions.map(action => ({
+                            actionType: action,
+                            params: {},
+                            enabled: true
+                          })),
+                          color: template.color,
+                          icon: template.icon,
+                          description: template.description,
+                          isExpanded: true,
+                        };
+                        setFormData(prev => ({
+                          ...prev,
+                          stages: [...prev.stages, newStage]
+                        }));
+                        setSelectedStage(formData.stages.length);
+                        showToast(`Added "${template.name}" stage`, 'success');
+                      }
+                      e.target.value = '';
+                    }
+                  }}
+                  className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none pr-10"
+                  disabled={loading}
+                >
+                  <option value="">+ Quick Add Stage</option>
+                  {stageTemplates.map(template => (
+                    <option key={template.id} value={template.id}>
+                      {template.name} - {template.description}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="h-4 w-4 text-gray-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
               </div>
-            );
-          })}
+              <button
+                onClick={addStage}
+                disabled={loading}
+                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" />
+                Add Custom Stage
+              </button>
+            </div>
+          </div>
         </div>
-      )}
+
+        {formData.stages.length === 0 ? (
+          <div className="text-center py-16 border-2 border-dashed border-gray-300 rounded-2xl">
+            <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+              <Workflow className="h-8 w-8 text-gray-400" />
+            </div>
+            <h4 className="text-xl font-medium text-gray-900 mb-2">No stages yet</h4>
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              Start by adding stages to create your workflow. Each stage represents a step in your process.
+            </p>
+            <div className="flex items-center justify-center gap-3">
+              <div className="relative">
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      loadTemplate(e.target.value);
+                    }
+                  }}
+                  className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none pr-10"
+                  disabled={loading}
+                >
+                  <option value="">Load Template</option>
+                  {blueprintTemplates.map(template => (
+                    <option key={template.id} value={template.id}>
+                      {template.icon} {template.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="h-4 w-4 text-gray-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+              </div>
+              <button
+                onClick={addStage}
+                disabled={loading}
+                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                Add First Stage
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {formData.stages.map((stage, index) => {
+              const color = getStageColor(index);
+              const icon = getStageIcon(stage);
+              return (
+                <div
+                  key={index}
+                  className={`${color.bg} ${color.border} border-2 rounded-xl p-6 transition-all ${
+                    selectedStage === index ? 'ring-2 ring-blue-500 ring-offset-2' : ''
+                  }`}
+                  onClick={() => setSelectedStage(index)}
+                >
+                  <div className="flex items-start justify-between mb-6">
+                    <div className="flex items-start gap-4">
+                      <div className={`h-12 w-12 rounded-full ${color.darkBg} flex items-center justify-center flex-shrink-0`}>
+                        <span className="text-2xl">{icon.icon}</span>
+                      </div>
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={stage.name}
+                          onChange={(e) => updateStage(index, 'name', e.target.value)}
+                          className="text-xl font-semibold text-gray-900 bg-transparent border-none focus:outline-none focus:ring-0 px-0 py-1 w-full"
+                          placeholder="Stage name"
+                          disabled={loading}
+                        />
+                        <textarea
+                          value={stage.description || ''}
+                          onChange={(e) => updateStage(index, 'description', e.target.value)}
+                          rows={1}
+                          className="mt-2 text-sm text-gray-600 bg-transparent border-none focus:outline-none focus:ring-0 px-0 py-1 w-full resize-none"
+                          placeholder="Stage description (optional)"
+                          disabled={loading}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          duplicateStage(index);
+                        }}
+                        className="p-2 hover:bg-white/50 rounded-lg text-gray-600 hover:text-gray-900"
+                        title="Duplicate stage"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeStage(index);
+                        }}
+                        className="p-2 hover:bg-red-50 rounded-lg text-red-600 hover:text-red-700"
+                        title="Delete stage"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Stage Configuration */}
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-medium text-gray-700">Stage Configuration</h4>
+                      
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-2">
+                          Color Theme
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={stage.color || 'blue'}
+                            onChange={(e) => updateStage(index, 'color', e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none pr-10"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {stageColors.map(color => (
+                              <option key={color.id} value={color.id}>
+                                {color.name}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="h-4 w-4 text-gray-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-2">
+                          Icon
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={stage.icon || 'clipboard'}
+                            onChange={(e) => updateStage(index, 'icon', e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none pr-10"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {stageIcons.map(icon => (
+                              <option key={icon.value} value={icon.value}>
+                                {icon.icon} {icon.label}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="h-4 w-4 text-gray-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Allowed Roles */}
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">Allowed Roles</h4>
+                      <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                        {roleCategories.map(category => (
+                          <div key={category.category} className="border border-gray-200 rounded-lg p-3">
+                            <h5 className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wider">
+                              {category.category}
+                            </h5>
+                            <div className="space-y-2">
+                              {category.roles.map(role => (
+                                <label
+                                  key={role.id}
+                                  className="flex items-center justify-between p-2 hover:bg-white/50 rounded-lg cursor-pointer group"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <input
+                                      type="checkbox"
+                                      checked={stage.allowedRoles.includes(role.id)}
+                                      onChange={() => updateStage(index, 'allowedRoles', role.id)}
+                                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">{role.name}</div>
+                                      <div className="text-xs text-gray-500">{role.description}</div>
+                                    </div>
+                                  </div>
+                                  <Shield className="h-4 w-4 text-gray-400 group-hover:text-gray-600" />
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-sm font-medium text-gray-700">Entry Actions</h4>
+                          <div className="relative">
+                            <select
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                if (e.target.value) {
+                                  addAction(index, 'entryActions', e.target.value);
+                                  e.target.value = '';
+                                }
+                              }}
+                              className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 appearance-none pr-6 cursor-pointer"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <option value="">+ Add Action</option>
+                              {actionTypes.map(type => (
+                                <option key={type.value} value={type.value}>
+                                  {type.label}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown className="h-3 w-3 absolute right-1 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                          </div>
+                        </div>
+                        {stage.entryActions.length > 0 ? (
+                          <div className="space-y-2">
+                            {stage.entryActions.map((action, i) => {
+                              const config = getActionConfig(action.actionType);
+                              const Icon = config.icon;
+                              return (
+                                <div key={i} className="bg-white rounded-lg p-3 border border-gray-200">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                      <div className={`p-1.5 rounded ${config.color}`}>
+                                        <Icon className="h-3 w-3" />
+                                      </div>
+                                      <div>
+                                        <div className="text-sm font-medium">{config.label}</div>
+                                        <div className="text-xs text-gray-500">{config.category}</div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          checked={action.enabled !== false}
+                                          onChange={(e) => {
+                                            e.stopPropagation();
+                                            toggleActionEnabled(index, 'entryActions', i);
+                                          }}
+                                          className="sr-only peer"
+                                        />
+                                        <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+                                      </label>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          removeAction(index, 'entryActions', i);
+                                        }}
+                                        className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-red-600"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Action Parameters */}
+                                  <div className="space-y-2">
+                                    {config.params.map(param => (
+                                      <div key={param.key}>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                                          {param.label}
+                                        </label>
+                                        {param.type === 'select' ? (
+                                          <div className="relative">
+                                            <select
+                                              value={String(action.params[param.key] || '')}
+                                              onChange={(e) => updateAction(index, 'entryActions', i, `params.${param.key}`, e.target.value)}
+                                              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent appearance-none pr-6"
+                                              disabled={loading}
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              <option value="">Select {param.label.toLowerCase()}</option>
+                                              {param.options?.map(option => (
+                                                <option key={option} value={option}>{option}</option>
+                                              ))}
+                                            </select>
+                                            <ChevronDown className="h-3 w-3 text-gray-400 absolute right-1 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                                          </div>
+                                        ) : param.type === 'checkbox' ? (
+                                          <label className="flex items-center gap-2">
+                                            <input
+                                              type="checkbox"
+                                              checked={Boolean(action.params[param.key])}
+                                              onChange={(e) => updateAction(index, 'entryActions', i, `params.${param.key}`, e.target.checked)}
+                                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                              onClick={(e) => e.stopPropagation()}
+                                            />
+                                            <span className="text-xs text-gray-700">{param.placeholder}</span>
+                                          </label>
+                                        ) : param.type === 'textarea' ? (
+                                          <textarea
+                                            value={String(action.params[param.key] || '')}
+                                            onChange={(e) => updateAction(index, 'entryActions', i, `params.${param.key}`, e.target.value)}
+                                            rows={2}
+                                            className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                                            placeholder={param.placeholder}
+                                            disabled={loading}
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                        ) : (
+                                          <input
+                                            type={param.type}
+                                            value={String(action.params[param.key] || '')}
+                                            onChange={(e) => updateAction(index, 'entryActions', i, `params.${param.key}`, e.target.value)}
+                                            className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                                            placeholder={param.placeholder}
+                                            disabled={loading}
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-4 border-2 border-dashed border-gray-200 rounded-lg">
+                            <p className="text-sm text-gray-400">No entry actions configured</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-sm font-medium text-gray-700">Exit Actions</h4>
+                          <div className="relative">
+                            <select
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                if (e.target.value) {
+                                  addAction(index, 'exitActions', e.target.value);
+                                  e.target.value = '';
+                                }
+                              }}
+                              className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 appearance-none pr-6 cursor-pointer"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <option value="">+ Add Action</option>
+                              {actionTypes.map(type => (
+                                <option key={type.value} value={type.value}>
+                                  {type.label}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown className="h-3 w-3 absolute right-1 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                          </div>
+                        </div>
+                        {stage.exitActions.length > 0 ? (
+                          <div className="space-y-2">
+                            {stage.exitActions.map((action, i) => {
+                              const config = getActionConfig(action.actionType);
+                              const Icon = config.icon;
+                              return (
+                                <div key={i} className="bg-white rounded-lg p-3 border border-gray-200">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                      <div className={`p-1.5 rounded ${config.color}`}>
+                                        <Icon className="h-3 w-3" />
+                                      </div>
+                                      <div>
+                                        <div className="text-sm font-medium">{config.label}</div>
+                                        <div className="text-xs text-gray-500">{config.category}</div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          checked={action.enabled !== false}
+                                          onChange={(e) => {
+                                            e.stopPropagation();
+                                            toggleActionEnabled(index, 'exitActions', i);
+                                          }}
+                                          className="sr-only peer"
+                                        />
+                                        <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+                                      </label>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          removeAction(index, 'exitActions', i);
+                                        }}
+                                        className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-red-600"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Action Parameters */}
+                                  <div className="space-y-2">
+                                    {config.params.map(param => (
+                                      <div key={param.key}>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                                          {param.label}
+                                        </label>
+                                        {param.type === 'select' ? (
+                                          <div className="relative">
+                                            <select
+                                              value={String(action.params[param.key] || '')}
+                                              onChange={(e) => updateAction(index, 'exitActions', i, `params.${param.key}`, e.target.value)}
+                                              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent appearance-none pr-6"
+                                              disabled={loading}
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              <option value="">Select {param.label.toLowerCase()}</option>
+                                              {param.options?.map(option => (
+                                                <option key={option} value={option}>{option}</option>
+                                              ))}
+                                            </select>
+                                            <ChevronDown className="h-3 w-3 text-gray-400 absolute right-1 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                                          </div>
+                                        ) : param.type === 'checkbox' ? (
+                                          <label className="flex items-center gap-2">
+                                            <input
+                                              type="checkbox"
+                                              checked={Boolean(action.params[param.key])}
+                                              onChange={(e) => updateAction(index, 'exitActions', i, `params.${param.key}`, e.target.checked)}
+                                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                              onClick={(e) => e.stopPropagation()}
+                                            />
+                                            <span className="text-xs text-gray-700">{param.placeholder}</span>
+                                          </label>
+                                        ) : param.type === 'textarea' ? (
+                                          <textarea
+                                            value={String(action.params[param.key] || '')}
+                                            onChange={(e) => updateAction(index, 'exitActions', i, `params.${param.key}`, e.target.value)}
+                                            rows={2}
+                                            className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                                            placeholder={param.placeholder}
+                                            disabled={loading}
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                        ) : (
+                                          <input
+                                            type={param.type}
+                                            value={String(action.params[param.key] || '')}
+                                            onChange={(e) => updateAction(index, 'exitActions', i, `params.${param.key}`, e.target.value)}
+                                            className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+                                            placeholder={param.placeholder}
+                                            disabled={loading}
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-4 border-2 border-dashed border-gray-200 rounded-lg">
+                            <p className="text-sm text-gray-400">No exit actions configured</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
 
   // Step 3: Design (Full Visualization)
   const renderStepDesign = () => (
@@ -1087,131 +1536,129 @@ export default function CreateBlueprintPage() {
         ) : (
           <DragDropContext onDragEnd={handleDragEnd}>
             <div className="flex flex-col items-center">
-              {/* Stages with connection lines */}
-              <div className="relative">
-                {/* Connection lines */}
-                {formData.stages.slice(0, -1).map((_, index) => (
-                  <div
-                    key={index}
-                    className="absolute left-1/2 transform -translate-x-1/2"
-                    style={{ top: `${index * 240 + 180}px`, width: '2px', height: '60px' }}
-                  >
-                    <div className="h-full w-0.5 bg-gray-300 mx-auto"></div>
-                    <ArrowUpDown className="h-5 w-5 text-gray-400 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
-                  </div>
-                ))}
+              {/* Connection lines */}
+              {formData.stages.slice(0, -1).map((_, index) => (
+                <div
+                  key={index}
+                  className="absolute left-1/2 transform -translate-x-1/2"
+                  style={{ top: `${index * 240 + 180}px`, width: '2px', height: '60px' }}
+                >
+                  <div className="h-full w-0.5 bg-gray-300 mx-auto"></div>
+                  <ArrowUpDown className="h-5 w-5 text-gray-400 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+                </div>
+              ))}
 
-                {/* Stages */}
-                <Droppable droppableId="stages-vertical" direction="vertical">
-                  {(provided) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      className="space-y-6"
-                    >
-                      {formData.stages.map((stage, index) => {
-                        const color = getStageColor(index);
-                        return (
-                          <Draggable
-                            key={index}
-                            draggableId={`stage-${index}`}
-                            index={index}
-                          >
-                            {(provided) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                className={`${color.bg} ${color.border} border-2 rounded-xl shadow-sm transition-all hover:shadow-md w-96 ${
-                                  selectedStage === index ? 'ring-2 ring-blue-500 ring-offset-2' : ''
-                                }`}
-                                onClick={() => setSelectedStage(index)}
-                              >
-                                {/* Drag handle */}
-                                <div {...provided.dragHandleProps} className="absolute -left-10 top-1/2 transform -translate-y-1/2">
-                                  <GripVertical className="h-5 w-5 text-gray-400 hover:text-gray-600 cursor-move" />
+              {/* Stages */}
+              <Droppable droppableId="stages-vertical" direction="vertical">
+                {(provided) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className="space-y-6"
+                  >
+                    {formData.stages.map((stage, index) => {
+                      const color = getStageColor(index);
+                      const icon = getStageIcon(stage);
+                      return (
+                        <Draggable
+                          key={index}
+                          draggableId={`stage-${index}`}
+                          index={index}
+                        >
+                          {(provided) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              className={`${color.bg} ${color.border} border-2 rounded-xl shadow-sm transition-all hover:shadow-md w-96 ${
+                                selectedStage === index ? 'ring-2 ring-blue-500 ring-offset-2' : ''
+                              }`}
+                              onClick={() => setSelectedStage(index)}
+                            >
+                              {/* Drag handle */}
+                              <div {...provided.dragHandleProps} className="absolute -left-10 top-1/2 transform -translate-y-1/2">
+                                <GripVertical className="h-5 w-5 text-gray-400 hover:text-gray-600 cursor-move" />
+                              </div>
+
+                              <div className="p-6">
+                                <div className="flex items-center justify-between mb-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`h-10 w-10 rounded-full ${color.darkBg} flex items-center justify-center`}>
+                                      <span className="text-xl">{icon.icon}</span>
+                                    </div>
+                                    <div>
+                                      <h3 className="text-lg font-semibold text-gray-900">{stage.name}</h3>
+                                      <p className="text-sm text-gray-600">{stage.description || 'No description'}</p>
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-xs text-gray-500">
+                                      {stage.allowedRoles.length} role{stage.allowedRoles.length !== 1 ? 's' : ''}
+                                    </div>
+                                  </div>
                                 </div>
 
-                                <div className="p-6">
-                                  <div className="flex items-center justify-between mb-4">
-                                    <div className="flex items-center gap-3">
-                                      <div className={`h-10 w-10 rounded-full ${color.darkBg} flex items-center justify-center`}>
-                                        <span className="font-bold text-gray-800">{stage.order}</span>
-                                      </div>
-                                      <div>
-                                        <h3 className="text-lg font-semibold text-gray-900">{stage.name}</h3>
-                                        <p className="text-sm text-gray-600">{stage.description || 'No description'}</p>
-                                      </div>
-                                    </div>
-                                    <div className="text-right">
-                                      <div className="text-xs text-gray-500">
-                                        {stage.allowedRoles.length} role{stage.allowedRoles.length !== 1 ? 's' : ''}
-                                      </div>
+                                {/* Actions Summary */}
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <h4 className="text-xs font-medium text-gray-700 mb-2">Entry Actions</h4>
+                                    <div className="space-y-1">
+                                      {stage.entryActions.slice(0, 3).map((action, i) => {
+                                        const config = getActionConfig(action.actionType);
+                                        return (
+                                          <div key={i} className="flex items-center gap-2 text-xs bg-white/50 p-2 rounded">
+                                            <div className={`p-1 rounded ${config.color}`}>
+                                              <config.icon className="h-3 w-3" />
+                                            </div>
+                                            <span className="truncate">{config.label}</span>
+                                            {!action.enabled && (
+                                              <span className="text-gray-400">(off)</span>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                      {stage.entryActions.length > 3 && (
+                                        <div className="text-xs text-gray-500 text-center">
+                                          +{stage.entryActions.length - 3} more
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
 
-                                  {/* Actions Summary */}
-                                  <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                      <h4 className="text-xs font-medium text-gray-700 mb-2">Entry Actions</h4>
-                                      <div className="space-y-1">
-                                        {stage.entryActions.slice(0, 3).map((action, i) => {
-                                          const config = getActionConfig(action.actionType);
-                                          return (
-                                            <div key={i} className="flex items-center gap-2 text-xs bg-white/50 p-2 rounded">
-                                              <div className={`p-1 rounded ${config.color}`}>
-                                                <config.icon className="h-3 w-3" />
-                                              </div>
-                                              <span className="truncate">{config.label}</span>
-                                              {!action.enabled && (
-                                                <span className="text-gray-400">(off)</span>
-                                              )}
+                                  <div>
+                                    <h4 className="text-xs font-medium text-gray-700 mb-2">Exit Actions</h4>
+                                    <div className="space-y-1">
+                                      {stage.exitActions.slice(0, 3).map((action, i) => {
+                                        const config = getActionConfig(action.actionType);
+                                        return (
+                                          <div key={i} className="flex items-center gap-2 text-xs bg-white/50 p-2 rounded">
+                                            <div className={`p-1 rounded ${config.color}`}>
+                                              <config.icon className="h-3 w-3" />
                                             </div>
-                                          );
-                                        })}
-                                        {stage.entryActions.length > 3 && (
-                                          <div className="text-xs text-gray-500 text-center">
-                                            +{stage.entryActions.length - 3} more
+                                            <span className="truncate">{config.label}</span>
+                                            {!action.enabled && (
+                                              <span className="text-gray-400">(off)</span>
+                                            )}
                                           </div>
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    <div>
-                                      <h4 className="text-xs font-medium text-gray-700 mb-2">Exit Actions</h4>
-                                      <div className="space-y-1">
-                                        {stage.exitActions.slice(0, 3).map((action, i) => {
-                                          const config = getActionConfig(action.actionType);
-                                          return (
-                                            <div key={i} className="flex items-center gap-2 text-xs bg-white/50 p-2 rounded">
-                                              <div className={`p-1 rounded ${config.color}`}>
-                                                <config.icon className="h-3 w-3" />
-                                              </div>
-                                              <span className="truncate">{config.label}</span>
-                                              {!action.enabled && (
-                                                <span className="text-gray-400">(off)</span>
-                                              )}
-                                            </div>
-                                          );
-                                        })}
-                                        {stage.exitActions.length > 3 && (
-                                          <div className="text-xs text-gray-500 text-center">
-                                            +{stage.exitActions.length - 3} more
-                                          </div>
-                                        )}
-                                      </div>
+                                        );
+                                      })}
+                                      {stage.exitActions.length > 3 && (
+                                        <div className="text-xs text-gray-500 text-center">
+                                          +{stage.exitActions.length - 3} more
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
                               </div>
-                            )}
-                          </Draggable>
-                        );
-                      })}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-              </div>
+                            </div>
+                          )}
+                        </Draggable>
+                      );
+                    })}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
             </div>
           </DragDropContext>
         )}
@@ -1240,7 +1687,9 @@ export default function CreateBlueprintPage() {
                 </div>
                 <div>
                   <span className="text-sm text-gray-600">Module:</span>
-                  <p className="font-medium">{formData.module || 'Not selected'}</p>
+                  <p className="font-medium">
+                    {modules.find(m => m.id === formData.module)?.name || 'Not selected'}
+                  </p>
                 </div>
                 <div>
                   <span className="text-sm text-gray-600">Status:</span>
@@ -1251,6 +1700,10 @@ export default function CreateBlueprintPage() {
                   }`}>
                     {formData.isActive ? 'Active' : 'Inactive'}
                   </span>
+                </div>
+                <div>
+                  <span className="text-sm text-gray-600">Description:</span>
+                  <p className="font-medium">{formData.description || 'No description'}</p>
                 </div>
               </div>
             </div>
@@ -1270,8 +1723,14 @@ export default function CreateBlueprintPage() {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Description:</span>
-                  <span className="font-medium">{formData.description ? 'Provided' : 'Not provided'}</span>
+                  <span className="text-sm text-gray-600">Enabled Actions:</span>
+                  <span className="font-medium">
+                    {formData.stages.reduce((acc, stage) => 
+                      acc + 
+                      stage.entryActions.filter(a => a.enabled !== false).length + 
+                      stage.exitActions.filter(a => a.enabled !== false).length, 0
+                    )}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1283,12 +1742,13 @@ export default function CreateBlueprintPage() {
           <h3 className="text-lg font-semibold text-gray-900">Workflow Stages</h3>
           {formData.stages.map((stage, index) => {
             const color = getStageColor(index);
+            const icon = getStageIcon(stage);
             return (
               <div key={index} className={`${color.bg} ${color.border} border-2 rounded-xl p-6`}>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className={`h-10 w-10 rounded-full ${color.darkBg} flex items-center justify-center`}>
-                      <span className="font-bold text-gray-800">{stage.order}</span>
+                      <span className="text-xl">{icon.icon}</span>
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900">{stage.name}</h3>
@@ -1302,6 +1762,7 @@ export default function CreateBlueprintPage() {
                   </div>
                   <div className="text-right">
                     <div className="text-sm text-gray-500">Stage {stage.order}</div>
+                    <div className="text-xs text-gray-400">{stage.description}</div>
                   </div>
                 </div>
 
@@ -1402,6 +1863,14 @@ export default function CreateBlueprintPage() {
             </div>
             
             <div className="flex items-center gap-3">
+              <button
+                onClick={handleExportBlueprint}
+                disabled={loading}
+                className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+              >
+                <Download className="h-4 w-4" />
+                Export
+              </button>
               <button
                 onClick={handleTestBlueprint}
                 disabled={loading || currentStep !== 'preview'}

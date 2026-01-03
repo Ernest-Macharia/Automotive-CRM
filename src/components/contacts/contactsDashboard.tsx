@@ -120,10 +120,12 @@ export default function ContactsDashboard() {
       setLoading(true);
       setError(null);
       console.log('Loading contacts...');
-      const contactsData = await contactService.getAllContacts();
+      const contactsData = await contactService.getAllContactsWithFallback();
       console.log('Contacts loaded:', contactsData.length, 'contacts');
-      console.log('Sample contact:', contactsData[0]);
-      setContacts(contactsData || []);
+      if (contactsData.length > 0) {
+        console.log('Sample contact:', contactsData[0]);
+      }
+      setContacts(contactsData);
     } catch (error) {
       console.error('Error loading contacts:', error);
       setError('Failed to load contacts. Please try again.');
@@ -137,15 +139,15 @@ export default function ContactsDashboard() {
   const loadStats = useCallback(async () => {
     try {
       setStatsLoading(true);
-      const statsData = await contactService.getContactsStats();
+      const statsData = await contactService.getContactsStatsWithFallback();
       setStats(statsData);
     } catch (error) {
       console.error('Error loading stats:', error);
-      setStats(null);
+      setStats(contactService.getDefaultStats());
     } finally {
       setStatsLoading(false);
     }
-  }, []);
+  }, [])
 
   const handleRefresh = async () => {
     try {

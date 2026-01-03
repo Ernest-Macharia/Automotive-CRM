@@ -7,7 +7,8 @@ import {
   LayoutDashboard, Users, Building, FileText, Receipt, Wallet,
   Truck, ClipboardList, MessageSquare, Settings, LogOut, X, ChevronRight,
   Target,ShoppingBag, UserPlus, ListFilter,
-  Wrench
+  Wrench,
+  BarChart3
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -51,8 +52,9 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     { href: '/orders/sales-orders', label: 'Sales Orders', icon: ShoppingBag},
     { href: '/orders/work-orders', label: 'Work Orders', icon: Wrench},
     { href: '/contacts', label: 'Contacts', icon: Users },
-    { href: '/clients',        label: 'Customers',     icon: Building },
+    // { href: '/clients',        label: 'Customers',     icon: Building },
     { href: '/kpi',           label: 'KPI Reports',   icon: Settings },
+    { href: '/reports',       label: 'Analytics',     icon: BarChart3 },
     { href: '/quotes',         label: 'Quotes',        icon: FileText },
     { href: '/invoices',       label: 'Invoices',      icon: Receipt },
     { href: '/payments',       label: 'Payments',      icon: Wallet },

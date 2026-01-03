@@ -9,7 +9,7 @@ import {
   RefreshCw, Loader2, Sparkles, Activity, Award, Target as TargetIcon,
   TrendingDown, AlertTriangle, CheckCheck, LineChart
 } from 'lucide-react';
-import { kpiService, DashboardStats, KPI } from '@/services/kpiService';
+import { kpiService, DashboardStats, Kpi } from '@/services/kpiService';
 import { useToast } from '@/contexts/ToastContext';
 import KPICreateModal from './KPICreateModal';
 
@@ -55,8 +55,8 @@ const KPICardSkeleton = () => (
 export default function KPIDashboard() {
   const { showToast } = useToast();
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentKPIs, setRecentKPIs] = useState<KPI[]>([]);
-  const [overdueKPIs, setOverdueKPIs] = useState<KPI[]>([]);
+  const [recentKPIs, setRecentKPIs] = useState<Kpi[]>([]);
+  const [overdueKPIs, setOverdueKPIs] = useState<Kpi[]>([]);
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
   const [kpisLoading, setKpisLoading] = useState(true);
@@ -99,46 +99,103 @@ export default function KPIDashboard() {
 
   const fetchStats = async (): Promise<DashboardStats> => {
     try {
-      const statsData = await kpiService.getDashboardStats();
-      return statsData;
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-      // Return default stats structure on error
+      // Instead of calling getDashboardStats which doesn't exist, 
+      // use getAllKpis and calculate locally
+      const kpis = await kpiService.getMyKPIs();
+      
+      const now = new Date();
+      const completedKpis = kpis.filter(k => k.status === 'completed');
+      const pendingKpis = kpis.filter(k => k.status === 'pending');
+      const inProgressKpis = kpis.filter(k => k.status === 'in_progress');
+      
+      // Calculate overdue KPIs
+      const overdueKpis = kpis.filter(k => {
+        if (k.status === 'completed' || k.status === 'cancelled') return false;
+        if (!k.periodEnd) return false;
+        return new Date(k.periodEnd) < now;
+      });
+      
+      // Calculate average progress
+      const avgProgress = kpis.length > 0 
+        ? kpis.reduce((sum, kpi) => sum + kpiService.calculateKPIProgress(kpi), 0) / kpis.length
+        : 0;
+      
       return {
-        totalKPIs: 0,
-        completedKPIs: 0,
-        pendingKPIs: 0,
-        inProgressKPIs: 0,
-        overdueKPIs: 0,
+        totalKpis: kpis.length,
+        completedKpis: completedKpis.length,
+        pendingKpis: pendingKpis.length,
+        inProgressKpis: inProgressKpis.length,
+        overdueKpis: overdueKpis.length,
+        recentKpis: Math.min(kpis.length, 5),
+        completionRate: kpis.length > 0 ? (completedKpis.length / kpis.length) * 100 : 0,
+        averageScore: avgProgress,
+        averageCompletion: avgProgress,
+        thisMonth: {
+          created: 0, // You would need to filter by date for this
+          completed: 0,
+          overdue: 0
+        }
+      };
+    } catch (error) {
+      console.error('Error calculating stats:', error);
+      // Return default stats
+      return {
+        totalKpis: 0,
+        completedKpis: 0,
+        pendingKpis: 0,
+        inProgressKpis: 0,
+        overdueKpis: 0,
+        recentKpis: 0,
+        completionRate: 0,
+        averageScore: 0,
         averageCompletion: 0,
         thisMonth: {
           created: 0,
           completed: 0,
           overdue: 0
-        },
-        byFrequency: {},
-        byStatus: {},
-        topPerformers: []
+        }
       };
     }
   };
 
-  const fetchMyKPIs = async (): Promise<KPI[]> => {
+  const fetchMyKPIs = async (): Promise<Kpi[]> => {
     try {
-      const data = await kpiService.getMyKPIs();
+      // Pass the selected view as status filter
+      const statusMap = {
+        'all': undefined,
+        'mine': undefined,
+        'pending': 'pending',
+        'completed': 'completed'
+      };
+      
+      const data = await kpiService.getMyKPIs({
+        status: statusMap[selectedView]
+      });
+      
       return Array.isArray(data) ? data : [];
     } catch (error) {
       console.error('Error fetching my KPIs:', error);
+      showToast('Failed to fetch your KPIs', 'error');
       return [];
     }
   };
 
-  const fetchOverdueKPIs = async (): Promise<KPI[]> => {
+  const fetchOverdueKPIs = async (): Promise<Kpi[]> => {
     try {
-      const data = await kpiService.getOverdueKPIs();
-      return Array.isArray(data) ? data : [];
+      // Calculate overdue KPIs locally
+      const kpis = await kpiService.getMyKPIs();
+      const now = new Date();
+      
+      return kpis.filter(kpi => {
+        if (kpi.status === 'completed' || kpi.status === 'cancelled') return false;
+        if (!kpi.periodEnd) return false;
+        return new Date(kpi.periodEnd) < now;
+      }).map(kpi => ({
+        ...kpi,
+        status: 'overdue' as const
+      }));
     } catch (error) {
-      console.error('Error fetching overdue KPIs:', error);
+      console.error('Error calculating overdue KPIs:', error);
       return [];
     }
   };
@@ -150,7 +207,7 @@ export default function KPIDashboard() {
     showToast('Dashboard refreshed', 'success', 2000);
   };
 
-  const getStatusIcon = (status: KPI['status']) => {
+  const getStatusIcon = (status: Kpi['status']) => {
     switch (status) {
       case 'completed': return <CheckCircle className="h-4 w-4 text-green-500" />;
       case 'in_progress': return <Clock className="h-4 w-4 text-blue-500" />;
@@ -160,7 +217,7 @@ export default function KPIDashboard() {
     }
   };
 
-  const getStatusColor = (status: KPI['status']) => {
+  const getStatusColor = (status: Kpi['status']) => {
     const colors = {
       pending: 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-200',
       in_progress: 'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border border-blue-200',
@@ -185,8 +242,10 @@ export default function KPIDashboard() {
 
   const calculateKPITrend = () => {
     if (!stats) return 0;
-    const total = stats.totalKPIs || 0;
-    const completed = stats.completedKPIs || 0;
+    
+    const total = stats.totalKpis || 0;
+    const completed = stats.completedKpis || 0;
+    
     return total > 0 ? Math.round((completed / total) * 100) : 0;
   };
 
@@ -197,13 +256,14 @@ export default function KPIDashboard() {
     return 'text-red-600';
   };
 
-  const getFrequencyLabel = (frequency: KPI['frequency']) => {
+  const getFrequencyLabel = (frequency: Kpi['frequency']) => {
     const labels = {
       daily: 'Daily',
       weekly: 'Weekly',
       monthly: 'Monthly',
       quarterly: 'Quarterly',
-      yearly: 'Yearly'
+      yearly: 'Yearly',
+      custom: 'Custom'
     };
     return labels[frequency] || frequency;
   };
@@ -282,7 +342,7 @@ export default function KPIDashboard() {
                     {calculateKPITrend()}%
                   </span>
                 </div>
-                <h3 className="text-3xl font-bold text-gray-900">{stats?.totalKPIs || 0}</h3>
+                <h3 className="text-3xl font-bold text-gray-900">{stats?.totalKpis || 0}</h3>
                 <p className="text-sm text-gray-600">Total KPIs</p>
                 <div className="mt-4 pt-4 border-t border-blue-100/30">
                   <div className="text-xs text-blue-600 font-medium">
@@ -301,7 +361,7 @@ export default function KPIDashboard() {
                     +{stats?.thisMonth?.completed || 0} this month
                   </span>
                 </div>
-                <h3 className="text-3xl font-bold text-gray-900">{stats?.completedKPIs || 0}</h3>
+                <h3 className="text-3xl font-bold text-gray-900">{stats?.completedKpis || 0}</h3>
                 <p className="text-sm text-gray-600">Completed</p>
                 <div className="mt-4 pt-4 border-t border-blue-100/30">
                   <div className="text-xs text-green-600 font-medium">
@@ -316,11 +376,11 @@ export default function KPIDashboard() {
                   <div className="p-2 bg-gradient-to-r from-yellow-100 to-yellow-200 rounded-lg">
                     <Activity className="h-6 w-6 text-yellow-600" />
                   </div>
-                  <span className={`text-sm font-medium ${(stats?.inProgressKPIs || 0) > 5 ? 'text-yellow-600' : 'text-green-600'}`}>
-                    {(stats?.inProgressKPIs || 0) > 5 ? 'Attention needed' : 'Healthy'}
+                  <span className={`text-sm font-medium ${(stats?.inProgressKpis || 0) > 5 ? 'text-yellow-600' : 'text-green-600'}`}>
+                    {(stats?.inProgressKpis || 0) > 5 ? 'Attention needed' : 'Healthy'}
                   </span>
                 </div>
-                <h3 className="text-3xl font-bold text-gray-900">{stats?.inProgressKPIs || 0}</h3>
+                <h3 className="text-3xl font-bold text-gray-900">{stats?.inProgressKpis || 0}</h3>
                 <p className="text-sm text-gray-600">In Progress</p>
                 <div className="mt-4 pt-4 border-t border-blue-100/30">
                   <div className="text-xs text-yellow-600 font-medium">
@@ -339,7 +399,7 @@ export default function KPIDashboard() {
                     +{stats?.thisMonth?.overdue || 0} new
                   </span>
                 </div>
-                <h3 className="text-3xl font-bold text-gray-900">{stats?.overdueKPIs || 0}</h3>
+                <h3 className="text-3xl font-bold text-gray-900">{stats?.overdueKpis || 0}</h3>
                 <p className="text-sm text-gray-600">Overdue</p>
                 <div className="mt-4 pt-4 border-t border-blue-100/30">
                   <div className="text-xs text-red-600 font-medium">
@@ -404,7 +464,7 @@ export default function KPIDashboard() {
                 ) : (
                   <div className="space-y-4">
                     {recentKPIs.slice(0, 5).map((kpi) => {
-                      const progress = kpi.progress || kpiService.calculateKPIProgress(kpi);
+                      const progress = kpiService.calculateKPIProgress(kpi);
                       const statusColor = getStatusColor(kpi.status);
                       
                       return (
@@ -632,8 +692,8 @@ export default function KPIDashboard() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">On Time Delivery</span>
-                  <span className={`text-sm font-medium ${(stats?.completedKPIs || 0) >= (stats?.totalKPIs || 0) * 0.8 ? 'text-green-600' : 'text-yellow-600'}`}>
-                    {((stats?.completedKPIs || 0) / (stats?.totalKPIs || 1) * 100).toFixed(0)}%
+                  <span className={`text-sm font-medium ${(stats?.completedKpis || 0) >= (stats?.totalKpis || 0) * 0.8 ? 'text-green-600' : 'text-yellow-600'}`}>
+                    {((stats?.completedKpis || 0) / (stats?.totalKpis || 1) * 100).toFixed(0)}%
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -646,7 +706,7 @@ export default function KPIDashboard() {
               
               <div className="mt-6 pt-4 border-t border-blue-200/50">
                 <div className="text-xs text-gray-500">
-                  Updated just now • Based on {stats?.totalKPIs || 0} KPIs
+                  Updated just now • Based on {stats?.totalKpis || 0} KPIs
                 </div>
               </div>
             </div>
