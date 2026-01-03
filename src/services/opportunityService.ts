@@ -889,6 +889,34 @@ class OpportunityService {
     }
   }
 
+  // Add this method to your opportunity service
+  async initializeWorkflow(opportunityId: string, packageType: 'work_order' | 'sales_order'): Promise<any> {
+    try {
+      const headers: Record<string, string> = {};
+      
+      // Get current opportunity
+      const opportunity = await this.getOpportunityById(opportunityId);
+      
+      // Initialize lifecycle
+      const lifecycleService = require('./lifecycleService');
+      const result = await lifecycleService.initializeOpportunity(opportunityId, { packageType });
+      
+      // Update opportunity with package type
+      const updatedOpportunity = await this.updateOpportunity(opportunityId, {
+        packageType,
+        opportunityType: packageType === 'work_order' ? 'SERVICE' : 'SALE'
+      });
+      
+      return {
+        opportunity: updatedOpportunity,
+        lifecycle: result
+      };
+    } catch (error) {
+      console.error('Error initializing workflow:', error);
+      throw error;
+    }
+  }
+
   // Check if opportunity can progress
   async canOpportunityProgress(opportunityId: string): Promise<boolean> {
     try {

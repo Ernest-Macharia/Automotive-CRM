@@ -201,8 +201,6 @@ export default function ReportsDashboard() {
         setSalesPerformance(performanceData);
         setRevenueTimeline(timelineData);
         setTopCustomers(customersData);
-        
-        showToast('Report data loaded successfully', 'success', 2000);
     } catch (error: any) {
         console.error('❌ Error fetching report data:', error);
         

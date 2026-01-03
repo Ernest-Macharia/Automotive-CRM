@@ -182,29 +182,81 @@ export default function JobCardsList() {
   };
 
   const getTechnicianName = (assignedTo: any) => {
+    console.log('👤 assignedTo:', assignedTo);
+    
     if (!assignedTo) return 'Unassigned';
-    if (typeof assignedTo === 'string') return 'Loading...';
+    
+    // If it's a string ID
+    if (typeof assignedTo === 'string') {
+      return 'Loading...';
+    }
+    
+    // If it's a populated object
+    if (assignedTo.name) {
+      return assignedTo.name;
+    }
+    
+    // If it has firstName and lastName
     if (assignedTo.firstName && assignedTo.lastName) {
       return `${assignedTo.firstName} ${assignedTo.lastName}`;
     }
+    
+    // If it has email
+    if (assignedTo.email) {
+      return assignedTo.email;
+    }
+    
     return 'Unassigned';
   };
 
   const getVehicleInfo = (vehicleId: any) => {
+    console.log('🚗 vehicleId:', vehicleId);
+    
     if (!vehicleId) return 'No vehicle';
-    if (typeof vehicleId === 'string') return 'Loading vehicle...';
+    
+    // If it's a string ID
+    if (typeof vehicleId === 'string') {
+      return 'Loading vehicle...';
+    }
+    
+    // If it's a populated object
     if (vehicleId.registrationNumber && vehicleId.make && vehicleId.model) {
       return `${vehicleId.make} ${vehicleId.model} (${vehicleId.registrationNumber})`;
     }
+    
+    // If it has at least registration number
+    if (vehicleId.registrationNumber) {
+      return vehicleId.registrationNumber;
+    }
+    
     return 'Vehicle info loading...';
   };
 
   const getCustomerInfo = (opportunityId: any) => {
+    console.log('🏢 opportunityId:', opportunityId);
+    
     if (!opportunityId) return 'No customer';
-    if (typeof opportunityId === 'string') return 'Loading customer...';
+    
+    // If it's a string ID
+    if (typeof opportunityId === 'string') {
+      return 'Loading customer...';
+    }
+    
+    // If it has customer name
     if (opportunityId.customer?.name) {
       return opportunityId.customer.name;
     }
+    
+    // If it has companyName
+    if (opportunityId.companyName) {
+      return opportunityId.companyName;
+    }
+    
+    // If it has subject
+    if (opportunityId.subject) {
+      return opportunityId.subject;
+    }
+    
     return 'Customer info loading...';
   };
 

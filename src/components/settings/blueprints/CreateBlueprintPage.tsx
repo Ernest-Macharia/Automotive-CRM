@@ -1518,8 +1518,8 @@ export default function CreateBlueprintPage() {
 
   // Step 3: Design (Full Visualization)
   const renderStepDesign = () => (
-    <div className="w-full h-full overflow-auto">
-      <div className="min-w-max p-8">
+    <div className="w-full h-full">
+      <div className="p-8">
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Workflow Design</h2>
           <p className="text-gray-600">Visualize and arrange your workflow stages</p>
@@ -1535,130 +1535,217 @@ export default function CreateBlueprintPage() {
           </div>
         ) : (
           <DragDropContext onDragEnd={handleDragEnd}>
-            <div className="flex flex-col items-center">
-              {/* Connection lines */}
-              {formData.stages.slice(0, -1).map((_, index) => (
-                <div
-                  key={index}
-                  className="absolute left-1/2 transform -translate-x-1/2"
-                  style={{ top: `${index * 240 + 180}px`, width: '2px', height: '60px' }}
-                >
-                  <div className="h-full w-0.5 bg-gray-300 mx-auto"></div>
-                  <ArrowUpDown className="h-5 w-5 text-gray-400 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
-                </div>
-              ))}
-
-              {/* Stages */}
+            <div className="relative flex flex-col items-center">
+              {/* Stages Container with proper positioning */}
               <Droppable droppableId="stages-vertical" direction="vertical">
                 {(provided) => (
                   <div
                     ref={provided.innerRef}
                     {...provided.droppableProps}
-                    className="space-y-6"
+                    className="relative space-y-8 w-full max-w-2xl"
                   >
                     {formData.stages.map((stage, index) => {
                       const color = getStageColor(index);
                       const icon = getStageIcon(stage);
+                      
                       return (
-                        <Draggable
-                          key={index}
-                          draggableId={`stage-${index}`}
-                          index={index}
-                        >
-                          {(provided) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              className={`${color.bg} ${color.border} border-2 rounded-xl shadow-sm transition-all hover:shadow-md w-96 ${
-                                selectedStage === index ? 'ring-2 ring-blue-500 ring-offset-2' : ''
-                              }`}
-                              onClick={() => setSelectedStage(index)}
-                            >
-                              {/* Drag handle */}
-                              <div {...provided.dragHandleProps} className="absolute -left-10 top-1/2 transform -translate-y-1/2">
-                                <GripVertical className="h-5 w-5 text-gray-400 hover:text-gray-600 cursor-move" />
-                              </div>
-
-                              <div className="p-6">
-                                <div className="flex items-center justify-between mb-4">
-                                  <div className="flex items-center gap-3">
-                                    <div className={`h-10 w-10 rounded-full ${color.darkBg} flex items-center justify-center`}>
-                                      <span className="text-xl">{icon.icon}</span>
-                                    </div>
-                                    <div>
-                                      <h3 className="text-lg font-semibold text-gray-900">{stage.name}</h3>
-                                      <p className="text-sm text-gray-600">{stage.description || 'No description'}</p>
-                                    </div>
-                                  </div>
-                                  <div className="text-right">
-                                    <div className="text-xs text-gray-500">
-                                      {stage.allowedRoles.length} role{stage.allowedRoles.length !== 1 ? 's' : ''}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Actions Summary */}
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div>
-                                    <h4 className="text-xs font-medium text-gray-700 mb-2">Entry Actions</h4>
-                                    <div className="space-y-1">
-                                      {stage.entryActions.slice(0, 3).map((action, i) => {
-                                        const config = getActionConfig(action.actionType);
-                                        return (
-                                          <div key={i} className="flex items-center gap-2 text-xs bg-white/50 p-2 rounded">
-                                            <div className={`p-1 rounded ${config.color}`}>
-                                              <config.icon className="h-3 w-3" />
-                                            </div>
-                                            <span className="truncate">{config.label}</span>
-                                            {!action.enabled && (
-                                              <span className="text-gray-400">(off)</span>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                      {stage.entryActions.length > 3 && (
-                                        <div className="text-xs text-gray-500 text-center">
-                                          +{stage.entryActions.length - 3} more
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div>
-                                    <h4 className="text-xs font-medium text-gray-700 mb-2">Exit Actions</h4>
-                                    <div className="space-y-1">
-                                      {stage.exitActions.slice(0, 3).map((action, i) => {
-                                        const config = getActionConfig(action.actionType);
-                                        return (
-                                          <div key={i} className="flex items-center gap-2 text-xs bg-white/50 p-2 rounded">
-                                            <div className={`p-1 rounded ${config.color}`}>
-                                              <config.icon className="h-3 w-3" />
-                                            </div>
-                                            <span className="truncate">{config.label}</span>
-                                            {!action.enabled && (
-                                              <span className="text-gray-400">(off)</span>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                      {stage.exitActions.length > 3 && (
-                                        <div className="text-xs text-gray-500 text-center">
-                                          +{stage.exitActions.length - 3} more
-                                        </div>
-                                      )}
-                                    </div>
+                        <div key={index} className="relative">
+                          {/* Connection lines (only between stages) */}
+                          {index < formData.stages.length - 1 && (
+                            <div className="absolute left-1/2 transform -translate-x-1/2 -bottom-8 z-0">
+                              <div className="relative flex flex-col items-center">
+                                {/* Vertical line */}
+                                <div className="h-8 w-0.5 bg-gray-300"></div>
+                                {/* Arrow container */}
+                                <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2">
+                                  <div className="bg-white p-1 rounded-full border border-gray-300 shadow-sm">
+                                    <ArrowUpDown className="h-4 w-4 text-gray-500" />
                                   </div>
                                 </div>
                               </div>
                             </div>
                           )}
-                        </Draggable>
+
+                          <Draggable
+                            draggableId={`stage-${index}`}
+                            index={index}
+                          >
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                className={`relative ${color.bg} ${color.border} border-2 rounded-xl shadow-sm transition-all hover:shadow-md ${
+                                  snapshot.isDragging ? 'opacity-50' : ''
+                                } ${
+                                  selectedStage === index ? 'ring-2 ring-blue-500 ring-offset-2' : ''
+                                }`}
+                                onClick={() => setSelectedStage(index)}
+                              >
+                                {/* Drag handle - positioned properly */}
+                                <div
+                                  {...provided.dragHandleProps}
+                                  className="absolute -left-10 top-1/2 transform -translate-y-1/2 z-10"
+                                >
+                                  <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm hover:shadow-md cursor-move">
+                                    <GripVertical className="h-5 w-5 text-gray-500 hover:text-gray-700" />
+                                  </div>
+                                </div>
+
+                                {/* Stage number indicator */}
+                                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                                  <div className="bg-gray-800 text-white rounded-full h-6 w-6 flex items-center justify-center text-xs font-semibold">
+                                    {stage.order}
+                                  </div>
+                                </div>
+
+                                <div className="p-6">
+                                  <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-3">
+                                      <div className={`h-12 w-12 rounded-full ${color.darkBg} flex items-center justify-center flex-shrink-0`}>
+                                        <span className="text-2xl">{icon.icon}</span>
+                                      </div>
+                                      <div className="flex-1">
+                                        <h3 className="text-lg font-semibold text-gray-900">{stage.name}</h3>
+                                        <p className="text-sm text-gray-600 mt-1">{stage.description || 'No description'}</p>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-medium text-gray-500">
+                                          {stage.allowedRoles.length} role{stage.allowedRoles.length !== 1 ? 's' : ''}
+                                        </span>
+                                        <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Actions Summary */}
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                                        <h4 className="text-xs font-medium text-gray-700">Entry Actions</h4>
+                                      </div>
+                                      <div className="space-y-1">
+                                        {stage.entryActions.slice(0, 3).map((action, i) => {
+                                          const config = getActionConfig(action.actionType);
+                                          return (
+                                            <div key={i} className="flex items-center gap-2 text-xs bg-white/50 p-2 rounded border border-gray-100">
+                                              <div className={`p-1 rounded ${config.color}`}>
+                                                <config.icon className="h-3 w-3" />
+                                              </div>
+                                              <span className="truncate">{config.label}</span>
+                                              {!action.enabled && (
+                                                <span className="text-gray-400 ml-1">(off)</span>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                        {stage.entryActions.length > 3 && (
+                                          <div className="text-xs text-gray-500 text-center pt-1">
+                                            +{stage.entryActions.length - 3} more
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <div className="h-2 w-2 rounded-full bg-red-500"></div>
+                                        <h4 className="text-xs font-medium text-gray-700">Exit Actions</h4>
+                                      </div>
+                                      <div className="space-y-1">
+                                        {stage.exitActions.slice(0, 3).map((action, i) => {
+                                          const config = getActionConfig(action.actionType);
+                                          return (
+                                            <div key={i} className="flex items-center gap-2 text-xs bg-white/50 p-2 rounded border border-gray-100">
+                                              <div className={`p-1 rounded ${config.color}`}>
+                                                <config.icon className="h-3 w-3" />
+                                              </div>
+                                              <span className="truncate">{config.label}</span>
+                                              {!action.enabled && (
+                                                <span className="text-gray-400 ml-1">(off)</span>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                        {stage.exitActions.length > 3 && (
+                                          <div className="text-xs text-gray-500 text-center pt-1">
+                                            +{stage.exitActions.length - 3} more
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Role badges */}
+                                  {stage.allowedRoles.length > 0 && (
+                                    <div className="mt-4 pt-4 border-t border-gray-100">
+                                      <div className="flex flex-wrap gap-1">
+                                        {stage.allowedRoles.slice(0, 3).map(roleId => {
+                                          const role = roleCategories
+                                            .flatMap(cat => cat.roles)
+                                            .find(r => r.id === roleId);
+                                          return (
+                                            <span
+                                              key={roleId}
+                                              className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700"
+                                            >
+                                              <Shield className="h-3 w-3 mr-1" />
+                                              {role?.name || roleId}
+                                            </span>
+                                          );
+                                        })}
+                                        {stage.allowedRoles.length > 3 && (
+                                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700">
+                                            +{stage.allowedRoles.length - 3} more
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </Draggable>
+                        </div>
                       );
                     })}
                     {provided.placeholder}
                   </div>
                 )}
               </Droppable>
+
+              {/* Legend */}
+              <div className="mt-8 p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+                <h4 className="text-sm font-semibold text-gray-900 mb-3">Design Legend</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="flex items-center gap-2">
+                    <GripVertical className="h-4 w-4 text-gray-500" />
+                    <span className="text-xs text-gray-600">Drag to reorder</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                    <span className="text-xs text-gray-600">Entry Actions</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-red-500"></div>
+                    <span className="text-xs text-gray-600">Exit Actions</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ArrowUpDown className="h-4 w-4 text-gray-500" />
+                    <span className="text-xs text-gray-600">Flow direction</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-gray-500" />
+                    <span className="text-xs text-gray-600">Allowed Roles</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                    <span className="text-xs text-gray-600">Stage Number</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </DragDropContext>
         )}

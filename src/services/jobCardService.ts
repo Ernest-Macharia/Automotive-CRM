@@ -119,8 +119,25 @@ class JobCardService {
       const queryString = queryParams.toString();
       const endpoint = `/jobcards${queryString ? `?${queryString}` : ''}`;
       
+      console.log('🔍 Fetching job cards from:', endpoint);
+      
       const response = await apiClient.get<any[]>(endpoint);
-      return response.map(jobCard => this.normalizeJobCard(jobCard));
+      
+      console.log('📦 Raw API response:', response);
+      console.log('📊 Response type:', typeof response);
+      console.log('📊 Is array?', Array.isArray(response));
+      
+      if (Array.isArray(response)) {
+        const normalized = response.map(jobCard => {
+          const normalizedCard = this.normalizeJobCard(jobCard);
+          console.log(`📝 Normalized card ${jobCard._id}:`, normalizedCard);
+          return normalizedCard;
+        });
+        return normalized;
+      } else {
+        console.error('❌ API response is not an array:', response);
+        return [];
+      }
     } catch (error) {
       console.error('Error fetching job cards:', error);
       throw error;
@@ -186,15 +203,94 @@ class JobCardService {
    * Normalize job card data from backend
    */
   private normalizeJobCard(data: any): JobCard {
+    console.log('🔄 Normalizing job card data:', data);
+    
+    // Extract ID
+    const id = data._id || data.id;
+    
+    // Extract createdBy (handle both string and populated object)
+    let createdBy: UserRef | string;
+    if (typeof data.createdBy === 'string') {
+      createdBy = data.createdBy;
+    } else if (data.createdBy?._id) {
+      createdBy = {
+        _id: data.createdBy._id,
+        id: data.createdBy._id,
+        email: data.createdBy.email || '',
+        role: data.createdBy.role || '',
+        name: data.createdBy.name || (data.createdBy.firstName && data.createdBy.lastName 
+          ? `${data.createdBy.firstName} ${data.createdBy.lastName}` 
+          : '')
+      };
+    } else {
+      createdBy = 'Unknown';
+    }
+    
+    // Extract assignedTo (handle both string and populated object)
+    let assignedTo: UserRef | string | undefined;
+    if (typeof data.assignedTo === 'string') {
+      assignedTo = data.assignedTo;
+    } else if (data.assignedTo?._id) {
+      assignedTo = {
+        _id: data.assignedTo._id,
+        id: data.assignedTo._id,
+        email: data.assignedTo.email || '',
+        role: data.assignedTo.role || '',
+        name: data.assignedTo.name || (data.assignedTo.firstName && data.assignedTo.lastName 
+          ? `${data.assignedTo.firstName} ${data.assignedTo.lastName}` 
+          : '')
+      };
+    } else if (data.assignedTo === null || data.assignedTo === undefined) {
+      assignedTo = undefined;
+    } else {
+      assignedTo = 'Unknown';
+    }
+    
+    // Extract vehicleId
+    let vehicleId: VehicleRef | string;
+    if (typeof data.vehicleId === 'string') {
+      vehicleId = data.vehicleId;
+    } else if (data.vehicleId?._id) {
+      vehicleId = {
+        _id: data.vehicleId._id,
+        id: data.vehicleId._id,
+        registrationNumber: data.vehicleId.registrationNumber || '',
+        make: data.vehicleId.make || '',
+        model: data.vehicleId.model || '',
+        vin: data.vehicleId.vin || ''
+      };
+    } else {
+      vehicleId = 'Unknown';
+    }
+    
+    // Extract opportunityId
+    let opportunityId: OpportunityRef | string;
+    if (typeof data.opportunityId === 'string') {
+      opportunityId = data.opportunityId;
+    } else if (data.opportunityId?._id) {
+      opportunityId = {
+        _id: data.opportunityId._id,
+        id: data.opportunityId._id,
+        subject: data.opportunityId.subject || '',
+        type: data.opportunityId.type || '',
+        companyName: data.opportunityId.companyName || data.opportunityId.customer?.name || ''
+      };
+    } else {
+      opportunityId = 'Unknown';
+    }
+    
+    // Generate job number
+    const jobNumber = data.jobNumber || `JC-${(id || '').toString().slice(-6).toUpperCase()}`;
+    
     return {
-      id: data._id || data.id,
+      id: id,
       _id: data._id,
-      opportunityId: data.opportunityId,
-      vehicleId: data.vehicleId,
-      createdBy: data.createdBy,
-      assignedTo: data.assignedTo,
-      jobTitle: data.jobTitle,
-      jobDescription: data.jobDescription,
+      opportunityId: opportunityId,
+      vehicleId: vehicleId,
+      createdBy: createdBy,
+      assignedTo: assignedTo,
+      jobTitle: data.jobTitle || 'Untitled Job',
+      jobDescription: data.jobDescription || '',
       status: data.status || 'pending',
       startDate: data.startDate,
       endDate: data.endDate,
@@ -207,7 +303,7 @@ class JobCardService {
       laborCost: data.laborCost || 0,
       partsCost: data.partsCost || 0,
       totalCost: data.totalCost || 0,
-      jobNumber: data.jobNumber || `JC-${(data._id || data.id).slice(-6)}`,
+      jobNumber: jobNumber,
       notes: data.notes || [],
       partsUsed: data.partsUsed || [],
       completedDate: data.completedDate

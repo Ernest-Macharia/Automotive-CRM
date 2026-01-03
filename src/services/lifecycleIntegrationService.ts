@@ -1,5 +1,3 @@
-// src/services/lifecycleIntegrationService.ts
-// src/services/lifecycleIntegrationService.ts
 import { lifecycleService, LifecycleStatus, WorkflowDefinition } from './lifecycleService';
 import { workOrderService, WorkOrder } from './workOrderService';
 import { salesOrderService, SalesOrder } from './salesOrderService';
@@ -113,6 +111,153 @@ class LifecycleIntegrationService {
       console.error('Error initializing lifecycle:', error);
       throw error;
     }
+  }
+
+  async getWorkOrderLifecycleUI(opportunityId: string): Promise<{
+    stages: LifecycleStageUI[];
+    progress: LifecycleProgress;
+    canTransition: boolean;
+    validation: {
+      isValid: boolean;
+      requirements: string[];
+    };
+  }> {
+    try {
+      const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
+      const workflow = await lifecycleService.getWorkflowStages(lifecycle.packageType);
+      
+      // Get all related documents
+      const documents = await this.fetchAllDocuments(opportunityId, lifecycle.packageType);
+      
+      // Define work order stages in correct order
+      const workOrderStages = ['quote', 'waiver', 'jobcard', 'prechecklist', 'postchecklist', 'invoice'];
+      
+      // Build UI stages
+      const stages = workOrderStages.map((stageName: string) => {
+        const lifecycleStage = lifecycle.stages.find((s: any) => s.stage === stageName);
+        const document = documents[stageName];
+        const workflowStage = workflow.stages.find((s: any) => s.stage === stageName) || { 
+          label: this.formatStageLabel(stageName),
+          description: this.getStageDescription(stageName, lifecycle.packageType)
+        };
+        
+        return {
+          stage: stageName,
+          label: workflowStage.label,
+          description: workflowStage.description,
+          icon: this.getStageIcon(stageName, lifecycle.packageType),
+          completed: lifecycleStage?.completed || false,
+          isCurrent: lifecycle.currentStage === stageName,
+          canTransition: lifecycleStage?.canTransition || false,
+          document: document || null,
+          documentId: document?._id || document?.id,
+          documentType: this.getDocumentType(stageName),
+          actions: this.getWorkOrderStageActions(
+            stageName,
+            lifecycleStage?.completed || false,
+            lifecycle.currentStage === stageName,
+            document,
+            lifecycle.packageType
+          )
+        };
+      });
+      
+      // Calculate progress
+      const completedStages = stages.filter(s => s.completed).length;
+      const nextStage = this.getNextStage(lifecycle.currentStage, lifecycle.packageType);
+      const progress: LifecycleProgress = {
+        percentage: Math.round((completedStages / stages.length) * 100),
+        completedStages,
+        totalStages: stages.length,
+        currentStage: lifecycle.currentStage,
+        nextStage,
+        isComplete: lifecycle.currentStage === stages[stages.length - 1].stage
+      };
+      
+      // Validation
+      const validation = await lifecycleService.validateOpportunityForTransition(opportunityId) as ValidationResponse;
+      
+      return {
+        stages,
+        progress,
+        canTransition: stages.some(s => s.canTransition),
+        validation: {
+          isValid: validation.isValid,
+          requirements: validation.missingRequirements || []
+        }
+      };
+    } catch (error) {
+      console.error('Error getting work order lifecycle UI:', error);
+      throw error;
+    }
+  }
+
+  private getWorkOrderStageActions(
+    stage: string, 
+    completed: boolean, 
+    isCurrent: boolean, 
+    document: any,
+    packageType: 'work_order' | 'sales_order'
+  ): Array<{
+    label: string;
+    action: string;
+    icon: string;
+    disabled: boolean;
+    color: string;
+  }> {
+    const actions = [];
+    
+    if (completed && document) {
+      actions.push({
+        label: 'View',
+        action: 'view',
+        icon: '👁️',
+        disabled: false,
+        color: 'blue'
+      });
+      
+      if (stage === 'jobcard' && document.status !== 'completed') {
+        actions.push({
+          label: 'Update',
+          action: 'update',
+          icon: '✏️',
+          disabled: false,
+          color: 'yellow'
+        });
+      }
+    } else if (isCurrent) {
+      actions.push({
+        label: 'Create',
+        action: 'create',
+        icon: '➕',
+        disabled: false,
+        color: 'green'
+      });
+      
+      // Allow skipping certain stages (except quote and invoice)
+      if (['waiver', 'prechecklist', 'postchecklist'].includes(stage)) {
+        actions.push({
+          label: 'Skip',
+          action: 'skip',
+          icon: '⏭️',
+          disabled: false,
+          color: 'gray'
+        });
+      }
+    }
+    
+    // Add transition action for current stage if document exists
+    if (isCurrent && document) {
+      actions.push({
+        label: 'Next',
+        action: 'transition',
+        icon: '➡️',
+        disabled: false,
+        color: 'purple'
+      });
+    }
+    
+    return actions;
   }
   
   // Get enhanced lifecycle UI data for display

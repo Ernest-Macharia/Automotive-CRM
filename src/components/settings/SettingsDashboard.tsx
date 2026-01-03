@@ -38,6 +38,7 @@ import { userService } from '@/services/settings/userService';
 import { blueprintsService } from '@/services/settings/blueprintsService';
 import { workflowService } from '@/services/settings/workflowService';
 import { roleService } from '@/services/settings/roleService';
+import { profileService } from '@/services/settings/profileService';
 
 interface MenuItem {
   id: string;
@@ -103,10 +104,21 @@ export default function SettingsDashboard() {
   const [blueprintsCount, setBlueprintsCount] = useState(0);
   const [workflowsCount, setWorkflowsCount] = useState(0);
   const [permissionsCount, setPermissionsCount] = useState(0);
+  const [profilesCount, setProfilesCount] = useState(0);
 
   useEffect(() => {
     loadRealData();
   }, []);
+
+  const loadProfilesCount = async () => {
+    try {
+      const profiles = await profileService.getProfiles();
+      setProfilesCount(profiles.length);
+    } catch (error) {
+      console.error('Error loading profiles count:', error);
+      setProfilesCount(0);
+    }
+  };
 
   const loadRealData = async () => {
     try {
@@ -168,6 +180,8 @@ export default function SettingsDashboard() {
         console.error('Error loading permissions:', permissionsError);
         setPermissionsCount(0);
       }
+
+      await loadProfilesCount();
       
     } catch (error) {
       console.error('Error loading real data:', error);
@@ -235,6 +249,18 @@ export default function SettingsDashboard() {
       badge: permissionsCount,
       description: 'Configure role-based access control and permissions',
       category: 'security',
+      featured: true,
+    },
+    {
+      id: 'profiles',
+      label: 'Employee Profiles',
+      icon: Users,
+      href: '/settings/profiles',
+      color: 'text-purple-600',
+      gradient: 'from-purple-500 to-pink-500',
+      badge: profilesCount,
+      description: 'Manage employee profiles and information',
+      category: 'administration',
       featured: true,
     },
     {
