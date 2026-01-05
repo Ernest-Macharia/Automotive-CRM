@@ -32,7 +32,7 @@ export default function KPIListPage() {
         params.search = searchQuery;
       }
       
-      const response = await kpiService.getAllKPIs(params);
+      const response = await kpiService.getAllKpis(params);
       setKpis(response.data);
     } catch (error) {
       console.error('Error fetching KPIs:', error);
