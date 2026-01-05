@@ -46,8 +46,8 @@ export default function KPIDetailPage() {
     try {
       setUpdatingMetric(index);
       // Check if this method exists, otherwise use a different approach
-      if (kpiService.updateKPIMetric) {
-        await kpiService.updateKPIMetric(kpi._id, index, {
+      if (kpiService.updateKpiMetric) {
+        await kpiService.updateKpiMetric(kpi._id, index, {
           currentValue: metricValue,
           notes
         });
