@@ -7,7 +7,7 @@ import {
   Users, CheckCircle, Clock, AlertCircle, Edit, Download,
   Check, X, MessageSquare, ChevronRight
 } from 'lucide-react';
-import { kpiService, type Kpi } from '@/services/kpiService'; // Import the actual type
+import { kpiService, type Kpi } from '@/services/kpiService';
 import { useToast } from '@/contexts/ToastContext';
 
 export default function KPIDetailPage() {
@@ -45,21 +45,10 @@ export default function KPIDetailPage() {
     
     try {
       setUpdatingMetric(index);
-      // Check if this method exists, otherwise use a different approach
-      if (kpiService.updateKpiMetric) {
-        await kpiService.updateKpiMetric(kpi._id, index, {
-          currentValue: metricValue,
-          notes
-        });
-      } else if (kpiService.updateKpiMetric) {
-        // Try alternative naming
-        await kpiService.updateKpiMetric(kpi._id, index, {
-          currentValue: metricValue,
-          notes
-        });
-      } else {
-        throw new Error('Update metric method not found');
-      }
+      await kpiService.updateKpiMetric(kpi._id, index, {
+        currentValue: metricValue,
+        notes
+      });
       
       showToast('Metric updated successfully', 'success');
       fetchKPI(kpi._id);
