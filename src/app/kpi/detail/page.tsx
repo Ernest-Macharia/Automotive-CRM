@@ -7,35 +7,8 @@ import {
   Users, CheckCircle, Clock, AlertCircle, Edit, Download,
   Check, X, MessageSquare, ChevronRight
 } from 'lucide-react';
-import { kpiService } from '@/services/kpiService';
+import { kpiService, type Kpi } from '@/services/kpiService'; // Import the actual type
 import { useToast } from '@/contexts/ToastContext';
-
-// Define the KPI type to match the actual service return type
-interface Kpi {
-  _id?: string;
-  title?: string;
-  description?: string;
-  status?: 'draft' | 'in_progress' | 'completed' | 'overdue';
-  frequency?: string;
-  periodStart?: string;
-  periodEnd?: string;
-  assignedTo?: any;
-  role?: any;
-  metrics?: Array<{
-    name: string;
-    description: string;
-    targetValue: number;
-    currentValue: number;
-    unit: string;
-    weight: number;
-  }>;
-  notes?: string;
-  reviewNotes?: string;
-  reviewedBy?: any;
-  reviewedAt?: string;
-  createdAt?: string;
-  completedAt?: string;
-}
 
 export default function KPIDetailPage() {
   const params = useParams();
@@ -72,10 +45,21 @@ export default function KPIDetailPage() {
     
     try {
       setUpdatingMetric(index);
-      await kpiService.updateKPIMetric(kpi._id, index, {
-        currentValue: metricValue,
-        notes
-      });
+      // Check if this method exists, otherwise use a different approach
+      if (kpiService.updateKPIMetric) {
+        await kpiService.updateKPIMetric(kpi._id, index, {
+          currentValue: metricValue,
+          notes
+        });
+      } else if (kpiService.updateKpiMetric) {
+        // Try alternative naming
+        await kpiService.updateKpiMetric(kpi._id, index, {
+          currentValue: metricValue,
+          notes
+        });
+      } else {
+        throw new Error('Update metric method not found');
+      }
       
       showToast('Metric updated successfully', 'success');
       fetchKPI(kpi._id);
@@ -123,6 +107,8 @@ export default function KPIDetailPage() {
       case 'completed': return <CheckCircle className="h-5 w-5 text-green-500" />;
       case 'in_progress': return <Clock className="h-5 w-5 text-blue-500" />;
       case 'overdue': return <AlertCircle className="h-5 w-5 text-red-500" />;
+      case 'pending': return <Clock className="h-5 w-5 text-yellow-500" />;
+      case 'cancelled': return <X className="h-5 w-5 text-gray-500" />;
       default: return <Clock className="h-5 w-5 text-yellow-500" />;
     }
   };
