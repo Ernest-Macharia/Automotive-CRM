@@ -134,7 +134,12 @@ function DashboardContent() {
         }),
       ]);
 
-      // Fetch additional metrics for the selected time range
+      // Fetch all opportunities for date filtering
+      const allOpps = await opportunityService.getAllOpportunities({
+        sort: 'createdAt:desc',
+      });
+
+      // Filter opportunities by the selected time range
       const today = new Date();
       let fromDate = new Date();
       
@@ -153,12 +158,11 @@ function DashboardContent() {
           break;
       }
 
-      const timeRangeOpps = await opportunityService.getAllOpportunities({
-        fromDate: fromDate.toISOString().split('T')[0],
-        toDate: today.toISOString().split('T')[0],
+      // Filter opportunities client-side by date range
+      const timeRangeData = (allOpps?.data || []).filter(opp => {
+        const oppDate = new Date(opp.createdAt || opp.updatedAt);
+        return oppDate >= fromDate && oppDate <= today;
       });
-
-      const timeRangeData = timeRangeOpps?.data || [];
 
       // Calculate stats
       const processedStats = processDashboardStats(
@@ -215,11 +219,6 @@ function DashboardContent() {
     const coldLeads = timeRangeData.filter(opp => opp.leadScore?.tier === 'cold').length;
     
     // Calculate win rate
-    // In the processDashboardStats function, update the wonOpps filter
-    // const lostOpps = timeRangeData.filter(opp => opp.status === 'lost');
-    // const newOpps = timeRangeData.filter(opp => opp.status === 'new');
-
-    // Update win rate calculation for new statuses
     const activeStatuses = ['attempted_to_contact', 'prospecting', 'appointment_scheduled'];
     const progressedOpps = timeRangeData.filter(opp => activeStatuses.includes(opp.status));
     const wonCount = wonOpps.length;
