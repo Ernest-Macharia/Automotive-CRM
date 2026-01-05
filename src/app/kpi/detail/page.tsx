@@ -25,7 +25,9 @@ export default function KPIListPage() {
   const fetchKPIs = async () => {
     try {
       setLoading(true);
-      const data = await kpiService.getAllKpis(); // Fixed: getAllKpis (lowercase i)
+      // If user is admin/management, they can see all KPIs
+      // Otherwise, they should only see their own KPIs
+      const data = await kpiService.getAllKpis(); 
       setKpis(data);
     } catch (error) {
       console.error('Error fetching KPIs:', error);
@@ -81,7 +83,7 @@ export default function KPIListPage() {
       'monthly': 'Monthly',
       'quarterly': 'Quarterly',
       'yearly': 'Yearly',
-      'adhoc': 'Ad-hoc',
+      'custom': 'Custom',
     };
     
     return frequencyMap[frequency.toLowerCase()] || frequency;
@@ -100,7 +102,7 @@ export default function KPIListPage() {
     if (!confirm('Are you sure you want to delete this KPI?')) return;
     
     try {
-      await kpiService.deleteKpi(id); // Fixed: deleteKpi (lowercase i)
+      await kpiService.deleteKpi(id);
       showToast('KPI deleted successfully', 'success');
       fetchKPIs();
     } catch (error) {
@@ -187,7 +189,7 @@ export default function KPIListPage() {
               <option value="monthly">Monthly</option>
               <option value="quarterly">Quarterly</option>
               <option value="yearly">Yearly</option>
-              <option value="adhoc">Ad-hoc</option>
+              <option value="custom">Custom</option>
             </select>
             <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
           </div>
@@ -196,7 +198,11 @@ export default function KPIListPage() {
         {/* KPI Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredKpis.map((kpi) => {
-            const progress = kpiService.calculateKPIProgress(kpi);
+            // Calculate progress based on metrics or overall score
+            const progress = kpi.overallScore || 
+              (kpi.metrics && kpi.metrics.length > 0 
+                ? (kpi.metrics.reduce((sum, metric) => sum + (metric.score || 0), 0) / kpi.metrics.length) 
+                : 0);
             
             return (
               <div
@@ -211,9 +217,9 @@ export default function KPIListPage() {
                     <div>
                       <h3 className="font-semibold text-gray-900 line-clamp-1">{kpi.title || 'Untitled KPI'}</h3>
                       <div className="flex items-center gap-2 mt-1">
-                        {getStatusIcon(kpi.status)}
-                        <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusColor(kpi.status)}`}>
-                          {kpi.status ? kpi.status.replace('_', ' ') : 'Unknown'}
+                        {getStatusIcon(kpi.status as Kpi['status'])}
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusColor(kpi.status as Kpi['status'])}`}>
+                          {kpi.status ? (kpi.status as string).replace('_', ' ') : 'Unknown'}
                         </span>
                       </div>
                     </div>
@@ -233,7 +239,7 @@ export default function KPIListPage() {
                 <div className="mb-4">
                   <div className="flex justify-between mb-1">
                     <span className="text-sm font-medium text-gray-700">Progress</span>
-                    <span className="text-sm font-semibold text-gray-900">{progress}%</span>
+                    <span className="text-sm font-semibold text-gray-900">{Math.round(progress)}%</span>
                   </div>
                   <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                     <div
@@ -258,7 +264,7 @@ export default function KPIListPage() {
                     <Users className="h-4 w-4 text-gray-400" />
                     <span className="text-sm text-gray-600">
                       {typeof kpi.assignedTo === 'object' 
-                        ? kpi.assignedTo?.name?.split(' ')[0] || 'Unassigned'
+                        ? (kpi.assignedTo as any)?.name?.split(' ')[0] || 'Unassigned'
                         : 'Unassigned'}
                     </span>
                   </div>
@@ -266,7 +272,7 @@ export default function KPIListPage() {
 
                 <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                   <div className="text-xs text-gray-500">
-                    Updated {formatDate(kpi.updatedAt)}
+                    {kpi.updatedAt ? `Updated ${formatDate(kpi.updatedAt)}` : 'Never updated'}
                   </div>
                   <div className="flex items-center gap-2">
                     <Link
