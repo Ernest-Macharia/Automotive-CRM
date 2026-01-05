@@ -447,6 +447,18 @@ class LifecycleService {
     }
   }
 
+  async completeLifecycle(opportunityId: string, options?: any): Promise<any> {
+    try {
+      return await extendedApiClient.post<any, any>(
+        `/lifecycle/opportunity/${opportunityId}/complete`,
+        options || {}
+      );
+    } catch (error) {
+      console.error(`Error completing lifecycle for opportunity ${opportunityId}:`, error);
+      throw error;
+    }
+  }
+
   async transitionWithWaiver(
     opportunityId: string,
     waiverData: {

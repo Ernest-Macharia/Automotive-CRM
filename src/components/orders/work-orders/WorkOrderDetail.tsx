@@ -24,6 +24,7 @@ import { lifecycleIntegrationService, LifecycleStageUI } from '@/services/lifecy
 import { useToast } from '@/contexts/ToastContext';
 import { format } from 'date-fns';
 import WorkOrderLifecycleVisualization from '@/components/orders/work-orders/WorkOrderLifecycleVisualization';
+import WorkflowVisualization from '../WorkflowVisualization';
 
 interface WorkOrderDetailPageProps {
   orderId: string;
@@ -396,32 +397,41 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-500 via-teal-600 to-blue-500 p-4 sm:p-6 shadow-lg">
-        <div className="max-w-7xl mx-auto">
+      <div className="bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-700 p-4 sm:p-6 shadow-lg relative overflow-hidden">
+        {/* Animated background elements */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10">
+          <div className="absolute -top-24 -right-24 w-64 h-64 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute top-1/2 left-1/4 w-48 h-48 bg-purple-400 rounded-full blur-3xl"></div>
+          <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-400 rounded-full blur-3xl"></div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto relative z-10">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => router.push('/orders/work-orders')}
-                className="p-2 hover:bg-white/20 rounded-xl transition-colors backdrop-blur-sm"
+                className="p-2 hover:bg-white/20 rounded-xl transition-all duration-300 backdrop-blur-sm hover:scale-105 active:scale-95"
                 aria-label="Back to list"
               >
                 <ArrowLeft className="h-5 w-5 text-white" />
               </button>
-              <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
+              <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30 shadow-lg">
                 <Wrench className="h-6 w-6 text-white" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-lg sm:text-xl font-bold text-white">{workOrder.workOrderNumber}</h1>
+                  <h1 className="text-lg sm:text-xl font-bold text-white drop-shadow-lg">
+                    {workOrder.workOrderNumber}
+                  </h1>
                   <button
                     onClick={copyOrderNumber}
-                    className="p-1 hover:bg-white/20 rounded transition-colors"
+                    className="p-1 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-110"
                     title="Copy work order number"
                   >
-                    <Copy className="h-3 w-3 text-white/80" />
+                    <Copy className="h-3 w-3 text-white/80 hover:text-white" />
                   </button>
                 </div>
-                <p className="text-blue-100 text-xs sm:text-sm">Work Order Details</p>
+                <p className="text-blue-100 text-xs sm:text-sm font-medium">Work Order Details</p>
               </div>
             </div>
             
@@ -429,7 +439,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
               {/* Refresh Button */}
               <button
                 onClick={() => setRefreshKey(prev => prev + 1)}
-                className="p-2 hover:bg-white/20 rounded-xl transition-colors backdrop-blur-sm"
+                className="p-2 hover:bg-white/20 rounded-xl transition-all duration-300 backdrop-blur-sm hover:scale-105 active:scale-95"
                 aria-label="Refresh"
               >
                 <RefreshCw className="h-5 w-5 text-white" />
@@ -439,7 +449,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
               <div className="relative">
                 <button
                   onClick={() => setShowShareMenu(!showShareMenu)}
-                  className="p-2 hover:bg-white/20 rounded-xl transition-colors backdrop-blur-sm"
+                  className="p-2 hover:bg-white/20 rounded-xl transition-all duration-300 backdrop-blur-sm hover:scale-105 active:scale-95"
                   aria-label="Share"
                 >
                   <Share2 className="h-5 w-5 text-white" />
@@ -451,16 +461,16 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                       className="fixed inset-0 z-10"
                       onClick={() => setShowShareMenu(false)}
                     />
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-20 animate-fade-in">
-                      <button className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full">
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-20 animate-fade-in backdrop-blur-sm bg-white/95">
+                      <button className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 w-full transition-colors rounded-lg mx-2">
                         <Copy className="h-4 w-4" />
                         Copy Link
                       </button>
-                      <button className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full">
+                      <button className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 w-full transition-colors rounded-lg mx-2">
                         <QrCode className="h-4 w-4" />
                         Generate QR Code
                       </button>
-                      <button className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full">
+                      <button className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 w-full transition-colors rounded-lg mx-2">
                         <Mail className="h-4 w-4" />
                         Email Order
                       </button>
@@ -478,7 +488,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                     ? 'bg-blue-400 text-white'
                     : 'bg-gradient-to-r from-white to-blue-50 text-blue-600 hover:shadow-lg transition-all duration-300'
                 } shadow-sm`}
-              >
+              >           
                 {workflowLoading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -496,7 +506,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
               {/* Edit Button */}
               <Link
                 href={`/orders/work-orders/${workOrder._id}/edit`}
-                className="p-2 hover:bg-white/20 rounded-xl transition-colors backdrop-blur-sm"
+                className="p-2 hover:bg-white/20 rounded-xl transition-all duration-300 backdrop-blur-sm hover:scale-105 active:scale-95"
                 aria-label="Edit work order"
               >
                 <Edit className="h-5 w-5 text-white" />
@@ -506,7 +516,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
               <div className="relative">
                 <button
                   onClick={() => setShowActionsMenu(!showActionsMenu)}
-                  className="p-2 hover:bg-white/20 rounded-xl transition-colors backdrop-blur-sm"
+                  className="p-2 hover:bg-white/20 rounded-xl transition-all duration-300 backdrop-blur-sm hover:scale-105 active:scale-95"
                   aria-label="More actions"
                 >
                   <MoreVertical className="h-5 w-5 text-white" />
@@ -518,7 +528,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                       className="fixed inset-0 z-10"
                       onClick={() => setShowActionsMenu(false)}
                     />
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-20 animate-fade-in">
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-20 animate-fade-in backdrop-blur-sm bg-white/95">
                       <div className="px-3 py-2 border-b border-gray-100">
                         <span className="text-xs font-semibold text-gray-500 uppercase">Quick Actions</span>
                       </div>
@@ -532,7 +542,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                               <button
                                 key={status}
                                 onClick={() => handleStatusChange(status)}
-                                className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-gray-50 flex items-center gap-2 capitalize"
+                                className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 flex items-center gap-2 capitalize transition-colors"
                               >
                                 <div className={`w-2 h-2 rounded-full ${getStatusBadge(status).bg.split(' ')[0]}`}></div>
                                 {status.replace('_', ' ')}
@@ -543,22 +553,22 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                       </div>
                       
                       {/* Export Options */}
-                      <button onClick={() => handleExport('pdf')} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full">
+                      <button onClick={() => handleExport('pdf')} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 w-full transition-colors rounded-lg mx-2">
                         <Download className="h-4 w-4" />
                         Export as PDF
                       </button>
-                      <button onClick={() => handleExport('excel')} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full">
+                      <button onClick={() => handleExport('excel')} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 w-full transition-colors rounded-lg mx-2">
                         <Download className="h-4 w-4" />
                         Export as Excel
                       </button>
-                      <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full">
+                      <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 w-full transition-colors rounded-lg mx-2">
                         <Printer className="h-4 w-4" />
                         Print Work Order
                       </button>
                       
                       {/* Danger Zone */}
                       <div className="border-t border-gray-200 mt-1 pt-1">
-                        <button className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full">
+                        <button className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full transition-colors rounded-lg mx-2">
                           <Trash2 className="h-4 w-4" />
                           Delete Work Order
                         </button>
@@ -572,16 +582,16 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
           
           {/* Status Badge */}
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full ${statusConfig.bg} ${statusConfig.text}`}>
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/20 ${statusConfig.bg} ${statusConfig.text}`}>
               {statusConfig.icon}
               <span className="text-xs font-medium capitalize">{workOrder.status.replace('_', ' ')}</span>
             </div>
             
             {workOrder.priority && (
-              <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full ${
-                workOrder.priority === 'high' ? 'bg-red-100 text-red-800' :
-                workOrder.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                'bg-green-100 text-green-800'
+              <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/20 ${
+                workOrder.priority === 'high' ? 'bg-gradient-to-r from-red-100 to-red-200 text-red-800' :
+                workOrder.priority === 'medium' ? 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800' :
+                'bg-gradient-to-r from-green-100 to-green-200 text-green-800'
               }`}>
                 <AlertCircle className="h-3 w-3" />
                 <span className="text-xs font-medium capitalize">{workOrder.priority} Priority</span>
@@ -589,7 +599,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
             )}
             
             {workOrder.requiresApproval && (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-100 text-purple-800">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-100 to-purple-200 text-purple-800 backdrop-blur-sm border border-white/20">
                 <ShieldAlert className="h-3 w-3" />
                 <span className="text-xs font-medium">Requires Approval</span>
               </div>
@@ -640,11 +650,16 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
           <div className="lg:col-span-2 space-y-6">
             {/* Workflow Visualization */}
             {activeTab === 'workflow' && opportunityId && (
-              <WorkOrderLifecycleVisualization
+              <WorkflowVisualization
                 opportunityId={opportunityId}
-                workOrderId={workOrder._id}
+                orderId={workOrder._id}
+                orderType="work_order"
                 mode="stepper"
                 showStats={true}
+                onStageAction={(stage, action) => {
+                  // Handle stage actions
+                  handleStageAction(stage, action);
+                }}
               />
             )}
 

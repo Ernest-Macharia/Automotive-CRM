@@ -545,6 +545,16 @@ private filterJobCards(jobCards: any[], params: JobCardFilterParams): any[] {
     }
   }
 
+  async getJobCardsByOpportunity(opportunityId: string): Promise<JobCard[]> {
+    try {
+      const response = await apiClient.get<any[]>(`/jobcards/opportunity/${opportunityId}`);
+      return response.map(jobCard => this.normalizeJobCard(jobCard));
+    } catch (error) {
+      console.error(`Error fetching job cards for opportunity ${opportunityId}:`, error);
+      throw error;
+    }
+  }
+
   /**
    * Get job card status color for UI
    */

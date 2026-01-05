@@ -311,6 +311,27 @@ class SalesOrderService {
     }
   }
 
+  async updateSalesOrderByOpportunity(
+    opportunityId: string, 
+    data: UpdateSalesOrderData
+  ): Promise<SalesOrder> {
+    try {
+      // First get all sales orders for the opportunity
+      const salesOrders = await this.getSalesOrdersByOpportunity(opportunityId);
+      
+      if (salesOrders.length === 0) {
+        throw new Error(`No sales order found for opportunity ${opportunityId}`);
+      }
+      
+      // Update the first (or all) sales orders
+      const salesOrder = salesOrders[0];
+      return await this.updateSalesOrder(salesOrder._id || salesOrder.id, data);
+    } catch (error) {
+      console.error(`Error updating sales order by opportunity ${opportunityId}:`, error);
+      throw error;
+    }
+  }
+
   // Utility methods for UI
   getStatusColor(status: string): string {
     if (!status) return 'bg-gray-100 text-gray-800';

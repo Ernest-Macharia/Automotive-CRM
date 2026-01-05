@@ -1,14 +1,20 @@
-import { lifecycleService, LifecycleStatus, WorkflowDefinition } from './lifecycleService';
-import { workOrderService, WorkOrder } from './workOrderService';
-import { salesOrderService, SalesOrder } from './salesOrderService';
-import { opportunityService, Opportunity } from './opportunityService';
-import { quoteService, Quote } from './quoteService';
-import { invoiceService, Invoice } from './invoiceService';
-import { jobCardService, JobCard } from './jobCardService';
-import { preChecklistService, PreChecklist } from './preChecklistService';
-import { postChecklistService, PostChecklist } from './postChecklistService';
+// services/lifecycleIntegrationService.ts
 
-// If your services don't export these types, define them locally
+import { lifecycleService, LifecycleStatus } from './lifecycleService';
+import { workOrderService } from './workOrderService';
+import { salesOrderService } from './salesOrderService';
+import { quoteService } from './quoteService';
+import { invoiceService } from './invoiceService';
+import { jobCardService } from './jobCardService';
+import { opportunityService } from './opportunityService';
+
+// Define the correct workflow patterns
+export const WORKFLOW_PATTERNS = {
+  SALES_ORDER: ['quote', 'invoice'],
+  WORK_ORDER: ['quote', 'waiver', 'jobcard', 'prechecklist', 'postchecklist', 'invoice']
+};
+
+// Add this interface to the lifecycleIntegrationService.ts file
 export interface LifecycleStageUI {
   stage: string;
   label: string;
@@ -17,315 +23,95 @@ export interface LifecycleStageUI {
   completed: boolean;
   isCurrent: boolean;
   canTransition: boolean;
-  document: any | null;
-  documentId?: string;
-  documentType?: string;
+  document: any;
+  documentId: string;
+  documentType: string;
   actions: Array<{
     label: string;
     action: string;
-    icon: string;
-    disabled: boolean;
     color: string;
   }>;
-}
-
-export interface LifecycleProgress {
-  percentage: number;
-  completedStages: number;
+  required: boolean;
+  skippable: boolean;
+  index: number;
   totalStages: number;
-  currentStage: string;
-  nextStage: string | null;
-  isComplete: boolean;
 }
 
-export interface StageTransitionOptions {
-  metadata?: Record<string, any>;
-  skipValidation?: boolean;
-  force?: boolean;
-}
-
-export interface LifecycleAnalytics {
-  totalDuration: number;
-  stageDurations: Record<string, number>;
-  bottlenecks: string[];
-  efficiencyScore: number;
-}
-
-export interface LifecycleContext {
-  opportunityId: string;
-  packageType: 'work_order' | 'sales_order';
-  currentStage: string;
-  stages: Array<{
-    stage: string;
-    label: string;
-    description: string;
-    completed: boolean;
-    canTransition: boolean;
-    document: any;
-    required: boolean;
-  }>;
-  metadata: {
-    workOrder?: any;
-    salesOrder?: any;
-    quote?: any;
-    invoice?: any;
-    jobcard?: any;
-    prechecklist?: any;
-    postchecklist?: any;
-  };
-}
-
-// Define types for service responses if needed
-interface ValidationResponse {
-  isValid: boolean;
-  missingRequirements: string[];
-  warnings?: string[];
-}
-
-interface DurationData {
-  totalDuration: number;
-  averageStageDuration: number;
-  stages: Array<{
-    stage: string;
-    duration: number;
-    completed: boolean;
-  }>;
-}
-
-class LifecycleIntegrationService {
+export class LifecycleIntegrationService {
   
-  // Initialize lifecycle for opportunity
-  async initializeOpportunityLifecycle(
-    opportunityId: string, 
-    packageType: 'work_order' | 'sales_order'
-  ): Promise<LifecycleStatus> {
-    try {
-      // Initialize lifecycle
-      const result = await lifecycleService.initializeOpportunity(
-        opportunityId, 
-        { packageType }
-      );
-      
-      return await lifecycleService.getOpportunityLifecycle(opportunityId);
-    } catch (error) {
-      console.error('Error initializing lifecycle:', error);
-      throw error;
-    }
-  }
-
-  async getWorkOrderLifecycleUI(opportunityId: string): Promise<{
-    stages: LifecycleStageUI[];
-    progress: LifecycleProgress;
-    canTransition: boolean;
-    validation: {
-      isValid: boolean;
-      requirements: string[];
-    };
-  }> {
+  // Get lifecycle UI for any opportunity type
+  async getLifecycleUI(opportunityId: string): Promise<any> {
     try {
       const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
-      const workflow = await lifecycleService.getWorkflowStages(lifecycle.packageType);
       
-      // Get all related documents
-      const documents = await this.fetchAllDocuments(opportunityId, lifecycle.packageType);
+      // Determine which pattern to use
+      const pattern = lifecycle.packageType === 'work_order' 
+        ? WORKFLOW_PATTERNS.WORK_ORDER 
+        : WORKFLOW_PATTERNS.SALES_ORDER;
       
-      // Define work order stages in correct order
-      const workOrderStages = ['quote', 'waiver', 'jobcard', 'prechecklist', 'postchecklist', 'invoice'];
+      // Get current stage from lifecycle
+      const currentStage = lifecycle.currentStage;
+      
+      // Get documents for each stage
+      const documents = await this.fetchDocumentsForStages(opportunityId, pattern);
       
       // Build UI stages
-      const stages = workOrderStages.map((stageName: string) => {
-        const lifecycleStage = lifecycle.stages.find((s: any) => s.stage === stageName);
+      const stages = pattern.map((stageName: string, index: number) => {
+        const lifecycleStage = lifecycle.stages?.find((s: any) => s.stage === stageName);
         const document = documents[stageName];
-        const workflowStage = workflow.stages.find((s: any) => s.stage === stageName) || { 
-          label: this.formatStageLabel(stageName),
-          description: this.getStageDescription(stageName, lifecycle.packageType)
-        };
         
         return {
           stage: stageName,
-          label: workflowStage.label,
-          description: workflowStage.description,
-          icon: this.getStageIcon(stageName, lifecycle.packageType),
+          label: this.getStageLabel(stageName),
+          description: this.getStageDescription(stageName, lifecycle.packageType),
+          icon: this.getStageIcon(stageName),
           completed: lifecycleStage?.completed || false,
-          isCurrent: lifecycle.currentStage === stageName,
-          canTransition: lifecycleStage?.canTransition || false,
+          isCurrent: currentStage === stageName,
+          canTransition: this.canTransitionToStage(stageName, currentStage, pattern, document),
           document: document || null,
           documentId: document?._id || document?.id,
           documentType: this.getDocumentType(stageName),
-          actions: this.getWorkOrderStageActions(
+          actions: this.getStageActions(
             stageName,
             lifecycleStage?.completed || false,
-            lifecycle.currentStage === stageName,
+            currentStage === stageName,
             document,
             lifecycle.packageType
-          )
+          ),
+          index: index + 1,
+          totalStages: pattern.length
         };
       });
       
       // Calculate progress
       const completedStages = stages.filter(s => s.completed).length;
-      const nextStage = this.getNextStage(lifecycle.currentStage, lifecycle.packageType);
-      const progress: LifecycleProgress = {
-        percentage: Math.round((completedStages / stages.length) * 100),
-        completedStages,
-        totalStages: stages.length,
-        currentStage: lifecycle.currentStage,
-        nextStage,
-        isComplete: lifecycle.currentStage === stages[stages.length - 1].stage
-      };
+      const totalStages = stages.length;
+      const percentage = Math.round((completedStages / totalStages) * 100);
+      
+      // Find next stage
+      const currentIndex = pattern.indexOf(currentStage);
+      const nextStage = currentIndex < pattern.length - 1 ? pattern[currentIndex + 1] : null;
+      
+      // Check if can transition
+      const canTransition = stages.some(s => s.isCurrent && s.canTransition);
       
       // Validation
-      const validation = await lifecycleService.validateOpportunityForTransition(opportunityId) as ValidationResponse;
+      const validation = await this.validateCurrentStage(opportunityId, currentStage, documents);
       
       return {
         stages,
-        progress,
-        canTransition: stages.some(s => s.canTransition),
-        validation: {
-          isValid: validation.isValid,
-          requirements: validation.missingRequirements || []
-        }
-      };
-    } catch (error) {
-      console.error('Error getting work order lifecycle UI:', error);
-      throw error;
-    }
-  }
-
-  private getWorkOrderStageActions(
-    stage: string, 
-    completed: boolean, 
-    isCurrent: boolean, 
-    document: any,
-    packageType: 'work_order' | 'sales_order'
-  ): Array<{
-    label: string;
-    action: string;
-    icon: string;
-    disabled: boolean;
-    color: string;
-  }> {
-    const actions = [];
-    
-    if (completed && document) {
-      actions.push({
-        label: 'View',
-        action: 'view',
-        icon: '👁️',
-        disabled: false,
-        color: 'blue'
-      });
-      
-      if (stage === 'jobcard' && document.status !== 'completed') {
-        actions.push({
-          label: 'Update',
-          action: 'update',
-          icon: '✏️',
-          disabled: false,
-          color: 'yellow'
-        });
-      }
-    } else if (isCurrent) {
-      actions.push({
-        label: 'Create',
-        action: 'create',
-        icon: '➕',
-        disabled: false,
-        color: 'green'
-      });
-      
-      // Allow skipping certain stages (except quote and invoice)
-      if (['waiver', 'prechecklist', 'postchecklist'].includes(stage)) {
-        actions.push({
-          label: 'Skip',
-          action: 'skip',
-          icon: '⏭️',
-          disabled: false,
-          color: 'gray'
-        });
-      }
-    }
-    
-    // Add transition action for current stage if document exists
-    if (isCurrent && document) {
-      actions.push({
-        label: 'Next',
-        action: 'transition',
-        icon: '➡️',
-        disabled: false,
-        color: 'purple'
-      });
-    }
-    
-    return actions;
-  }
-  
-  // Get enhanced lifecycle UI data for display
-  async getLifecycleUI(opportunityId: string): Promise<{
-    stages: LifecycleStageUI[];
-    progress: LifecycleProgress;
-    canTransition: boolean;
-    validation: {
-      isValid: boolean;
-      requirements: string[];
-    };
-  }> {
-    try {
-      const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
-      const workflow = await lifecycleService.getWorkflowStages(lifecycle.packageType);
-      
-      // Get all related documents
-      const documents = await this.fetchAllDocuments(opportunityId, lifecycle.packageType);
-      
-      // Build UI stages
-      const stages = workflow.stages.map((workflowStage: any) => {
-        const lifecycleStage = lifecycle.stages.find((s: any) => s.stage === workflowStage.stage);
-        const document = documents[workflowStage.stage];
-        
-        return {
-          stage: workflowStage.stage,
-          label: workflowStage.label || this.formatStageLabel(workflowStage.stage),
-          description: workflowStage.description || this.getStageDescription(workflowStage.stage, lifecycle.packageType),
-          icon: this.getStageIcon(workflowStage.stage, lifecycle.packageType),
-          completed: lifecycleStage?.completed || false,
-          isCurrent: lifecycle.currentStage === workflowStage.stage,
-          canTransition: lifecycleStage?.canTransition || false,
-          document: document || null,
-          documentId: document?._id || document?.id,
-          documentType: this.getDocumentType(workflowStage.stage),
-          actions: this.getStageActions(
-            workflowStage.stage, 
-            lifecycleStage?.completed || false, 
-            lifecycle.currentStage === workflowStage.stage, 
-            document,
-            lifecycle.packageType
-          )
-        };
-      });
-      
-      // Calculate progress
-      const completedStages = stages.filter(s => s.completed).length;
-      const nextStage = this.getNextStage(lifecycle.currentStage, lifecycle.packageType);
-      const progress: LifecycleProgress = {
-        percentage: Math.round((completedStages / stages.length) * 100),
-        completedStages,
-        totalStages: stages.length,
-        currentStage: lifecycle.currentStage,
-        nextStage,
-        isComplete: lifecycle.currentStage === stages[stages.length - 1].stage
-      };
-      
-      // Validation
-      const validation = await lifecycleService.validateOpportunityForTransition(opportunityId) as ValidationResponse;
-      
-      return {
-        stages,
-        progress,
-        canTransition: stages.some(s => s.canTransition),
-        validation: {
-          isValid: validation.isValid,
-          requirements: validation.missingRequirements || []
-        }
+        progress: {
+          percentage,
+          completedStages,
+          totalStages,
+          currentStage,
+          nextStage,
+          isComplete: currentStage === pattern[pattern.length - 1]
+        },
+        canTransition,
+        validation,
+        pattern: pattern,
+        packageType: lifecycle.packageType
       };
     } catch (error) {
       console.error('Error getting lifecycle UI:', error);
@@ -333,80 +119,156 @@ class LifecycleIntegrationService {
     }
   }
   
-  // Get enhanced sales order lifecycle UI
-  async getSalesOrderLifecycleUI(opportunityId: string): Promise<{
-    stages: LifecycleStageUI[];
-    progress: LifecycleProgress;
-    canTransition: boolean;
-    validation: {
-      isValid: boolean;
-      requirements: string[];
-    };
-    nextActions: Array<{
-      label: string;
-      action: () => Promise<void>;
-      icon: string;
-    }>;
-  }> {
+  // Get lifecycle UI specifically for work orders
+  async getWorkOrderLifecycleUI(opportunityId: string): Promise<any> {
     try {
       const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
-      const workflow = await lifecycleService.getWorkflowStages('sales_order');
       
-      // Get related documents
-      const documents = await this.fetchAllDocuments(opportunityId, 'sales_order');
+      if (lifecycle.packageType !== 'work_order') {
+        throw new Error('This opportunity is not a work order');
+      }
       
-      // Build UI stages
-      const stages = workflow.stages.map((workflowStage: any) => {
-        const lifecycleStage = lifecycle.stages.find((s: any) => s.stage === workflowStage.stage);
-        const document = documents[workflowStage.stage];
+      // Use work order pattern
+      const pattern = WORKFLOW_PATTERNS.WORK_ORDER;
+      const currentStage = lifecycle.currentStage;
+      
+      // Get documents
+      const documents = await this.fetchDocumentsForStages(opportunityId, pattern);
+      
+      // Build stages with work-order specific logic
+      const stages = pattern.map((stageName: string, index: number) => {
+        const lifecycleStage = lifecycle.stages?.find((s: any) => s.stage === stageName);
+        const document = documents[stageName];
+        
+        const stageConfig = this.getWorkOrderStageConfig(stageName);
         
         return {
-          stage: workflowStage.stage,
-          label: workflowStage.label || this.formatStageLabel(workflowStage.stage),
-          description: workflowStage.description || this.getSalesOrderStageDescription(workflowStage.stage),
-          icon: this.getSalesOrderStageIcon(workflowStage.stage),
+          stage: stageName,
+          label: stageConfig.label,
+          description: stageConfig.description,
+          icon: stageConfig.icon,
           completed: lifecycleStage?.completed || false,
-          isCurrent: lifecycle.currentStage === workflowStage.stage,
-          canTransition: lifecycleStage?.canTransition || false,
+          isCurrent: currentStage === stageName,
+          canTransition: this.canWorkOrderTransition(stageName, currentStage, document),
           document: document || null,
           documentId: document?._id || document?.id,
-          documentType: this.getDocumentType(workflowStage.stage),
-          actions: this.getSalesOrderStageActions(
-            workflowStage.stage,
+          documentType: this.getDocumentType(stageName),
+          actions: this.getWorkOrderStageActions(
+            stageName,
             lifecycleStage?.completed || false,
-            lifecycle.currentStage === workflowStage.stage,
+            currentStage === stageName,
             document
-          )
+          ),
+          required: stageConfig.required,
+          skippable: stageConfig.skippable,
+          index: index + 1,
+          totalStages: pattern.length
         };
       });
       
       // Calculate progress
       const completedStages = stages.filter(s => s.completed).length;
-      const nextStage = this.getNextStage(lifecycle.currentStage, 'sales_order');
-      const progress: LifecycleProgress = {
-        percentage: Math.round((completedStages / stages.length) * 100),
-        completedStages,
-        totalStages: stages.length,
-        currentStage: lifecycle.currentStage,
-        nextStage,
-        isComplete: lifecycle.currentStage === stages[stages.length - 1].stage
-      };
+      const totalStages = stages.length;
+      const percentage = Math.round((completedStages / totalStages) * 100);
       
-      // Validation
-      const validation = await lifecycleService.validateOpportunityForTransition(opportunityId) as ValidationResponse;
+      // Find next stage
+      const currentIndex = pattern.indexOf(currentStage);
+      const nextStage = currentIndex < pattern.length - 1 ? pattern[currentIndex + 1] : null;
       
-      // Next actions
-      const nextActions = this.getSalesOrderNextActions(lifecycle.currentStage, documents);
+      // Work order specific validation
+      const validation = await this.validateWorkOrderStage(opportunityId, currentStage, documents);
       
       return {
         stages,
-        progress,
-        canTransition: stages.some(s => s.canTransition),
-        validation: {
-          isValid: validation.isValid,
-          requirements: validation.missingRequirements || []
+        progress: {
+          percentage,
+          completedStages,
+          totalStages,
+          currentStage,
+          nextStage,
+          isComplete: currentStage === 'invoice'
         },
-        nextActions
+        canTransition: stages.some(s => s.isCurrent && s.canTransition),
+        validation,
+        pattern: pattern,
+        packageType: 'work_order'
+      };
+    } catch (error) {
+      console.error('Error getting work order lifecycle UI:', error);
+      throw error;
+    }
+  }
+  
+  // Get lifecycle UI specifically for sales orders
+  async getSalesOrderLifecycleUI(opportunityId: string): Promise<any> {
+    try {
+      const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
+      
+      if (lifecycle.packageType !== 'sales_order') {
+        throw new Error('This opportunity is not a sales order');
+      }
+      
+      // Use sales order pattern
+      const pattern = WORKFLOW_PATTERNS.SALES_ORDER;
+      const currentStage = lifecycle.currentStage;
+      
+      // Get documents
+      const documents = await this.fetchDocumentsForStages(opportunityId, pattern);
+      
+      // Build stages with sales-order specific logic
+      const stages = pattern.map((stageName: string, index: number) => {
+        const lifecycleStage = lifecycle.stages?.find((s: any) => s.stage === stageName);
+        const document = documents[stageName];
+        
+        const stageConfig = this.getSalesOrderStageConfig(stageName);
+        
+        return {
+          stage: stageName,
+          label: stageConfig.label,
+          description: stageConfig.description,
+          icon: stageConfig.icon,
+          completed: lifecycleStage?.completed || false,
+          isCurrent: currentStage === stageName,
+          canTransition: this.canSalesOrderTransition(stageName, currentStage, document),
+          document: document || null,
+          documentId: document?._id || document?.id,
+          documentType: this.getDocumentType(stageName),
+          actions: this.getSalesOrderStageActions(
+            stageName,
+            lifecycleStage?.completed || false,
+            currentStage === stageName,
+            document
+          ),
+          required: true,
+          skippable: false,
+          index: index + 1,
+          totalStages: pattern.length
+        };
+      });
+      
+      // Calculate progress
+      const completedStages = stages.filter(s => s.completed).length;
+      const totalStages = stages.length;
+      const percentage = Math.round((completedStages / totalStages) * 100);
+      
+      // Find next stage
+      const currentIndex = pattern.indexOf(currentStage);
+      const nextStage = currentIndex < pattern.length - 1 ? pattern[currentIndex + 1] : null;
+      
+      return {
+        stages,
+        progress: {
+          percentage,
+          completedStages,
+          totalStages,
+          currentStage,
+          nextStage,
+          isComplete: currentStage === 'invoice'
+        },
+        canTransition: stages.some(s => s.isCurrent && s.canTransition),
+        validation: { isValid: true, requirements: [] },
+        pattern: pattern,
+        packageType: 'sales_order'
       };
     } catch (error) {
       console.error('Error getting sales order lifecycle UI:', error);
@@ -414,38 +276,49 @@ class LifecycleIntegrationService {
     }
   }
   
-  // Transition to next stage with automatic document creation
-  async transitionToNextStage(opportunityId: string, options?: StageTransitionOptions): Promise<{
-    success: boolean;
-    nextStage: string;
-    createdDocument?: any;
-  }> {
+  // Transition to next stage
+  async transitionToNextStage(opportunityId: string, options?: any): Promise<any> {
     try {
       const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
       const currentStage = lifecycle.currentStage;
+      const packageType = lifecycle.packageType;
       
-      // Check if we can transition
-      const validation = await lifecycleService.validateOpportunityForTransition(opportunityId) as ValidationResponse;
-      if (!validation.isValid && !options?.skipValidation) {
-        throw new Error(`Cannot transition: ${validation.missingRequirements?.join(', ')}`);
+      // Determine pattern
+      const pattern = packageType === 'work_order' 
+        ? WORKFLOW_PATTERNS.WORK_ORDER 
+        : WORKFLOW_PATTERNS.SALES_ORDER;
+      
+      // Get current index
+      const currentIndex = pattern.indexOf(currentStage);
+      
+      if (currentIndex === -1 || currentIndex >= pattern.length - 1) {
+        throw new Error('Cannot transition: Already at final stage');
       }
       
-      // Create document if needed
-      let createdDocument = null;
-      if (lifecycle.packageType === 'work_order') {
-        createdDocument = await this.createDocumentForStage(opportunityId, currentStage, options);
+      // Get next stage
+      const nextStage = pattern[currentIndex + 1];
+      
+      // Validate current stage completion
+      const documents = await this.fetchDocumentsForStages(opportunityId, pattern.slice(0, currentIndex + 1));
+      const isValid = await this.validateStageCompletion(opportunityId, currentStage, documents[currentStage]);
+      
+      if (!isValid && !options?.skipValidation) {
+        throw new Error(`Cannot transition: Current stage "${currentStage}" not completed`);
       }
       
       // Perform transition
-      const result = await lifecycleService.transitionToNextStage(
-        opportunityId,
-        { metadata: options?.metadata }
-      );
+      const result = await lifecycleService.transitionToStage(opportunityId, nextStage, options);
+      
+      // If this is a work order and we're transitioning to jobcard, create it automatically
+      if (packageType === 'work_order' && nextStage === 'jobcard' && options?.autoCreateJobCard !== false) {
+        await this.autoCreateJobCard(opportunityId);
+      }
       
       return {
         success: true,
-        nextStage: result.currentStage,
-        createdDocument
+        message: `Transitioned from ${currentStage} to ${nextStage}`,
+        currentStage: nextStage,
+        previousStage: currentStage
       };
     } catch (error) {
       console.error('Error transitioning to next stage:', error);
@@ -453,312 +326,251 @@ class LifecycleIntegrationService {
     }
   }
   
-  // Transition sales order stage
-  async transitionSalesOrderStage(opportunityId: string, stage: string, options?: StageTransitionOptions): Promise<{
-    success: boolean;
-    message: string;
-    nextStage?: string;
-  }> {
+  // Transition to specific stage
+  async transitionToStage(opportunityId: string, targetStage: string, options?: any): Promise<any> {
     try {
       const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
-      
-      if (lifecycle.packageType !== 'sales_order') {
-        throw new Error('This is not a sales order opportunity');
-      }
-      
-      // Check if we can transition to this stage
       const currentStage = lifecycle.currentStage;
-      const salesOrderStages = ['quote', 'invoice'];
-      const currentIndex = salesOrderStages.indexOf(currentStage);
-      const targetIndex = salesOrderStages.indexOf(stage);
+      const packageType = lifecycle.packageType;
       
-      if (targetIndex < currentIndex) {
-        throw new Error('Cannot move to previous stage');
+      // Determine pattern
+      const pattern = packageType === 'work_order' 
+        ? WORKFLOW_PATTERNS.WORK_ORDER 
+        : WORKFLOW_PATTERNS.SALES_ORDER;
+      
+      // Validate target stage
+      if (!pattern.includes(targetStage)) {
+        throw new Error(`Invalid stage "${targetStage}" for ${packageType}`);
       }
       
-      // Create document if needed
-      if (stage === 'invoice' && !options?.skipValidation) {
-        const quotes = await quoteService.getQuotesByOpportunity(opportunityId);
-        if (quotes.length === 0 || quotes[0].status !== 'approved') {
-          throw new Error('Cannot create invoice without an approved quote');
+      const currentIndex = pattern.indexOf(currentStage);
+      const targetIndex = pattern.indexOf(targetStage);
+      
+      if (targetIndex < currentIndex && !options?.allowBackwards) {
+        throw new Error('Cannot move backwards in workflow');
+      }
+      
+      // Validate all intermediate stages
+      if (!options?.skipValidation) {
+        for (let i = currentIndex; i < targetIndex; i++) {
+          const stage = pattern[i];
+          const documents = await this.fetchDocumentsForStages(opportunityId, [stage]);
+          const isValid = await this.validateStageCompletion(opportunityId, stage, documents[stage]);
+          
+          if (!isValid) {
+            throw new Error(`Cannot skip stage "${stage}" - not completed`);
+          }
         }
       }
       
       // Perform transition
-      const result = await lifecycleService.transitionToStage(
-        opportunityId,
-        stage,
-        { metadata: options?.metadata }
-      );
+      const result = await lifecycleService.transitionToStage(opportunityId, targetStage, options);
       
       return {
         success: true,
-        message: `Moved to ${stage} stage`,
-        nextStage: result.currentStage
+        message: `Transitioned from ${currentStage} to ${targetStage}`,
+        currentStage: targetStage,
+        previousStage: currentStage
       };
     } catch (error) {
-      console.error('Error transitioning sales order stage:', error);
+      console.error('Error transitioning to stage:', error);
       throw error;
     }
   }
   
-  // Get current lifecycle context
-  async getLifecycleContext(opportunityId: string): Promise<LifecycleContext> {
-    try {
-      const status = await lifecycleService.getOpportunityLifecycle(opportunityId);
-      const workflow = await lifecycleService.getWorkflowStages(status.packageType);
-      const metadata = await this.fetchAllDocuments(opportunityId, status.packageType);
-      
-      return {
-        opportunityId,
-        packageType: status.packageType,
-        currentStage: status.currentStage,
-        stages: workflow.stages.map((stage: any) => ({
-          stage: stage.stage,
-          label: stage.label,
-          description: stage.description,
-          completed: status.stages.find((s: any) => s.stage === stage.stage)?.completed || false,
-          canTransition: status.stages.find((s: any) => s.stage === stage.stage)?.canTransition || false,
-          document: status.stages.find((s: any) => s.stage === stage.stage)?.document || null,
-          required: true
-        })),
-        metadata
-      };
-    } catch (error) {
-      console.error('Error getting lifecycle context:', error);
-      throw error;
-    }
-  }
-  
-  // Get all related documents for display
-  async getAllRelatedDocuments(opportunityId: string): Promise<Record<string, any>> {
+  // Skip current stage
+  async skipCurrentStage(opportunityId: string, options?: any): Promise<any> {
     try {
       const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
-      return await this.fetchAllDocuments(opportunityId, lifecycle.packageType);
+      const currentStage = lifecycle.currentStage;
+      const packageType = lifecycle.packageType;
+      
+      // Check if stage is skippable
+      if (!this.isStageSkippable(currentStage, packageType)) {
+        throw new Error(`Stage "${currentStage}" cannot be skipped`);
+      }
+      
+      // Skip to next stage
+      return await this.transitionToNextStage(opportunityId, {
+        ...options,
+        skipValidation: true,
+        metadata: { ...options?.metadata, skippedStage: currentStage }
+      });
     } catch (error) {
-      console.error('Error getting related documents:', error);
+      console.error('Error skipping stage:', error);
       throw error;
     }
   }
   
-  // Fast forward through stages (for admin/testing)
-  async fastForwardStages(
-    opportunityId: string,
-    targetStage: string,
-    metadata?: Record<string, any>
-  ): Promise<LifecycleStatus> {
+  // Complete lifecycle
+  async completeLifecycle(opportunityId: string, options?: any): Promise<any> {
     try {
-      const result = await lifecycleService.fastForwardToStage(opportunityId, targetStage, metadata);
-      return await lifecycleService.getOpportunityLifecycle(opportunityId);
-    } catch (error) {
-      console.error('Error fast forwarding to stage:', error);
-      throw error;
-    }
-  }
-  
-  // Get lifecycle analytics
-  async getLifecycleAnalytics(opportunityId: string): Promise<LifecycleAnalytics> {
-    try {
-      const duration = await lifecycleService.getLifecycleDuration(opportunityId) as DurationData;
-      const summary = await lifecycleService.getLifecycleSummary(opportunityId);
+      const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
+      const currentStage = lifecycle.currentStage;
+      const packageType = lifecycle.packageType;
       
-      // Calculate efficiency score (0-100)
-      const efficiencyScore = this.calculateEfficiencyScore(duration);
+      // Determine pattern
+      const pattern = packageType === 'work_order' 
+        ? WORKFLOW_PATTERNS.WORK_ORDER 
+        : WORKFLOW_PATTERNS.SALES_ORDER;
       
-      // Identify bottlenecks
-      const bottlenecks = this.identifyBottlenecks(duration);
+      const finalStage = pattern[pattern.length - 1];
+      
+      if (currentStage !== finalStage) {
+        // Transition to final stage first
+        await this.transitionToStage(opportunityId, finalStage, {
+          ...options,
+          skipValidation: options?.skipValidation
+        });
+      }
+      
+      // Mark as complete
+      const result = await lifecycleService.completeLifecycle(opportunityId, options);
+      
+      // Update related order status
+      if (packageType === 'work_order') {
+        await workOrderService.updateWorkOrderByOpportunity(opportunityId, {
+          status: 'completed',
+          actualCompletionDate: new Date().toISOString()
+        });
+      } else if (packageType === 'sales_order') {
+        await salesOrderService.updateSalesOrderByOpportunity(opportunityId, {
+          status: 'delivered',
+          actualDeliveryDate: new Date().toISOString()
+        });
+      }
       
       return {
-        totalDuration: duration.totalDuration,
-        stageDurations: duration.stages.reduce((acc: Record<string, number>, stage: any) => ({
-          ...acc,
-          [stage.stage]: stage.duration
-        }), {}),
-        bottlenecks,
-        efficiencyScore
+        success: true,
+        message: `${packageType === 'work_order' ? 'Work order' : 'Sales order'} completed successfully`,
+        completedAt: new Date().toISOString()
       };
     } catch (error) {
-      console.error('Error getting analytics:', error);
+      console.error('Error completing lifecycle:', error);
       throw error;
     }
   }
-  
-  // Export lifecycle report
-  async exportLifecycleReport(
-    opportunityId: string,
-    format: 'pdf' | 'csv' | 'json' = 'pdf'
-  ): Promise<Blob> {
-    try {
-      const report = await lifecycleService.exportLifecycleReport(opportunityId, format as any);
-      
-      if (format === 'json') {
-        return new Blob([JSON.stringify(report)], { type: 'application/json' });
-      } else if (format === 'csv') {
-        return new Blob([report], { type: 'text/csv' });
-      } else {
-        // For PDF, you would typically use a PDF generation library
-        // This is a placeholder
-        return new Blob([report], { type: 'application/pdf' });
-      }
-    } catch (error) {
-      console.error('Error exporting report:', error);
-      throw error;
-    }
-  }
-  
-  // Validate stage completion
-  async validateStageCompletion(
-    opportunityId: string,
-    stage: string
-  ): Promise<{
-    valid: boolean;
-    requirements: Array<{
-      requirement: string;
-      satisfied: boolean;
-      message: string;
-    }>;
-  }> {
-    const context = await this.getLifecycleContext(opportunityId);
-    const stageInfo = context.stages.find(s => s.stage === stage);
-    
-    if (!stageInfo) {
-      throw new Error(`Stage ${stage} not found`);
-    }
-    
-    const requirements = [];
-    
-    // Check if document exists for this stage
-    requirements.push({
-      requirement: 'document',
-      satisfied: !!stageInfo.document,
-      message: stageInfo.document 
-        ? `${stageInfo.label} document exists` 
-        : `No ${stageInfo.label} document found`
-    });
-    
-    // Stage-specific requirements
-    switch (stage) {
-      case 'quote':
-        requirements.push({
-          requirement: 'quote_approved',
-          satisfied: stageInfo.document?.status === 'approved',
-          message: stageInfo.document?.status === 'approved'
-            ? 'Quote is approved'
-            : 'Quote needs approval'
-        });
-        break;
-        
-      case 'jobcard':
-        requirements.push({
-          requirement: 'jobcard_assignments',
-          satisfied: stageInfo.document?.assignedTo,
-          message: stageInfo.document?.assignedTo
-            ? 'Job card has assigned technician'
-            : 'Job card needs technician assignment'
-        });
-        break;
-        
-      case 'invoice':
-        requirements.push({
-          requirement: 'invoice_paid',
-          satisfied: stageInfo.document?.status === 'paid',
-          message: stageInfo.document?.status === 'paid'
-            ? 'Invoice is paid'
-            : 'Invoice is pending payment'
-        });
-        break;
-    }
-    
-    return {
-      valid: requirements.every(r => r.satisfied),
-      requirements
-    };
-  }
-  
-  // Complete sales order workflow
-  async completeSalesOrder(opportunityId: string): Promise<{
-    success: boolean;
-    message: string;
-  }> {
+
+  async completeSalesOrder(opportunityId: string): Promise<any> {
     try {
       const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
       
       if (lifecycle.packageType !== 'sales_order') {
-        throw new Error('This is not a sales order opportunity');
+        throw new Error('This opportunity is not a sales order');
       }
       
-      // Check if all stages are complete
-      const allStagesComplete = lifecycle.stages.every((stage: any) => stage.completed);
-      if (!allStagesComplete) {
-        throw new Error('Cannot complete: Not all stages are finished');
+      // First, ensure we're at the invoice stage
+      const currentStage = lifecycle.currentStage;
+      if (currentStage !== 'invoice') {
+        // Transition to invoice stage first
+        await this.transitionToStage(opportunityId, 'invoice');
       }
+      
+      // Complete the lifecycle
+      const result = await lifecycleService.completeLifecycle(opportunityId);
       
       // Update sales order status
-      const salesOrder = (lifecycle as any).salesOrder;
-      if (salesOrder) {
-        await salesOrderService.updateSalesOrder(salesOrder._id, {
-          status: 'delivered'
-        });
+      try {
+        const salesOrders = await salesOrderService.getSalesOrdersByOpportunity(opportunityId);
+        if (salesOrders.length > 0) {
+          const salesOrder = salesOrders[0];
+          await salesOrderService.updateSalesOrder(salesOrder._id || salesOrder.id, {
+            status: 'delivered',
+            actualDeliveryDate: new Date().toISOString()
+          });
+        }
+      } catch (updateError) {
+        console.error('Error updating sales order:', updateError);
+        // Don't throw - continue with the completion
       }
       
       return {
         success: true,
-        message: 'Sales order completed successfully'
+        message: 'Sales order completed successfully',
+        completedAt: new Date().toISOString()
       };
     } catch (error) {
       console.error('Error completing sales order:', error);
       throw error;
     }
   }
+
+  // Add this method to the LifecycleIntegrationService class
+  async completeWorkOrder(opportunityId: string): Promise<any> {
+    try {
+      const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
+      
+      if (lifecycle.packageType !== 'work_order') {
+        throw new Error('This opportunity is not a work order');
+      }
+      
+      // First, ensure we're at the invoice stage
+      const currentStage = lifecycle.currentStage;
+      if (currentStage !== 'invoice') {
+        // Transition to invoice stage first
+        await this.transitionToStage(opportunityId, 'invoice');
+      }
+      
+      // Complete the lifecycle
+      const result = await lifecycleService.completeLifecycle(opportunityId);
+      
+      // Update work order status
+      try {
+        const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
+        if (workOrders.length > 0) {
+          const workOrder = workOrders[0];
+          await workOrderService.updateWorkOrder(workOrder._id || workOrder.id, {
+            status: 'completed',
+            actualCompletionDate: new Date().toISOString()
+          });
+        }
+      } catch (updateError) {
+        console.error('Error updating work order:', updateError);
+        // Don't throw - continue with the completion
+      }
+      
+      return {
+        success: true,
+        message: 'Work order completed successfully',
+        completedAt: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('Error completing work order:', error);
+      throw error;
+    }
+  }
   
   // Private helper methods
   
-  private async fetchAllDocuments(opportunityId: string, packageType: 'work_order' | 'sales_order'): Promise<Record<string, any>> {
+  private async fetchDocumentsForStages(opportunityId: string, stages: string[]): Promise<Record<string, any>> {
     const documents: Record<string, any> = {};
     
     try {
       // Fetch quotes
-      const quotes = await quoteService.getQuotesByOpportunity(opportunityId);
-      if (quotes.length > 0) {
-        documents.quote = quotes[0];
+      if (stages.includes('quote')) {
+        const quotes = await quoteService.getQuotesByOpportunity(opportunityId);
+        if (quotes.length > 0) {
+          documents.quote = quotes[0];
+        }
       }
       
       // Fetch invoices
-      const invoices = await invoiceService.getInvoicesByOpportunity(opportunityId);
-      if (invoices.length > 0) {
-        documents.invoice = invoices[0];
+      if (stages.includes('invoice')) {
+        const invoices = await invoiceService.getInvoicesByOpportunity(opportunityId);
+        if (invoices.length > 0) {
+          documents.invoice = invoices[0];
+        }
       }
       
-      if (packageType === 'work_order') {
-        // Fetch work order specific documents
-        const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
-        if (workOrders.length > 0) {
-          documents.workOrder = workOrders[0];
-        }
-        
-        const jobCards = await jobCardService.getAllJobCards({ opportunityId });
+      // Fetch job cards (for work orders)
+      if (stages.includes('jobcard')) {
+        const jobCards = await jobCardService.getJobCardsByOpportunity(opportunityId);
         if (jobCards.length > 0) {
           documents.jobcard = jobCards[0];
         }
-        
-        const preChecklists = await (preChecklistService.getPreChecklistsByOpportunity?.(opportunityId) || []);
-        if (preChecklists.length > 0) {
-          documents.prechecklist = preChecklists[0];
-        }
-        
-        const postChecklists = await (postChecklistService.getPostChecklistsByOpportunity?.(opportunityId) || []);
-        if (postChecklists.length > 0) {
-          documents.postchecklist = postChecklists[0];
-        }
-        
-        // Note: Waiver service would be added here
-      } else if (packageType === 'sales_order') {
-        // Fetch sales orders
-        const salesOrders = await salesOrderService.getSalesOrdersByOpportunity(opportunityId);
-        if (salesOrders.length > 0) {
-          documents.salesOrder = salesOrders[0];
-        }
       }
+      
+      // Note: Add other document types here (waivers, checklists, etc.)
       
       return documents;
     } catch (error) {
@@ -767,65 +579,55 @@ class LifecycleIntegrationService {
     }
   }
   
-  private formatStageLabel(stage: string): string {
-    return stage
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/^./, str => str.toUpperCase())
-      .replace('_', ' ');
+  private getStageLabel(stage: string): string {
+    const labels: Record<string, string> = {
+      'quote': 'Quote',
+      'waiver': 'Waiver',
+      'jobcard': 'Job Card',
+      'prechecklist': 'Pre-Checklist',
+      'postchecklist': 'Post-Checklist',
+      'invoice': 'Invoice',
+      'payment': 'Payment',
+      'delivery': 'Delivery',
+      'completion': 'Completion'
+    };
+    return labels[stage] || stage.charAt(0).toUpperCase() + stage.slice(1);
   }
   
-  private getStageDescription(stage: string, packageType: 'work_order' | 'sales_order'): string {
-    if (packageType === 'sales_order') {
-      return this.getSalesOrderStageDescription(stage);
-    }
-    
+  private getStageDescription(stage: string, packageType: string): string {
     const descriptions: Record<string, string> = {
       'quote': 'Create and approve quotation',
-      'waiver': 'Sign required waivers',
-      'jobcard': 'Create job card for technicians',
-      'prechecklist': 'Complete pre-service inspection',
-      'postchecklist': 'Complete post-service quality check',
-      'invoice': 'Generate invoice for payment',
-      'payment': 'Process payment',
-      'delivery': 'Deliver service/product',
-      'completion': 'Mark opportunity as complete'
+      'waiver': 'Sign required waivers and approvals',
+      'jobcard': 'Create work instructions for technicians',
+      'prechecklist': 'Complete pre-service inspection checklist',
+      'postchecklist': 'Complete post-service quality checklist',
+      'invoice': 'Generate and send invoice for payment',
+      'payment': 'Process payment and update records',
+      'delivery': 'Schedule and complete delivery',
+      'completion': 'Finalize order and archive documentation'
     };
-    return descriptions[stage] || 'Process stage';
-  }
-  
-  private getSalesOrderStageDescription(stage: string): string {
-    const descriptions: Record<string, string> = {
-      'quote': 'Create and approve quotation for customer',
-      'invoice': 'Generate invoice and process payment',
-      'payment': 'Confirm payment received',
-      'delivery': 'Arrange for product delivery',
-      'completion': 'Mark sales order as complete'
-    };
-    return descriptions[stage] || 'Process stage';
-  }
-  
-  private getStageIcon(stage: string, packageType: 'work_order' | 'sales_order'): string {
+    
     if (packageType === 'sales_order') {
-      return this.getSalesOrderStageIcon(stage);
+      const salesDescriptions: Record<string, string> = {
+        'quote': 'Prepare sales quotation for customer approval',
+        'invoice': 'Generate sales invoice and track payment',
+        'payment': 'Confirm payment receipt and update accounts',
+        'delivery': 'Arrange product shipment and delivery',
+        'completion': 'Complete sales order and customer follow-up'
+      };
+      return salesDescriptions[stage] || descriptions[stage] || 'Process stage';
     }
     
+    return descriptions[stage] || 'Process stage';
+  }
+  
+  private getStageIcon(stage: string): string {
     const icons: Record<string, string> = {
       'quote': '📄',
       'waiver': '📝',
       'jobcard': '🔧',
       'prechecklist': '✅',
       'postchecklist': '📋',
-      'invoice': '💰',
-      'payment': '💳',
-      'delivery': '🚚',
-      'completion': '🏁'
-    };
-    return icons[stage] || '📌';
-  }
-  
-  private getSalesOrderStageIcon(stage: string): string {
-    const icons: Record<string, string> = {
-      'quote': '📄',
       'invoice': '💰',
       'payment': '💳',
       'delivery': '🚚',
@@ -848,106 +650,157 @@ class LifecycleIntegrationService {
     return types[stage] || 'Document';
   }
   
-  private getStageActions(
-    stage: string, 
-    completed: boolean, 
-    isCurrent: boolean, 
-    document: any,
-    packageType: 'work_order' | 'sales_order'
-  ): Array<{
-    label: string;
-    action: string;
-    icon: string;
-    disabled: boolean;
-    color: string;
-  }> {
-    if (packageType === 'sales_order') {
-      return this.getSalesOrderStageActions(stage, completed, isCurrent, document);
-    }
-    
-    const actions = [];
-    
-    if (completed && document) {
-      actions.push({
-        label: 'View',
-        action: 'view',
-        icon: '👁️',
-        disabled: false,
-        color: 'blue'
-      });
-    } else if (isCurrent) {
-      actions.push({
-        label: 'Create',
-        action: 'create',
-        icon: '➕',
-        disabled: false,
-        color: 'green'
-      });
-      
-      if (packageType === 'work_order') {
-        actions.push({
-          label: 'Skip',
-          action: 'skip',
-          icon: '⏭️',
-          disabled: false,
-          color: 'yellow'
-        });
+  private getWorkOrderStageConfig(stage: string): any {
+    const configs: Record<string, any> = {
+      'quote': {
+        label: 'Quotation',
+        description: 'Create and approve work quotation',
+        icon: '📄',
+        required: true,
+        skippable: false
+      },
+      'waiver': {
+        label: 'Waiver',
+        description: 'Customer signs required waivers',
+        icon: '📝',
+        required: true,
+        skippable: true
+      },
+      'jobcard': {
+        label: 'Job Card',
+        description: 'Create detailed work instructions',
+        icon: '🔧',
+        required: true,
+        skippable: false
+      },
+      'prechecklist': {
+        label: 'Pre-Checklist',
+        description: 'Complete pre-service inspection',
+        icon: '✅',
+        required: true,
+        skippable: true
+      },
+      'postchecklist': {
+        label: 'Post-Checklist',
+        description: 'Quality check after service completion',
+        icon: '📋',
+        required: true,
+        skippable: true
+      },
+      'invoice': {
+        label: 'Invoice',
+        description: 'Generate final invoice',
+        icon: '💰',
+        required: true,
+        skippable: false
       }
-    }
-    
-    return actions;
+    };
+    return configs[stage] || { label: stage, description: '', icon: '📌', required: true, skippable: false };
   }
   
-  private getSalesOrderStageActions(
-    stage: string, 
-    completed: boolean, 
-    isCurrent: boolean, 
-    document: any
-  ): Array<{
-    label: string;
-    action: string;
-    icon: string;
-    disabled: boolean;
-    color: string;
-  }> {
+  private getSalesOrderStageConfig(stage: string): any {
+    const configs: Record<string, any> = {
+      'quote': {
+        label: 'Sales Quote',
+        description: 'Prepare sales quotation',
+        icon: '📄',
+        required: true,
+        skippable: false
+      },
+      'invoice': {
+        label: 'Sales Invoice',
+        description: 'Generate sales invoice',
+        icon: '💰',
+        required: true,
+        skippable: false
+      }
+    };
+    return configs[stage] || { label: stage, description: '', icon: '📌', required: true, skippable: false };
+  }
+  
+  private canTransitionToStage(stage: string, currentStage: string, pattern: string[], document?: any): boolean {
+    // Can transition if this is the current stage and has required document
+    if (stage !== currentStage) return false;
+    
+    // Check if document exists for this stage
+    if (!document) return false;
+    
+    // Stage-specific validation
+    switch (stage) {
+      case 'quote':
+        return document.status === 'approved';
+      case 'jobcard':
+        return document.status === 'active' || document.status === 'in_progress';
+      case 'invoice':
+        return document.status === 'draft' || document.status === 'sent';
+      default:
+        return true;
+    }
+  }
+  
+  private canWorkOrderTransition(stage: string, currentStage: string, document?: any): boolean {
+    if (stage !== currentStage) return false;
+    
+    // Work-order specific transition rules
+    switch (stage) {
+      case 'quote':
+        return document?.status === 'approved';
+      case 'waiver':
+        return document?.signed === true;
+      case 'jobcard':
+        return document?.status === 'assigned' || document?.status === 'in_progress';
+      case 'prechecklist':
+        return document?.completed === true;
+      case 'postchecklist':
+        return document?.completed === true;
+      case 'invoice':
+        return document?.status === 'draft' || document?.status === 'sent';
+      default:
+        return !!document;
+    }
+  }
+  
+  private canSalesOrderTransition(stage: string, currentStage: string, document?: any): boolean {
+    if (stage !== currentStage) return false;
+    
+    // Sales-order specific transition rules
+    switch (stage) {
+      case 'quote':
+        return document?.status === 'approved';
+      case 'invoice':
+        return document?.status === 'draft' || document?.status === 'sent';
+      default:
+        return !!document;
+    }
+  }
+  
+  private getStageActions(
+    stage: string,
+    completed: boolean,
+    isCurrent: boolean,
+    document: any,
+    packageType: string
+  ): any[] {
     const actions = [];
     
     if (completed && document) {
       actions.push({
         label: 'View',
         action: 'view',
-        icon: '👁️',
-        disabled: false,
         color: 'blue'
       });
-      
-      // Allow editing if not invoiced yet
-      if (stage === 'quote' && document.status !== 'approved') {
-        actions.push({
-          label: 'Edit',
-          action: 'edit',
-          icon: '✏️',
-          disabled: false,
-          color: 'yellow'
-        });
-      }
     } else if (isCurrent) {
       actions.push({
         label: 'Create',
         action: 'create',
-        icon: '➕',
-        disabled: false,
         color: 'green'
       });
     }
     
-    // Add transition action for current stage
     if (isCurrent && document) {
       actions.push({
         label: 'Next',
         action: 'transition',
-        icon: '➡️',
-        disabled: false,
         color: 'purple'
       });
     }
@@ -955,266 +808,256 @@ class LifecycleIntegrationService {
     return actions;
   }
   
-  private getNextStage(currentStage: string, packageType: 'work_order' | 'sales_order'): string | null {
-    const workOrderStages = ['quote', 'waiver', 'jobcard', 'prechecklist', 'postchecklist', 'invoice'];
-    const salesOrderStages = ['quote', 'invoice'];
-    
-    const stages = packageType === 'work_order' ? workOrderStages : salesOrderStages;
-    const currentIndex = stages.indexOf(currentStage);
-    
-    if (currentIndex < stages.length - 1) {
-      return stages[currentIndex + 1];
-    }
-    
-    return null;
-  }
-  
-  private getSalesOrderNextActions(
-    currentStage: string, 
-    documents: Record<string, any>
-  ): Array<{
-    label: string;
-    action: () => Promise<void>;
-    icon: string;
-  }> {
+  private getWorkOrderStageActions(
+    stage: string,
+    completed: boolean,
+    isCurrent: boolean,
+    document: any
+  ): any[] {
     const actions = [];
     
-    switch (currentStage) {
-      case 'quote':
-        if (!documents.quote) {
-          actions.push({
-            label: 'Create Quote',
-            action: async () => {
-              // Navigate to quote creation
-              window.location.href = '/quotes/create';
-            },
-            icon: '📄'
-          });
-        } else if (documents.quote.status === 'approved') {
-          actions.push({
-            label: 'Create Invoice',
-            action: async () => {
-              // Navigate to invoice creation
-              window.location.href = '/invoices/create';
-            },
-            icon: '💰'
-          });
-        } else {
-          actions.push({
-            label: 'Approve Quote',
-            action: async () => {
-              // Approve quote logic
-            },
-            icon: '✅'
-          });
-        }
-        break;
-        
-      case 'invoice':
-        if (documents.invoice) {
-          if (documents.invoice.paymentStatus === 'unpaid') {
-            actions.push({
-              label: 'Mark as Paid',
-              action: async () => {
-                // Mark invoice as paid
-              },
-              icon: '💳'
-            });
-          }
-        }
-        break;
+    if (completed && document) {
+      actions.push({
+        label: 'View',
+        action: 'view',
+        color: 'blue'
+      });
+      
+      if (stage === 'jobcard' && document.status !== 'completed') {
+        actions.push({
+          label: 'Update',
+          action: 'update',
+          color: 'yellow'
+        });
+      }
+    } else if (isCurrent) {
+      actions.push({
+        label: 'Create',
+        action: 'create',
+        color: 'green'
+      });
+      
+      // Allow skipping for certain stages
+      if (['waiver', 'prechecklist', 'postchecklist'].includes(stage)) {
+        actions.push({
+          label: 'Skip',
+          action: 'skip',
+          color: 'gray'
+        });
+      }
+    }
+    
+    if (isCurrent && document) {
+      actions.push({
+        label: 'Continue',
+        action: 'transition',
+        color: 'purple'
+      });
     }
     
     return actions;
   }
   
-  private async createDocumentForStage(opportunityId: string, stage: string, options?: StageTransitionOptions): Promise<any> {
-    try {
-      const opportunity = await opportunityService.getOpportunityById(opportunityId);
+  private getSalesOrderStageActions(
+    stage: string,
+    completed: boolean,
+    isCurrent: boolean,
+    document: any
+  ): any[] {
+    const actions = [];
+    
+    if (completed && document) {
+      actions.push({
+        label: 'View',
+        action: 'view',
+        color: 'blue'
+      });
       
-      switch (stage) {
+      if (stage === 'quote' && document.status !== 'approved') {
+        actions.push({
+          label: 'Approve',
+          action: 'approve',
+          color: 'green'
+        });
+      }
+    } else if (isCurrent) {
+      actions.push({
+        label: 'Create',
+        action: 'create',
+        color: 'green'
+      });
+    }
+    
+    if (isCurrent && document) {
+      actions.push({
+        label: 'Next',
+        action: 'transition',
+        color: 'purple'
+      });
+    }
+    
+    return actions;
+  }
+  
+  private async validateCurrentStage(opportunityId: string, currentStage: string, documents: Record<string, any>): Promise<any> {
+    const requirements = [];
+    
+    // Check if current stage has document
+    if (!documents[currentStage]) {
+      requirements.push(`${this.getStageLabel(currentStage)} document required`);
+    } else {
+      // Stage-specific validation
+      switch (currentStage) {
         case 'quote':
-          return await this.createQuote(opportunity, options);
-        case 'waiver':
-          return await this.createWaiver(opportunity, options);
+          if (documents.quote?.status !== 'approved') {
+            requirements.push('Quote needs approval');
+          }
+          break;
         case 'jobcard':
-          return await this.createJobCard(opportunity, options);
-        case 'prechecklist':
-          return await this.createPreChecklist(opportunity, options);
-        case 'postchecklist':
-          return await this.createPostChecklist(opportunity, options);
+          if (!documents.jobcard?.assignedTo) {
+            requirements.push('Job card needs technician assignment');
+          }
+          break;
         case 'invoice':
-          return await this.createInvoice(opportunity, options);
-        default:
-          return null;
+          if (documents.invoice?.status === 'unpaid') {
+            requirements.push('Invoice payment pending');
+          }
+          break;
       }
-    } catch (error) {
-      console.error(`Error creating document for stage ${stage}:`, error);
-      throw error;
+    }
+    
+    return {
+      isValid: requirements.length === 0,
+      requirements
+    };
+  }
+  
+  private async validateWorkOrderStage(opportunityId: string, currentStage: string, documents: Record<string, any>): Promise<any> {
+    const requirements = [];
+    
+    if (!documents[currentStage]) {
+      requirements.push(`${this.getStageLabel(currentStage)} required`);
+    } else {
+      switch (currentStage) {
+        case 'quote':
+          if (documents.quote?.status !== 'approved') {
+            requirements.push('Quote must be approved');
+          }
+          break;
+        case 'waiver':
+          if (!documents.waiver?.signed) {
+            requirements.push('Waiver must be signed');
+          }
+          break;
+        case 'jobcard':
+          if (!documents.jobcard?.assignedTo) {
+            requirements.push('Technician must be assigned');
+          }
+          if (documents.jobcard?.status === 'pending') {
+            requirements.push('Job card must be started');
+          }
+          break;
+        case 'prechecklist':
+          if (!documents.prechecklist?.completed) {
+            requirements.push('Pre-checklist must be completed');
+          }
+          break;
+        case 'postchecklist':
+          if (!documents.postchecklist?.completed) {
+            requirements.push('Post-checklist must be completed');
+          }
+          break;
+        case 'invoice':
+          if (documents.invoice?.status === 'draft') {
+            requirements.push('Invoice must be sent to customer');
+          }
+          break;
+      }
+    }
+    
+    return {
+      isValid: requirements.length === 0,
+      requirements
+    };
+  }
+  
+  private async validateStageCompletion(opportunityId: string, stage: string, document?: any): Promise<boolean> {
+    if (!document) return false;
+    
+    switch (stage) {
+      case 'quote':
+        return document.status === 'approved';
+      case 'waiver':
+        return document.signed === true;
+      case 'jobcard':
+        return document.status === 'completed' || document.status === 'closed';
+      case 'prechecklist':
+        return document.completed === true;
+      case 'postchecklist':
+        return document.completed === true;
+      case 'invoice':
+        return document.status === 'sent' || document.status === 'paid';
+      default:
+        return true;
     }
   }
   
-  private async createQuote(opportunity: Opportunity, options?: any): Promise<Quote> {
+  private isStageSkippable(stage: string, packageType: string): boolean {
+    if (packageType === 'work_order') {
+      return ['waiver', 'prechecklist', 'postchecklist'].includes(stage);
+    }
+    return false; // Sales order stages are not skippable
+  }
+  
+  private async autoCreateJobCard(opportunityId: string): Promise<void> {
     try {
-      const quoteData = {
-        opportunityId: opportunity._id,
-        items: opportunity.servicesProducts?.map((sp: any) => ({
-          description: sp.title,
-          quantity: sp.quantity,
-          unitPrice: sp.unitPrice,
-          total: sp.total
-        })) || [],
-        totalAmount: opportunity.total || 0,
-        notes: options?.notes || `Quote for ${opportunity.subject}`
-      };
+      // Check if job card already exists
+      const existingJobCards = await jobCardService.getJobCardsByOpportunity(opportunityId);
+      if (existingJobCards.length > 0) {
+        return;
+      }
+
+      // Get opportunity details
+      const opportunity = await opportunityService.getOpportunityById(opportunityId);
+
+      // Get work order
+      const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
+      const workOrder = workOrders[0];
+
+      if (!workOrder) {
+        throw new Error('No work order found for opportunity');
+      }
+
+      // You need to get the vehicle ID from somewhere
+      // This depends on your data model - you might need to:
+      // 1. Get it from the opportunity
+      // 2. Get it from the quote
+      // 3. Have it as a separate parameter
       
-      return await quoteService.createQuote(quoteData);
-    } catch (error) {
-      console.error('Error creating quote:', error);
-      throw error;
-    }
-  }
-  
-  private async createWaiver(opportunity: Opportunity, options?: any): Promise<any> {
-    // Waiver creation logic - you'll need to implement your waiver service
-    try {
-      const waiverData = {
-        opportunityId: opportunity._id,
-        type: options?.type || 'standard',
-        reason: options?.reason || 'Service waiver',
-        notes: options?.notes
-      };
-      
-      // This would call your actual waiver service
-      // return await waiverService.createWaiver(waiverData);
-      return { _id: `waiver-${Date.now()}`, ...waiverData };
-    } catch (error) {
-      console.error('Error creating waiver:', error);
-      throw error;
-    }
-  }
-  
-  private async createJobCard(opportunity: Opportunity, options?: any): Promise<JobCard> {
-    try {
+      // Assuming opportunity has vehicleId
+      const vehicleId = (opportunity as any).vehicleId || 
+                        (opportunity as any).vehicle?._id || 
+                        'unknown-vehicle-id';
+
+      // Create job card with correct data structure
       const jobCardData = {
-        opportunityId: opportunity._id,
-        vehicleId: opportunity.vehicles?.[0]?._id || '',
-        jobTitle: options?.jobTitle || `Service for ${opportunity.subject}`,
-        jobDescription: options?.jobDescription || opportunity.notes,
-        assignedTo: options?.assignedTo
+        opportunityId,
+        vehicleId: vehicleId,
+        jobTitle: `Job Card for ${opportunity.subject}`,
+        jobDescription: opportunity.notes || 'Service work required',
+        assignedTo: typeof workOrder.assignedTo === 'object' ? 
+                  workOrder.assignedTo._id : 
+                  workOrder.assignedTo,
+        priority: (workOrder as any).priority || 'medium',
+        estimatedHours: workOrder.estimatedHours || 0,
+        status: 'assigned'
       };
-      
-      return await jobCardService.createJobCard(jobCardData);
+
+      await jobCardService.createJobCard(jobCardData);
     } catch (error) {
-      console.error('Error creating job card:', error);
-      throw error;
+      console.error('Error auto-creating job card:', error);
+      // Don't throw error - this shouldn't block the transition
     }
-  }
-  
-  private async createPreChecklist(opportunity: Opportunity, options?: any): Promise<PreChecklist> {
-    try {
-      const preChecklistData = {
-        opportunityId: opportunity._id,
-        vehicleId: opportunity.vehicles?.[0]?._id || '',
-        inspectionItems: [
-          { item: 'Vehicle Exterior', status: 'ok', remarks: 'Pre-service check' },
-          { item: 'Vehicle Interior', status: 'ok', remarks: 'Pre-service check' },
-          { item: 'Engine Check', status: 'ok', remarks: 'Pre-service check' },
-          { item: 'Safety Features', status: 'ok', remarks: 'Pre-service check' }
-        ],
-        remarks: options?.remarks || 'Pre-service inspection completed',
-        approved: false
-      };
-      
-      return await preChecklistService.createPreChecklist(preChecklistData);
-    } catch (error) {
-      console.error('Error creating pre-checklist:', error);
-      throw error;
-    }
-  }
-  
-  private async createPostChecklist(opportunity: Opportunity, options?: any): Promise<PostChecklist> {
-    try {
-      // First get the job card for this opportunity
-      const jobCards = await jobCardService.getAllJobCards({ opportunityId: opportunity._id });
-      const jobCard = jobCards[0];
-      
-      const postChecklistData = {
-        opportunityId: opportunity._id,
-        vehicleId: opportunity.vehicles?.[0]?._id || '',
-        jobCardId: jobCard?._id || '',
-        inspectedBy: options?.inspectedBy,
-        inspectionItems: [
-          { item: 'Work Quality', status: 'completed', required: true, category: 'quality' },
-          { item: 'Cleanliness', status: 'completed', required: true, category: 'cleanliness' },
-          { item: 'Safety Check', status: 'completed', required: true, category: 'safety' },
-          { item: 'Documentation', status: 'completed', required: true, category: 'documentation' }
-        ],
-        notes: options?.notes || 'Post-service inspection completed',
-        overallCondition: 'satisfactory'
-      };
-      
-      return await postChecklistService.createPostChecklist(postChecklistData);
-    } catch (error) {
-      console.error('Error creating post-checklist:', error);
-      throw error;
-    }
-  }
-  
-  private async createInvoice(opportunity: Opportunity, options?: any): Promise<Invoice> {
-    try {
-      // Get the quote for this opportunity
-      const quotes = await quoteService.getQuotesByOpportunity(opportunity._id);
-      const quote = quotes[0];
-      
-      const invoiceData = {
-        opportunityId: opportunity._id,
-        quoteId: quote?._id,
-        items: quote?.items || opportunity.servicesProducts?.map((sp: any) => ({
-          description: sp.title,
-          quantity: sp.quantity,
-          unitPrice: sp.unitPrice,
-          total: sp.total
-        })) || [],
-        dueDate: options?.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-        paymentMethod: options?.paymentMethod || 'cash',
-        notes: options?.notes || `Invoice for ${opportunity.subject}`
-      };
-      
-      return await invoiceService.createInvoice(invoiceData);
-    } catch (error) {
-      console.error('Error creating invoice:', error);
-      throw error;
-    }
-  }
-  
-  private calculateEfficiencyScore(duration: DurationData): number {
-    const totalStages = duration.stages.length;
-    const completedStages = duration.stages.filter((s: any) => s.completed).length;
-    
-    if (totalStages === 0) return 100;
-    
-    const completionRatio = completedStages / totalStages;
-    
-    // Calculate time efficiency (lower duration = higher score)
-    const maxExpectedDuration = totalStages * 24; // 24 hours per stage max
-    const timeEfficiency = Math.max(0, 100 - (duration.totalDuration / maxExpectedDuration) * 100);
-    
-    // Weighted score (70% completion, 30% time)
-    return Math.round((completionRatio * 70) + (timeEfficiency * 0.3));
-  }
-  
-  private identifyBottlenecks(duration: DurationData): string[] {
-    const bottlenecks: string[] = [];
-    const avgDuration = duration.averageStageDuration;
-    
-    duration.stages.forEach((stage: any) => {
-      if (stage.duration > avgDuration * 2) { // 2x longer than average
-        bottlenecks.push(`${stage.stage} (${stage.duration.toFixed(1)}h)`);
-      }
-    });
-    
-    return bottlenecks;
   }
 }
 

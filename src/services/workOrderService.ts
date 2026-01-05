@@ -58,6 +58,7 @@ export interface WorkOrder {
   createdAt: string;
   updatedAt: string;
   isActive?: boolean;
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
 }
 
 export interface CreateWorkOrderData {
@@ -283,6 +284,26 @@ class WorkOrderService {
       return await apiClient.get<WorkOrderStats>(`${this.basePath}/stats/summary`);
     } catch (error) {
       console.error('Error fetching work order stats:', error);
+      throw error;
+    }
+  }
+
+  async updateWorkOrderByOpportunity(
+    opportunityId: string, 
+    data: UpdateWorkOrderData
+  ): Promise<WorkOrder> {
+    try {
+      const workOrders = await this.getWorkOrdersByOpportunity(opportunityId);
+      
+      if (workOrders.length === 0) {
+        throw new Error(`No work order found for opportunity ${opportunityId}`);
+      }
+      
+      // Update the first (or all) work orders
+      const workOrder = workOrders[0];
+      return await this.updateWorkOrder(workOrder._id || workOrder.id, data);
+    } catch (error) {
+      console.error(`Error updating work order by opportunity ${opportunityId}:`, error);
       throw error;
     }
   }

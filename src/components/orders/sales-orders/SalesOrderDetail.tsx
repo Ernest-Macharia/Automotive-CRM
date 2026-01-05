@@ -24,6 +24,7 @@ import { lifecycleIntegrationService, LifecycleStageUI } from '@/services/lifecy
 import { useToast } from '@/contexts/ToastContext';
 import { format } from 'date-fns';
 import SalesOrderLifecycleVisualization from '@/components/orders/sales-orders/SalesOrderLifecycleVisualization';
+import WorkflowVisualization from '../WorkflowVisualization';
 
 interface SalesOrderDetailPageProps {
   orderId: string;
@@ -624,9 +625,10 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
           <div className="lg:col-span-2 space-y-6">
             {/* Workflow Visualization (Enhanced) */}
             {activeTab === 'workflow' && opportunityId && (
-              <SalesOrderLifecycleVisualization
+              <WorkflowVisualization
                 opportunityId={opportunityId}
-                salesOrderId={salesOrder._id}
+                orderId={salesOrder._id}
+                orderType="sales_order"
                 mode="stepper"
                 showStats={true}
               />
