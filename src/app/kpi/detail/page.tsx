@@ -6,7 +6,7 @@ import {
   Target, TrendingUp, Calendar, Users,
   CheckCircle, Clock, AlertCircle
 } from 'lucide-react';
-import { kpiService, type Kpi } from '@/services/kpiService'; // Fixed: use Kpi not KPI
+import { kpiService, type Kpi } from '@/services/kpiService';
 import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
 
@@ -25,7 +25,7 @@ export default function KPIListPage() {
   const fetchKPIs = async () => {
     try {
       setLoading(true);
-      const data = await kpiService.getAllKPIs();
+      const data = await kpiService.getAllKpis(); // Fixed: getAllKpis (lowercase i)
       setKpis(data);
     } catch (error) {
       console.error('Error fetching KPIs:', error);
@@ -100,7 +100,7 @@ export default function KPIListPage() {
     if (!confirm('Are you sure you want to delete this KPI?')) return;
     
     try {
-      await kpiService.deleteKpi(id);
+      await kpiService.deleteKpi(id); // Fixed: deleteKpi (lowercase i)
       showToast('KPI deleted successfully', 'success');
       fetchKPIs();
     } catch (error) {
