@@ -56,7 +56,7 @@ export default function KPIDetailPage() {
   const fetchKPI = async (id: string) => {
     try {
       setLoading(true);
-      const data = await kpiService.getKPIById(id);
+      const data = await kpiService.getKpiById(id);
       setKpi(data);
     } catch (error) {
       console.error('Error fetching KPI:', error);
