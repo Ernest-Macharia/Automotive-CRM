@@ -4,22 +4,15 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { authService } from '@/services/authService';
 
-interface AuthGuardProps {
+interface PublicRouteProps {
   children: React.ReactNode;
-  publicPaths?: string[];
+  redirectAuthenticatedTo?: string;
 }
 
-export default function AuthGuard({ 
+export default function PublicRoute({ 
   children, 
-  publicPaths = [
-    '/auth/login', 
-    '/auth/register', 
-    '/auth/forgot-password',
-    '/auth/reset-password',
-    '/auth/verify-email',
-    '/unauthorized'
-  ]
-}: AuthGuardProps) {
+  redirectAuthenticatedTo = '/dashboard'
+}: PublicRouteProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [isChecking, setIsChecking] = useState(true);
@@ -28,21 +21,11 @@ export default function AuthGuard({
     const checkAuth = async () => {
       setIsChecking(true);
       
-      const isPublicPath = publicPaths.some(path => 
-        pathname === path || pathname.startsWith(`${path}/`)
-      );
-      
       const isAuthenticated = authService.isAuthenticated();
       const user = authService.getUser();
 
-      // If not authenticated and trying to access protected route
-      if (!isAuthenticated && !isPublicPath) {
-        router.push('/auth/login');
-        return;
-      }
-
-      // If authenticated and trying to access auth pages (except force-change-password)
-      if (isAuthenticated && pathname.startsWith('/auth/')) {
+      // If authenticated and trying to access public pages
+      if (isAuthenticated) {
         // Allow access to force-change-password
         if (pathname.includes('/force-change-password')) {
           setIsChecking(false);
@@ -55,14 +38,8 @@ export default function AuthGuard({
           return;
         }
         
-        // Redirect authenticated users away from other auth pages
-        router.push('/dashboard');
-        return;
-      }
-
-      // If user needs password change but not on force-change-password page
-      if (isAuthenticated && user?.requiresPasswordChange && !pathname.includes('/force-change-password')) {
-        router.push('/auth/force-change-password');
+        // Redirect to dashboard
+        router.push(redirectAuthenticatedTo);
         return;
       }
 
@@ -70,14 +47,14 @@ export default function AuthGuard({
     };
 
     checkAuth();
-  }, [pathname, router, publicPaths]);
+  }, [pathname, router, redirectAuthenticatedTo]);
 
   if (isChecking) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Checking authentication...</p>
+          <p className="text-gray-600">Loading...</p>
         </div>
       </div>
     );

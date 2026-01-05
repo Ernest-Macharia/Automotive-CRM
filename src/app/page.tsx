@@ -1,44 +1,37 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { authService } from '@/services/authService';
 
 export default function HomePage() {
-  const [isChecking, setIsChecking] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const { authService } = await import('@/services/authService');
-        
-        const isAuthenticated = authService.isAuthenticated();
-        if (isAuthenticated) {
-          router.push('/dashboard');
+    const checkAuth = () => {
+      const isAuthenticated = authService.isAuthenticated();
+      
+      if (isAuthenticated) {
+        const user = authService.getUser();
+        if (user?.requiresPasswordChange) {
+          router.push('/auth/force-change-password');
         } else {
-          router.push('/auth/login');
+          router.push('/dashboard');
         }
-      } catch (error) {
-        console.error('Auth check error:', error);
+      } else {
         router.push('/auth/login');
-      } finally {
-        setIsChecking(false);
       }
     };
 
     checkAuth();
   }, [router]);
 
-  if (isChecking) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Redirecting...</p>
-        </div>
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-gray-600">Redirecting...</p>
       </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 }

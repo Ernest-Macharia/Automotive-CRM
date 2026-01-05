@@ -1,4 +1,3 @@
-// components/auth/ProtectedRoute.tsx (updated version)
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -22,48 +21,47 @@ export default function ProtectedRoute({
 
   useEffect(() => {
     const checkAuth = async () => {
-      const isAuthenticated = authService.isAuthenticated();
-      
-      if (!isAuthenticated) {
-        router.push('/auth/login');
-        return;
-      }
-
       try {
-        const user = authService.getUser();
+        const isAuthenticated = authService.isAuthenticated();
+        
+        if (!isAuthenticated) {
+          router.push('/auth/login');
+          return;
+        }
+
+        let user = authService.getUser(); // Use let instead of const
         
         if (!user) {
-          router.push('/auth/login');
-        } else {
-          // Check role if required
-          if (requiredRole && !requiredRole.includes(user.role)) {
-            router.push('/unauthorized');
+          const refreshedUser = await authService.getCurrentUser(); // Try to refresh user data
+          user = refreshedUser;
+          
+          if (!user) {
+            router.push('/auth/login');
             return;
           }
+        }
+
+        // Check if user needs to change password
+        if (user.requiresPasswordChange) {
+          router.push('/auth/force-change-password');
+          return;
+        }
+        
+        // Check role if required
+        if (requiredRole && !requiredRole.includes(user.role)) {
+          router.push('/unauthorized');
+          return;
+        }
+        
+        // Check permissions if required
+        if (requiredPermissions && user.permissions) {
+          const hasPermission = requiredPermissions.some(permission => 
+            user?.permissions?.includes(permission)
+          );
           
-          // Check permissions if required
-          if (requiredPermissions && user.permissions) {
-            const hasPermission = requiredPermissions.some(permission => 
-              user.permissions?.includes(permission)
-            );
-            
-            if (!hasPermission) {
-              router.push('/unauthorized');
-              return;
-            }
-          }
-          
-          // If both role and permissions are required, check both
-          if (requiredRole && requiredPermissions) {
-            const hasRole = requiredRole.includes(user.role);
-            const hasPermission = requiredPermissions.some(permission => 
-              user.permissions?.includes(permission)
-            );
-            
-            if (!hasRole && !hasPermission) {
-              router.push('/unauthorized');
-              return;
-            }
+          if (!hasPermission) {
+            router.push('/unauthorized');
+            return;
           }
         }
 
@@ -83,8 +81,8 @@ export default function ProtectedRoute({
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#E65C00] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-[#CCCCCC]">Checking authentication...</p>
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking authentication...</p>
         </div>
       </div>
     );
