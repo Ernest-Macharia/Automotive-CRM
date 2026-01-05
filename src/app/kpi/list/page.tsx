@@ -6,13 +6,13 @@ import {
   ChevronRight, Eye, Edit, Trash2, Target, Calendar,
   CheckCircle, Clock, AlertCircle
 } from 'lucide-react';
-import { kpiService, Kpi } from '@/services/kpiService'; // Changed KPI to Kpi
+import { kpiService, Kpi } from '@/services/kpiService';
 import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
 
 export default function KPIListPage() {
   const { showToast } = useToast();
-  const [kpis, setKpis] = useState<Kpi[]>([]); // Changed KPI to Kpi
+  const [kpis, setKpis] = useState<Kpi[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -47,7 +47,7 @@ export default function KPIListPage() {
     fetchKPIs();
   };
 
-  const getStatusIcon = (status: Kpi['status']) => { // Changed KPI to Kpi
+  const getStatusIcon = (status: Kpi['status']) => {
     switch (status) {
       case 'completed': return <CheckCircle className="h-4 w-4 text-green-500" />;
       case 'in_progress': return <Clock className="h-4 w-4 text-blue-500" />;
@@ -62,6 +62,19 @@ export default function KPIListPage() {
       day: 'numeric',
       year: 'numeric'
     });
+  };
+
+  // Helper function for frequency label
+  const getFrequencyLabel = (frequency: string) => {
+    const frequencyMap: Record<string, string> = {
+      'daily': 'Daily',
+      'weekly': 'Weekly',
+      'monthly': 'Monthly',
+      'quarterly': 'Quarterly',
+      'yearly': 'Yearly',
+      'custom': 'Custom'
+    };
+    return frequencyMap[frequency] || frequency;
   };
 
   const statusOptions = [
@@ -259,7 +272,7 @@ export default function KPIListPage() {
                       
                       <td className="px-6 py-4">
                         <span className="text-sm text-gray-900">
-                          {kpiService.getFrequencyLabel(kpi.frequency)}
+                          {getFrequencyLabel(kpi.frequency)} {/* Changed to local function */}
                         </span>
                       </td>
                       
