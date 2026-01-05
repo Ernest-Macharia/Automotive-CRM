@@ -7,8 +7,35 @@ import {
   Users, CheckCircle, Clock, AlertCircle, Edit, Download,
   Check, X, MessageSquare, ChevronRight
 } from 'lucide-react';
-import { kpiService, KPI } from '@/services/kpiService';
+import { kpiService } from '@/services/kpiService'; // Remove KPI import here
 import { useToast } from '@/contexts/ToastContext';
+
+// Define the KPI type locally or import it from types
+interface KPI {
+  _id: string;
+  title: string;
+  description: string;
+  status: 'draft' | 'in_progress' | 'completed' | 'overdue';
+  frequency: string;
+  periodStart: string;
+  periodEnd: string;
+  assignedTo: any;
+  role: any;
+  metrics: Array<{
+    name: string;
+    description: string;
+    targetValue: number;
+    currentValue: number;
+    unit: string;
+    weight: number;
+  }>;
+  notes?: string;
+  reviewNotes?: string;
+  reviewedBy?: any;
+  reviewedAt?: string;
+  createdAt: string;
+  completedAt?: string;
+}
 
 export default function KPIDetailPage() {
   const params = useParams();
