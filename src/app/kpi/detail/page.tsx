@@ -296,6 +296,8 @@ export default function KPIDetailPage() {
                   </div>
                 )}
                 
+                {/* Remove or comment out the reviewNotes section since it doesn't exist in the Kpi type */}
+                {/* 
                 {kpi.reviewNotes && (
                   <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <div className="flex items-center gap-2 mb-2">
@@ -311,6 +313,7 @@ export default function KPIDetailPage() {
                     )}
                   </div>
                 )}
+                */}
               </div>
             </div>
           </div>
