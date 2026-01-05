@@ -84,7 +84,6 @@ export default function RegisterPage() {
           </div>
         </div>
       }
-      features={featureItems}
       featureTitle="Transform Your Automotive Business"
       featureDescription="Join thousands of dealerships and service centers using MAG CRM to increase efficiency, boost sales, and deliver outstanding customer experiences."
       backgroundGradient="from-orange-50 via-white to-amber-50"
