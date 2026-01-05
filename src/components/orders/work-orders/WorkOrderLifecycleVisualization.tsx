@@ -287,7 +287,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   };
 
   const getStageIcon = (stage: string) => {
-    const icons: Record<string, JSX.Element> = {
+    const icons: Record<string, React.ReactNode> = {
       'quote': <FileText className="h-5 w-5" />,
       'waiver': <FileSignature className="h-5 w-5" />,
       'jobcard': <Wrench className="h-5 w-5" />,
@@ -332,7 +332,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   };
 
   const getStatusBadge = (status: string) => {
-    const config: Record<string, { bg: string; text: string; icon: JSX.Element }> = {
+    const config: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
       draft: { 
         bg: 'bg-gray-100', 
         text: 'text-gray-800',

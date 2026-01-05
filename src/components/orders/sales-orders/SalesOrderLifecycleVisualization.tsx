@@ -77,7 +77,7 @@ export default function SalesOrderLifecycleVisualization({
   };
 
   const getStageIcon = (stage: string) => {
-    const icons: Record<string, JSX.Element> = {
+    const icons: Record<string, React.ReactNode> = {
       'quote': <FileText className="h-5 w-5" />,
       'work_order': <Package className="h-5 w-5" />,
       'waiver': <FileText className="h-5 w-5" />,

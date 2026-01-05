@@ -49,10 +49,10 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/opportunities',  label: 'Opportunities', icon: Target },
+    { href: '/customers', label: 'Customers', icon: Users }, 
     { href: '/orders/sales-orders', label: 'Sales Orders', icon: ShoppingBag},
     { href: '/orders/work-orders', label: 'Work Orders', icon: Wrench},
     { href: '/contacts', label: 'Contacts', icon: Users },
-    // { href: '/clients',        label: 'Customers',     icon: Building },
     { href: '/kpi',           label: 'KPI Reports',   icon: Settings },
     { href: '/reports',       label: 'Analytics',     icon: BarChart3 },
     { href: '/quotes',         label: 'Quotes',        icon: FileText },
