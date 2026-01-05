@@ -379,100 +379,59 @@ class CustomerService {
   // Get customer by ID
   async getCustomerById(id: string): Promise<Customer> {
     try {
-        // Try to find customer from opportunities first
-        const opportunitiesResponse = await this.fetchWithFallback<ApiResponse>('/opportunities');
-        const opportunities = opportunitiesResponse.data || opportunitiesResponse || [];
-        
-        // Find all opportunities for this customer
-        const customerOpportunities = opportunities.filter((opp: any) => 
+      // Try to find customer from opportunities
+      const opportunitiesResponse = await this.fetchWithFallback<ApiResponse>('/opportunities');
+      const opportunities = opportunitiesResponse.data || opportunitiesResponse || [];
+      
+      // Find all opportunities for this customer
+      const customerOpportunities = opportunities.filter((opp: any) => 
         opp.customer && opp.customer._id === id
-        );
-        
-        // If no opportunities found, check if we should create a mock customer or fetch from dedicated endpoint
-        if (customerOpportunities.length === 0) {
-        // Check if there's a dedicated customer endpoint
-        try {
-            // Try to fetch from a dedicated customers endpoint if available
-            return await this.fetchWithFallback<Customer>(`/customers/${id}`);
-        } catch (customerError) {
-            // If no dedicated endpoint, return a mock customer or throw a more specific error
-            console.warn(`Customer ${id} not found in opportunities and no dedicated endpoint available`);
-            
-            // Create a mock customer for testing purposes
-            return {
-            _id: id,
-            name: "Unknown Customer",
-            email: "",
-            phone: "",
-            companyName: "",
-            type: "individual" as const,
-            customerType: "potential" as const,
-            customerTier: "standard" as const,
-            status: "active" as const,
-            tags: [],
-            opportunities: [],
-            vehicles: [],
-            totalSpent: 0,
-            totalOrders: 0,
-            outstandingBalance: 0,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-            };
-        }
-        }
-        
-        // Rest of your existing logic for when customer is found in opportunities...
-        const firstOpportunity = customerOpportunities[0];
-        const customerData = firstOpportunity.customer;
-        
-        const totalSpent = customerOpportunities.reduce((sum: number, opp: any) => 
+      );
+      
+      if (customerOpportunities.length === 0) {
+        throw new Error('Customer not found in opportunities');
+      }
+      
+      // Aggregate customer data
+      const firstOpportunity = customerOpportunities[0];
+      const customerData = firstOpportunity.customer;
+      
+      // Calculate total spent
+      const totalSpent = customerOpportunities.reduce((sum: number, opp: any) => 
         sum + (opp.total || 0), 0
-        );
-        
-        const lastOrderDate = customerOpportunities.reduce((latest: string, opp: any) => 
+      );
+      
+      // Find latest order date
+      const lastOrderDate = customerOpportunities.reduce((latest: string, opp: any) => 
         opp.createdAt > latest ? opp.createdAt : latest, ''
-        );
-        
-        const customer: Customer = {
+      );
+      
+      const customer: Customer = {
         ...customerData,
         type: firstOpportunity.type,
         opportunities: customerOpportunities.map((opp: any) => ({
-            _id: opp._id,
-            subject: opp.subject,
-            status: opp.status,
-            total: opp.total,
-            createdAt: opp.createdAt
+          _id: opp._id,
+          subject: opp.subject,
+          status: opp.status,
+          total: opp.total,
+          createdAt: opp.createdAt
         })),
         vehicles: Array.from(new Map(
-            customerOpportunities
+          customerOpportunities
             .flatMap((opp: any) => opp.vehicles || [])
             .map((vehicle: any) => [vehicle._id, vehicle])
         ).values()),
         totalOrders: customerOpportunities.length,
         totalSpent,
         lastOrderDate
-        };
-        
-        return customer;
+      };
+      
+      return customer;
     } catch (error) {
-        console.error(`Error fetching customer ${id}:`, error);
-        
-        // Don't throw the generic error, return a minimal customer object
-        return {
-        _id: id,
-        name: "Customer Not Found",
-        type: "individual" as const,
-        customerType: "potential" as const,
-        status: "inactive" as const,
-        opportunities: [],
-        vehicles: [],
-        totalSpent: 0,
-        totalOrders: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-        };
+      console.error(`Error fetching customer ${id}:`, error);
+      throw error;
     }
-    }
+  }
 
   // Get customer statistics
   async getCustomerStats(): Promise<CustomerStats> {
