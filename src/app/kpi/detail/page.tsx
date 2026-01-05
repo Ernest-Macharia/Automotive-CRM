@@ -7,21 +7,21 @@ import {
   Users, CheckCircle, Clock, AlertCircle, Edit, Download,
   Check, X, MessageSquare, ChevronRight
 } from 'lucide-react';
-import { kpiService } from '@/services/kpiService'; // Remove KPI import here
+import { kpiService } from '@/services/kpiService';
 import { useToast } from '@/contexts/ToastContext';
 
-// Define the KPI type locally or import it from types
-interface KPI {
-  _id: string;
-  title: string;
-  description: string;
-  status: 'draft' | 'in_progress' | 'completed' | 'overdue';
-  frequency: string;
-  periodStart: string;
-  periodEnd: string;
-  assignedTo: any;
-  role: any;
-  metrics: Array<{
+// Define the KPI type to match the actual service return type
+interface Kpi {
+  _id?: string;
+  title?: string;
+  description?: string;
+  status?: 'draft' | 'in_progress' | 'completed' | 'overdue';
+  frequency?: string;
+  periodStart?: string;
+  periodEnd?: string;
+  assignedTo?: any;
+  role?: any;
+  metrics?: Array<{
     name: string;
     description: string;
     targetValue: number;
@@ -33,7 +33,7 @@ interface KPI {
   reviewNotes?: string;
   reviewedBy?: any;
   reviewedAt?: string;
-  createdAt: string;
+  createdAt?: string;
   completedAt?: string;
 }
 
@@ -41,7 +41,7 @@ export default function KPIDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { showToast } = useToast();
-  const [kpi, setKpi] = useState<KPI | null>(null);
+  const [kpi, setKpi] = useState<Kpi | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingMetric, setUpdatingMetric] = useState<number | null>(null);
   const [metricValue, setMetricValue] = useState<number>(0);
@@ -68,7 +68,7 @@ export default function KPIDetailPage() {
   };
 
   const handleUpdateMetric = async (index: number) => {
-    if (!kpi) return;
+    if (!kpi || !kpi._id) return;
     
     try {
       setUpdatingMetric(index);
@@ -89,10 +89,10 @@ export default function KPIDetailPage() {
   };
 
   const handleCompleteKPI = async () => {
-    if (!kpi) return;
+    if (!kpi || !kpi._id) return;
     
     try {
-      await kpiService.completeKPI(kpi._id);
+      await kpiService.completeKpi(kpi._id);
       showToast('KPI marked as completed', 'success');
       fetchKPI(kpi._id);
     } catch (error) {
@@ -101,7 +101,8 @@ export default function KPIDetailPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -117,7 +118,7 @@ export default function KPIDetailPage() {
     return 'text-red-600';
   };
 
-  const getStatusIcon = (status: KPI['status']) => {
+  const getStatusIcon = (status?: Kpi['status']) => {
     switch (status) {
       case 'completed': return <CheckCircle className="h-5 w-5 text-green-500" />;
       case 'in_progress': return <Clock className="h-5 w-5 text-blue-500" />;
@@ -157,13 +158,13 @@ export default function KPIDetailPage() {
               <div>
                 <div className="flex items-center gap-2">
                   {getStatusIcon(kpi.status)}
-                  <h1 className="text-2xl font-bold text-gray-900">{kpi.title}</h1>
+                  <h1 className="text-2xl font-bold text-gray-900">{kpi.title || 'Untitled KPI'}</h1>
                   <span className={`px-3 py-1 text-sm rounded-full ${statusColor}`}>
-                    {kpi.status.replace('_', ' ')}
+                    {kpi.status ? kpi.status.replace('_', ' ') : 'Unknown'}
                   </span>
                 </div>
                 <p className="text-gray-600 text-sm mt-1">
-                  {kpi.description}
+                  {kpi.description || 'No description'}
                 </p>
               </div>
             </div>
@@ -173,7 +174,7 @@ export default function KPIDetailPage() {
                 <Download className="h-5 w-5 text-gray-600" />
               </button>
               <button
-                onClick={() => router.push(`/kpi/${kpi._id}/edit`)}
+                onClick={() => kpi._id && router.push(`/kpi/${kpi._id}/edit`)}
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg text-sm font-medium hover:from-blue-600 hover:to-purple-700 transition-all"
               >
                 <Edit className="h-4 w-4" />
@@ -219,7 +220,7 @@ export default function KPIDetailPage() {
                 <div>
                   <h3 className="font-medium text-gray-800 mb-4">Metrics Breakdown</h3>
                   <div className="space-y-4">
-                    {kpi.metrics.map((metric, index) => {
+                    {kpi.metrics?.map((metric, index) => {
                       const metricProgress = (metric.currentValue / metric.targetValue) * 100;
                       
                       return (
@@ -365,17 +366,17 @@ export default function KPIDetailPage() {
                   <label className="text-sm font-medium text-gray-500">Assigned To</label>
                   <div className="flex items-center gap-2">
                     <div className="h-8 w-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                      {typeof kpi.assignedTo === 'object' && kpi.assignedTo.name
+                      {typeof kpi.assignedTo === 'object' && kpi.assignedTo?.name
                         ? kpi.assignedTo.name.charAt(0).toUpperCase()
                         : 'U'}
                     </div>
                     <div>
                       <p className="text-gray-900">
                         {typeof kpi.assignedTo === 'object' 
-                          ? kpi.assignedTo.name
+                          ? kpi.assignedTo?.name || 'Unknown User'
                           : 'Unknown User'}
                       </p>
-                      {typeof kpi.assignedTo === 'object' && (
+                      {typeof kpi.assignedTo === 'object' && kpi.assignedTo?.email && (
                         <p className="text-sm text-gray-500">{kpi.assignedTo.email}</p>
                       )}
                     </div>
@@ -385,7 +386,7 @@ export default function KPIDetailPage() {
                 <div>
                   <label className="text-sm font-medium text-gray-500">Role</label>
                   <p className="text-gray-900">
-                    {typeof kpi.role === 'object' ? kpi.role.name : kpi.role}
+                    {typeof kpi.role === 'object' ? kpi.role?.name || 'Unknown' : kpi.role || 'Unknown'}
                   </p>
                 </div>
                 
