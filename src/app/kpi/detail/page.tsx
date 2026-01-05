@@ -31,12 +31,6 @@ export default function KPIDetailPage() {
       'quarterly': 'Quarterly',
       'yearly': 'Yearly',
       'adhoc': 'Ad-hoc',
-      'daily': 'Daily',
-      'weekly': 'Weekly',
-      'monthly': 'Monthly',
-      'quarterly': 'Quarterly',
-      'yearly': 'Yearly',
-      'adhoc': 'Ad-hoc',
     };
     
     return frequencyMap[frequency.toLowerCase()] || frequency;
