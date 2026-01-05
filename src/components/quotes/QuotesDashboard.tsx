@@ -293,37 +293,42 @@ export default function QuotesDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-              <FileText className="h-6 w-6 text-blue-600" />
-              Quotes
-            </h1>
-            <p className="text-gray-600 mt-1">Create, manage, and track customer quotes</p>
-          </div>
-          
-          <div className="flex gap-3">
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="flex items-center gap-2 px-3 py-2.5 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Refresh</span>
-            </button>
-            <Link
-              href="/quotes/create"
-              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm"
-            >
-              <Plus className="h-5 w-5" />
-              New Quote
-            </Link>
+    <div className="min-h-screen bg-gray-50">
+      {/* Gradient Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-6 px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-3">
+                <FileText className="h-6 w-6" />
+                Quotes
+              </h1>
+              <p className="text-blue-100 mt-1">Create, manage, and track customer quotes</p>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="flex items-center gap-2 px-3 py-2.5 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
+              <Link
+                href="/quotes/create"
+                className="flex items-center gap-2 px-4 py-2.5 bg-white text-blue-600 rounded-lg font-medium hover:bg-gray-100 transition-colors shadow-sm"
+              >
+                <Plus className="h-5 w-5" />
+                New Quote
+              </Link>
+            </div>
           </div>
         </div>
+      </div>
 
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {/* Stats */}
         {statsLoading ? (
           <SkeletonStats />
@@ -359,253 +364,253 @@ export default function QuotesDashboard() {
             })}
           </div>
         )}
-      </div>
 
-      {/* Filters */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6 shadow-sm">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
-          <div className="lg:col-span-6">
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search quotes..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-11 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+        {/* Filters */}
+        <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6 shadow-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
+            <div className="lg:col-span-6">
+              <div className="relative">
+                <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search quotes..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-11 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+            
+            <div className="lg:col-span-4">
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {statusOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="lg:col-span-2">
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setFilterStatus('all');
+                }}
+                className="w-full px-3 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Clear
+              </button>
             </div>
           </div>
-          
-          <div className="lg:col-span-4">
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              {statusOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="lg:col-span-2">
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                setFilterStatus('all');
-              }}
-              className="w-full px-3 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-            >
-              Clear
-            </button>
-          </div>
         </div>
-      </div>
 
-      {/* Quotes Table */}
-      {loading ? (
-        <div className="space-y-5">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <SkeletonRow key={i} />
-          ))}
-        </div>
-      ) : filteredQuotes.length === 0 ? (
-        <div className="text-center py-16">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-100 rounded-full mb-5">
-            <FileText className="h-7 w-7 text-blue-600" />
+        {/* Quotes Table */}
+        {loading ? (
+          <div className="space-y-5">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <SkeletonRow key={i} />
+            ))}
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No quotes found</h3>
-          <p className="text-gray-600 max-w-md mx-auto mb-6">
-            {searchTerm || filterStatus !== 'all' 
-              ? 'Try a different search term or filter' 
-              : 'Create your first quote to get started'}
-          </p>
-          <Link
-            href="/quotes/create"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 shadow-sm"
-          >
-            <Plus className="h-4 w-4" /> Create Quote
-          </Link>
-        </div>
-      ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Quote Details</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Dates</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-12">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredQuotes.map((quote) => {
-                  const statusColor = getStatusColor(quote.status);
-                  const StatusIcon = getStatusIcon(quote.status);
-                  return (
-                    <tr key={quote.id} className="border-b border-gray-200 hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-1.5 rounded-lg ${statusColor.replace('bg-gradient-to-r from-', 'bg-').replace(' to-', ' ')}`}>
+        ) : filteredQuotes.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-100 rounded-full mb-5">
+              <FileText className="h-7 w-7 text-blue-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No quotes found</h3>
+            <p className="text-gray-600 max-w-md mx-auto mb-6">
+              {searchTerm || filterStatus !== 'all' 
+                ? 'Try a different search term or filter' 
+                : 'Create your first quote to get started'}
+            </p>
+            <Link
+              href="/quotes/create"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 shadow-sm"
+            >
+              <Plus className="h-4 w-4" /> Create Quote
+            </Link>
+          </div>
+        ) : (
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Quote Details</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Dates</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-12">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredQuotes.map((quote) => {
+                    const statusColor = getStatusColor(quote.status);
+                    const StatusIcon = getStatusIcon(quote.status);
+                    return (
+                      <tr key={quote.id} className="border-b border-gray-200 hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-1.5 rounded-lg ${statusColor.replace('bg-gradient-to-r from-', 'bg-').replace(' to-', ' ')}`}>
+                            </div>
+                            <div>
+                              <Link
+                                href={`/quotes/${quote.id}`}
+                                className="font-medium text-gray-900 hover:text-blue-600"
+                              >
+                                {quote.quoteNumber}
+                              </Link>
+                              {quote.notes && (
+                                <p className="text-sm text-gray-600 truncate max-w-[160px] mt-1">{quote.notes}</p>
+                              )}
+                            </div>
                           </div>
-                          <div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-gray-900">{quoteService.formatCurrency(quote.totalAmount)}</p>
+                          <p className="text-sm text-gray-600 mt-1">{quote.items.length} item{quote.items.length !== 1 ? 's' : ''}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium text-white ${
+                            statusColor.replace('bg-gradient-to-r from-', 'bg-').replace(' to-', ' ')
+                          }`}>
+                            {quote.status.charAt(0).toUpperCase() + quote.status.slice(1)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          <div>Created: {new Date(quote.createdAt).toLocaleDateString()}</div>
+                          {quote.updatedAt && (
+                            <div className="text-xs mt-1">Updated: {new Date(quote.updatedAt).toLocaleDateString()}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {/* ✅ PRIMARY ACTIONS + KEBAB MENU */}
+                          <div className="flex items-center gap-1">
+                            {/* View */}
                             <Link
                               href={`/quotes/${quote.id}`}
-                              className="font-medium text-gray-900 hover:text-blue-600"
+                              className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
+                              title="View Details"
                             >
-                              {quote.quoteNumber}
+                              <Eye className="h-4 w-4" />
                             </Link>
-                            {quote.notes && (
-                              <p className="text-sm text-gray-600 truncate max-w-[160px] mt-1">{quote.notes}</p>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-gray-900">{quoteService.formatCurrency(quote.totalAmount)}</p>
-                        <p className="text-sm text-gray-600 mt-1">{quote.items.length} item{quote.items.length !== 1 ? 's' : ''}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium text-white ${
-                          statusColor.replace('bg-gradient-to-r from-', 'bg-').replace(' to-', ' ')
-                        }`}>
-                          {quote.status.charAt(0).toUpperCase() + quote.status.slice(1)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        <div>Created: {new Date(quote.createdAt).toLocaleDateString()}</div>
-                        {quote.updatedAt && (
-                          <div className="text-xs mt-1">Updated: {new Date(quote.updatedAt).toLocaleDateString()}</div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {/* ✅ PRIMARY ACTIONS + KEBAB MENU */}
-                        <div className="flex items-center gap-1">
-                          {/* View */}
-                          <Link
-                            href={`/quotes/${quote.id}`}
-                            className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
-                            title="View Details"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Link>
 
-                          {/* Edit */}
-                          <Link
-                            href={`/quotes/${quote.id}/edit`}
-                            className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
-                            title="Edit Quote"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Link>
-
-                          {/* Kebab Menu for secondary actions */}
-                          <div className="relative">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedRow(expandedRow === quote.id ? null : quote.id);
-                              }}
-                              className="p-1.5 text-gray-500 hover:bg-gray-100 rounded"
-                              aria-haspopup="true"
-                              aria-expanded={expandedRow === quote.id}
-                              aria-label="More actions"
+                            {/* Edit */}
+                            <Link
+                              href={`/quotes/${quote.id}/edit`}
+                              className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
+                              title="Edit Quote"
                             >
-                              <MoreVertical className="h-4 w-4" />
-                            </button>
+                              <Edit className="h-4 w-4" />
+                            </Link>
 
-                            {expandedRow === quote.id && (
-                              <>
-                                <div
-                                  className="fixed inset-0 z-10"
-                                  onClick={() => setExpandedRow(null)}
-                                />
-                                <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
-                                  {quote.status === 'pending' && (
+                            {/* Kebab Menu for secondary actions */}
+                            <div className="relative">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedRow(expandedRow === quote.id ? null : quote.id);
+                                }}
+                                className="p-1.5 text-gray-500 hover:bg-gray-100 rounded"
+                                aria-haspopup="true"
+                                aria-expanded={expandedRow === quote.id}
+                                aria-label="More actions"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </button>
+
+                              {expandedRow === quote.id && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-10"
+                                    onClick={() => setExpandedRow(null)}
+                                  />
+                                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                                    {quote.status === 'pending' && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          setExpandedRow(null);
+                                          handleApprove(quote.id);
+                                        }}
+                                        className="w-full px-4 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
+                                      >
+                                        <CheckCircle className="h-4 w-4" />
+                                        Approve Quote
+                                      </button>
+                                    )}
                                     <button
                                       onClick={(e) => {
                                         e.preventDefault();
                                         setExpandedRow(null);
-                                        handleApprove(quote.id);
+                                        handleExportPDF(quote.id);
                                       }}
-                                      className="w-full px-4 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
+                                      className="w-full px-4 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
                                     >
-                                      <CheckCircle className="h-4 w-4" />
-                                      Approve Quote
+                                      <Download className="h-4 w-4" />
+                                      Export PDF/JSON
                                     </button>
-                                  )}
-                                  <button
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      setExpandedRow(null);
-                                      handleExportPDF(quote.id);
-                                    }}
-                                    className="w-full px-4 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
-                                  >
-                                    <Download className="h-4 w-4" />
-                                    Export PDF/JSON
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      setExpandedRow(null);
-                                      handleSendEmail(quote.id);
-                                    }}
-                                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                                  >
-                                    <Mail className="h-4 w-4" />
-                                    Send Email
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      setExpandedRow(null);
-                                      handleDelete(quote.id);
-                                    }}
-                                    className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                    Delete Quote
-                                  </button>
-                                </div>
-                              </>
-                            )}
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        setExpandedRow(null);
+                                        handleSendEmail(quote.id);
+                                      }}
+                                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                    >
+                                      <Mail className="h-4 w-4" />
+                                      Send Email
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        setExpandedRow(null);
+                                        handleDelete(quote.id);
+                                      }}
+                                      className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      Delete Quote
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Status Summary */}
-      {!statsLoading && (
-        <div className="mt-6 bg-white border border-gray-200 rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Quote Status Overview</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { _id: 'draft', count: stats.draft, color: 'bg-gray-400' },
-              { _id: 'pending', count: stats.pending, color: 'bg-yellow-400' },
-              { _id: 'approved', count: stats.approved, color: 'bg-green-400' },
-              { _id: 'rejected', count: stats.rejected, color: 'bg-red-400' }
-            ].map((status) => (
-              <div key={status._id} className="p-3 bg-gray-50 rounded-lg text-center">
-                <div className="text-xs text-gray-600 capitalize mb-1">{status._id}</div>
-                <div className="text-lg font-bold text-gray-900">{status.count}</div>
-              </div>
-            ))}
+        {/* Status Summary */}
+        {!statsLoading && (
+          <div className="mt-6 bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Quote Status Overview</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { _id: 'draft', count: stats.draft, color: 'bg-gray-400' },
+                { _id: 'pending', count: stats.pending, color: 'bg-yellow-400' },
+                { _id: 'approved', count: stats.approved, color: 'bg-green-400' },
+                { _id: 'rejected', count: stats.rejected, color: 'bg-red-400' }
+              ].map((status) => (
+                <div key={status._id} className="p-3 bg-gray-50 rounded-lg text-center">
+                  <div className="text-xs text-gray-600 capitalize mb-1">{status._id}</div>
+                  <div className="text-lg font-bold text-gray-900">{status.count}</div>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

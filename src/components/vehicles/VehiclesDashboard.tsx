@@ -287,37 +287,42 @@ export default function VehiclesDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-              <Car className="h-6 w-6 text-blue-600" />
-              Vehicle Fleet
-            </h1>
-            <p className="text-gray-600 mt-1">Manage your vehicle inventory and sales</p>
-          </div>
-          
-          <div className="flex gap-3">
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="flex items-center gap-2 px-3 py-2.5 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Refresh</span>
-            </button>
-            <Link
-              href="/vehicles/create"
-              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm"
-            >
-              <Plus className="h-5 w-5" />
-              Add Vehicle
-            </Link>
+    <div className="min-h-screen bg-gray-50">
+      {/* Gradient Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-6 px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-3">
+                <Car className="h-6 w-6" />
+                Vehicle Fleet
+              </h1>
+              <p className="text-blue-100 mt-1">Manage your vehicle inventory and sales</p>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="flex items-center gap-2 px-3 py-2.5 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
+              <Link
+                href="/vehicles/create"
+                className="flex items-center gap-2 px-4 py-2.5 bg-white text-blue-600 rounded-lg font-medium hover:bg-gray-100 transition-colors shadow-sm"
+              >
+                <Plus className="h-5 w-5" />
+                Add Vehicle
+              </Link>
+            </div>
           </div>
         </div>
+      </div>
 
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {/* Stats */}
         {loading ? (
           <StatsSkeleton />
@@ -352,295 +357,248 @@ export default function VehiclesDashboard() {
             })}
           </div>
         )}
-      </div>
 
-      {/* Filters */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
-          <div className="lg:col-span-4">
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search vehicles..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-11 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-              <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full">
-                {sortedVehicles.length}
-              </span>
+        {/* Filters */}
+        <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
+            <div className="lg:col-span-4">
+              <div className="relative">
+                <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search vehicles..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-11 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+                <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full">
+                  {sortedVehicles.length}
+                </span>
+              </div>
+            </div>
+            
+            <div className="lg:col-span-2">
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {statusOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="lg:col-span-2">
+              <select
+                value={selectedCondition}
+                onChange={(e) => setSelectedCondition(e.target.value)}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {conditionOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="lg:col-span-2">
+              <select
+                value={selectedMake}
+                onChange={(e) => setSelectedMake(e.target.value)}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {makes.map(make => (
+                  <option key={make} value={make}>
+                    {make}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="lg:col-span-2 flex gap-2">
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setSelectedStatus('all');
+                  setSelectedCondition('all');
+                  setSelectedMake('all');
+                  setSortBy('newest');
+                }}
+                className="flex-1 px-3 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Clear
+              </button>
+              <button className="flex-1 px-3 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <Filter className="h-4 w-4 inline" />
+              </button>
             </div>
           </div>
-          
-          <div className="lg:col-span-2">
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              {statusOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="lg:col-span-2">
-            <select
-              value={selectedCondition}
-              onChange={(e) => setSelectedCondition(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              {conditionOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="lg:col-span-2">
-            <select
-              value={selectedMake}
-              onChange={(e) => setSelectedMake(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              {makes.map(make => (
-                <option key={make} value={make}>
-                  {make}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="lg:col-span-2 flex gap-2">
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                setSelectedStatus('all');
-                setSelectedCondition('all');
-                setSelectedMake('all');
-                setSortBy('newest');
-              }}
-              className="flex-1 px-3 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-            >
-              Clear
-            </button>
-            <button className="flex-1 px-3 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-              <Filter className="h-4 w-4 inline" />
-            </button>
+
+          {/* Status Chips */}
+          <div className="mt-4 flex flex-wrap gap-2">
+            {statusOptions.map(option => (
+              <button
+                key={option.value}
+                onClick={() => setSelectedStatus(option.value)}
+                className={`px-3 py-1.5 text-xs rounded-full font-medium ${
+                  selectedStatus === option.value
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Status Chips */}
-        <div className="mt-4 flex flex-wrap gap-2">
-          {statusOptions.map(option => (
-            <button
-              key={option.value}
-              onClick={() => setSelectedStatus(option.value)}
-              className={`px-3 py-1.5 text-xs rounded-full font-medium ${
-                selectedStatus === option.value
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Vehicles List */}
-      {loading ? (
-        <div className={`${viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5' : 'space-y-5'}`}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            viewMode === 'grid' ? <VehicleCardSkeleton key={i} /> : <VehicleCardSkeleton key={i} />
-          ))}
-        </div>
-      ) : sortedVehicles.length === 0 ? (
-        <div className="text-center py-16">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-100 rounded-full mb-5">
-            <Car className="h-7 w-7 text-blue-600" />
+        {/* Vehicles List */}
+        {loading ? (
+          <div className={`${viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5' : 'space-y-5'}`}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              viewMode === 'grid' ? <VehicleCardSkeleton key={i} /> : <VehicleCardSkeleton key={i} />
+            ))}
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No vehicles found</h3>
-          <p className="text-gray-600 max-w-md mx-auto mb-6">
-            {searchTerm || selectedStatus !== 'all' || selectedCondition !== 'all' || selectedMake !== 'all'
-              ? 'Try a different search term or filter'
-              : 'Add your first vehicle to get started'}
-          </p>
-          <Link
-            href="/vehicles/create"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 shadow-sm"
-          >
-            <Plus className="h-4 w-4" /> Add Vehicle
-          </Link>
-        </div>
-      ) : (
-        <div className={`${viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5' : 'space-y-5'}`}>
-          {sortedVehicles.map((vehicle) => {
-            const primaryImage = getPrimaryImage(vehicle);
-            const isServiceDue = vehicleService.isServiceDue(vehicle.nextServiceDate);
-            const isFavorite = favorites.has(vehicle.id);
-            const vehicleAge = calculateAge(vehicle.year);
-            
-            return viewMode === 'grid' ? (
-              <div key={vehicle.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
-                <div className="h-48 bg-gray-100 flex items-center justify-center">
-                  {primaryImage ? (
-                    <img
-                      src={primaryImage.url}
-                      alt={vehicle.model}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Car className="h-12 w-12 text-gray-400" />
-                  )}
-                </div>
-                <div className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">{vehicle.make} {vehicle.model}</h3>
-                      <p className="text-sm text-gray-600">{vehicle.year} • {vehicle.color}</p>
-                    </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      statusOptions.find(s => s.value === vehicle.status)?.bg || 'bg-gray-100'
-                    }`}>
-                      {vehicle.status?.replace('_', ' ') || 'Available'}
-                    </span>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-2 mb-3 text-sm">
-                    <div className="flex items-center gap-1">
-                      <Gauge className="h-3.5 w-3.5 text-gray-500" />
-                      <span>{vehicle.mileage ? vehicleService.formatMileage(vehicle.mileage) : 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Fuel className="h-3.5 w-3.5 text-gray-500" />
-                      <span>{vehicle.fuelType?.toUpperCase() || 'N/A'}</span>
-                    </div>
-                  </div>
-                  
-                  {vehicle.currentValue && (
-                    <p className="text-lg font-bold text-blue-600 mb-3">
-                      {vehicleService.formatCurrency(vehicle.currentValue)}
-                    </p>
-                  )}
-                  
-                  {isServiceDue && (
-                    <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700 flex items-center gap-1">
-                      <AlertCircle className="h-3.5 w-3.5" />
-                      Service overdue
-                    </div>
-                  )}
-                  
-                  <div className="flex items-center gap-2">
-                    <Link
-                      href={`/vehicles/${vehicle.id}`}
-                      className="flex-1 px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
-                    >
-                      View Details
-                    </Link>
-                    <Link
-                      href={`/vehicles/${vehicle.id}/edit`}
-                      className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Link>
-                    <button
-                      onClick={() => handleDelete(vehicle.id, `${vehicle.make} ${vehicle.model}`)}
-                      className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div key={vehicle.id} className="bg-white border border-gray-200 rounded-xl p-4">
-                <div className="flex gap-4">
-                  <div className="w-24 h-24 bg-gray-100 flex-shrink-0 rounded-lg overflow-hidden">
+        ) : sortedVehicles.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-100 rounded-full mb-5">
+              <Car className="h-7 w-7 text-blue-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No vehicles found</h3>
+            <p className="text-gray-600 max-w-md mx-auto mb-6">
+              {searchTerm || selectedStatus !== 'all' || selectedCondition !== 'all' || selectedMake !== 'all'
+                ? 'Try a different search term or filter'
+                : 'Add your first vehicle to get started'}
+            </p>
+            <Link
+              href="/vehicles/create"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 shadow-sm"
+            >
+              <Plus className="h-4 w-4" /> Add Vehicle
+            </Link>
+          </div>
+        ) : (
+          <div className={`${viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5' : 'space-y-5'}`}>
+            {/* Replace your current vehicle card with this */}
+            {sortedVehicles.map((vehicle) => {
+              const primaryImage = getPrimaryImage(vehicle);
+              const isServiceDue = vehicleService.isServiceDue(vehicle.nextServiceDate);
+              const isFavorite = favorites.has(vehicle.id);
+              const vehicleAge = calculateAge(vehicle.year);
+              const statusConfig = statusOptions.find(s => s.value === vehicle.status);
+
+              return (
+                <div 
+                  key={vehicle.id} 
+                  className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow"
+                >
+                  {/* Image Section */}
+                  <div className="h-48 bg-gray-50 relative">
                     {primaryImage ? (
                       <img
                         src={primaryImage.url}
-                        alt={vehicle.model}
+                        alt={`${vehicle.make} ${vehicle.model}`}
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <Car className="h-8 w-8 text-gray-400 m-auto mt-4" />
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                        <Car className="h-12 w-12" />
+                      </div>
+                    )}
+                    
+                    {/* Status Badge */}
+                    {vehicle.status && (
+                      <div className="absolute top-3 right-3">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium text-white ${
+                          statusConfig?.bg 
+                            ? statusConfig.bg.replace('bg-', 'bg-').replace('100', '600')
+                            : 'bg-gray-600'
+                        }`}>
+                          {vehicle.status.replace('_', ' ')}
+                        </span>
+                      </div>
                     )}
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between mb-2">
+
+                  {/* Content */}
+                  <div className="p-5">
+                    {/* Vehicle Title */}
+                    <div className="flex items-start justify-between mb-3">
                       <div>
-                        <h3 className="font-semibold text-gray-900">{vehicle.make} {vehicle.model} {vehicle.year}</h3>
-                        <p className="text-sm text-gray-600">{vehicle.color} • {vehicle.registrationNumber}</p>
+                        <h3 className="text-lg font-bold text-gray-900 leading-tight">
+                          {vehicle.year} {vehicle.make} {vehicle.model}
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {vehicle.color} • Reg: {vehicle.registrationNumber}
+                        </p>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        statusOptions.find(s => s.value === vehicle.status)?.bg || 'bg-gray-100'
-                      }`}>
-                        {vehicle.status?.replace('_', ' ') || 'Available'}
-                      </span>
+                      {vehicle.currentValue && (
+                        <p className="text-lg font-bold text-blue-600">
+                          {vehicleService.formatCurrency(vehicle.currentValue)}
+                        </p>
+                      )}
                     </div>
-                    
-                    <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
-                      <span className="flex items-center gap-1">
-                        <Gauge className="h-3.5 w-3.5" />
-                        {vehicle.mileage ? vehicleService.formatMileage(vehicle.mileage) : 'N/A'}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Fuel className="h-3.5 w-3.5" />
-                        {vehicle.fuelType?.toUpperCase() || 'N/A'}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Car className="h-3.5 w-3.5" />
-                        {vehicleAge} yr{vehicleAge !== 1 ? 's' : ''}
-                      </span>
+
+                    {/* Key Specs */}
+                    <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <Gauge className="h-4 w-4 text-gray-500" />
+                        <span>{vehicle.mileage ? vehicleService.formatMileage(vehicle.mileage) : '—'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <Fuel className="h-4 w-4 text-gray-500" />
+                        <span>{vehicle.fuelType ? vehicle.fuelType.toUpperCase() : '—'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <Calendar className="h-4 w-4 text-gray-500" />
+                        <span>{vehicleAge} yr{vehicleAge !== 1 ? 's' : ''} old</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <Sparkles className="h-4 w-4 text-gray-500" />
+                        <span className="capitalize">{vehicle.condition || '—'}</span>
+                      </div>
                     </div>
-                    
-                    {vehicle.currentValue && (
-                      <p className="text-lg font-bold text-blue-600 mb-3">
-                        {vehicleService.formatCurrency(vehicle.currentValue)}
-                      </p>
+
+                    {/* Service Alert */}
+                    {isServiceDue && (
+                      <div className="mb-4 p-2.5 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                        <span className="text-xs text-red-700">Service overdue — schedule maintenance</span>
+                      </div>
                     )}
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex gap-2">
-                        <Link
-                          href={`/vehicles/${vehicle.id}`}
-                          className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
-                        >
-                          View Details
-                        </Link>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`/vehicles/${vehicle.id}`}
+                        className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                      >
+                        View Details
+                      </Link>
+                      <div className="flex gap-1">
                         <Link
                           href={`/vehicles/${vehicle.id}/edit`}
-                          className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded text-sm font-medium hover:bg-gray-50"
+                          className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                          title="Edit vehicle"
                         >
-                          Edit
+                          <Edit className="h-4 w-4" />
                         </Link>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button className="p-1.5 text-gray-600 hover:bg-gray-100 rounded">
-                          <Share2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => toggleFavorite(vehicle.id)}
-                          className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
-                        >
-                          <Heart className={`h-4 w-4 ${isFavorite ? 'text-red-500 fill-current' : ''}`} />
-                        </button>
                         <button
                           onClick={() => handleDelete(vehicle.id, `${vehicle.make} ${vehicle.model}`)}
-                          className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
+                          className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                          title="Delete vehicle"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -648,66 +606,66 @@ export default function VehiclesDashboard() {
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
 
-      {/* Analytics */}
-      {vehicles.length > 0 && !loading && (
-        <div className="mt-8 bg-white border border-gray-200 rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">Portfolio Analytics</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <div>
-              <h4 className="text-xs text-gray-600 uppercase tracking-wider mb-3">Distribution by Status</h4>
-              <div className="space-y-2">
-                {Object.entries(stats?.byStatus || {}).map(([status, count]) => (
-                  <div key={status} className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700 capitalize">{status.replace('_', ' ')}</span>
-                    <span className="text-sm font-medium text-gray-900">{count}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h4 className="text-xs text-gray-600 uppercase tracking-wider mb-3">Top Brands</h4>
-              <div className="space-y-2">
-                {Object.entries(stats?.byMake || {})
-                  .sort(([, a], [, b]) => b - a)
-                  .slice(0, 5)
-                  .map(([make, count]) => (
-                    <div key={make} className="flex items-center justify-between">
-                      <span className="text-sm text-gray-700">{make}</span>
+        {/* Analytics */}
+        {vehicles.length > 0 && !loading && (
+          <div className="mt-8 bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-gray-900 mb-4">Portfolio Analytics</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <h4 className="text-xs text-gray-600 uppercase tracking-wider mb-3">Distribution by Status</h4>
+                <div className="space-y-2">
+                  {Object.entries(stats?.byStatus || {}).map(([status, count]) => (
+                    <div key={status} className="flex items-center justify-between">
+                      <span className="text-sm text-gray-700 capitalize">{status.replace('_', ' ')}</span>
                       <span className="text-sm font-medium text-gray-900">{count}</span>
                     </div>
                   ))}
+                </div>
               </div>
-            </div>
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <h4 className="text-xs text-gray-600 uppercase tracking-wider mb-3">Performance Metrics</h4>
-              <div className="space-y-2">
-                <div>
-                  <p className="text-xs text-gray-500">AVERAGE VALUE</p>
-                  <p className="text-sm font-medium text-gray-900">
-                    {vehicleService.formatCurrency((stats?.totalValue || 0) / (stats?.total || 1))}
-                  </p>
+              <div>
+                <h4 className="text-xs text-gray-600 uppercase tracking-wider mb-3">Top Brands</h4>
+                <div className="space-y-2">
+                  {Object.entries(stats?.byMake || {})
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 5)
+                    .map(([make, count]) => (
+                      <div key={make} className="flex items-center justify-between">
+                        <span className="text-sm text-gray-700">{make}</span>
+                        <span className="text-sm font-medium text-gray-900">{count}</span>
+                      </div>
+                    ))}
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500">AVERAGE MILEAGE</p>
-                  <p className="text-sm font-medium text-gray-900">
-                    {vehicleService.formatMileage(stats?.averageMileage || 0)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">MAINTENANCE REQUIRED</p>
-                  <p className="text-sm font-medium text-red-600">{stats?.upcomingServices || 0} vehicles</p>
+              </div>
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <h4 className="text-xs text-gray-600 uppercase tracking-wider mb-3">Performance Metrics</h4>
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-xs text-gray-500">AVERAGE VALUE</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {vehicleService.formatCurrency((stats?.totalValue || 0) / (stats?.total || 1))}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">AVERAGE MILEAGE</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {vehicleService.formatMileage(stats?.averageMileage || 0)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">MAINTENANCE REQUIRED</p>
+                    <p className="text-sm font-medium text-red-600">{stats?.upcomingServices || 0} vehicles</p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

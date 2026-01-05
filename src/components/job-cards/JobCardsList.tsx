@@ -94,17 +94,34 @@ export default function JobCardsList() {
     { value: 'urgent', label: 'Urgent' },
   ];
 
+  // In your JobCardsList component, update fetchJobCards:
   const fetchJobCards = useCallback(async () => {
     try {
       setLoading(true);
-      const params: any = {};
       
-      if (searchTerm) params.search = searchTerm;
-      if (statusFilter !== 'all') params.status = statusFilter;
-      if (priorityFilter !== 'all') params.priority = priorityFilter;
+      // Use minimal or no filters initially
+      const response = await jobCardService.getAllJobCards();
       
-      const response = await jobCardService.getAllJobCards(params);
-      setJobCards(response || []);
+      // Apply client-side filtering in the component
+      let filteredCards = response || [];
+      
+      if (searchTerm) {
+        filteredCards = filteredCards.filter(jobCard => 
+          jobCard.jobTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          jobCard.jobDescription?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          jobCard.jobNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      }
+      
+      if (statusFilter !== 'all') {
+        filteredCards = filteredCards.filter(jobCard => jobCard.status === statusFilter);
+      }
+      
+      if (priorityFilter !== 'all') {
+        filteredCards = filteredCards.filter(jobCard => jobCard.priority === priorityFilter);
+      }
+      
+      setJobCards(filteredCards);
     } catch (error) {
       console.error('Error fetching job cards:', error);
       showToast('Failed to load job cards', 'error');

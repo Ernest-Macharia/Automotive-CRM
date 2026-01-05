@@ -104,45 +104,97 @@ class JobCardService {
    * Get all job cards
    * GET /api/v1/jobcards
    */
-  async getAllJobCards(params?: JobCardFilterParams): Promise<JobCard[]> {
-    try {
-      const queryParams = new URLSearchParams();
+  /**
+ * Get all job cards
+ * GET /api/v1/jobcards
+ */
+async getAllJobCards(params?: JobCardFilterParams): Promise<JobCard[]> {
+  try {
+    // Simplify the endpoint - use base endpoint without query params
+    const endpoint = '/jobcards';
+    
+    console.log('🔍 Fetching job cards from:', endpoint);
+    
+    // Fetch without query params first
+    const response = await apiClient.get<any[]>(endpoint);
+    
+    console.log('📦 Raw API response:', response);
+    console.log('📊 Response type:', typeof response);
+    console.log('📊 Is array?', Array.isArray(response));
+    
+    if (Array.isArray(response)) {
+      // Apply filtering on the client side if needed
+      let filteredData = response;
       
+      // Apply client-side filtering if params are provided
       if (params) {
-        Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined && value !== null && value !== '') {
-            queryParams.append(key, value.toString());
-          }
-        });
+        filteredData = this.filterJobCards(response, params);
       }
       
-      const queryString = queryParams.toString();
-      const endpoint = `/jobcards${queryString ? `?${queryString}` : ''}`;
-      
-      console.log('🔍 Fetching job cards from:', endpoint);
-      
-      const response = await apiClient.get<any[]>(endpoint);
-      
-      console.log('📦 Raw API response:', response);
-      console.log('📊 Response type:', typeof response);
-      console.log('📊 Is array?', Array.isArray(response));
-      
-      if (Array.isArray(response)) {
-        const normalized = response.map(jobCard => {
-          const normalizedCard = this.normalizeJobCard(jobCard);
-          console.log(`📝 Normalized card ${jobCard._id}:`, normalizedCard);
-          return normalizedCard;
-        });
-        return normalized;
-      } else {
-        console.error('❌ API response is not an array:', response);
-        return [];
-      }
-    } catch (error) {
-      console.error('Error fetching job cards:', error);
-      throw error;
+      const normalized = filteredData.map(jobCard => {
+        const normalizedCard = this.normalizeJobCard(jobCard);
+        console.log(`📝 Normalized card ${jobCard._id}:`, normalizedCard);
+        return normalizedCard;
+      });
+      return normalized;
+    } else {
+      console.error('❌ API response is not an array:', response);
+      return [];
     }
+  } catch (error) {
+    console.error('Error fetching job cards:', error);
+    throw error;
   }
+}
+
+/**
+ * Filter job cards on client side
+ */
+private filterJobCards(jobCards: any[], params: JobCardFilterParams): any[] {
+  let filtered = [...jobCards];
+  
+  if (params.status) {
+    filtered = filtered.filter(jc => jc.status === params.status);
+  }
+  
+  if (params.vehicleId) {
+    filtered = filtered.filter(jc => 
+      jc.vehicleId?._id === params.vehicleId || 
+      jc.vehicleId === params.vehicleId
+    );
+  }
+  
+  if (params.opportunityId) {
+    filtered = filtered.filter(jc => 
+      jc.opportunityId?._id === params.opportunityId || 
+      jc.opportunityId === params.opportunityId
+    );
+  }
+  
+  if (params.assignedTo) {
+    filtered = filtered.filter(jc => 
+      jc.assignedTo?._id === params.assignedTo || 
+      jc.assignedTo === params.assignedTo
+    );
+  }
+  
+  if (params.search) {
+    const searchTerm = params.search.toLowerCase();
+    filtered = filtered.filter(jc => 
+      jc.jobTitle?.toLowerCase().includes(searchTerm) ||
+      jc.jobDescription?.toLowerCase().includes(searchTerm) ||
+      jc.jobNumber?.toLowerCase().includes(searchTerm)
+    );
+  }
+  
+  // Apply pagination
+  if (params.page && params.limit) {
+    const startIndex = (params.page - 1) * params.limit;
+    filtered = filtered.slice(startIndex, startIndex + params.limit);
+  }
+  
+  return filtered;
+}
 
   /**
    * Get a job card by ID
