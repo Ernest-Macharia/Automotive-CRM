@@ -33,7 +33,7 @@ export default function KPIListPage() {
       }
       
       const response = await kpiService.getAllKpis(params);
-      setKpis(response.data);
+      setKpis(response);
     } catch (error) {
       console.error('Error fetching KPIs:', error);
       showToast('Failed to load KPIs', 'error');
