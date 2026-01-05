@@ -20,6 +20,28 @@ export default function KPIDetailPage() {
   const [metricValue, setMetricValue] = useState<number>(0);
   const [notes, setNotes] = useState('');
 
+  // Local function to get frequency label since kpiService doesn't have getFrequencyLabel
+  const getFrequencyLabel = (frequency?: string) => {
+    if (!frequency) return 'N/A';
+    
+    const frequencyMap: Record<string, string> = {
+      'daily': 'Daily',
+      'weekly': 'Weekly',
+      'monthly': 'Monthly',
+      'quarterly': 'Quarterly',
+      'yearly': 'Yearly',
+      'adhoc': 'Ad-hoc',
+      'daily': 'Daily',
+      'weekly': 'Weekly',
+      'monthly': 'Monthly',
+      'quarterly': 'Quarterly',
+      'yearly': 'Yearly',
+      'adhoc': 'Ad-hoc',
+    };
+    
+    return frequencyMap[frequency.toLowerCase()] || frequency;
+  };
+
   useEffect(() => {
     if (params.id) {
       fetchKPI(params.id as string);
@@ -295,25 +317,6 @@ export default function KPIDetailPage() {
                     <p className="text-gray-600">{kpi.notes}</p>
                   </div>
                 )}
-                
-                {/* Remove or comment out the reviewNotes section since it doesn't exist in the Kpi type */}
-                {/* 
-                {kpi.reviewNotes && (
-                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <MessageSquare className="h-4 w-4 text-blue-500" />
-                      <h4 className="font-medium text-gray-800">Review Notes</h4>
-                    </div>
-                    <p className="text-gray-600">{kpi.reviewNotes}</p>
-                    {kpi.reviewedBy && (
-                      <p className="text-sm text-gray-500 mt-2">
-                        Reviewed by {typeof kpi.reviewedBy === 'object' ? kpi.reviewedBy.name : 'Manager'}
-                        {kpi.reviewedAt && ` on ${formatDate(kpi.reviewedAt)}`}
-                      </p>
-                    )}
-                  </div>
-                )}
-                */}
               </div>
             </div>
           </div>
@@ -327,7 +330,7 @@ export default function KPIDetailPage() {
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-medium text-gray-500">Frequency</label>
-                  <p className="text-gray-900">{kpiService.getFrequencyLabel(kpi.frequency)}</p>
+                  <p className="text-gray-900">{getFrequencyLabel(kpi.frequency)}</p>
                 </div>
                 
                 <div>
