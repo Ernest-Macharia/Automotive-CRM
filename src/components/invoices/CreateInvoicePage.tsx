@@ -8,7 +8,8 @@ import {
   DollarSign, Percent, ShoppingBag, Loader2,
   Calendar, Building, User, CreditCard, FileText,
   Eye, CheckCircle, Clock, TrendingUp, Calculator,
-  BarChart3, Package, Sparkles
+  BarChart3, Package, Sparkles, Shield, Check,
+  Layers, Target, FileCheck, Download, Send
 } from 'lucide-react';
 import { invoiceService } from '@/services/invoiceService';
 import { quoteService } from '@/services/quoteService';
@@ -154,15 +155,6 @@ export default function CreateInvoicePage() {
         sku: item.sku || ''
       })) || [];
       
-    //   if (items.length === 0) {
-    //     items.push({
-    //       description: 'Product/Service',
-    //       quantity: 1,
-    //       unitPrice: order.totalAmount || 0,
-    //       total: order.totalAmount || 0
-    //     });
-    //   }
-      
       const subtotal = items.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
       const tax = subtotal * (taxRate / 100);
       const totalAmount = subtotal + tax;
@@ -303,7 +295,6 @@ export default function CreateInvoicePage() {
     setLoading(true);
     
     try {
-
       const safePaymentStatus = formData.paymentStatus === 'partially_paid' 
         ? 'pending'
         : formData.paymentStatus;
@@ -367,20 +358,20 @@ export default function CreateInvoicePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-6 shadow-lg">
+      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 p-6 shadow-xl">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button
                 onClick={handleClose}
                 disabled={loading}
-                className="p-2 hover:bg-white/20 rounded-xl transition-colors"
+                className="p-2 hover:bg-white/20 rounded-xl transition-colors backdrop-blur-sm"
               >
                 <ArrowLeft className="h-5 w-5 text-white" />
               </button>
-              <div className="p-2 bg-white/20 rounded-xl">
+              <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
                 <Receipt className="h-6 w-6 text-white" />
               </div>
               <div>
@@ -389,7 +380,7 @@ export default function CreateInvoicePage() {
                    salesOrder ? `Create Invoice from ${salesOrder.salesOrderNumber}` : 
                    'Create New Invoice'}
                 </h1>
-                <p className="text-purple-100 text-sm">
+                <p className="text-blue-100 text-sm">
                   {quote ? 'Invoice will be linked to quote' : 
                    salesOrder ? 'Invoice will be linked to sales order' : 
                    'Create a new invoice document'}
@@ -401,7 +392,7 @@ export default function CreateInvoicePage() {
               <button
                 onClick={handleSubmit}
                 disabled={loading || generatingNumber}
-                className="px-6 py-2 bg-white text-purple-600 font-semibold rounded-xl hover:bg-white/90 flex items-center gap-2 disabled:opacity-50"
+                className="px-6 py-2 bg-white text-blue-600 font-semibold rounded-xl hover:bg-white/90 flex items-center gap-2 disabled:opacity-50 shadow-lg hover:shadow-xl transition-all"
               >
                 {loading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -423,9 +414,9 @@ export default function CreateInvoicePage() {
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Source Information Banner */}
               {(quote || salesOrder) && (
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-6 border border-purple-200 shadow-sm">
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200 shadow-lg">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500">
+                    <div className="p-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500">
                       {quote ? <FileText className="h-6 w-6 text-white" /> : 
                               <ShoppingBag className="h-6 w-6 text-white" />}
                     </div>
@@ -452,7 +443,7 @@ export default function CreateInvoicePage() {
                     {quote && (
                       <Link
                         href={`/quotes/${quote.id}`}
-                        className="px-4 py-2 text-purple-600 hover:text-purple-700 font-medium text-sm flex items-center gap-2"
+                        className="px-4 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 hover:text-blue-800 font-medium text-sm flex items-center gap-2 rounded-xl border border-blue-200 hover:border-blue-300 transition-all"
                       >
                         <Eye className="h-4 w-4" />
                         View Quote
@@ -461,7 +452,7 @@ export default function CreateInvoicePage() {
                     {salesOrder && (
                       <Link
                         href={`/orders/sales-orders/${salesOrder._id}`}
-                        className="px-4 py-2 text-purple-600 hover:text-purple-700 font-medium text-sm flex items-center gap-2"
+                        className="px-4 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 hover:text-blue-800 font-medium text-sm flex items-center gap-2 rounded-xl border border-blue-200 hover:border-blue-300 transition-all"
                       >
                         <Eye className="h-4 w-4" />
                         View Order
@@ -472,10 +463,10 @@ export default function CreateInvoicePage() {
               )}
 
               {/* Invoice Details Card */}
-              <div className="bg-white rounded-2xl shadow-xl p-6">
+              <div className="bg-white rounded-2xl shadow-xl p-6 border border-blue-100">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 rounded-lg bg-gradient-to-r from-purple-100 to-pink-100">
-                    <Receipt className="h-5 w-5 text-purple-600" />
+                  <div className="p-2 rounded-lg bg-gradient-to-r from-blue-100 to-indigo-100">
+                    <Receipt className="h-5 w-5 text-blue-600" />
                   </div>
                   <div>
                     <h2 className="text-xl font-bold text-gray-800">Invoice Details</h2>
@@ -495,14 +486,14 @@ export default function CreateInvoicePage() {
                           type="text"
                           value={formData.invoiceNumber}
                           onChange={(e) => handleInputChange('invoiceNumber', e.target.value)}
-                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors"
                           placeholder="INV-2024-001"
                           required
                           disabled={loading || generatingNumber}
                         />
                       </div>
                       {generatingNumber && (
-                        <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                        <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
                           <Sparkles className="h-3 w-3" />
                           Generating invoice number...
                         </p>
@@ -519,7 +510,7 @@ export default function CreateInvoicePage() {
                           type="text"
                           value={formData.opportunityId}
                           onChange={(e) => handleInputChange('opportunityId', e.target.value)}
-                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors"
                           placeholder="Enter Opportunity ID"
                           required
                           disabled={loading || !!quote || !!salesOrder}
@@ -539,7 +530,7 @@ export default function CreateInvoicePage() {
                           type="date"
                           value={formData.issueDate}
                           onChange={(e) => handleInputChange('issueDate', e.target.value)}
-                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors"
                           disabled={loading}
                         />
                       </div>
@@ -555,17 +546,11 @@ export default function CreateInvoicePage() {
                           type="date"
                           value={formData.dueDate}
                           onChange={(e) => handleInputChange('dueDate', e.target.value)}
-                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors"
                           required
                           disabled={loading}
                         />
                       </div>
-                      {formData.dueDate && (
-                        <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          Due in {invoiceService.daysUntilDue(formData.dueDate)} days
-                        </p>
-                      )}
                     </div>
                   </div>
                   
@@ -577,7 +562,7 @@ export default function CreateInvoicePage() {
                       value={formData.notes}
                       onChange={(e) => handleInputChange('notes', e.target.value)}
                       rows={3}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none resize-none"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none resize-none transition-colors"
                       placeholder="Additional notes for this invoice..."
                       disabled={loading}
                     />
@@ -591,7 +576,7 @@ export default function CreateInvoicePage() {
                       value={formData.terms}
                       onChange={(e) => handleInputChange('terms', e.target.value)}
                       rows={3}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none resize-none"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none resize-none transition-colors"
                       placeholder="Payment terms, late fees, etc..."
                       disabled={loading}
                     />
@@ -600,11 +585,11 @@ export default function CreateInvoicePage() {
               </div>
 
               {/* Invoice Items Card */}
-              <div className="bg-white rounded-2xl shadow-xl p-6">
+              <div className="bg-white rounded-2xl shadow-xl p-6 border border-blue-100">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-gradient-to-r from-purple-100 to-pink-100">
-                      <Package className="h-5 w-5 text-purple-600" />
+                    <div className="p-2 rounded-lg bg-gradient-to-r from-blue-100 to-indigo-100">
+                      <Package className="h-5 w-5 text-blue-600" />
                     </div>
                     <div>
                       <h2 className="text-xl font-bold text-gray-800">Invoice Items</h2>
@@ -614,7 +599,7 @@ export default function CreateInvoicePage() {
                   <button
                     type="button"
                     onClick={addItem}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-50 to-purple-100 text-purple-700 rounded-xl text-sm font-medium hover:from-purple-100 hover:to-purple-200 shadow-sm"
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 rounded-xl text-sm font-medium hover:from-blue-100 hover:to-blue-200 shadow-sm border border-blue-200 hover:border-blue-300 transition-all"
                     disabled={loading}
                   >
                     <Plus className="h-4 w-4" />
@@ -624,17 +609,17 @@ export default function CreateInvoicePage() {
                 
                 <div className="space-y-4">
                   {formData.items.map((item, index) => (
-                    <div key={index} className="border border-gray-200 rounded-xl p-4 hover:border-purple-300 transition-colors">
+                    <div key={index} className="border border-gray-200 rounded-xl p-4 hover:border-blue-300 transition-colors bg-gradient-to-r from-white to-blue-50">
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center shadow-sm">
                             <span className="text-white font-bold">{index + 1}</span>
                           </div>
                           <input
                             type="text"
                             value={item.description}
                             onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex-1 focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
+                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex-1 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
                             placeholder="Item description"
                             disabled={loading}
                           />
@@ -662,7 +647,7 @@ export default function CreateInvoicePage() {
                             min="1"
                             value={item.quantity}
                             onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
                             disabled={loading}
                           />
                         </div>
@@ -677,7 +662,7 @@ export default function CreateInvoicePage() {
                             step="0.01"
                             value={item.unitPrice}
                             onChange={(e) => handleItemChange(index, 'unitPrice', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
                             disabled={loading}
                           />
                         </div>
@@ -692,7 +677,7 @@ export default function CreateInvoicePage() {
                             max="100"
                             value={item.discount || ''}
                             onChange={(e) => handleItemChange(index, 'discount', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
                             placeholder="0"
                             disabled={loading}
                           />
@@ -708,7 +693,7 @@ export default function CreateInvoicePage() {
                             max="100"
                             value={item.taxRate || taxRate}
                             onChange={(e) => handleItemChange(index, 'taxRate', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
                             placeholder={taxRate.toString()}
                             disabled={loading}
                           />
@@ -718,7 +703,7 @@ export default function CreateInvoicePage() {
                           <label className="block text-xs font-medium text-gray-700 mb-2">
                             Item Total
                           </label>
-                          <div className="px-3 py-2 bg-gray-50 rounded-lg text-sm font-medium border border-gray-200">
+                          <div className="px-3 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg text-sm font-medium border border-blue-200">
                             {invoiceService.formatCurrency(item.total)}
                           </div>
                         </div>
@@ -729,10 +714,10 @@ export default function CreateInvoicePage() {
               </div>
 
               {/* Financial Summary */}
-              <div className="bg-white rounded-2xl shadow-xl p-6">
+              <div className="bg-white rounded-2xl shadow-xl p-6 border border-blue-100">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 rounded-lg bg-gradient-to-r from-purple-100 to-pink-100">
-                    <Calculator className="h-5 w-5 text-purple-600" />
+                  <div className="p-2 rounded-lg bg-gradient-to-r from-blue-100 to-indigo-100">
+                    <Calculator className="h-5 w-5 text-blue-600" />
                   </div>
                   <div>
                     <h2 className="text-xl font-bold text-gray-800">Financial Summary</h2>
@@ -742,30 +727,30 @@ export default function CreateInvoicePage() {
                 
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                    <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200 shadow-sm">
                       <p className="text-sm text-gray-600">Subtotal</p>
                       <p className="text-xl font-bold text-gray-900 mt-2">
                         {invoiceService.formatCurrency(formData.subtotal)}
                       </p>
                     </div>
                     
-                    <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
-                      <p className="text-sm text-purple-600">Tax ({taxRate}% VAT)</p>
-                      <p className="text-xl font-bold text-purple-700 mt-2">
+                    <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200 shadow-sm">
+                      <p className="text-sm text-blue-600">Tax ({taxRate}% VAT)</p>
+                      <p className="text-xl font-bold text-blue-700 mt-2">
                         {invoiceService.formatCurrency(formData.tax)}
                       </p>
                     </div>
                     
-                    <div className="bg-pink-50 rounded-xl p-4 border border-pink-200">
-                      <p className="text-sm text-pink-600">Total Amount</p>
-                      <p className="text-2xl font-bold text-pink-700 mt-2">
+                    <div className="bg-gradient-to-r from-indigo-50 to-indigo-100 rounded-xl p-4 border border-indigo-200 shadow-sm">
+                      <p className="text-sm text-indigo-600">Total Amount</p>
+                      <p className="text-2xl font-bold text-indigo-700 mt-2">
                         {invoiceService.formatCurrency(formData.totalAmount)}
                       </p>
                     </div>
                     
-                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-300">
-                      <p className="text-sm text-purple-700 font-medium">Balance Due</p>
-                      <p className="text-2xl font-bold text-purple-800 mt-2">
+                    <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-xl p-4 border border-blue-300 shadow-sm">
+                      <p className="text-sm text-blue-700 font-medium">Balance Due</p>
+                      <p className="text-2xl font-bold text-blue-800 mt-2">
                         {invoiceService.formatCurrency(formData.balance)}
                       </p>
                     </div>
@@ -777,7 +762,7 @@ export default function CreateInvoicePage() {
                       <select
                         value={formData.paymentStatus}
                         onChange={(e) => handleInputChange('paymentStatus', e.target.value as any)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
+                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
                         disabled={loading}
                       >
                         <option value="draft">Draft</option>
@@ -800,7 +785,7 @@ export default function CreateInvoicePage() {
                             step="0.01"
                             value={formData.paidAmount}
                             onChange={(e) => handleInputChange('paidAmount', parseFloat(e.target.value) || 0)}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg"
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-colors"
                             placeholder="Enter amount paid"
                             disabled={loading}
                           />
@@ -812,7 +797,7 @@ export default function CreateInvoicePage() {
               </div>
 
               {/* Submit Section */}
-              <div className="bg-white rounded-2xl shadow-xl p-6">
+              <div className="bg-white rounded-2xl shadow-xl p-6 border border-blue-100">
                 <div className="flex items-center justify-between">
                   <button
                     type="button"
@@ -831,7 +816,7 @@ export default function CreateInvoicePage() {
                         handleSubmit(new Event('submit') as any);
                       }}
                       disabled={loading}
-                      className="px-6 py-3 border border-gray-300 bg-white text-gray-700 rounded-xl hover:bg-gray-50 font-medium flex items-center gap-2 transition-colors"
+                      className="px-6 py-3 border border-gray-300 bg-white text-gray-700 rounded-xl hover:bg-gray-50 font-medium flex items-center gap-2 transition-colors shadow-sm"
                     >
                       <Clock className="h-4 w-4" />
                       Save as Draft
@@ -840,7 +825,7 @@ export default function CreateInvoicePage() {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl hover:from-purple-700 hover:to-pink-700 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center gap-2"
+                      className="px-8 py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 text-white font-semibold rounded-xl hover:from-blue-700 hover:via-indigo-700 hover:to-purple-800 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center gap-2"
                     >
                       {loading ? (
                         <>
@@ -862,11 +847,55 @@ export default function CreateInvoicePage() {
 
           {/* Right Column - Sidebar */}
           <div className="space-y-6">
-            {/* Workflow Progress */}
-            <div className="bg-white rounded-2xl shadow-xl p-6">
+            {/* Quick Actions */}
+            <div className="bg-white rounded-2xl shadow-xl p-6 border border-blue-100">
               <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-lg bg-gradient-to-r from-purple-100 to-pink-100">
-                  <TrendingUp className="h-5 w-5 text-purple-600" />
+                <div className="p-2 rounded-lg bg-gradient-to-r from-blue-100 to-indigo-100">
+                  <Target className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800">Quick Actions</h3>
+                  <p className="text-sm text-gray-600">Common invoice operations</p>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <button
+                  onClick={() => navigator.clipboard.writeText(formData.invoiceNumber)}
+                  className="w-full px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 rounded-xl text-sm font-medium hover:from-blue-100 hover:to-indigo-100 border border-blue-200 hover:border-blue-300 transition-all flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Copy Invoice #
+                  </span>
+                  <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                    {formData.invoiceNumber || 'INV-XXXX'}
+                  </span>
+                </button>
+                
+                <button
+                  onClick={() => window.print()}
+                  className="w-full px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 rounded-xl text-sm font-medium hover:from-blue-100 hover:to-indigo-100 border border-blue-200 hover:border-blue-300 transition-all flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Print Preview
+                </button>
+                
+                <button
+                  onClick={() => showToast('Email sent successfully!', 'success')}
+                  className="w-full px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 rounded-xl text-sm font-medium hover:from-blue-100 hover:to-indigo-100 border border-blue-200 hover:border-blue-300 transition-all flex items-center gap-2"
+                >
+                  <Send className="h-4 w-4" />
+                  Send to Customer
+                </button>
+              </div>
+            </div>
+
+            {/* Workflow Progress */}
+            <div className="bg-white rounded-2xl shadow-xl p-6 border border-blue-100">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 rounded-lg bg-gradient-to-r from-blue-100 to-indigo-100">
+                  <TrendingUp className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-800">Workflow Progress</h3>
@@ -876,7 +905,7 @@ export default function CreateInvoicePage() {
               
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 flex items-center justify-center shadow-sm">
                     <CheckCircle className="h-4 w-4 text-white" />
                   </div>
                   <div className="flex-1">
@@ -887,7 +916,7 @@ export default function CreateInvoicePage() {
                 
                 {quote && (
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 flex items-center justify-center shadow-sm">
                       <CheckCircle className="h-4 w-4 text-white" />
                     </div>
                     <div className="flex-1">
@@ -898,7 +927,7 @@ export default function CreateInvoicePage() {
                 )}
                 
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center shadow-sm">
                     <Receipt className="h-4 w-4 text-white" />
                   </div>
                   <div className="flex-1">
@@ -920,9 +949,9 @@ export default function CreateInvoicePage() {
             </div>
 
             {/* Tips */}
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200">
+            <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl p-6 border border-blue-200">
               <h3 className="font-bold text-blue-800 mb-3 flex items-center gap-2">
-                <Sparkles className="h-5 w-5" />
+                <Sparkles className="h-5 w-5 text-blue-600" />
                 Pro Tips
               </h3>
               <ul className="text-sm text-blue-700 space-y-2">
@@ -939,6 +968,38 @@ export default function CreateInvoicePage() {
                   Invoice numbers auto-generate but can be edited if needed.
                 </li>
               </ul>
+            </div>
+
+            {/* Stats */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500">
+                  <Layers className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-blue-800">Invoice Stats</h3>
+                  <p className="text-sm text-blue-600">Current session</p>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-blue-700">Items Count</span>
+                  <span className="font-bold text-blue-800">{formData.items.length}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-blue-700">Subtotal</span>
+                  <span className="font-bold text-blue-800">{invoiceService.formatCurrency(formData.subtotal)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-blue-700">Tax Amount</span>
+                  <span className="font-bold text-blue-800">{invoiceService.formatCurrency(formData.tax)}</span>
+                </div>
+                <div className="flex justify-between items-center pt-3 border-t border-blue-200">
+                  <span className="text-sm font-medium text-blue-800">Total Due</span>
+                  <span className="text-lg font-bold text-blue-900">{invoiceService.formatCurrency(formData.balance)}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -56,7 +56,7 @@ export interface JobCard {
 
 export interface CreateJobCardData {
   opportunityId: string;
-  vehicleId: string;
+  // vehicleId: string;
   jobTitle: string;
   jobDescription?: string;
   assignedTo?: string;
@@ -93,7 +93,7 @@ class JobCardService {
   async createJobCard(data: CreateJobCardData, userId?: string): Promise<JobCard> {
     try {
       const response = await apiClient.post<CreateJobCardData, any>('/jobcards', data);
-      return this.normalizeJobCard(response);
+      return response;
     } catch (error) {
       console.error('Error creating job card:', error);
       throw error;
@@ -255,7 +255,6 @@ private filterJobCards(jobCards: any[], params: JobCardFilterParams): any[] {
    * Normalize job card data from backend
    */
   private normalizeJobCard(data: any): JobCard {
-    console.log('🔄 Normalizing job card data:', data);
     
     // Extract ID
     const id = data._id || data.id;

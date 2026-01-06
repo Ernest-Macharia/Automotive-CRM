@@ -12,9 +12,6 @@ export default function VehicleDetailRoute() {
   const vehicleId = params?.id as string;
 
   useEffect(() => {
-    // Debug log
-    console.log('Current params:', params);
-    console.log('Vehicle ID from params:', vehicleId);
     
     // If ID is undefined, redirect to vehicles list
     if (!vehicleId || vehicleId === 'undefined') {

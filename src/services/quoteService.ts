@@ -96,29 +96,29 @@ class QuoteService {
    * Create a new quote
    * POST /api/v1/quotes
    */
-  async createQuote(data: CreateQuoteData, userId?: string): Promise<Quote> {
+
+  async createQuote(data: CreateQuoteData): Promise<Quote> {
     try {
-      // Calculate item totals if not provided
       const processedItems = data.items.map(item => ({
-        ...item,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
         total: item.quantity * item.unitPrice
       }));
 
-      // Recalculate total amount if items were modified
-      const calculatedTotal = processedItems.reduce((sum, item) => sum + item.total, 0);
-      const finalTotalAmount = data.totalAmount || calculatedTotal;
-
       const requestData = {
-        ...data,
+        quoteNumber: data.quoteNumber,
+        opportunityId: data.opportunityId,
+        vehicleId: data.vehicleId || undefined,
         items: processedItems,
-        totalAmount: finalTotalAmount
+        totalAmount: data.totalAmount,
+        notes: data.notes || undefined
       };
 
-      const response = await apiClient.post<typeof requestData, any>('/quotes', requestData);
+      const response = await apiClient.post('/quotes', requestData);
       return this.normalizeQuote(response);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating quote:', error);
-      throw error;
     }
   }
 
@@ -409,6 +409,22 @@ class QuoteService {
     const total = subtotal + tax;
     
     return { subtotal, tax, total };
+  }
+
+  /**
+     * Export quote to PDF
+     * GET /api/v1/quotes/{id}/export/pdf
+     */
+  async exportQuoteToPDF(id: string): Promise<Blob> {
+    try {
+      const response = await apiClient.get<Blob>(`/quotes/${id}/export/pdf`, {
+        responseType: 'blob',
+      });
+      return response;
+    } catch (error) {
+      console.error(`Error exporting quote ${id} to PDF:`, error);
+      throw error;
+    }
   }
 
   /**

@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  Wrench, ArrowLeft, Save, X, Loader2,
+  Wrench, ArrowLeft, Save, X, Loader2, Lock,
   Calendar, Clock, AlertTriangle, User, Car,
   FileText, Plus, Trash2, DollarSign, Package,
-  ChevronDown, Search
+  ChevronDown
 } from 'lucide-react';
 import { jobCardService, CreateJobCardData } from '@/services/jobCardService';
 import { opportunityService, Opportunity } from '@/services/opportunityService';
@@ -16,7 +16,6 @@ import { format } from 'date-fns';
 interface FormData {
   // Required fields
   opportunityId: string;
-  vehicleId: string;
   jobTitle: string;
   jobDescription: string;
   assignedTo: string;
@@ -50,11 +49,9 @@ export default function JobCardCreate() {
   
   const [loading, setLoading] = useState(false);
   const [loadingOpportunities, setLoadingOpportunities] = useState(false);
-  const [loadingVehicles, setLoadingVehicles] = useState(false);
   
   const [formData, setFormData] = useState<FormData>({
     opportunityId: '',
-    vehicleId: '',
     jobTitle: '',
     jobDescription: '',
     assignedTo: '',
@@ -75,24 +72,15 @@ export default function JobCardCreate() {
 
   const [technicians, setTechnicians] = useState<any[]>([]);
   const [opportunities, setOpportunities] = useState<{ value: string; label: string; opportunity: Opportunity }[]>([]);
-  const [vehicles, setVehicles] = useState<{ value: string; label: string }[]>([]);
   const [parts, setParts] = useState<any[]>([]);
   const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
+  const [allowVehicleChange, setAllowVehicleChange] = useState(false);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
 
   // Fetch dropdown data on component mount
   useEffect(() => {
     fetchDropdownData();
   }, []);
-
-  // Fetch vehicles when opportunity changes
-  useEffect(() => {
-    if (formData.opportunityId) {
-      fetchVehiclesForOpportunity(formData.opportunityId);
-    } else {
-      setVehicles([]);
-      setFormData(prev => ({ ...prev, vehicleId: '' }));
-    }
-  }, [formData.opportunityId]);
 
   const fetchDropdownData = async () => {
     try {
@@ -124,7 +112,7 @@ export default function JobCardCreate() {
       setLoadingOpportunities(true);
       const response = await opportunityService.getAllOpportunities({
         page: 1,
-        limit: 100,
+        limit: 300,
         sort: '-createdAt'
       });
       
@@ -143,46 +131,16 @@ export default function JobCardCreate() {
     }
   };
 
-  const fetchVehiclesForOpportunity = async (opportunityId: string) => {
-    try {
-      setLoadingVehicles(true);
-      
-      // Find the selected opportunity from our list
-      const opportunityOption = opportunities.find(opt => opt.value === opportunityId);
-      
-      if (opportunityOption) {
-        setSelectedOpportunity(opportunityOption.opportunity);
-        
-        // If the opportunity has vehicles in its data
-        if (opportunityOption.opportunity.vehicles && opportunityOption.opportunity.vehicles.length > 0) {
-          const vehicleOptions = opportunityOption.opportunity.vehicles.map((vehicle: any) => ({
-            value: vehicle._id || vehicle.id,
-            label: `${vehicle.registrationNumber || vehicle.licensePlate || 'No Plate'} - ${vehicle.make} ${vehicle.model}`
-          }));
-          setVehicles(vehicleOptions);
-        } else {
-          // If no vehicles in opportunity data, fetch the full opportunity to get vehicles
-          const fullOpportunity = await opportunityService.getOpportunityById(opportunityId);
-          setSelectedOpportunity(fullOpportunity);
-          
-          if (fullOpportunity.vehicles && fullOpportunity.vehicles.length > 0) {
-            const vehicleOptions = fullOpportunity.vehicles.map((vehicle: any) => ({
-              value: vehicle._id || vehicle.id,
-              label: `${vehicle.registrationNumber || vehicle.licensePlate || 'No Plate'} - ${vehicle.make} ${vehicle.model}`
-            }));
-            setVehicles(vehicleOptions);
-          } else {
-            setVehicles([]);
-            showToast('No vehicles found for this opportunity', 'warning');
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching vehicles:', error);
-      showToast('Failed to load vehicles', 'error');
-    } finally {
-      setLoadingVehicles(false);
-    }
+  const getVehicleDisplayInfo = (vehicle: any) => {
+    return {
+      make: vehicle.make || 'Unknown',
+      model: vehicle.model || 'Unknown',
+      year: vehicle.year || '',
+      registration: vehicle.registrationNumber || vehicle.licensePlate || vehicle.regNumber || 'No Plate',
+      vin: vehicle.vin || 'N/A',
+      color: vehicle.color || 'N/A',
+      mileage: vehicle.mileage ? `${vehicle.mileage.toLocaleString()} km` : 'N/A'
+    };
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -193,16 +151,43 @@ export default function JobCardCreate() {
       newValue = value ? parseFloat(value) : 0;
     }
     
-    setFormData(prev => {
-      const updated = { ...prev, [name]: newValue };
-      
-      // Recalculate totals if needed
-      if (['laborCost', 'partsCost'].includes(name)) {
-        updated.totalCost = (updated.laborCost || 0) + (updated.partsCost || 0);
+    // If opportunity is being changed, fetch the opportunity details
+    if (name === 'opportunityId') {
+      const selectedOpp = opportunities.find(opt => opt.value === value);
+      if (selectedOpp) {
+        setSelectedOpportunity(selectedOpp.opportunity);
+        
+        // Auto-select first vehicle if available
+        if (selectedOpp.opportunity.vehicles && selectedOpp.opportunity.vehicles.length > 0) {
+          const firstVehicle = selectedOpp.opportunity.vehicles[0];
+          setSelectedVehicleId(firstVehicle._id || firstVehicle.id || '');
+        } else {
+          setSelectedVehicleId('');
+        }
+        
+        // Auto-populate job title from opportunity subject
+        setFormData(prev => ({ 
+          ...prev, 
+          [name]: newValue,
+          jobTitle: prev.jobTitle || selectedOpp.opportunity.subject
+        }));
+      } else {
+        setFormData(prev => ({ ...prev, [name]: newValue }));
+        setSelectedOpportunity(null);
+        setSelectedVehicleId('');
       }
-      
-      return updated;
-    });
+    } else {
+      setFormData(prev => {
+        const updated = { ...prev, [name]: newValue };
+        
+        // Recalculate totals if needed
+        if (['laborCost', 'partsCost'].includes(name)) {
+          updated.totalCost = (updated.laborCost || 0) + (updated.partsCost || 0);
+        }
+        
+        return updated;
+      });
+    }
   };
 
   const handleAddNote = () => {
@@ -293,7 +278,14 @@ export default function JobCardCreate() {
     const errors: string[] = [];
     
     if (!formData.opportunityId) errors.push('Opportunity is required');
-    if (!formData.vehicleId) errors.push('Vehicle is required');
+    
+    // Validate that opportunity has vehicles
+    if (formData.opportunityId && selectedOpportunity) {
+      if (!selectedOpportunity.vehicles || selectedOpportunity.vehicles.length === 0) {
+        errors.push('Selected opportunity has no vehicles');
+      }
+    }
+    
     if (!formData.jobTitle.trim()) errors.push('Job title is required');
     if (!formData.jobDescription.trim()) errors.push('Job description is required');
     
@@ -315,10 +307,16 @@ export default function JobCardCreate() {
     try {
       setLoading(true);
       
-      // Prepare create data - only include fields that backend expects
+      // Validate that opportunity has a vehicle
+      if (!selectedOpportunity?.vehicles || selectedOpportunity.vehicles.length === 0) {
+        showToast('Selected opportunity has no vehicles. Please add a vehicle first.', 'error');
+        setLoading(false);
+        return;
+      }
+      
+      // Prepare create data
       const createData: CreateJobCardData = {
         opportunityId: formData.opportunityId,
-        vehicleId: formData.vehicleId,
         jobTitle: formData.jobTitle,
         jobDescription: formData.jobDescription,
         assignedTo: formData.assignedTo || undefined,
@@ -462,70 +460,44 @@ export default function JobCardCreate() {
                   <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
                 </div>
                 
-                {/* Selected Opportunity Info */}
+                {/* Display selected opportunity and its vehicle */}
                 {selectedOpportunity && (
-                  <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Customer</p>
-                        <p className="text-gray-800">{selectedOpportunity.customer?.name}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Contact</p>
-                        <p className="text-gray-800">
-                          {selectedOpportunity.customer?.phone || selectedOpportunity.customer?.email || 'N/A'}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Type</p>
-                        <p className="text-gray-800">{selectedOpportunity.opportunityType || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Status</p>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          selectedOpportunity.status === 'won' ? 'bg-green-100 text-green-800' :
-                          selectedOpportunity.status === 'lost' ? 'bg-red-100 text-red-800' :
-                          'bg-blue-100 text-blue-800'
-                        }`}>
-                          {selectedOpportunity.status?.replace(/_/g, ' ').toUpperCase()}
-                        </span>
-                      </div>
+                  <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Opportunity Info */}
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-blue-800 flex items-center gap-2">
+                          <User className="h-4 w-4" />
+                          Opportunity Details
+                        </h4>
+                        <div className="space-y-1">
+                          <p className="text-sm">
+                            <span className="font-medium text-gray-700">Customer:</span>{' '}
+                            <span className="text-gray-800">{selectedOpportunity.customer?.name}</span>
+                          </p>
+                          <p className="text-sm">
+                            <span className="font-medium text-gray-700">Subject:</span>{' '}
+                            <span className="text-gray-800">{selectedOpportunity.subject}</span>
+                          </p>
+                          <p className="text-sm">
+                            <span className="font-medium text-gray-700">Type:</span>{' '}
+                            <span className="text-gray-800">{selectedOpportunity.opportunityType || 'N/A'}</span>
+                          </p>
+                          <p className="text-sm">
+                            <span className="font-medium text-gray-700">Status:</span>{' '}
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              selectedOpportunity.status === 'won' ? 'bg-green-100 text-green-800' :
+                              selectedOpportunity.status === 'lost' ? 'bg-red-100 text-red-800' :
+                              'bg-blue-100 text-blue-800'
+                            }`}>
+                              {selectedOpportunity.status?.replace(/_/g, ' ').toUpperCase()}
+                            </span>
+                          </p>
+                        </div>
+                      </div>             
                     </div>
                   </div>
                 )}
-              </div>
-              
-              {/* Vehicle Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Vehicle <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <select
-                    name="vehicleId"
-                    value={formData.vehicleId}
-                    onChange={handleChange}
-                    disabled={!formData.opportunityId || loadingVehicles}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors bg-white appearance-none disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    required
-                  >
-                    <option value="">
-                      {!formData.opportunityId 
-                        ? 'Select an opportunity first' 
-                        : loadingVehicles 
-                        ? 'Loading vehicles...' 
-                        : vehicles.length === 0
-                        ? 'No vehicles found'
-                        : 'Select a vehicle'}
-                    </option>
-                    {vehicles.map((vehicle) => (
-                      <option key={vehicle.value} value={vehicle.value}>
-                        {vehicle.label}
-                      </option>
-                    ))}
-                  </select>
-                  <Car className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
-                </div>
               </div>
               
               {/* Job Title & Priority */}
