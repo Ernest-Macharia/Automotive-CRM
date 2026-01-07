@@ -120,7 +120,6 @@ export default function CreateBlueprintPage() {
     { id: 'inventory', name: 'Inventory', icon: '📦' },
     { id: 'projects', name: 'Projects', icon: '📊' },
     { id: 'tickets', name: 'Support Tickets', icon: '🎫' },
-    { id: 'leads', name: 'Leads', icon: '🎯' },
   ];
 
   // Role categories
@@ -801,14 +800,14 @@ export default function CreateBlueprintPage() {
     if (templateId === 'sales_pipeline') {
       const salesStages: StageForm[] = [
         {
-          name: 'Lead',
+          name: 'Opportunities',
           order: 1,
           allowedRoles: ['sales_rep', 'sales_manager'],
           entryActions: [],
           exitActions: [],
           color: 'blue',
           icon: 'target',
-          description: 'Initial lead qualification',
+          description: 'Initial opportunity qualification',
           isExpanded: true,
         },
         {
@@ -819,7 +818,7 @@ export default function CreateBlueprintPage() {
           exitActions: [],
           color: 'green',
           icon: 'check-circle',
-          description: 'Lead qualified and ready for contact',
+          description: 'Opportunity qualified and ready for contact',
           isExpanded: true,
         },
         {
