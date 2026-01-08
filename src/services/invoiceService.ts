@@ -9,11 +9,20 @@ export interface InvoiceItem {
   _id?: string;
 }
 
+export interface CustomerRef {
+  _id?: string;
+  id?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+}
+
 export interface OpportunityRef {
   _id?: string;
   id?: string;
   subject?: string;
   companyName?: string;
+  customer?: CustomerRef;
 }
 
 export interface QuoteRef {
@@ -130,20 +139,29 @@ class InvoiceService {
    * Create a new invoice
    * POST /api/v1/invoices
    */
-  async createInvoice(data: CreateInvoiceData, userId?: string): Promise<Invoice> {
+  async createInvoice(data: CreateInvoiceData): Promise<Invoice> {
     try {
-      // Calculate item totals if not provided
+      // Backend calculates totals automatically, but we need to provide item totals
       const processedItems = data.items.map(item => ({
-        ...item,
-        total: item.quantity * item.unitPrice
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        total: item.quantity * item.unitPrice // Calculate each item's total
       }));
 
       const requestData = {
-        ...data,
-        items: processedItems
+        opportunityId: data.opportunityId,
+        quoteId: data.quoteId,
+        jobCardId: data.jobCardId,
+        vehicleId: data.vehicleId,
+        items: processedItems,
+        dueDate: data.dueDate,
+        paymentMethod: data.paymentMethod,
+        notes: data.notes
       };
 
-      const response = await apiClient.post<typeof requestData, any>('/invoices', requestData);
+      // Remove the type argument <any> since apiClient.post doesn't expect it
+      const response = await apiClient.post('/invoices', requestData);
       return this.normalizeInvoice(response);
     } catch (error) {
       console.error('Error creating invoice:', error);
@@ -224,18 +242,24 @@ class InvoiceService {
    * Update invoice
    * PATCH /api/v1/invoices/{id}
    */
-  async updateInvoice(id: string, data: UpdateInvoiceData, userRole?: string, userId?: string): Promise<Invoice> {
+  /**
+ * Update invoice
+ * PATCH /api/v1/invoices/{id}
+ */
+  async updateInvoice(id: string, data: UpdateInvoiceData): Promise<Invoice> {
     try {
-      // If items are being updated, recalculate totals
+      // If items are being updated, recalculate item totals
       if (data.items) {
         const processedItems = data.items.map(item => ({
-          ...item,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
           total: item.quantity * item.unitPrice
         }));
         data.items = processedItems;
       }
 
-      const response = await apiClient.patch<UpdateInvoiceData, any>(`/invoices/${id}`, data);
+      const response = await apiClient.patch(`/invoices/${id}`, data);
       return this.normalizeInvoice(response);
     } catch (error) {
       console.error(`Error updating invoice ${id}:`, error);
