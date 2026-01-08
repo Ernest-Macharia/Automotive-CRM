@@ -17,17 +17,43 @@ import {
   Save, Upload, Trash2, Eye, Settings as SettingsIcon,
   RefreshCw, ShieldAlert, Truck as TruckIcon, Package as PackageIcon,
   CreditCard as CreditCardIcon, Receipt as ReceiptIcon,
-  ClipboardCheck, ClipboardList, Car
+  ClipboardCheck, ClipboardList, Car, Layers, GitBranch,
+  Workflow, Zap, Target, Rocket, LineChart, PieChart,
+  ChevronLeft, ChevronsRight, FolderTree, GitPullRequest,
+  BarChart, Circle, CircleCheck, CircleDot, CircleEllipsis,
+  Clock4, FileCheck, FilePlus, FileX, ArrowRight,
+  X, Maximize2, Minimize2, AlertTriangle, HelpCircle,
+  MessageCircle, PhoneCall, Mail as MailIcon, UserCheck,
+  FileSearch, FileBarChart, FileImage, FileVideo,
+  Download as DownloadIcon, Upload as UploadIcon
 } from 'lucide-react';
 import { workOrderService } from '@/services/workOrderService';
 import { lifecycleIntegrationService, LifecycleStageUI } from '@/services/lifecycleIntegrationService';
 import { useToast } from '@/contexts/ToastContext';
 import { format } from 'date-fns';
-import WorkOrderLifecycleVisualization from '@/components/orders/work-orders/WorkOrderLifecycleVisualization';
-import WorkflowVisualization from '../WorkflowVisualization';
 
 interface WorkOrderDetailPageProps {
   orderId: string;
+}
+
+interface WorkflowSidebarStage {
+  id: string;
+  stage: string;
+  label: string;
+  description?: string;
+  completed: boolean;
+  isCurrent: boolean;
+  document?: any;
+  documentId?: string;
+  documentType?: string;
+  actions: Array<{ id: string; label: string; icon: React.ReactNode; variant: 'primary' | 'secondary' | 'success' | 'danger' | 'warning' }>;
+  requirements?: string[];
+  completionDate?: string;
+  icon: React.ReactNode;
+  mandatory: boolean;
+  estimatedTime: string;
+  dependencies?: string[];
+  canSkip: boolean;
 }
 
 export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProps) {
@@ -47,8 +73,15 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   const [addingNote, setAddingNote] = useState(false);
   const [activityLog, setActivityLog] = useState<any[]>([]);
   const [attachments, setAttachments] = useState<any[]>([]);
-  const [selectedStage, setSelectedStage] = useState<string | null>(null);
-  const [expandedStage, setExpandedStage] = useState<string | null>(null);
+  const [selectedStage, setSelectedStage] = useState<WorkflowSidebarStage | null>(null);
+  const [showStageDetail, setShowStageDetail] = useState(false);
+  const [workflowStages, setWorkflowStages] = useState<WorkflowSidebarStage[]>([]);
+  const [workflowProgress, setWorkflowProgress] = useState({
+    percentage: 0,
+    completed: 0,
+    total: 0,
+    estimatedTime: '0 hours'
+  });
 
   useEffect(() => {
     fetchWorkOrder();
@@ -60,7 +93,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       const data = await workOrderService.getWorkOrderById(orderId);
       setWorkOrder(data);
       
-      // Fetch lifecycle if opportunity exists
       if (data.opportunityId) {
         fetchLifecycle(data);
       }
@@ -86,6 +118,21 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       
       const lifecycleData = await lifecycleIntegrationService.getWorkOrderLifecycleUI(opportunityId);
       setLifecycle(lifecycleData);
+      
+      if (lifecycleData?.stages) {
+        const transformedStages = transformLifecycleToSidebarStages(lifecycleData.stages);
+        setWorkflowStages(transformedStages);
+        
+        const completed = lifecycleData.stages.filter((s: any) => s.completed).length;
+        const total = lifecycleData.stages.length;
+        
+        setWorkflowProgress({
+          percentage: Math.round((completed / total) * 100),
+          completed,
+          total,
+          estimatedTime: calculateEstimatedTime(lifecycleData.stages)
+        });
+      }
     } catch (error) {
       console.error('Error fetching lifecycle:', error);
     } finally {
@@ -93,7 +140,225 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     }
   };
 
-  const handleWorkflowAction = async (action: string, stage?: string) => {
+  const transformLifecycleToSidebarStages = (stages: LifecycleStageUI[]): WorkflowSidebarStage[] => {
+    return stages.map((stage, index) => ({
+      id: `stage-${index}`,
+      stage: stage.stage,
+      label: stage.label,
+      description: stage.description,
+      completed: stage.completed,
+      isCurrent: stage.isCurrent,
+      document: stage.document,
+      documentId: stage.documentId,
+      documentType: stage.documentType,
+      icon: getStageIcon(stage.stage),
+      actions: getStageActions(stage),
+      requirements: getStageRequirements(stage),
+      completionDate: stage.completedAt || stage.completionDate,
+      mandatory: stage.mandatory || stage.required || true,
+      estimatedTime: getStageTimeEstimate(stage.stage),
+      dependencies: stage.dependencies || [],
+      canSkip: stage.canSkip || stage.skippable || false
+    }));
+  };
+
+  const getStageIcon = (stage: string) => {
+    const icons: Record<string, React.ReactNode> = {
+      'quote': <FileText className="h-5 w-5" />,
+      'waiver': <FileSignature className="h-5 w-5" />,
+      'jobcard': <Wrench className="h-5 w-5" />,
+      'prechecklist': <ClipboardCheck className="h-5 w-5" />,
+      'postchecklist': <ClipboardList className="h-5 w-5" />,
+      'invoice': <ReceiptIcon className="h-5 w-5" />,
+      'payment': <CreditCardIcon className="h-5 w-5" />,
+      'delivery': <TruckIcon className="h-5 w-5" />,
+      'completion': <CheckCircle className="h-5 w-5" />
+    };
+    return icons[stage] || <Circle className="h-5 w-5" />;
+  };
+
+  const getStageActions = (stage: LifecycleStageUI) => {
+    const actions = [];
+    
+    if (stage.completed && stage.document) {
+      actions.push({
+        id: 'view',
+        label: 'View Document',
+        icon: <Eye className="h-4 w-4" />,
+        variant: 'primary'
+      });
+      
+      // Show update option for certain stages that can be updated
+      if (['jobcard', 'prechecklist', 'postchecklist'].includes(stage.stage)) {
+        actions.push({
+          id: 'update',
+          label: 'Update',
+          icon: <Edit className="h-4 w-4" />,
+          variant: 'secondary'
+        });
+      }
+    } else if (stage.isCurrent) {
+      // Show create button if no document exists
+      if (!stage.document) {
+        actions.push({
+          id: 'create',
+          label: 'Create Document',
+          icon: <FilePlus className="h-4 w-4" />,
+          variant: 'primary'
+        });
+      } else {
+        // Show update button if document exists but stage isn't completed
+        actions.push({
+          id: 'update',
+          label: 'Update Document',
+          icon: <Edit className="h-4 w-4" />,
+          variant: 'primary'
+        });
+      }
+      
+      // Only show skip for waiver when no document exists
+      if (stage.stage === 'waiver' && !stage.document) {
+        actions.push({
+          id: 'skip',
+          label: 'Skip Waiver',
+          icon: <ArrowRight className="h-4 w-4" />,
+          variant: 'warning'
+        });
+      }
+      
+      // Show complete button only if stage is ready to be completed
+      if (isStageReadyForCompletion(stage)) {
+        actions.push({
+          id: 'complete',
+          label: 'Mark Complete',
+          icon: <CheckCircle className="h-4 w-4" />,
+          variant: 'success'
+        });
+      }
+    } else if (stage.document) {
+      // For non-current stages with documents
+      actions.push({
+        id: 'view',
+        label: 'View Document',
+        icon: <Eye className="h-4 w-4" />,
+        variant: 'secondary'
+      });
+    }
+    
+    return actions;
+  };
+
+  const isStageReadyForCompletion = (stage: LifecycleStageUI): boolean => {
+    if (stage.stage === 'waiver') {
+      return true;
+    }
+    
+    if (!stage.document) {
+      return false;
+    }
+    
+    switch (stage.stage) {
+      case 'quote':
+        return stage.document?.status === 'approved';
+      case 'jobcard':
+        return stage.document?.status === 'completed' || stage.document?.status === 'closed';
+      case 'prechecklist':
+      case 'postchecklist':
+        return stage.document?.completed === true;
+      case 'invoice':
+        return stage.document?.status === 'sent' || stage.document?.status === 'paid';
+      default:
+        return !!stage.document;
+    }
+  };
+
+  const getStageRequirements = (stage: LifecycleStageUI): string[] => {
+    const requirements: string[] = [];
+    
+    if (stage.requirements?.requiresCustomerApproval) {
+      requirements.push('Customer Approval Required');
+    }
+    if (stage.requirements?.requiresPayment) {
+      requirements.push('Payment Required');
+    }
+    if (stage.requirements?.requiresSignature) {
+      requirements.push('Digital Signature Required');
+    }
+    if (stage.requirements?.requiresAttachment) {
+      requirements.push('File Attachment Required');
+    }
+    
+    return requirements;
+  };
+
+  const getStageTimeEstimate = (stage: string): string => {
+    const stageEstimates: Record<string, string> = {
+      'quote': '30-60 min',
+      'waiver': '15-30 min',
+      'jobcard': '2-4 hours',
+      'prechecklist': '30-60 min',
+      'postchecklist': '30-60 min',
+      'invoice': '30 min',
+      'payment': 'Immediate',
+      'delivery': '1-2 hours',
+      'completion': '15 min'
+    };
+    return stageEstimates[stage] || '30 min';
+  };
+
+  const calculateEstimatedTime = (stages: LifecycleStageUI[]): string => {
+    const stageEstimates: Record<string, number> = {
+      'quote': 1,
+      'waiver': 0.5,
+      'jobcard': 3,
+      'prechecklist': 1,
+      'postchecklist': 1,
+      'invoice': 0.5,
+      'payment': 0.5,
+      'delivery': 1.5,
+      'completion': 0.25
+    };
+    
+    const totalHours = stages.reduce((total, stage) => {
+      return total + (stageEstimates[stage.stage] || 1);
+    }, 0);
+    
+    return `${totalHours} hours`;
+  };
+
+  const getCurrentStage = (): WorkflowSidebarStage | undefined => {
+    return workflowStages.find(stage => stage.isCurrent);
+  };
+
+  const canMoveToNextStage = (): boolean => {
+    const currentStage = getCurrentStage();
+    if (!currentStage) return false;
+    
+    if (!currentStage.completed) return false;
+    
+    const currentIndex = workflowStages.findIndex(stage => stage.id === currentStage.id);
+    return currentIndex < workflowStages.length - 1;
+  };
+
+  const canMoveToPreviousStage = (): boolean => {
+    const currentStage = getCurrentStage();
+    if (!currentStage) return false;
+    
+    const currentIndex = workflowStages.findIndex(stage => stage.id === currentStage.id);
+    return currentIndex > 0;
+  };
+
+  const handleStageClick = (stage: WorkflowSidebarStage) => {
+    setSelectedStage(stage);
+    setShowStageDetail(true);
+  };
+
+  const handleCloseStageDetail = () => {
+    setShowStageDetail(false);
+    setSelectedStage(null);
+  };
+
+  const handleStageAction = async (stage: WorkflowSidebarStage, actionId: string) => {
     try {
       if (!workOrder) return;
       
@@ -106,117 +371,241 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         return;
       }
       
-      switch (action) {
-        case 'create-quote':
-          router.push(`/quotes/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
+      switch (actionId) {
+        case 'create':
+          await handleCreateDocument(stage.stage);
           break;
-          
-        case 'create-waiver':
-          router.push(`/waivers/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
-          break;
-          
-        case 'create-jobcard':
-          router.push(`/jobcards/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
-          break;
-          
-        case 'create-prechecklist':
-          router.push(`/prechecklists/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
-          break;
-          
-        case 'create-postchecklist':
-          router.push(`/postchecklists/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
-          break;
-          
-        case 'create-invoice':
-          router.push(`/invoices/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
-          break;
-          
-        case 'transition':
-          if (stage) {
-            setWorkflowLoading(true);
-            const result = await lifecycleIntegrationService.transitionToNextStage(opportunityId);
-            if (result.success) {
-              showToast(`Moved to ${result.nextStage} stage`, 'success');
-              fetchWorkOrder();
-            }
+        case 'view':
+          if (stage.documentId) {
+            await handleViewDocument(stage);
           }
           break;
-          
         case 'complete':
-          showToast('Work order completed!', 'success');
-          fetchWorkOrder();
+          await handleCompleteStage(stage);
           break;
-          
-        default:
+        case 'skip':
+          if (stage.stage === 'waiver') {
+            await handleSkipStage(stage);
+          }
+          break;
+        case 'update':
+          await handleUpdateDocument(stage);
           break;
       }
     } catch (error: any) {
       showToast(error.message || 'Action failed', 'error');
+    }
+  };
+
+  const handleUpdateDocument = async (stage: WorkflowSidebarStage) => {
+    if (!stage.documentId) {
+      await handleCreateDocument(stage.stage);
+      return;
+    }
+    
+    const route = stage.documentType === 'Job Card' ? 'jobcards' :
+                stage.documentType === 'Pre-Checklist' ? 'prechecklists' :
+                stage.documentType === 'Post-Checklist' ? 'postchecklists' :
+                stage.documentType === 'Waiver' ? 'waivers' :
+                `${stage.documentType?.toLowerCase()}s`;
+    
+    router.push(`/${route}/${stage.documentId}/edit`);
+    handleCloseStageDetail();
+  }
+
+  const handleCreateDocument = async (stageType: string) => {
+    const opportunityId = typeof workOrder.opportunityId === 'object' 
+      ? workOrder.opportunityId._id 
+      : workOrder.opportunityId;
+    
+    switch (stageType) {
+      case 'quote':
+        router.push(`/quotes/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
+        break;
+      case 'waiver':
+        router.push(`/waivers/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
+        break;
+      case 'jobcard':
+        router.push(`/jobcards/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
+        break;
+      case 'prechecklist':
+        router.push(`/prechecklists/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
+        break;
+      case 'postchecklist':
+        router.push(`/postchecklists/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
+        break;
+      case 'invoice':
+        router.push(`/invoices/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
+        break;
+    }
+    handleCloseStageDetail();
+  };
+
+  const handleViewDocument = async (stage: WorkflowSidebarStage) => {
+    if (!stage.documentId) return;
+    
+    const route = stage.documentType === 'Job Card' ? 'jobcards' :
+                 stage.documentType === 'Pre-Checklist' ? 'prechecklists' :
+                 stage.documentType === 'Post-Checklist' ? 'postchecklists' :
+                 stage.documentType === 'Waiver' ? 'waivers' :
+                 `${stage.documentType?.toLowerCase()}s`;
+    
+    router.push(`/${route}/${stage.documentId}`);
+    handleCloseStageDetail();
+  };
+
+  const handleCompleteStage = async (stage: WorkflowSidebarStage) => {
+    try {
+      const opportunityId = typeof workOrder.opportunityId === 'object' 
+        ? workOrder.opportunityId._id 
+        : workOrder.opportunityId;
+      
+      if (!opportunityId) return;
+      
+      if (stage.stage !== 'waiver') {
+        const isValid = await validateStageCompletion(stage);
+        if (!isValid) return;
+      }
+      
+      setWorkflowLoading(true);
+      await lifecycleIntegrationService.markStageAsCompleted(
+        opportunityId, 
+        stage.stage,
+        { documentId: stage.documentId }
+      );
+      
+      showToast(`${stage.label} marked as completed`, 'success');
+      fetchWorkOrder();
+      handleCloseStageDetail();
+    } catch (error: any) {
+      showToast(error.message || 'Failed to complete stage', 'error');
     } finally {
       setWorkflowLoading(false);
     }
   };
 
-  const handleStageAction = async (stage: LifecycleStageUI, action: string) => {
+  const validateStageCompletion = async (stage: WorkflowSidebarStage): Promise<boolean> => {
+    const stagesRequiringDocuments = ['quote', 'jobcard', 'prechecklist', 'postchecklist', 'invoice'];
+    
+    if (stagesRequiringDocuments.includes(stage.stage) && !stage.document) {
+      showToast('Please create the document first', 'warning');
+      return false;
+    }
+    
+    return true;
+  };
+
+  const handleSkipStage = async (stage: WorkflowSidebarStage) => {
     try {
-      if (!workOrder) return;
+      const opportunityId = typeof workOrder.opportunityId === 'object' 
+        ? workOrder.opportunityId._id 
+        : workOrder.opportunityId;
+      
+      if (!opportunityId) return;
+      
+      setWorkflowLoading(true);
+      const result = await lifecycleIntegrationService.transitionToNextStage(opportunityId, {
+        skipValidation: true,
+        metadata: { skippedStage: stage.stage, reason: 'User skipped' }
+      });
+      
+      if (result.success) {
+        showToast(`${stage.label} stage skipped`, 'info');
+        fetchWorkOrder();
+        handleCloseStageDetail();
+      }
+    } catch (error: any) {
+      showToast(error.message || 'Failed to skip stage', 'error');
+    } finally {
+      setWorkflowLoading(false);
+    }
+  };
+
+  const handleMoveToNextStage = async () => {
+    try {
+      if (!workOrder) {
+        showToast('No work order found', 'error');
+        return;
+      }
+
+      const opportunityId = typeof workOrder.opportunityId === 'object' 
+        ? workOrder.opportunityId._id 
+        : workOrder.opportunityId;
+
+      if (!opportunityId) {
+        showToast('Cannot move to next stage: No opportunity linked', 'error');
+        return;
+      }
+
+      setWorkflowLoading(true);
+      
+      const currentStage = getCurrentStage();
+      
+      if (currentStage?.stage === 'waiver') {
+        const result = await lifecycleIntegrationService.transitionToNextStage(opportunityId, {
+          skipValidation: true,
+          metadata: { 
+            waiverSkipped: !currentStage.document,
+            reason: currentStage.document ? 'Waiver completed' : 'Waiver not required'
+          }
+        });
+        
+        if (result.success) {
+          showToast(`Moved to ${result.currentStage} stage`, 'success');
+          await fetchWorkOrder();
+        }
+        return;
+      }
+      
+      if (currentStage && !currentStage.completed) {
+        showToast('Please complete the current stage first', 'warning');
+        setWorkflowLoading(false);
+        return;
+      }
+
+      const result = await lifecycleIntegrationService.transitionToNextStage(opportunityId);
+      
+      if (result.success) {
+        showToast(`Successfully moved to ${result.currentStage} stage`, 'success');
+        await fetchWorkOrder();
+      } else {
+        showToast(result.message || 'Failed to move to next stage', 'error');
+      }
+    } catch (error: any) {
+      console.error('Stage transition error:', error);
+      showToast(error.message || 'Failed to move to next stage', 'error');
+    } finally {
+      setWorkflowLoading(false);
+    }
+  };
+
+  const handleMoveToPreviousStage = async () => {
+    try {
+      const currentStage = getCurrentStage();
+      if (!currentStage) return;
+      
+      const currentIndex = workflowStages.findIndex(stage => stage.id === currentStage.id);
+      if (currentIndex <= 0) return;
+      
+      const previousStage = workflowStages[currentIndex - 1];
       
       const opportunityId = typeof workOrder.opportunityId === 'object' 
         ? workOrder.opportunityId._id 
         : workOrder.opportunityId;
       
-      if (!opportunityId) {
-        showToast('Cannot perform action: No opportunity found', 'error');
-        return;
-      }
+      if (!opportunityId) return;
       
-      if (action === 'view' && stage.document) {
-        const documentType = stage.documentType?.toLowerCase() || stage.stage;
-        const route = documentType === 'job card' ? 'jobcards' :
-                     documentType === 'pre-checklist' ? 'prechecklists' :
-                     documentType === 'post-checklist' ? 'postchecklists' :
-                     `${documentType}s`;
-        router.push(`/${route}/${stage.documentId}`);
-      } else if (action === 'create') {
-        switch (stage.stage) {
-          case 'quote':
-            router.push(`/quotes/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
-            break;
-          case 'waiver':
-            router.push(`/waivers/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
-            break;
-          case 'jobcard':
-            router.push(`/jobcards/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
-            break;
-          case 'prechecklist':
-            router.push(`/prechecklists/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
-            break;
-          case 'postchecklist':
-            router.push(`/postchecklists/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
-            break;
-          case 'invoice':
-            router.push(`/invoices/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
-            break;
-        }
-      } else if (action === 'transition') {
-        setWorkflowLoading(true);
-        const result = await lifecycleIntegrationService.transitionToNextStage(opportunityId);
-        if (result.success) {
-          showToast(`Moved to ${result.nextStage} stage`, 'success');
-          fetchWorkOrder();
-        }
-      } else if (action === 'skip') {
-        const result = await lifecycleIntegrationService.transitionToNextStage(opportunityId, {
-          skipValidation: true,
-          metadata: { skippedStage: stage.stage }
-        });
-        if (result.success) {
-          showToast(`Skipped ${stage.label} stage`, 'info');
-          fetchWorkOrder();
-        }
-      }
+      setWorkflowLoading(true);
+      await lifecycleIntegrationService.moveToStage(
+        opportunityId,
+        previousStage.stage,
+        { reason: 'Manual navigation back' }
+      );
+      
+      showToast(`Moved back to ${previousStage.label}`, 'info');
+      fetchWorkOrder();
     } catch (error: any) {
-      showToast(error.message || 'Action failed', 'error');
+      showToast(error.message || 'Failed to move back', 'error');
     } finally {
       setWorkflowLoading(false);
     }
@@ -232,83 +621,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     } finally {
       setWorkflowLoading(false);
     }
-  };
-
-  const handleStatusChange = async (newStatus: string) => {
-    try {
-      await workOrderService.updateWorkOrderStatus(orderId, newStatus);
-      showToast(`Work order status updated to ${newStatus}`, 'success');
-      fetchWorkOrder();
-      setShowActionsMenu(false);
-    } catch (error) {
-      console.error('Error updating status:', error);
-      showToast('Failed to update status', 'error');
-    }
-  };
-
-  const copyOrderNumber = () => {
-    if (workOrder?.workOrderNumber) {
-      navigator.clipboard.writeText(workOrder.workOrderNumber);
-      showToast('Work order number copied to clipboard', 'success');
-    }
-  };
-
-  const addNote = async () => {
-    if (!notes.trim()) return;
-    
-    try {
-      setAddingNote(true);
-      // await workOrderService.addNoteToWorkOrder(orderId, notes);
-      showToast('Note added successfully', 'success');
-      setNotes('');
-    } catch (error) {
-      console.error('Error adding note:', error);
-      showToast('Failed to add note', 'error');
-    } finally {
-      setAddingNote(false);
-    }
-  };
-
-  const handlePrint = () => {
-    window.print();
-    showToast('Print dialog opened', 'info');
-  };
-
-  const handleExport = async (format: 'pdf' | 'excel') => {
-    try {
-      showToast(`Exporting to ${format.toUpperCase()}...`, 'info');
-      // Add export logic here
-    } catch (error) {
-      console.error('Error exporting:', error);
-      showToast('Export failed', 'error');
-    }
-  };
-
-  const getStageIcon = (stage: string) => {
-    const icons: Record<string, React.ReactNode> = {
-      'quote': <FileText className="h-5 w-5" />,
-      'waiver': <FileSignature className="h-5 w-5" />,
-      'jobcard': <Wrench className="h-5 w-5" />,
-      'prechecklist': <ClipboardCheck className="h-5 w-5" />,
-      'postchecklist': <ClipboardList className="h-5 w-5" />,
-      'invoice': <ReceiptIcon className="h-5 w-5" />,
-      'payment': <CreditCardIcon className="h-5 w-5" />,
-      'delivery': <TruckIcon className="h-5 w-5" />,
-      'completion': <CheckCircle className="h-5 w-5" />
-    };
-    return icons[stage] || <FileText className="h-5 w-5" />;
-  };
-
-  const getStageColor = (stage: LifecycleStageUI) => {
-    if (stage.completed) return 'bg-green-50 border-green-200';
-    if (stage.isCurrent) return 'bg-blue-50 border-blue-200';
-    return 'bg-gray-50 border-gray-200';
-  };
-
-  const getStageTextColor = (stage: LifecycleStageUI) => {
-    if (stage.completed) return 'text-green-700';
-    if (stage.isCurrent) return 'text-blue-700';
-    return 'text-gray-500';
   };
 
   const formatCurrency = (amount: number) => {
@@ -360,6 +672,122 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     return config[status] || config.draft;
   };
 
+  const getStageStatusColor = (stage: WorkflowSidebarStage) => {
+    if (stage.completed) return 'text-green-600 bg-green-50 border-green-200';
+    if (stage.isCurrent) return 'text-blue-600 bg-blue-50 border-blue-200';
+    return 'text-gray-500 bg-gray-50 border-gray-200';
+  };
+
+  const getStageStatusIcon = (stage: WorkflowSidebarStage) => {
+    if (stage.completed) return <CheckCircle className="h-4 w-4 text-green-500" />;
+    if (stage.isCurrent) return <CircleDot className="h-4 w-4 text-blue-500 animate-pulse" />;
+    return <Circle className="h-4 w-4 text-gray-400" />;
+  };
+
+  // Skeleton Loading Components
+  const SkeletonHeader = () => (
+    <div className="animate-pulse">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gray-200 rounded-lg"></div>
+            <div>
+              <div className="h-6 w-48 bg-gray-200 rounded mb-2"></div>
+              <div className="h-4 w-32 bg-gray-200 rounded"></div>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
+          <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
+          <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const SkeletonSidebar = () => (
+    <div className="animate-pulse h-full flex flex-col">
+      <div className="p-4 border-b border-gray-200">
+        <div className="h-5 w-32 bg-gray-200 rounded mb-2"></div>
+        <div className="h-4 w-48 bg-gray-200 rounded mb-4"></div>
+        <div className="bg-gradient-to-r from-gray-100 to-gray-200 rounded-lg p-4">
+          <div className="h-4 w-24 bg-gray-300 rounded mb-2"></div>
+          <div className="h-2 w-full bg-gray-300 rounded-full mb-2"></div>
+          <div className="flex justify-between">
+            <div className="h-3 w-20 bg-gray-300 rounded"></div>
+            <div className="h-3 w-16 bg-gray-300 rounded"></div>
+          </div>
+        </div>
+      </div>
+      <div className="flex-1 p-4 space-y-3">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div key={i} className="p-4 bg-gray-100 rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-gray-300 rounded-lg"></div>
+              <div className="flex-1">
+                <div className="h-5 w-32 bg-gray-300 rounded mb-2"></div>
+                <div className="h-4 w-24 bg-gray-300 rounded"></div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const SkeletonTabContent = () => (
+    <div className="animate-pulse space-y-6">
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="bg-white rounded-xl border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="h-4 w-20 bg-gray-200 rounded mb-2"></div>
+                <div className="h-8 w-24 bg-gray-200 rounded"></div>
+              </div>
+              <div className="w-12 h-12 bg-gray-200 rounded-lg"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Current Stage Card */}
+      <div className="bg-gradient-to-r from-gray-100 to-gray-200 rounded-xl border border-gray-300 p-6">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 bg-gray-300 rounded-lg"></div>
+            <div>
+              <div className="h-6 w-48 bg-gray-300 rounded mb-2"></div>
+              <div className="h-4 w-64 bg-gray-300 rounded mb-4"></div>
+              <div className="flex items-center gap-4">
+                <div className="h-4 w-16 bg-gray-300 rounded"></div>
+                <div className="h-4 w-20 bg-gray-300 rounded"></div>
+              </div>
+            </div>
+          </div>
+          <div className="w-24 h-10 bg-gray-300 rounded-lg"></div>
+        </div>
+      </div>
+
+      {/* Additional Content */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {[1, 2].map((i) => (
+          <div key={i} className="bg-white rounded-xl border border-gray-200 p-6">
+            <div className="h-5 w-32 bg-gray-200 rounded mb-4"></div>
+            <div className="space-y-3">
+              {[1, 2, 3].map((j) => (
+                <div key={j} className="h-12 bg-gray-100 rounded-lg"></div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center">
@@ -390,13 +818,11 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   }
 
   const statusConfig = getStatusBadge(workOrder.status);
-  const opportunityId = typeof workOrder.opportunityId === 'object' 
-    ? workOrder.opportunityId._id 
-    : workOrder.opportunityId;
+  const currentStage = getCurrentStage();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
-      {/* Header */}
+      {/* Header with Blue to Purple Gradient */}
       <div className="bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-700 p-4 sm:p-6 shadow-lg relative overflow-hidden">
         {/* Animated background elements */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10">
@@ -410,908 +836,699 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
             <div className="flex items-center gap-3">
               <button
                 onClick={() => router.push('/orders/work-orders')}
-                className="p-2 hover:bg-white/20 rounded-xl transition-all duration-300 backdrop-blur-sm hover:scale-105 active:scale-95"
-                aria-label="Back to list"
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors backdrop-blur-sm"
               >
                 <ArrowLeft className="h-5 w-5 text-white" />
               </button>
-              <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm border border-white/30 shadow-lg">
-                <Wrench className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-lg sm:text-xl font-bold text-white drop-shadow-lg">
-                    {workOrder.workOrderNumber}
-                  </h1>
-                  <button
-                    onClick={copyOrderNumber}
-                    className="p-1 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-110"
-                    title="Copy work order number"
-                  >
-                    <Copy className="h-3 w-3 text-white/80 hover:text-white" />
-                  </button>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 backdrop-blur-sm rounded-lg">
+                  <Wrench className="h-6 w-6 text-white" />
                 </div>
-                <p className="text-blue-100 text-xs sm:text-sm font-medium">Work Order Details</p>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl font-semibold text-white">{workOrder.workOrderNumber}</h1>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full">
+                      {statusConfig.icon}
+                      <span className="text-xs font-medium text-white capitalize">{workOrder.status.replace('_', ' ')}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-white/90">Work Order • Created {formatDate(workOrder.createdAt)}</p>
+                </div>
               </div>
             </div>
             
             <div className="flex items-center gap-2">
-              {/* Refresh Button */}
               <button
                 onClick={() => setRefreshKey(prev => prev + 1)}
-                className="p-2 hover:bg-white/20 rounded-xl transition-all duration-300 backdrop-blur-sm hover:scale-105 active:scale-95"
-                aria-label="Refresh"
+                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors"
+                title="Refresh"
               >
                 <RefreshCw className="h-5 w-5 text-white" />
               </button>
-              
-              {/* Share Button */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowShareMenu(!showShareMenu)}
-                  className="p-2 hover:bg-white/20 rounded-xl transition-all duration-300 backdrop-blur-sm hover:scale-105 active:scale-95"
-                  aria-label="Share"
-                >
-                  <Share2 className="h-5 w-5 text-white" />
-                </button>
-                
-                {showShareMenu && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-10"
-                      onClick={() => setShowShareMenu(false)}
-                    />
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-20 animate-fade-in backdrop-blur-sm bg-white/95">
-                      <button className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 w-full transition-colors rounded-lg mx-2">
-                        <Copy className="h-4 w-4" />
-                        Copy Link
-                      </button>
-                      <button className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 w-full transition-colors rounded-lg mx-2">
-                        <QrCode className="h-4 w-4" />
-                        Generate QR Code
-                      </button>
-                      <button className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 w-full transition-colors rounded-lg mx-2">
-                        <Mail className="h-4 w-4" />
-                        Email Order
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-              
-              {/* Start Workflow Button */}
-              <button
-                onClick={startWorkflow}
-                disabled={workflowLoading}
-                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl ${
-                  workflowLoading
-                    ? 'bg-blue-400 text-white'
-                    : 'bg-gradient-to-r from-white to-blue-50 text-blue-600 hover:shadow-lg transition-all duration-300'
-                } shadow-sm`}
-              >           
-                {workflowLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Starting...
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4" />
-                    <span className="hidden sm:inline">Start Workflow</span>
-                    <span className="sm:hidden">Start</span>
-                  </>
-                )}
-              </button>
-              
-              {/* Edit Button */}
               <Link
                 href={`/orders/work-orders/${workOrder._id}/edit`}
-                className="p-2 hover:bg-white/20 rounded-xl transition-all duration-300 backdrop-blur-sm hover:scale-105 active:scale-95"
-                aria-label="Edit work order"
+                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors"
+                title="Edit"
               >
                 <Edit className="h-5 w-5 text-white" />
               </Link>
-              
-              {/* More Actions Menu */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowActionsMenu(!showActionsMenu)}
-                  className="p-2 hover:bg-white/20 rounded-xl transition-all duration-300 backdrop-blur-sm hover:scale-105 active:scale-95"
-                  aria-label="More actions"
-                >
-                  <MoreVertical className="h-5 w-5 text-white" />
-                </button>
-                
-                {showActionsMenu && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-10"
-                      onClick={() => setShowActionsMenu(false)}
-                    />
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-20 animate-fade-in backdrop-blur-sm bg-white/95">
-                      <div className="px-3 py-2 border-b border-gray-100">
-                        <span className="text-xs font-semibold text-gray-500 uppercase">Quick Actions</span>
-                      </div>
-                      
-                      {/* Status Change Options */}
-                      <div className="px-3 py-2 border-b border-gray-100">
-                        <span className="text-xs font-semibold text-gray-500 uppercase mb-1 block">Change Status</span>
-                        <div className="space-y-1">
-                          {['draft', 'in_progress', 'on_hold', 'completed', 'cancelled'].map((status) => (
-                            status !== workOrder.status && (
-                              <button
-                                key={status}
-                                onClick={() => handleStatusChange(status)}
-                                className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 flex items-center gap-2 capitalize transition-colors"
-                              >
-                                <div className={`w-2 h-2 rounded-full ${getStatusBadge(status).bg.split(' ')[0]}`}></div>
-                                {status.replace('_', ' ')}
-                              </button>
-                            )
-                          ))}
-                        </div>
-                      </div>
-                      
-                      {/* Export Options */}
-                      <button onClick={() => handleExport('pdf')} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 w-full transition-colors rounded-lg mx-2">
-                        <Download className="h-4 w-4" />
-                        Export as PDF
-                      </button>
-                      <button onClick={() => handleExport('excel')} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 w-full transition-colors rounded-lg mx-2">
-                        <Download className="h-4 w-4" />
-                        Export as Excel
-                      </button>
-                      <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 w-full transition-colors rounded-lg mx-2">
-                        <Printer className="h-4 w-4" />
-                        Print Work Order
-                      </button>
-                      
-                      {/* Danger Zone */}
-                      <div className="border-t border-gray-200 mt-1 pt-1">
-                        <button className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full transition-colors rounded-lg mx-2">
-                          <Trash2 className="h-4 w-4" />
-                          Delete Work Order
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          {/* Status Badge */}
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/20 ${statusConfig.bg} ${statusConfig.text}`}>
-              {statusConfig.icon}
-              <span className="text-xs font-medium capitalize">{workOrder.status.replace('_', ' ')}</span>
-            </div>
-            
-            {workOrder.priority && (
-              <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/20 ${
-                workOrder.priority === 'high' ? 'bg-gradient-to-r from-red-100 to-red-200 text-red-800' :
-                workOrder.priority === 'medium' ? 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800' :
-                'bg-gradient-to-r from-green-100 to-green-200 text-green-800'
-              }`}>
-                <AlertCircle className="h-3 w-3" />
-                <span className="text-xs font-medium capitalize">{workOrder.priority} Priority</span>
-              </div>
-            )}
-            
-            {workOrder.requiresApproval && (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-100 to-purple-200 text-purple-800 backdrop-blur-sm border border-white/20">
-                <ShieldAlert className="h-3 w-3" />
-                <span className="text-xs font-medium">Requires Approval</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs Navigation */}
-      <div className="border-b border-gray-200 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <nav className="flex space-x-8 px-4 sm:px-6 overflow-x-auto">
-            {[
-              { id: 'overview', label: 'Overview', icon: <BarChart3 className="h-4 w-4" /> },
-              { id: 'workflow', label: 'Workflow', icon: <TrendingUp className="h-4 w-4" /> },
-              { id: 'services', label: 'Services', icon: <Wrench className="h-4 w-4" /> },
-              { id: 'documents', label: 'Documents', icon: <FileText className="h-4 w-4" /> },
-              { id: 'activity', label: 'Activity', icon: <History className="h-4 w-4" /> },
-              { id: 'notes', label: 'Notes', icon: <MessageSquare className="h-4 w-4" /> },
-              { id: 'settings', label: 'Settings', icon: <SettingsIcon className="h-4 w-4" /> },
-            ].map((tab) => (
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 py-3 px-1 border-b-2 text-sm font-medium transition-colors whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
+                onClick={() => setShowActionsMenu(!showActionsMenu)}
+                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors relative"
+                title="More actions"
               >
-                {tab.icon}
-                {tab.label}
-                {tab.id === 'activity' && activityLog.length > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
-                    {activityLog.length}
-                  </span>
-                )}
+                <MoreVertical className="h-5 w-5 text-white" />
               </button>
-            ))}
-          </nav>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto p-4 sm:p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Workflow Visualization */}
-            {activeTab === 'workflow' && opportunityId && (
-              <WorkflowVisualization
-                opportunityId={opportunityId}
-                orderId={workOrder._id}
-                orderType="work_order"
-                mode="stepper"
-                showStats={true}
-                onStageAction={(stage, action) => {
-                  // Handle stage actions
-                  handleStageAction(stage, action);
-                }}
-              />
-            )}
-
-            {/* Overview Content */}
-            {activeTab === 'overview' && (
-              <>
-                {/* Work Order Summary Card */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                  <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-teal-50">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-semibold text-gray-900">Work Order Summary</h2>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600">
-                          Last updated: {formatDateTime(workOrder.updatedAt)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="p-5">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <div className="text-xs text-gray-500 uppercase tracking-wider">Start Date</div>
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-gray-400" />
-                              <span className="font-medium">{formatDate(workOrder.startDate)}</span>
-                            </div>
-                          </div>
-                          
-                          {workOrder.estimatedCompletionDate && (
-                            <div className="space-y-1">
-                              <div className="text-xs text-gray-500 uppercase tracking-wider">Est. Completion</div>
-                              <div className="flex items-center gap-2">
-                                <Clock className="h-4 w-4 text-gray-400" />
-                                <span className="font-medium">{formatDate(workOrder.estimatedCompletionDate)}</span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        
-                        {workOrder.actualCompletionDate && (
-                          <div className="space-y-1">
-                            <div className="text-xs text-gray-500 uppercase tracking-wider">Actual Completion</div>
-                            <div className="flex items-center gap-2">
-                              <CheckCircle className="h-4 w-4 text-green-500" />
-                              <span className="font-medium text-green-600">{formatDate(workOrder.actualCompletionDate)}</span>
-                            </div>
-                          </div>
-                        )}
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                          {workOrder.estimatedHours && (
-                            <div className="space-y-1">
-                              <div className="text-xs text-gray-500 uppercase tracking-wider">Est. Hours</div>
-                              <div className="flex items-center gap-2">
-                                <Clock className="h-4 w-4 text-gray-400" />
-                                <span className="font-medium">{workOrder.estimatedHours} hrs</span>
-                              </div>
-                            </div>
-                          )}
-                          
-                          {workOrder.actualHours && (
-                            <div className="space-y-1">
-                              <div className="text-xs text-gray-500 uppercase tracking-wider">Actual Hours</div>
-                              <div className="flex items-center gap-2">
-                                <Clock className="h-4 w-4 text-blue-500" />
-                                <span className="font-medium text-blue-600">{workOrder.actualHours} hrs</span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-4">
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-600">Labor Cost</span>
-                            <span className="font-medium">{formatCurrency(workOrder.laborCost || 0)}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-600">Parts Cost</span>
-                            <span className="font-medium">{formatCurrency(workOrder.partsCost || 0)}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-600">Tax</span>
-                            <span className="font-medium">{formatCurrency(workOrder.tax || 0)}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-600">Discount</span>
-                            <span className="font-medium text-red-600">-{formatCurrency(workOrder.discount || 0)}</span>
-                          </div>
-                          <div className="pt-3 border-t border-gray-200">
-                            <div className="flex justify-between items-center">
-                              <span className="text-lg font-bold text-gray-900">Total Cost</span>
-                              <span className="text-xl font-bold text-blue-600">
-                                {formatCurrency(
-                                  (workOrder.laborCost || 0) + 
-                                  (workOrder.partsCost || 0) + 
-                                  (workOrder.tax || 0) - 
-                                  (workOrder.discount || 0)
-                                )}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quick Actions Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <button
-                    onClick={() => router.push(`/quotes/create?workOrderId=${orderId}&source=work-order`)}
-                    className="group p-4 bg-white border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-md transition-all duration-300"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
-                        <FileText className="h-5 w-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900 text-left">Create Quote</h4>
-                        <p className="text-xs text-gray-600 mt-1 text-left">Generate quote for this work</p>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => router.push(`/jobcards/create?workOrderId=${orderId}`)}
-                    className="group p-4 bg-white border border-gray-200 rounded-xl hover:border-teal-300 hover:shadow-md transition-all duration-300"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 bg-teal-50 rounded-lg group-hover:bg-teal-100 transition-colors">
-                        <Wrench className="h-5 w-5 text-teal-600" />
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900 text-left">Create Job Card</h4>
-                        <p className="text-xs text-gray-600 mt-1 text-left">Create job card for technicians</p>
-                      </div>
-                    </div>
-                  </button>
-
-                  {workOrder.status === 'in_progress' && (
-                    <button
-                      onClick={() => handleStatusChange('on_hold')}
-                      className="group p-4 bg-white border border-gray-200 rounded-xl hover:border-yellow-300 hover:shadow-md transition-all duration-300"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-yellow-50 rounded-lg group-hover:bg-yellow-100 transition-colors">
-                          <Clock className="h-5 w-5 text-yellow-600" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-gray-900 text-left">Put on Hold</h4>
-                          <p className="text-xs text-gray-600 mt-1 text-left">Temporarily pause work</p>
-                        </div>
-                      </div>
-                    </button>
-                  )}
-
-                  {workOrder.status === 'on_hold' && (
-                    <button
-                      onClick={() => handleStatusChange('in_progress')}
-                      className="group p-4 bg-white border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-md transition-all duration-300"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
-                          <Wrench className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-gray-900 text-left">Resume Work</h4>
-                          <p className="text-xs text-gray-600 mt-1 text-left">Continue work progress</p>
-                        </div>
-                      </div>
-                    </button>
-                  )}
-
-                  {workOrder.status === 'in_progress' && (
-                    <button
-                      onClick={() => handleStatusChange('completed')}
-                      className="group p-4 bg-white border border-gray-200 rounded-xl hover:border-green-300 hover:shadow-md transition-all duration-300"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-green-50 rounded-lg group-hover:bg-green-100 transition-colors">
-                          <CheckCircle className="h-5 w-5 text-green-600" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-gray-900 text-left">Mark as Complete</h4>
-                          <p className="text-xs text-gray-600 mt-1 text-left">Complete work order</p>
-                        </div>
-                      </div>
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => router.push(`/invoices/create?workOrderId=${orderId}`)}
-                    className="group p-4 bg-white border border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all duration-300"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 bg-purple-50 rounded-lg group-hover:bg-purple-100 transition-colors">
-                        <ReceiptIcon className="h-5 w-5 text-purple-600" />
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900 text-left">Create Invoice</h4>
-                        <p className="text-xs text-gray-600 mt-1 text-left">Generate invoice for billing</p>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* Services Tab */}
-            {activeTab === 'services' && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-teal-50">
-                  <h2 className="text-lg font-semibold text-gray-900">Services & Work Details</h2>
-                </div>
-                
-                <div className="p-5">
-                  {workOrder.jobCards && workOrder.jobCards.length > 0 ? (
-                    <div className="space-y-4">
-                      {workOrder.jobCards.map((jobCard: any, index: number) => (
-                        <div key={index} className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-blue-100 rounded-lg">
-                                <Wrench className="h-5 w-5 text-blue-600" />
-                              </div>
-                              <div>
-                                <h4 className="font-medium text-gray-900">Job Card #{index + 1}</h4>
-                                <p className="text-sm text-gray-600">ID: {jobCard}</p>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => router.push(`/jobcards/${jobCard}`)}
-                              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                            >
-                              View Details →
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <Wrench className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                      <p className="text-gray-500">No job cards created yet</p>
-                      <button
-                        onClick={() => router.push(`/jobcards/create?workOrderId=${orderId}`)}
-                        className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium"
-                      >
-                        Create Job Card →
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Activity Log */}
-            {activeTab === 'activity' && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
-                  <h2 className="text-lg font-semibold text-gray-900">Activity Log</h2>
-                </div>
-                
-                <div className="p-5">
-                  {activityLog.length > 0 ? (
-                    <div className="space-y-4">
-                      {activityLog.map((activity, index) => (
-                        <div key={activity._id || index} className="flex gap-3 pb-4 border-b border-gray-100 last:border-0 last:pb-0">
-                          <div className="flex-shrink-0">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                              activity.type === 'status_change' ? 'bg-blue-100' :
-                              activity.type === 'note_added' ? 'bg-green-100' :
-                              activity.type === 'document_created' ? 'bg-purple-100' :
-                              'bg-gray-100'
-                            }`}>
-                              {activity.type === 'status_change' ? (
-                                <RefreshCw className="h-4 w-4 text-blue-600" />
-                              ) : activity.type === 'note_added' ? (
-                                <MessageSquare className="h-4 w-4 text-green-600" />
-                              ) : activity.type === 'document_created' ? (
-                                <FileText className="h-4 w-4 text-purple-600" />
-                              ) : (
-                                <History className="h-4 w-4 text-gray-600" />
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm text-gray-800">{activity.description}</p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-xs text-gray-500">
-                                {formatDateTime(activity.timestamp)}
-                              </span>
-                              {activity.user && (
-                                <>
-                                  <span className="text-xs text-gray-400">•</span>
-                                  <span className="text-xs text-gray-600">
-                                    by {activity.user.name || activity.user.email}
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <History className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                      <p className="text-gray-500">No activity yet</p>
-                      <p className="text-sm text-gray-400 mt-1">Actions will appear here as they happen</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Notes Tab */}
-            {activeTab === 'notes' && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-gray-900">Notes</h2>
-                    <button
-                      onClick={() => document.getElementById('note-input')?.focus()}
-                      className="text-sm text-blue-600 hover:text-blue-800"
-                    >
-                      + Add Note
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="p-5">
-                  {/* Add Note Form */}
-                  <div className="mb-6">
-                    <textarea
-                      id="note-input"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Add a note about this work order..."
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                      rows={3}
-                    />
-                    <div className="flex justify-end mt-2">
-                      <button
-                        onClick={addNote}
-                        disabled={!notes.trim() || addingNote}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                          !notes.trim() || addingNote
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                        }`}
-                      >
-                        {addingNote ? (
-                          <span className="flex items-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Adding...
-                          </span>
-                        ) : (
-                          'Add Note'
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                  
-                  {/* Notes List */}
-                  <div className="space-y-4">
-                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                      <p className="text-gray-800">Initial work order created for vehicle service and maintenance.</p>
-                      <div className="flex items-center justify-between mt-2">
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-gray-400" />
-                          <span className="text-xs text-gray-600">System</span>
-                        </div>
-                        <span className="text-xs text-gray-500">
-                          {formatDateTime(workOrder.createdAt)}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {workOrder.notes && (
-                      <div className="p-4 bg-gray-50 rounded-lg">
-                        <p className="text-gray-800">{workOrder.notes}</p>
-                        <div className="flex items-center justify-between mt-2">
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-gray-400" />
-                            <span className="text-xs text-gray-600">Created with order</span>
-                          </div>
-                          <span className="text-xs text-gray-500">
-                            {formatDateTime(workOrder.createdAt)}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Right Column - Sidebar */}
-          <div className="space-y-6">
-            {/* Customer Info Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+      {/* Main Content with Sidebar */}
+      <div className="flex h-[calc(100vh-88px)]">
+        {/* Workflow Sidebar - Compact View */}
+        <div className="w-80 bg-white border-r border-gray-200">
+          {lifecycleLoading ? (
+            <SkeletonSidebar />
+          ) : (
+            <div className="h-full flex flex-col">
+              {/* Sidebar Header */}
+              <div className="p-4 border-b border-gray-200">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-gray-900">Customer</h2>
-                  {typeof workOrder.opportunityId === 'object' && workOrder.opportunityId.customer?._id && (
-                    <Link
-                      href={`/customers/${workOrder.opportunityId.customer._id}`}
-                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                  <div>
+                    <h2 className="font-semibold text-gray-900">Workflow Stages</h2>
+                    <p className="text-sm text-gray-600">Click any stage for details</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={startWorkflow}
+                      disabled={workflowLoading || lifecycle}
+                      className={`p-2 rounded-lg ${
+                        workflowLoading || lifecycle
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                      }`}
+                      title="Start Workflow"
                     >
-                      View <ExternalLink className="h-3 w-3" />
-                    </Link>
-                  )}
+                      <Play className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Progress Overview */}
+                <div className="mt-4">
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-700">Overall Progress</span>
+                      <span className="text-sm font-bold text-blue-600">{workflowProgress.percentage}%</span>
+                    </div>
+                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-500"
+                        style={{ width: `${workflowProgress.percentage}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+                      <span>{workflowProgress.completed} of {workflowProgress.total} stages</span>
+                      <span>~{workflowProgress.estimatedTime}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-              
-              <div className="p-5">
-                {typeof workOrder.opportunityId === 'object' && workOrder.opportunityId.customer ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-teal-600 rounded-full flex items-center justify-center text-white font-semibold">
-                        {workOrder.opportunityId.customer.name?.charAt(0).toUpperCase() || 'C'}
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-gray-900">{workOrder.opportunityId.customer.name}</h3>
-                        {workOrder.opportunityId.customer.companyName && (
-                          <p className="text-sm text-gray-600">{workOrder.opportunityId.customer.companyName}</p>
-                        )}
+
+              {/* Stages List - Full Height Scrollable */}
+              <div className="flex-1 overflow-y-auto">
+                <div className="p-4 space-y-3">
+                  {workflowStages.map((stage) => (
+                    <div
+                      key={stage.id}
+                      className={`p-4 border rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md ${getStageStatusColor(stage)}`}
+                      onClick={() => handleStageClick(stage)}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0">
+                          <div className={`p-2 rounded-lg ${
+                            stage.completed 
+                              ? 'bg-green-100 text-green-600' 
+                              : stage.isCurrent 
+                                ? 'bg-blue-100 text-blue-600' 
+                                : 'bg-gray-100 text-gray-400'
+                          }`}>
+                            {stage.icon}
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-medium truncate">{stage.label}</h3>
+                              {getStageStatusIcon(stage)}
+                            </div>
+                            {stage.isCurrent && (
+                              <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                                Current
+                              </span>
+                            )}
+                          </div>
+                          
+                          <div className="mt-2 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs text-gray-500">
+                                {stage.estimatedTime}
+                              </span>
+                              {!stage.mandatory && stage.stage === 'waiver' && (
+                                <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full">
+                                  Optional
+                                </span>
+                              )}
+                            </div>
+                            
+                            {stage.completed ? (
+                              <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                                <CheckCircle className="h-3 w-3" />
+                                Completed
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-500">
+                                {stage.document ? 'Document ready' : 'No document'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    
-                    <div className="space-y-3 text-sm">
-                      {workOrder.opportunityId.customer.email && (
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                          <span className="truncate">{workOrder.opportunityId.customer.email}</span>
-                        </div>
-                      )}
-                      
-                      {workOrder.opportunityId.customer.phone && (
-                        <div className="flex items-center gap-2">
-                          <Phone className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                          <span>{workOrder.opportunityId.customer.phone}</span>
-                        </div>
-                      )}
-                      
-                      {workOrder.opportunityId.subject && (
-                        <div className="pt-3 border-t border-gray-100">
-                          <div className="text-xs text-gray-500 mb-1">Opportunity</div>
-                          <p className="text-sm text-gray-700">{workOrder.opportunityId.subject}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-4">
-                    <User className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500">Customer info not available</p>
-                  </div>
-                )}
+                  ))}
+                </div>
+              </div>
+
+              {/* Quick Actions Footer */}
+              <div className="p-4 border-t border-gray-200 bg-gray-50">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={handleMoveToPreviousStage}
+                    disabled={!canMoveToPreviousStage() || workflowLoading}
+                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium ${
+                      canMoveToPreviousStage() && !workflowLoading
+                        ? 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </button>
+                  <button
+                    onClick={handleMoveToNextStage}
+                    disabled={!canMoveToNextStage() || workflowLoading}
+                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium ${
+                      canMoveToNextStage() && !workflowLoading
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="mt-2 text-center">
+                  <p className="text-xs text-gray-500">
+                    Stage {workflowStages.findIndex(s => s.isCurrent) + 1} of {workflowStages.length}
+                  </p>
+                </div>
               </div>
             </div>
+          )}
+        </div>
 
-            {/* Related Documents Card */}
-            {lifecycle && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
-                  <h2 className="text-lg font-semibold text-gray-900">Related Documents</h2>
-                </div>
-                
-                <div className="p-5">
-                  <div className="space-y-3">
-                    {lifecycle.stages
-                      .filter((s: LifecycleStageUI) => s.document)
-                      .map((stage: LifecycleStageUI) => (
-                        <div 
-                          key={stage.stage}
-                          onClick={() => {
-                            const route = stage.documentType === 'Job Card' ? 'jobcards' :
-                                         stage.documentType === 'Pre-Checklist' ? 'prechecklists' :
-                                         stage.documentType === 'Post-Checklist' ? 'postchecklists' :
-                                         stage.documentType === 'Waiver' ? 'waivers' :
-                                         `${stage.documentType?.toLowerCase()}s`;
-                            router.push(`/${route}/${stage.documentId}`);
-                          }}
-                          className="group flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 cursor-pointer transition-all duration-200"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg ${
-                              stage.completed ? 'bg-green-100 text-green-600' :
-                              stage.isCurrent ? 'bg-blue-100 text-blue-600' :
-                              'bg-gray-100 text-gray-400'
-                            }`}>
-                              {getStageIcon(stage.stage)}
+        {/* Main Content Area */}
+        <div className="flex-1 overflow-auto">
+          {/* Tabs Navigation */}
+          <div className="border-b border-gray-200 bg-white">
+            <div className="px-6">
+              <nav className="flex space-x-8">
+                {[
+                  { id: 'overview', label: 'Overview', icon: <BarChart3 className="h-4 w-4" /> },
+                  { id: 'services', label: 'Services', icon: <Wrench className="h-4 w-4" /> },
+                  { id: 'documents', label: 'Documents', icon: <FileText className="h-4 w-4" /> },
+                  { id: 'activity', label: 'Activity', icon: <History className="h-4 w-4" /> },
+                  { id: 'notes', label: 'Notes', icon: <MessageSquare className="h-4 w-4" /> },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 py-3 px-1 border-b-2 text-sm font-medium transition-colors ${
+                      activeTab === tab.id
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    {tab.icon}
+                    {tab.label}
+                  </button>
+                ))}
+              </nav>
+            </div>
+          </div>
+
+          {/* Tab Content */}
+          <div className="p-6">
+            {lifecycleLoading ? (
+              <SkeletonTabContent />
+            ) : (
+              <>
+                {activeTab === 'overview' && (
+                  <div className="space-y-6">
+                    {/* Quick Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="bg-white rounded-xl border border-gray-200 p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-600">Total Cost</p>
+                            <h3 className="text-2xl font-bold text-gray-900 mt-1">
+                              {formatCurrency(
+                                (workOrder.laborCost || 0) + 
+                                (workOrder.partsCost || 0) + 
+                                (workOrder.tax || 0) - 
+                                (workOrder.discount || 0)
+                              )}
+                            </h3>
+                          </div>
+                          <div className="p-3 bg-blue-100 rounded-lg">
+                            <DollarSign className="h-6 w-6 text-blue-600" />
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-white rounded-xl border border-gray-200 p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-600">Time Spent</p>
+                            <h3 className="text-2xl font-bold text-gray-900 mt-1">
+                              {workOrder.actualHours || workOrder.estimatedHours || 0} hours
+                            </h3>
+                          </div>
+                          <div className="p-3 bg-green-100 rounded-lg">
+                            <Clock className="h-6 w-6 text-green-600" />
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-white rounded-xl border border-gray-200 p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-600">Workflow Progress</p>
+                            <h3 className="text-2xl font-bold text-gray-900 mt-1">
+                              {workflowProgress.percentage}%
+                            </h3>
+                          </div>
+                          <div className="p-3 bg-purple-100 rounded-lg">
+                            <TrendingUp className="h-6 w-6 text-purple-600" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Current Stage Card */}
+                    {currentStage && (
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-6">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-4">
+                            <div className="p-3 bg-white rounded-lg shadow-sm">
+                              {currentStage.icon}
                             </div>
                             <div>
-                              <span className="text-sm font-medium text-gray-900 group-hover:text-blue-600">
-                                {stage.label}
-                              </span>
-                              {stage.document?.totalAmount && (
-                                <p className="text-xs text-gray-500">
-                                  {formatCurrency(stage.document.totalAmount)}
-                                </p>
-                              )}
+                              <div className="flex items-center gap-2 mb-2">
+                                <h3 className="text-lg font-semibold text-gray-900">{currentStage.label}</h3>
+                                <span className="px-3 py-1 text-sm font-medium bg-blue-100 text-blue-800 rounded-full">
+                                  Current Stage
+                                </span>
+                              </div>
+                              <p className="text-gray-600 mb-4">{currentStage.description}</p>
+                              <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                  <Clock className="h-4 w-4 text-gray-500" />
+                                  <span className="text-sm text-gray-700">{currentStage.estimatedTime}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {currentStage.mandatory ? (
+                                    <AlertCircle className="h-4 w-4 text-amber-500" />
+                                  ) : (
+                                    <HelpCircle className="h-4 w-4 text-green-500" />
+                                  )}
+                                  <span className="text-sm text-gray-700">
+                                    {currentStage.mandatory ? 'Required' : 'Optional'}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600 group-hover:bg-blue-100 group-hover:text-blue-700">
-                              #{stage.documentId?.slice(-6)}
-                            </span>
-                            <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-blue-500" />
-                          </div>
+                          <button
+                            onClick={() => handleStageClick(currentStage)}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                          >
+                            View Details
+                          </button>
                         </div>
-                      ))}
-                    
-                    {lifecycle.stages.filter((s: LifecycleStageUI) => s.document).length === 0 && (
-                      <div className="text-center py-6">
-                        <FileText className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-                        <p className="text-sm text-gray-500">No documents created yet</p>
-                        <p className="text-xs text-gray-400 mt-1">Start the workflow to create documents</p>
                       </div>
                     )}
                   </div>
-                </div>
-              </div>
+                )}
+              </>
             )}
+          </div>
+        </div>
+      </div>
 
-            {/* Vehicle Information Card */}
-            {workOrder.vehicleId && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
-                  <h2 className="text-lg font-semibold text-gray-900">Vehicle Information</h2>
-                </div>
-                
-                <div className="p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 bg-teal-100 rounded-lg">
-                      <Car className="h-5 w-5 text-teal-600" />
+      {/* Stage Detail Drawer/Modal */}
+      {showStageDetail && selectedStage && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
+            onClick={handleCloseStageDetail}
+          />
+          
+          {/* Drawer */}
+          <div className="fixed inset-y-0 right-0 w-[500px] bg-white z-50 shadow-2xl transform transition-transform duration-300">
+            <div className="h-full flex flex-col">
+              {/* Drawer Header */}
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${
+                      selectedStage.completed 
+                        ? 'bg-green-100 text-green-600' 
+                        : selectedStage.isCurrent 
+                          ? 'bg-blue-100 text-blue-600' 
+                          : 'bg-gray-100 text-gray-400'
+                    }`}>
+                      {selectedStage.icon}
                     </div>
                     <div>
-                      {typeof workOrder.vehicleId === 'object' ? (
-                        <>
-                          <h3 className="font-medium text-gray-900">
-                            {workOrder.vehicleId.make} {workOrder.vehicleId.model}
-                          </h3>
-                          <p className="text-sm text-gray-600">{workOrder.vehicleId.registrationNumber}</p>
-                        </>
-                      ) : (
-                        <h3 className="font-medium text-gray-900">Vehicle ID: {workOrder.vehicleId}</h3>
-                      )}
+                      <h2 className="text-xl font-semibold text-gray-900">{selectedStage.label}</h2>
+                      <p className="text-sm text-gray-600">Stage Details</p>
                     </div>
                   </div>
+                  <button
+                    onClick={handleCloseStageDetail}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X className="h-5 w-5 text-gray-600" />
+                  </button>
+                </div>
+                
+                {/* Stage Status */}
+                <div className="mt-4 flex items-center gap-3">
+                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full ${
+                    selectedStage.completed 
+                      ? 'bg-green-100 text-green-800' 
+                      : selectedStage.isCurrent 
+                        ? 'bg-blue-100 text-blue-800' 
+                        : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {getStageStatusIcon(selectedStage)}
+                    <span className="text-sm font-medium">
+                      {selectedStage.completed ? 'Completed' : selectedStage.isCurrent ? 'In Progress' : 'Pending'}
+                    </span>
+                  </div>
                   
-                  {typeof workOrder.vehicleId === 'object' && (
-                    <div className="space-y-2 text-sm">
-                      {workOrder.vehicleId.vin && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">VIN</span>
-                          <span className="font-medium">{workOrder.vehicleId.vin}</span>
-                        </div>
-                      )}
-                      {workOrder.vehicleId.year && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Year</span>
-                          <span className="font-medium">{workOrder.vehicleId.year}</span>
-                        </div>
-                      )}
-                      {workOrder.vehicleId.color && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Color</span>
-                          <span className="font-medium">{workOrder.vehicleId.color}</span>
-                        </div>
-                      )}
+                  {selectedStage.stage === 'waiver' && (
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-100 text-amber-800">
+                      <HelpCircle className="h-4 w-4" />
+                      <span className="text-sm font-medium">Optional</span>
+                    </div>
+                  )}
+                  
+                  {selectedStage.stage !== 'waiver' && !selectedStage.completed && (
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100 text-blue-800">
+                      <AlertCircle className="h-4 w-4" />
+                      <span className="text-sm font-medium">Required</span>
                     </div>
                   )}
                 </div>
               </div>
-            )}
 
-            {/* Assigned To Card */}
-            {workOrder.assignedTo && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
-                  <h2 className="text-lg font-semibold text-gray-900">Assigned To</h2>
+              {/* Drawer Content - Scrollable */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {/* Description */}
+                <div className="mb-6">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Description</h3>
+                  <p className="text-gray-700">{selectedStage.description || 'No description available.'}</p>
                 </div>
-                
-                <div className="p-5">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-semibold">
-                      {typeof workOrder.assignedTo === 'object' 
-                        ? `${workOrder.assignedTo.firstName?.charAt(0)}${workOrder.assignedTo.lastName?.charAt(0)}`
-                        : 'T'}
+
+                {/* Document Status */}
+                <div className="mb-6">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Document Status</h3>
+                  <div className={`p-4 rounded-lg ${
+                    selectedStage.document 
+                      ? 'bg-green-50 border border-green-200' 
+                      : 'bg-gray-50 border border-gray-200'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${
+                          selectedStage.document ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'
+                        }`}>
+                          {selectedStage.document ? <FileCheck className="h-5 w-5" /> : <FileX className="h-5 w-5" />}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {selectedStage.document ? 'Document Created' : 'No Document Yet'}
+                          </p>
+                          {selectedStage.documentType && (
+                            <p className="text-sm text-gray-600">{selectedStage.documentType}</p>
+                          )}
+                        </div>
+                      </div>
+                      {selectedStage.document && selectedStage.documentId && (
+                        <button
+                          onClick={() => handleViewDocument(selectedStage)}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        >
+                          View →
+                        </button>
+                      )}
+                    </div>
+                    
+                    {selectedStage.stage === 'waiver' && !selectedStage.document && (
+                      <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-medium text-amber-800">Waiver is Optional</p>
+                            <p className="text-xs text-amber-700 mt-1">
+                              This is the only optional stage in the workflow. You can proceed without creating a waiver document.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {selectedStage.stage !== 'waiver' && !selectedStage.document && !selectedStage.completed && (
+                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-medium text-blue-800">Document Required</p>
+                            <p className="text-xs text-blue-700 mt-1">
+                              This stage requires a document to be created before proceeding.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {selectedStage.requirements && selectedStage.requirements.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Requirements</h3>
+                    <ul className="space-y-2">
+                      {selectedStage.requirements.map((req, idx) => (
+                        <li key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0" />
+                          <span className="text-sm text-gray-700">{req}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Stage Information */}
+                <div className="mb-6">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Stage Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Estimated Time</p>
+                      <p className="font-medium text-gray-900">{selectedStage.estimatedTime}</p>
                     </div>
                     <div>
-                      {typeof workOrder.assignedTo === 'object' ? (
-                        <>
-                          <h3 className="font-medium text-gray-900">
-                            {workOrder.assignedTo.firstName} {workOrder.assignedTo.lastName}
-                          </h3>
-                          <p className="text-sm text-gray-600">Technician</p>
-                        </>
-                      ) : (
-                        <h3 className="font-medium text-gray-900">Technician ID: {workOrder.assignedTo}</h3>
+                      <p className="text-xs text-gray-500 mb-1">Status</p>
+                      <p className={`font-medium ${
+                        selectedStage.stage === 'waiver' 
+                          ? 'text-amber-600' 
+                          : 'text-blue-600'
+                      }`}>
+                        {selectedStage.stage === 'waiver' ? 'Optional' : 'Required'}
+                      </p>
+                    </div>
+                    {selectedStage.completionDate && (
+                      <div className="col-span-2">
+                        <p className="text-xs text-gray-500 mb-1">Completed On</p>
+                        <p className="font-medium text-gray-900">{formatDate(selectedStage.completionDate)}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Current Stage Actions - Only show for current stage */}
+                {selectedStage.isCurrent && !selectedStage.completed && (
+                  <div className="mb-6">
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Actions</h3>
+                    <div className="space-y-3">
+                      {!selectedStage.document && (
+                        <button
+                          onClick={() => handleStageAction(selectedStage, 'create')}
+                          className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                        >
+                          <FilePlus className="h-5 w-5" />
+                          Create {selectedStage.label} Document
+                        </button>
+                      )}
+
+                      {selectedStage.document && (
+                        <button
+                          onClick={() => handleStageAction(selectedStage, 'view')}
+                          className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
+                        >
+                          <Eye className="h-5 w-5" />
+                          View {selectedStage.label} Document
+                        </button>
+                      )}
+
+                      {(selectedStage.document || selectedStage.stage === 'waiver') && (
+                        <button
+                          onClick={() => handleStageAction(selectedStage, 'complete')}
+                          disabled={workflowLoading}
+                          className={`w-full flex items-center justify-center gap-3 py-3 px-4 rounded-lg font-medium transition-colors ${
+                            workflowLoading
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              : 'bg-green-600 text-white hover:bg-green-700'
+                          }`}
+                        >
+                          {workflowLoading ? (
+                            <>
+                              <Loader2 className="h-5 w-5 animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="h-5 w-5" />
+                              Mark Stage as Complete
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                      {selectedStage.stage === 'waiver' && (
+                        <button
+                          onClick={() => handleStageAction(selectedStage, 'skip')}
+                          disabled={workflowLoading}
+                          className={`w-full flex items-center justify-center gap-3 py-3 px-4 rounded-lg font-medium transition-colors ${
+                            workflowLoading
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              : 'bg-amber-600 text-white hover:bg-amber-700'
+                          }`}
+                        >
+                          <ArrowRight className="h-5 w-5" />
+                          Skip Waiver Stage
+                        </button>
+                      )}
+
+                      {selectedStage.stage !== 'waiver' && !selectedStage.document && (
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <p className="text-sm text-blue-700 text-center">
+                            This stage is required. Please create the document to proceed.
+                          </p>
+                        </div>
+                      )}
+
+                      {selectedStage.stage === 'waiver' && !selectedStage.document && (
+                        <div className="text-center pt-2">
+                          <button
+                            onClick={handleMoveToNextStage}
+                            disabled={workflowLoading}
+                            className={`inline-flex items-center gap-2 text-sm font-medium ${
+                              workflowLoading
+                                ? 'text-gray-400 cursor-not-allowed'
+                                : 'text-amber-600 hover:text-amber-800'
+                            }`}
+                          >
+                            {workflowLoading ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Processing...
+                              </>
+                            ) : (
+                              <>
+                                Skip waiver and proceed to next stage →
+                              </>
+                            )}
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
-                </div>
-              </div>
-            )}
+                )}
 
-            {/* Work Order Metadata Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
-                <h2 className="text-lg font-semibold text-gray-900">Work Order Details</h2>
-              </div>
-              
-              <div className="p-5 space-y-4 text-sm">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <div className="text-xs text-gray-500 uppercase tracking-wider">Created</div>
-                    <div className="font-medium">{formatDateTime(workOrder.createdAt)}</div>
+                {/* Navigation Actions for All Stages */}
+                <div className="border-t border-gray-200 pt-6">
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Stage Navigation</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={handleMoveToPreviousStage}
+                      disabled={!canMoveToPreviousStage() || workflowLoading}
+                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium ${
+                        canMoveToPreviousStage() && !workflowLoading
+                          ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                      Previous Stage
+                    </button>
+                    <button
+                      onClick={handleMoveToNextStage}
+                      disabled={!canMoveToNextStage() || workflowLoading}
+                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium ${
+                        canMoveToNextStage() && !workflowLoading
+                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      Next Stage
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
                   </div>
-                  <div className="space-y-1">
-                    <div className="text-xs text-gray-500 uppercase tracking-wider">Last Updated</div>
-                    <div className="font-medium">{formatDateTime(workOrder.updatedAt)}</div>
+                  
+                  {selectedStage.isCurrent && (
+                    <div className="mt-3 text-center">
+                      <p className="text-xs text-gray-500">
+                        {selectedStage.stage === 'waiver' 
+                          ? 'Waiver is optional - you can skip or complete it' 
+                          : 'Complete this stage to unlock next stage'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Drawer Footer */}
+              <div className="p-6 border-t border-gray-200 bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    <p>Stage {workflowStages.findIndex(s => s.id === selectedStage.id) + 1} of {workflowStages.length}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => window.print()}
+                      className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                      title="Print"
+                    >
+                      <Printer className="h-4 w-4 text-gray-600" />
+                    </button>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(selectedStage.label)}
+                      className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                      title="Copy Stage Name"
+                    >
+                      <Copy className="h-4 w-4 text-gray-600" />
+                    </button>
                   </div>
                 </div>
-                
-                {workOrder.workOrderType && (
-                  <div className="space-y-1">
-                    <div className="text-xs text-gray-500 uppercase tracking-wider">Work Type</div>
-                    <div className="font-medium">{workOrder.workOrderType}</div>
-                  </div>
-                )}
-                
-                {workOrder.priority && (
-                  <div className="space-y-1">
-                    <div className="text-xs text-gray-500 uppercase tracking-wider">Priority</div>
-                    <div className="font-medium capitalize">{workOrder.priority}</div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

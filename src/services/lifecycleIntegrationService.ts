@@ -1,6 +1,6 @@
 // services/lifecycleIntegrationService.ts
 
-import { lifecycleService, LifecycleStatus } from './lifecycleService';
+import { lifecycleService, LifecycleStatus, LifecycleStage } from './lifecycleService';
 import { workOrderService } from './workOrderService';
 import { salesOrderService } from './salesOrderService';
 import { quoteService } from './quoteService';
@@ -14,15 +14,13 @@ export const WORKFLOW_PATTERNS = {
   WORK_ORDER: ['quote', 'waiver', 'jobcard', 'prechecklist', 'postchecklist', 'invoice']
 };
 
-// Add this interface to the lifecycleIntegrationService.ts file
+// Update this interface with all the properties we need
 export interface LifecycleStageUI {
   stage: string;
   label: string;
   description: string;
-  icon: string;
   completed: boolean;
   isCurrent: boolean;
-  canTransition: boolean;
   document: any;
   documentId: string;
   documentType: string;
@@ -31,10 +29,22 @@ export interface LifecycleStageUI {
     action: string;
     color: string;
   }>;
-  required: boolean;
-  skippable: boolean;
+  required?: boolean;
+  skippable?: boolean;
   index: number;
   totalStages: number;
+  // Add the missing properties we're using
+  canSkip?: boolean;
+  mandatory?: boolean;
+  completionDate?: string;
+  completedAt?: string;
+  requirements?: {
+    requiresCustomerApproval?: boolean;
+    requiresPayment?: boolean;
+    requiresSignature?: boolean;
+    requiresAttachment?: boolean;
+  };
+  dependencies?: string[];
 }
 
 export class LifecycleIntegrationService {
@@ -69,7 +79,7 @@ export class LifecycleIntegrationService {
           isCurrent: currentStage === stageName,
           canTransition: this.canTransitionToStage(stageName, currentStage, pattern, document),
           document: document || null,
-          documentId: document?._id || document?.id,
+          documentId: document?._id || document?.id || '',
           documentType: this.getDocumentType(stageName),
           actions: this.getStageActions(
             stageName,
@@ -78,6 +88,13 @@ export class LifecycleIntegrationService {
             document,
             lifecycle.packageType
           ),
+          // Add the new properties
+          canSkip: this.isStageSkippable(stageName, lifecycle.packageType),
+          mandatory: !this.isStageSkippable(stageName, lifecycle.packageType),
+          completionDate: this.extractCompletionDate(lifecycleStage),
+          completedAt: this.extractCompletionDate(lifecycleStage),
+          requirements: this.getStageRequirements(stageName, document),
+          dependencies: [],
           index: index + 1,
           totalStages: pattern.length
         };
@@ -128,54 +145,58 @@ export class LifecycleIntegrationService {
         throw new Error('This opportunity is not a work order');
       }
       
-      // Use work order pattern
       const pattern = WORKFLOW_PATTERNS.WORK_ORDER;
       const currentStage = lifecycle.currentStage;
       
-      // Get documents
       const documents = await this.fetchDocumentsForStages(opportunityId, pattern);
       
-      // Build stages with work-order specific logic
       const stages = pattern.map((stageName: string, index: number) => {
         const lifecycleStage = lifecycle.stages?.find((s: any) => s.stage === stageName);
         const document = documents[stageName];
         
         const stageConfig = this.getWorkOrderStageConfig(stageName);
         
+        // Check if stage is truly completed
+        const isCompleted = this.isStageTrulyCompleted(stageName, lifecycleStage, document);
+        
         return {
           stage: stageName,
           label: stageConfig.label,
           description: stageConfig.description,
           icon: stageConfig.icon,
-          completed: lifecycleStage?.completed || false,
+          completed: isCompleted, // Use the new check
           isCurrent: currentStage === stageName,
           canTransition: this.canWorkOrderTransition(stageName, currentStage, document),
           document: document || null,
-          documentId: document?._id || document?.id,
+          documentId: document?._id || document?.id || '',
           documentType: this.getDocumentType(stageName),
           actions: this.getWorkOrderStageActions(
             stageName,
-            lifecycleStage?.completed || false,
+            isCompleted, // Use the new check
             currentStage === stageName,
             document
           ),
           required: stageConfig.required,
           skippable: stageConfig.skippable,
+          canSkip: stageConfig.skippable,
+          mandatory: stageConfig.required,
+          completionDate: this.extractCompletionDate(lifecycleStage),
+          completedAt: this.extractCompletionDate(lifecycleStage),
+          requirements: this.getStageRequirements(stageName, document),
+          dependencies: [],
           index: index + 1,
           totalStages: pattern.length
         };
       });
       
-      // Calculate progress
+      // Calculate progress based on truly completed stages
       const completedStages = stages.filter(s => s.completed).length;
       const totalStages = stages.length;
       const percentage = Math.round((completedStages / totalStages) * 100);
       
-      // Find next stage
       const currentIndex = pattern.indexOf(currentStage);
       const nextStage = currentIndex < pattern.length - 1 ? pattern[currentIndex + 1] : null;
       
-      // Work order specific validation
       const validation = await this.validateWorkOrderStage(opportunityId, currentStage, documents);
       
       return {
@@ -196,6 +217,40 @@ export class LifecycleIntegrationService {
     } catch (error) {
       console.error('Error getting work order lifecycle UI:', error);
       throw error;
+    }
+  }
+
+  private isStageTrulyCompleted(stageName: string, lifecycleStage: any, document: any): boolean {
+    // For waiver stage, it's optional, so we consider it completed if:
+    // 1. It has a document that's signed, OR
+    // 2. It's marked as completed in lifecycle but we check if it actually has a document
+    if (stageName === 'waiver') {
+      if (document?.signed) {
+        return true; // Waiver document exists and is signed
+      }
+      // If lifecycle says it's completed but no document, it might have been skipped
+      // We'll show it as not completed if no document exists
+      return lifecycleStage?.completed && document !== undefined;
+    }
+    
+    // For all other stages, they must have a document to be considered completed
+    if (!document) {
+      return false; // No document, not completed
+    }
+    
+    // Check stage-specific completion criteria
+    switch (stageName) {
+      case 'quote':
+        return document.status === 'approved';
+      case 'jobcard':
+        return document.status === 'completed' || document.status === 'closed';
+      case 'prechecklist':
+      case 'postchecklist':
+        return document.completed === true;
+      case 'invoice':
+        return document.status === 'sent' || document.status === 'paid';
+      default:
+        return !!document; // Default: has document = completed
     }
   }
   
@@ -231,7 +286,7 @@ export class LifecycleIntegrationService {
           isCurrent: currentStage === stageName,
           canTransition: this.canSalesOrderTransition(stageName, currentStage, document),
           document: document || null,
-          documentId: document?._id || document?.id,
+          documentId: document?._id || document?.id || '',
           documentType: this.getDocumentType(stageName),
           actions: this.getSalesOrderStageActions(
             stageName,
@@ -241,6 +296,12 @@ export class LifecycleIntegrationService {
           ),
           required: true,
           skippable: false,
+          canSkip: false,
+          mandatory: true,
+          completionDate: this.extractCompletionDate(lifecycleStage),
+          completedAt: this.extractCompletionDate(lifecycleStage),
+          requirements: this.getStageRequirements(stageName, document),
+          dependencies: [],
           index: index + 1,
           totalStages: pattern.length
         };
@@ -272,6 +333,125 @@ export class LifecycleIntegrationService {
       };
     } catch (error) {
       console.error('Error getting sales order lifecycle UI:', error);
+      throw error;
+    }
+  }
+
+  // Helper method to extract completion date from lifecycle stage
+  private extractCompletionDate(lifecycleStage: any): string | undefined {
+    if (!lifecycleStage) return undefined;
+    
+    // Try to get date from stage metadata or history
+    // This depends on your data structure
+    if (lifecycleStage.completedAt) {
+      return lifecycleStage.completedAt;
+    }
+    
+    if (lifecycleStage.metadata?.completedAt) {
+      return lifecycleStage.metadata.completedAt;
+    }
+    
+    return undefined;
+  }
+
+  // Add this method to mark a stage as completed
+  async markStageAsCompleted(
+    opportunityId: string, 
+    stage: string, 
+    data?: { documentId?: string; completedBy?: string; notes?: string }
+  ): Promise<any> {
+    try {
+      const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
+      
+      // Find the stage
+      const stageIndex = lifecycle.stages?.findIndex((s: any) => s.stage === stage);
+      if (stageIndex === -1) {
+        throw new Error(`Stage ${stage} not found in lifecycle`);
+      }
+      
+      // Since we can't directly update the lifecycle, we'll transition to the next stage
+      // after marking current as complete in our local state
+      const pattern = lifecycle.packageType === 'work_order' 
+        ? WORKFLOW_PATTERNS.WORK_ORDER 
+        : WORKFLOW_PATTERNS.SALES_ORDER;
+      
+      const currentIndex = pattern.indexOf(stage);
+      
+      // If this is the current stage and we should auto-transition
+      if (lifecycle.currentStage === stage && currentIndex < pattern.length - 1) {
+        const nextStage = pattern[currentIndex + 1];
+        return await this.transitionToStage(opportunityId, nextStage, { 
+          skipValidation: true,
+          metadata: {
+            ...data,
+            previousStageCompleted: stage,
+            completedAt: new Date().toISOString()
+          }
+        });
+      }
+      
+      // If we're not auto-transitioning, just update our local understanding
+      // In a real app, you'd want to save this to your database
+      return {
+        success: true,
+        message: `Stage ${stage} marked as completed`,
+        stage: {
+          stage,
+          completed: true,
+          completedAt: new Date().toISOString(),
+          documentId: data?.documentId,
+          completedBy: data?.completedBy || 'system'
+        }
+      };
+    } catch (error) {
+      console.error('Error marking stage as completed:', error);
+      throw error;
+    }
+  }
+
+  // Add this method to move to a specific stage (backwards movement)
+  async moveToStage(
+    opportunityId: string,
+    targetStage: string,
+    data?: { reason?: string; skipValidation?: boolean }
+  ): Promise<any> {
+    try {
+      const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
+      const currentStage = lifecycle.currentStage;
+      const packageType = lifecycle.packageType;
+      
+      // Determine pattern
+      const pattern = packageType === 'work_order' 
+        ? WORKFLOW_PATTERNS.WORK_ORDER 
+        : WORKFLOW_PATTERNS.SALES_ORDER;
+      
+      // Validate target stage exists in pattern
+      if (!pattern.includes(targetStage)) {
+        throw new Error(`Invalid stage "${targetStage}" for ${packageType}`);
+      }
+      
+      const currentIndex = pattern.indexOf(currentStage);
+      const targetIndex = pattern.indexOf(targetStage);
+      
+      // Check if we're moving backwards
+      if (targetIndex < currentIndex) {
+        // Use the transitionToStage method but allow backwards movement
+        return await lifecycleService.transitionToStage(opportunityId, targetStage, {
+          metadata: {
+            reason: data?.reason || 'Manual navigation back',
+            movedFrom: currentStage,
+            movedTo: targetStage,
+            movedAt: new Date().toISOString()
+          }
+        });
+      } else {
+        // For forwards movement, use the existing transition method
+        return await this.transitionToStage(opportunityId, targetStage, {
+          skipValidation: data?.skipValidation
+        });
+      }
+    } catch (error) {
+      console.error('Error moving to stage:', error);
       throw error;
     }
   }
@@ -345,10 +525,6 @@ export class LifecycleIntegrationService {
       
       const currentIndex = pattern.indexOf(currentStage);
       const targetIndex = pattern.indexOf(targetStage);
-      
-      if (targetIndex < currentIndex && !options?.allowBackwards) {
-        throw new Error('Cannot move backwards in workflow');
-      }
       
       // Validate all intermediate stages
       if (!options?.skipValidation) {
@@ -495,7 +671,6 @@ export class LifecycleIntegrationService {
     }
   }
 
-  // Add this method to the LifecycleIntegrationService class
   async completeWorkOrder(opportunityId: string): Promise<any> {
     try {
       const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
@@ -542,6 +717,28 @@ export class LifecycleIntegrationService {
   
   // Private helper methods
   
+  private getStageRequirements(stage: string, document?: any): any {
+    const requirements: any = {};
+    
+    switch (stage) {
+      case 'quote':
+        requirements.requiresCustomerApproval = true;
+        break;
+      case 'waiver':
+        requirements.requiresSignature = true;
+        requirements.requiresCustomerApproval = true;
+        break;
+      case 'jobcard':
+        requirements.requiresAttachment = true;
+        break;
+      case 'invoice':
+        requirements.requiresPayment = true;
+        break;
+    }
+    
+    return requirements;
+  }
+
   private async fetchDocumentsForStages(opportunityId: string, stages: string[]): Promise<Record<string, any>> {
     const documents: Record<string, any> = {};
     
@@ -657,45 +854,51 @@ export class LifecycleIntegrationService {
         description: 'Create and approve work quotation',
         icon: '📄',
         required: true,
-        skippable: false
+        skippable: false,
+        mandatory: true
       },
       'waiver': {
         label: 'Waiver',
-        description: 'Customer signs required waivers',
+        description: 'Customer signs required waivers (Optional)',
         icon: '📝',
-        required: true,
-        skippable: true
+        required: false,
+        skippable: true,
+        mandatory: false
       },
       'jobcard': {
         label: 'Job Card',
         description: 'Create detailed work instructions',
         icon: '🔧',
         required: true,
-        skippable: false
+        skippable: false,
+        mandatory: true
       },
       'prechecklist': {
         label: 'Pre-Checklist',
         description: 'Complete pre-service inspection',
         icon: '✅',
         required: true,
-        skippable: true
+        skippable: false,
+        mandatory: true
       },
       'postchecklist': {
         label: 'Post-Checklist',
         description: 'Quality check after service completion',
         icon: '📋',
         required: true,
-        skippable: true
+        skippable: false,
+        mandatory: true
       },
       'invoice': {
         label: 'Invoice',
         description: 'Generate final invoice',
         icon: '💰',
         required: true,
-        skippable: false
+        skippable: false,
+        mandatory: true
       }
     };
-    return configs[stage] || { label: stage, description: '', icon: '📌', required: true, skippable: false };
+    return configs[stage] || { label: stage, description: '', icon: '📌', required: true, skippable: false, mandatory: true };
   }
   
   private getSalesOrderStageConfig(stage: string): any {
@@ -746,7 +949,8 @@ export class LifecycleIntegrationService {
       case 'quote':
         return document?.status === 'approved';
       case 'waiver':
-        return document?.signed === true;
+        // Waiver is optional - can transition even without document
+        return true; // Always allow transition from waiver
       case 'jobcard':
         return document?.status === 'assigned' || document?.status === 'in_progress';
       case 'prechecklist':
@@ -831,14 +1035,24 @@ export class LifecycleIntegrationService {
         });
       }
     } else if (isCurrent) {
-      actions.push({
-        label: 'Create',
-        action: 'create',
-        color: 'green'
-      });
+      // Always show create button if no document exists (except for waiver which is optional)
+      if (!document) {
+        actions.push({
+          label: 'Create',
+          action: 'create',
+          color: 'green'
+        });
+      } else {
+        // If document exists but stage isn't completed, show update/complete options
+        actions.push({
+          label: 'Update',
+          action: 'update',
+          color: 'green'
+        });
+      }
       
-      // Allow skipping for certain stages
-      if (['waiver', 'prechecklist', 'postchecklist'].includes(stage)) {
+      // Only show skip for waiver
+      if (stage === 'waiver' && !document) {
         actions.push({
           label: 'Skip',
           action: 'skip',
@@ -847,7 +1061,8 @@ export class LifecycleIntegrationService {
       }
     }
     
-    if (isCurrent && document) {
+    // Show continue/transition only if stage is ready
+    if (isCurrent && this.isStageReadyForTransition(stage, document)) {
       actions.push({
         label: 'Continue',
         action: 'transition',
@@ -856,6 +1071,32 @@ export class LifecycleIntegrationService {
     }
     
     return actions;
+  }
+
+  private isStageReadyForTransition(stage: string, document: any): boolean {
+    if (stage === 'waiver') {
+      // Waiver is optional, so it's always ready for transition
+      return true;
+    }
+    
+    if (!document) {
+      return false; // Other stages need a document
+    }
+    
+    // Check stage-specific readiness
+    switch (stage) {
+      case 'quote':
+        return document.status === 'approved';
+      case 'jobcard':
+        return document.status === 'completed' || document.status === 'closed';
+      case 'prechecklist':
+      case 'postchecklist':
+        return document.completed === true;
+      case 'invoice':
+        return document.status === 'sent' || document.status === 'paid';
+      default:
+        return !!document;
+    }
   }
   
   private getSalesOrderStageActions(
@@ -935,6 +1176,15 @@ export class LifecycleIntegrationService {
   private async validateWorkOrderStage(opportunityId: string, currentStage: string, documents: Record<string, any>): Promise<any> {
     const requirements = [];
     
+    // Skip validation ONLY for waiver stage
+    if (currentStage === 'waiver') {
+      return {
+        isValid: true,
+        requirements: []
+      };
+    }
+    
+    // For all other stages, require document
     if (!documents[currentStage]) {
       requirements.push(`${this.getStageLabel(currentStage)} required`);
     } else {
@@ -942,11 +1192,6 @@ export class LifecycleIntegrationService {
         case 'quote':
           if (documents.quote?.status !== 'approved') {
             requirements.push('Quote must be approved');
-          }
-          break;
-        case 'waiver':
-          if (!documents.waiver?.signed) {
-            requirements.push('Waiver must be signed');
           }
           break;
         case 'jobcard':
@@ -982,13 +1227,17 @@ export class LifecycleIntegrationService {
   }
   
   private async validateStageCompletion(opportunityId: string, stage: string, document?: any): Promise<boolean> {
+    // ONLY waiver stage is optional
+    if (stage === 'waiver') {
+      return true; // Always valid - waiver is optional
+    }
+    
+    // All other stages require a document
     if (!document) return false;
     
     switch (stage) {
       case 'quote':
         return document.status === 'approved';
-      case 'waiver':
-        return document.signed === true;
       case 'jobcard':
         return document.status === 'completed' || document.status === 'closed';
       case 'prechecklist':
@@ -1004,9 +1253,9 @@ export class LifecycleIntegrationService {
   
   private isStageSkippable(stage: string, packageType: string): boolean {
     if (packageType === 'work_order') {
-      return ['waiver', 'prechecklist', 'postchecklist'].includes(stage);
+      return stage === 'waiver';
     }
-    return false; // Sales order stages are not skippable
+    return false;
   }
   
   private async autoCreateJobCard(opportunityId: string): Promise<void> {
