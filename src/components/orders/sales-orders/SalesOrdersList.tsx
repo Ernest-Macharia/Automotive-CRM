@@ -286,7 +286,6 @@ export default function SalesOrdersList() {
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Workflow</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -321,7 +320,6 @@ export default function SalesOrdersList() {
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Workflow</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -356,29 +354,6 @@ export default function SalesOrdersList() {
                       </td>
                       <td className="py-4 px-4 font-semibold text-gray-900">
                         {formatCurrency(order.totalAmount)}
-                      </td>
-                      <td className="py-4 px-4">
-                        <button
-                          onClick={() => startWorkflow(order._id)}
-                          disabled={processingOrder === order._id}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg ${
-                            processingOrder === order._id
-                              ? 'bg-blue-400 text-white'
-                              : 'bg-blue-600 text-white hover:bg-blue-700'
-                          }`}
-                        >
-                          {processingOrder === order._id ? (
-                            <>
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                              Loading...
-                            </>
-                          ) : (
-                            <>
-                              <Play className="h-3 w-3" />
-                              Create Quote
-                            </>
-                          )}
-                        </button>
                       </td>
                       <td className="py-4 px-4">
                         <div className="relative">
