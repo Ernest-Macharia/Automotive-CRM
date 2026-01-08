@@ -11,7 +11,46 @@ import {
   Edit,
   Trash2,
   Clock,
-  XCircle
+  XCircle,
+  DollarSign,
+  User,
+  Building,
+  Calendar,
+  Mail,
+  Phone,
+  Copy,
+  Share2,
+  MoreVertical,
+  AlertCircle,
+  Truck,
+  RefreshCw,
+  Eye,
+  ExternalLink,
+  History,
+  MessageSquare,
+  BarChart3,
+  Package,
+  CreditCard,
+  TrendingUp,
+  ChevronRight,
+  FileSignature,
+  ReceiptIcon,
+  TruckIcon,
+  PackageIcon,
+  CreditCardIcon,
+  Circle,
+  CircleDot,
+  CircleCheck,
+  FileCheck,
+  FileX,
+  FilePlus,
+  ChevronLeft,
+  PlusCircle,
+  MinusCircle,
+  QrCode,
+  Save,
+  Upload,
+  Eye as EyeIcon
 } from 'lucide-react';
 import { quoteService, Quote } from '@/services/quoteService';
 import { invoiceService } from '@/services/invoiceService';
@@ -28,12 +67,15 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
 
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (id) {
       loadQuote(id);
     }
-  }, [id]);
+  }, [id, refreshKey]);
 
   const loadQuote = async (id: string) => {
     try {
@@ -49,25 +91,65 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
     }
   };
 
-  /* ---------------- helpers ---------------- */
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-KE', {
+      style: 'currency',
+      currency: 'KES',
+      minimumFractionDigits: 2
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '—';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const formatDateTime = (dateString: string) => {
+    if (!dateString) return '—';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getStatusBadge = (status: string) => {
+    const config: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+      draft: { 
+        bg: 'bg-gray-100', 
+        text: 'text-gray-800',
+        icon: <FileText className="h-3 w-3" />
+      },
+      pending: { 
+        bg: 'bg-yellow-100', 
+        text: 'text-yellow-800',
+        icon: <Clock className="h-3 w-3" />
+      },
+      approved: { 
+        bg: 'bg-green-100', 
+        text: 'text-green-800',
+        icon: <CheckCircle className="h-3 w-3" />
+      },
+      rejected: { 
+        bg: 'bg-red-100', 
+        text: 'text-red-800',
+        icon: <XCircle className="h-3 w-3" />
+      },
+    };
+    return config[status] || config.draft;
+  };
 
   const renderOpportunity = (op: any) => {
     if (!op) return '-';
     if (typeof op === 'string') return op;
     return op.subject || op._id || '—';
   };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved': return 'bg-gradient-to-r from-green-500 to-emerald-500';
-      case 'pending': return 'bg-gradient-to-r from-yellow-500 to-amber-500';
-      case 'draft': return 'bg-gradient-to-r from-gray-400 to-gray-500';
-      case 'rejected': return 'bg-gradient-to-r from-red-500 to-pink-500';
-      default: return 'bg-gradient-to-r from-blue-400 to-blue-500';
-    }
-  };
-
-  /* ---------------- actions ---------------- */
 
   const handleApprove = async () => {
     if (!quote) return;
@@ -122,146 +204,563 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
     }
   };
 
-  /* ---------------- UI states ---------------- */
+  const copyQuoteNumber = () => {
+    if (quote?.quoteNumber) {
+      navigator.clipboard.writeText(quote.quoteNumber);
+      showToast('Quote number copied to clipboard', 'success');
+    }
+  };
+
+  const handlePrint = () => {
+    window.print();
+    showToast('Print dialog opened', 'info');
+  };
+
+  /* ---------------- loading states ---------------- */
+
+  const SkeletonHeader = () => (
+    <div className="animate-pulse">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gray-200 rounded-lg"></div>
+            <div>
+              <div className="h-6 w-48 bg-gray-200 rounded mb-2"></div>
+              <div className="h-4 w-32 bg-gray-200 rounded"></div>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
+          <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
+          <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const SkeletonContent = () => (
+    <div className="animate-pulse space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="bg-white rounded-xl border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="h-4 w-20 bg-gray-200 rounded mb-2"></div>
+                <div className="h-8 w-24 bg-gray-200 rounded"></div>
+              </div>
+              <div className="w-12 h-12 bg-gray-200 rounded-lg"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading quote details...</p>
+        </div>
       </div>
     );
   }
 
   if (!quote) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-600">Quote not found</p>
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Quote Not Found</h3>
+          <p className="text-gray-600 mb-6">The quote you're looking for doesn't exist or has been removed.</p>
+          <button
+            onClick={() => router.push('/quotes')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Back to Quotes
+          </button>
+        </div>
       </div>
     );
   }
 
-  /* ---------------- render ---------------- */
+  const statusConfig = getStatusBadge(quote.status);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-purple-50/30">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 via-blue-500 to-purple-600 text-white px-8 py-6 shadow-lg">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/quotes" className="p-2 hover:bg-white/20 rounded-xl">
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold">{quote.quoteNumber}</h1>
-              <p className="text-blue-100">Quote Details</p>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+      {/* Header with Blue to Purple Gradient */}
+      <div className="bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-700 p-4 sm:p-6 shadow-lg relative overflow-hidden">
+        {/* Animated background elements */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10">
+          <div className="absolute -top-24 -right-24 w-64 h-64 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute top-1/2 left-1/4 w-48 h-48 bg-purple-400 rounded-full blur-3xl"></div>
+          <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-400 rounded-full blur-3xl"></div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.push('/quotes')}
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors backdrop-blur-sm"
+              >
+                <ArrowLeft className="h-5 w-5 text-white" />
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 backdrop-blur-sm rounded-lg">
+                  <FileText className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl font-semibold text-white">{quote.quoteNumber}</h1>
+                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${statusConfig.bg} ${statusConfig.text}`}>
+                      {statusConfig.icon}
+                      <span className="text-xs font-medium capitalize">{quote.status}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-white/90">Quote • Created {formatDate(quote.createdAt)}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setRefreshKey(prev => prev + 1)}
+                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors"
+                title="Refresh"
+              >
+                <RefreshCw className="h-5 w-5 text-white" />
+              </button>
+              <Link
+                href={`/quotes/${quote.id}/edit`}
+                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors"
+                title="Edit"
+              >
+                <Edit className="h-5 w-5 text-white" />
+              </Link>
+              <button
+                onClick={handleExportPDF}
+                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors"
+                title="Export PDF"
+              >
+                <Download className="h-5 w-5 text-white" />
+              </button>
+              <button
+                onClick={() => setShowActionsMenu(!showActionsMenu)}
+                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors relative"
+                title="More actions"
+              >
+                <MoreVertical className="h-5 w-5 text-white" />
+              </button>
             </div>
           </div>
-
-          <span
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(
-              quote.status
-            )} text-white`}
-          >
-            {quote.status === 'approved' ? <CheckCircle className="h-4 w-4" /> :
-             quote.status === 'pending' ? <Clock className="h-4 w-4" /> :
-             quote.status === 'rejected' ? <XCircle className="h-4 w-4" /> :
-             <FileText className="h-4 w-4" />}
-            {quote.status.charAt(0).toUpperCase() + quote.status.slice(1)}
-          </span>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-8 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* LEFT */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Info */}
-          <div className="bg-white rounded-2xl shadow-xl border p-6">
-            <div className="flex justify-between mb-6">
-              <h2 className="text-xl font-bold">Quote Information</h2>
-              <div className="flex gap-2">
-                <button onClick={handleExportPDF} className="btn-soft-blue">
-                  <Download className="h-4 w-4" /> PDF
-                </button>
-                <Link href={`/quotes/${quote.id}/edit`} className="btn-soft-purple">
-                  <Edit className="h-4 w-4" /> Edit
-                </Link>
-              </div>
+      {/* Actions Menu */}
+      {showActionsMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-10"
+            onClick={() => setShowActionsMenu(false)}
+          />
+          <div className="absolute right-4 top-24 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-20 animate-fade-in">
+            <div className="px-3 py-2 border-b border-gray-100">
+              <span className="text-xs font-semibold text-gray-500 uppercase">Quick Actions</span>
             </div>
-
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <p className="label">Quote Number</p>
-                <p className="value">{quote.quoteNumber}</p>
-
-                <p className="label mt-4">Opportunity</p>
-                <p className="value">{renderOpportunity(quote.opportunityId)}</p>
-
-                <p className="label mt-4">Created</p>
-                <p className="value">
-                  {new Date(quote.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Items */}
-          <div className="bg-white rounded-2xl shadow-xl border p-6">
-            <h2 className="text-xl font-bold mb-6">Quote Items</h2>
-            <table className="w-full">
-              <thead>
-                <tr className="text-left text-xs text-gray-600">
-                  <th>Item</th>
-                  <th>Qty</th>
-                  <th>Unit</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {quote.items.map((item, i) => (
-                  <tr key={i} className="border-t">
-                    <td>{item.description}</td>
-                    <td>{item.quantity}</td>
-                    <td>{quoteService.formatCurrency(item.unitPrice)}</td>
-                    <td className="font-semibold">
-                      {quoteService.formatCurrency(item.total)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* RIGHT */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl shadow-xl border p-6">
-            <h2 className="text-xl font-bold mb-6">Summary</h2>
-
-            <div className="flex justify-between">
-              <span>Total</span>
-              <span className="text-xl font-bold">
-                {quoteService.formatCurrency(quote.totalAmount)}
-              </span>
-            </div>
-
-            <div className="mt-6 space-y-3">
-              {quote.status === 'pending' && (
-                <button onClick={handleApprove} className="btn-primary-green">
-                  <CheckCircle className="h-5 w-5" />
-                  Approve Quote
-                </button>
-              )}
-
-              <button onClick={handleCreateInvoice} className="btn-primary-purple">
-                <FileText className="h-5 w-5" />
-                Create Invoice
-              </button>
-
-              <button onClick={handleDelete} className="btn-soft-red">
+            
+            <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full">
+              <Printer className="h-4 w-4" />
+              Print Quote
+            </button>
+            
+            <button onClick={copyQuoteNumber} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full">
+              <Copy className="h-4 w-4" />
+              Copy Quote Number
+            </button>
+            
+            <div className="border-t border-gray-200 mt-1 pt-1">
+              <button onClick={handleDelete} className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full">
                 <Trash2 className="h-4 w-4" />
                 Delete Quote
               </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto p-4 sm:p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Main Content */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Tabs Navigation */}
+            <div className="border-b border-gray-200 bg-white rounded-t-xl">
+              <nav className="flex space-x-8 px-6">
+                {[
+                  { id: 'overview', label: 'Overview', icon: <BarChart3 className="h-4 w-4" /> },
+                  { id: 'items', label: 'Items', icon: <Package className="h-4 w-4" /> },
+                  { id: 'documents', label: 'Documents', icon: <FileText className="h-4 w-4" /> },
+                  { id: 'activity', label: 'Activity', icon: <History className="h-4 w-4" /> },
+                  { id: 'notes', label: 'Notes', icon: <MessageSquare className="h-4 w-4" /> },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 py-3 px-1 border-b-2 text-sm font-medium transition-colors whitespace-nowrap ${
+                      activeTab === tab.id
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    {tab.icon}
+                    {tab.label}
+                  </button>
+                ))}
+              </nav>
+            </div>
+
+            {/* Tab Content */}
+            <div className="bg-white rounded-b-xl border border-t-0 border-gray-200 p-6">
+              {activeTab === 'overview' && (
+                <div className="space-y-6">
+                  {/* Quick Stats */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-gray-600">Total Amount</p>
+                          <h3 className="text-xl md:text-2xl font-bold text-gray-900 mt-1 truncate">
+                            {formatCurrency(quote.totalAmount)}
+                          </h3>
+                        </div>
+                        <div className="p-3 bg-blue-100 rounded-lg">
+                          <DollarSign className="h-6 w-6 text-blue-600" />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-gray-600">Items Count</p>
+                          <h3 className="text-2xl font-bold text-gray-900 mt-1">
+                            {quote.items.length}
+                          </h3>
+                        </div>
+                        <div className="p-3 bg-green-100 rounded-lg">
+                          <Package className="h-6 w-6 text-green-600" />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200 p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-gray-600">Status</p>
+                          <h3 className="text-2xl font-bold text-gray-900 mt-1 capitalize">
+                            {quote.status}
+                          </h3>
+                        </div>
+                        <div className="p-3 bg-purple-100 rounded-lg">
+                          {statusConfig.icon}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quote Details Card */}
+                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Quote Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 bg-white rounded-lg shadow-sm">
+                            <Calendar className="h-5 w-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Created Date</p>
+                            <p className="font-medium text-gray-900">{formatDateTime(quote.createdAt)}</p>
+                          </div>
+                        </div>
+                        
+                        {typeof quote.opportunityId === 'object' && quote.opportunityId.customer && (
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 bg-white rounded-lg shadow-sm">
+                              <User className="h-5 w-5 text-green-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">Customer</p>
+                              <p className="font-medium text-gray-900">{quote.opportunityId.customer.name}</p>
+                              {quote.opportunityId.customer.companyName && (
+                                <p className="text-sm text-gray-600">{quote.opportunityId.customer.companyName}</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 bg-white rounded-lg shadow-sm">
+                            <Building className="h-5 w-5 text-purple-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Opportunity</p>
+                            <p className="font-medium text-gray-900">{renderOpportunity(quote.opportunityId)}</p>
+                          </div>
+                        </div>
+                        
+                        {quote.approvedBy && (
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 bg-white rounded-lg shadow-sm">
+                              <CheckCircle className="h-5 w-5 text-green-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">Approved By</p>
+                              <p className="font-medium text-gray-900">
+                                {typeof quote.approvedBy === 'object' 
+                                  ? quote.approvedBy.name || quote.approvedBy.email 
+                                  : quote.approvedBy}
+                              </p>
+                              {quote.approvedAt && (
+                                <p className="text-sm text-gray-600">{formatDate(quote.approvedAt)}</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'items' && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">Quote Items</h3>
+                    <span className="text-sm text-gray-600">
+                      {quote.items.length} item{quote.items.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  
+                  <div className="overflow-x-auto rounded-lg border border-gray-200">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Description
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Quantity
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Unit Price
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Total
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {quote.items.map((item, i) => (
+                          <tr key={i} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">{item.description}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{item.quantity}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{formatCurrency(item.unitPrice)}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-semibold text-gray-900">{formatCurrency(item.total)}</div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-gray-50 border-t border-gray-200">
+                        <tr>
+                          <td colSpan={3} className="px-6 py-3 text-right text-sm font-medium text-gray-700">
+                            Total Amount
+                          </td>
+                          <td className="px-6 py-3 text-right">
+                            <span className="text-lg font-bold text-blue-600">
+                              {formatCurrency(quote.totalAmount)}
+                            </span>
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column - Sidebar */}
+          <div className="space-y-6">
+            {/* Action Buttons Card */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+                <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
+              </div>
+              
+              <div className="p-5 space-y-4">
+                {quote.status === 'pending' && (
+                  <button
+                    onClick={handleApprove}
+                    className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 font-medium transition-all duration-300 shadow-sm hover:shadow-md"
+                  >
+                    <CheckCircle className="h-5 w-5" />
+                    Approve Quote
+                  </button>
+                )}
+
+                <button
+                  onClick={handleCreateInvoice}
+                  disabled={quote.status !== 'approved'}
+                  className={`w-full flex items-center justify-center gap-3 py-3 px-4 rounded-lg font-medium transition-all duration-300 shadow-sm hover:shadow-md ${
+                    quote.status === 'approved'
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-600 text-white hover:from-purple-600 hover:to-pink-700'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  <FileText className="h-5 w-5" />
+                  Create Invoice
+                </button>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={handleExportPDF}
+                    className="flex items-center justify-center gap-2 py-2.5 px-3 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-medium transition-colors"
+                  >
+                    <Download className="h-4 w-4" />
+                    Export PDF
+                  </button>
+                  
+                  <button
+                    onClick={handlePrint}
+                    className="flex items-center justify-center gap-2 py-2.5 px-3 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 font-medium transition-colors"
+                  >
+                    <Printer className="h-4 w-4" />
+                    Print
+                  </button>
+                </div>
+
+                <div className="pt-4 border-t border-gray-200">
+                  <button
+                    onClick={handleDelete}
+                    className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-gradient-to-r from-red-50 to-red-100 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 font-medium transition-colors"
+                  >
+                    <Trash2 className="h-5 w-5" />
+                    Delete Quote
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Customer Info Card */}
+            {typeof quote.opportunityId === 'object' && quote.opportunityId.customer && (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+                  <h2 className="text-lg font-semibold text-gray-900">Customer</h2>
+                </div>
+                
+                <div className="p-5">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
+                        {quote.opportunityId.customer.name?.charAt(0).toUpperCase() || 'C'}
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-gray-900">{quote.opportunityId.customer.name}</h3>
+                        {quote.opportunityId.customer.companyName && (
+                          <p className="text-sm text-gray-600">{quote.opportunityId.customer.companyName}</p>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3 text-sm">
+                      {quote.opportunityId.customer.email && (
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                          <span className="truncate">{quote.opportunityId.customer.email}</span>
+                        </div>
+                      )}
+                      
+                      {quote.opportunityId.customer.phone && (
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                          <span>{quote.opportunityId.customer.phone}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Summary Card */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+                <h2 className="text-lg font-semibold text-gray-900">Summary</h2>
+              </div>
+              
+              <div className="p-5 space-y-4">
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Subtotal</span>
+                    <span className="font-medium">{formatCurrency(quote.subtotal || 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Tax</span>
+                    <span className="font-medium">{formatCurrency(quote.tax || 0)}</span>
+                  </div>
+                  <div className="pt-3 border-t border-gray-200">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-bold text-gray-900">Total</span>
+                      <span className="text-xl font-bold text-blue-600">{formatCurrency(quote.totalAmount)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {quote.notes && (
+                  <div className="pt-4 border-t border-gray-200">
+                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">Notes</div>
+                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">{quote.notes}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Created By Card */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+                <h2 className="text-lg font-semibold text-gray-900">Created By</h2>
+              </div>
+              
+              <div className="p-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                    {quote.createdBy && typeof quote.createdBy === 'object' 
+                      ? (quote.createdBy.name?.charAt(0) || quote.createdBy.email?.charAt(0) || 'U').toUpperCase()
+                      : 'S'}
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      {quote.createdBy && typeof quote.createdBy === 'object' 
+                        ? quote.createdBy.name || quote.createdBy.email || 'Unknown User'
+                        : 'System'}
+                    </p>
+                    <p className="text-xs text-gray-500">{formatDate(quote.createdAt)}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
