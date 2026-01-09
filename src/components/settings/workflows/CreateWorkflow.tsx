@@ -28,6 +28,7 @@ import {
   Hash,
   Type,
   Key,
+  Calendar as CalendarIcon,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { workflowService } from '@/services/settings/workflowService';
@@ -58,6 +59,12 @@ interface AdditionalCriteria {
   }>;
 }
 
+// Extend the CreateWorkflowDto type locally to include description and onCreateOrUpdate
+interface ExtendedCreateWorkflowDto extends Omit<CreateWorkflowDto, 'triggerEvent'> {
+  description?: string;
+  triggerEvent: CreateWorkflowDto['triggerEvent'] | 'onCreateOrUpdate';
+}
+
 export default function CreateWorkflow() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -67,10 +74,10 @@ export default function CreateWorkflow() {
   const [currentStep, setCurrentStep] = useState(1);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   
-  // Form data matching CreateWorkflowDto exactly
-  const [formData, setFormData] = useState<CreateWorkflowDto>({
+  // Form data - using extended type locally
+  const [formData, setFormData] = useState<ExtendedCreateWorkflowDto>({
     name: '',
-    module: 'opportunities',
+    module: 'leads', // Default to leads based on screenshot
     triggerEvent: 'onCreate',
     conditions: {},
     actions: [{
@@ -91,208 +98,110 @@ export default function CreateWorkflow() {
 
   const [additionalCriteria, setAdditionalCriteria] = useState<AdditionalCriteria>({});
   
-  const [conditions, setConditions] = useState<Record<string, any>>({});
+  // Condition state
   const [conditionField, setConditionField] = useState('');
   const [conditionOperator, setConditionOperator] = useState('equals');
   const [conditionValue, setConditionValue] = useState('');
+  const [dateConditionValue, setDateConditionValue] = useState('');
+  
+  // New: Filter conditions for WHEN section
+  const [filterCondition, setFilterCondition] = useState<'all' | 'matching'>('all');
+  const [selectedFields, setSelectedFields] = useState<string[]>([]);
+  const [showFieldDropdown, setShowFieldDropdown] = useState(false);
 
-  const [fieldCriteria, setFieldCriteria] = useState<Array<{
-    field: string;
-    operator: string;
-    value: any;
-  }>>([]);
-  const [newFieldCriteria, setNewFieldCriteria] = useState({
-    field: '',
-    operator: 'equals',
-    value: ''
-  });
-
-  const [userRoles, setUserRoles] = useState<string[]>([]);
-  const [userDepartments, setUserDepartments] = useState<string[]>([]);
-  const [newRole, setNewRole] = useState('');
-  const [newDepartment, setNewDepartment] = useState('');
-
-  // Steps configuration
+  // Steps configuration - Simplified to match Zoho's flow
   const steps = [
-    { id: 1, title: 'Basic Details', description: 'Workflow name and module' },
-    { id: 2, title: 'Trigger & Conditions', description: 'When and how it runs' },
-    { id: 3, title: 'Actions & Schedule', description: 'What it does and when' }
+    { id: 1, title: 'Rule Details', description: 'Name and module selection' },
+    { id: 2, title: 'When', description: 'Trigger and conditions' },
+    { id: 3, title: 'Actions', description: 'Instant and scheduled actions' }
   ];
 
-  // Modules exactly matching backend enum
+  // Modules exactly matching backend enum - Updated order
   const modules = [
+    { value: 'leads', label: 'Leads', icon: '🎯' },
     { value: 'opportunities', label: 'Opportunities', icon: '💼' },
+    { value: 'accounts', label: 'Accounts', icon: '🏢' },
+    { value: 'contacts', label: 'Contacts', icon: '👤' },
     { value: 'quotes', label: 'Quotes', icon: '📄' },
     { value: 'invoices', label: 'Invoices', icon: '🧾' },
     { value: 'payments', label: 'Payments', icon: '💰' },
-    { value: 'leads', label: 'Leads', icon: '🎯' },
-    { value: 'accounts', label: 'Accounts', icon: '🏢' },
-    { value: 'contacts', label: 'Contacts', icon: '👤' },
   ];
 
-  // Trigger events exactly matching backend enum
+  // Trigger events - Simplified to match Zoho's options
   const triggerEvents = [
     { 
       value: 'onCreate', 
       label: 'On Create', 
-      icon: Plus,
       description: 'When a new record is created' 
     },
     { 
       value: 'onUpdate', 
       label: 'On Update', 
-      icon: Repeat,
-      description: 'When any field in record is updated' 
+      description: 'When a record is edited' 
+    },
+    { 
+      value: 'onCreateOrUpdate', 
+      label: 'On Create or Edit', 
+      description: 'When a record is created or edited' 
     },
     { 
       value: 'onDelete', 
       label: 'On Delete', 
-      icon: Trash2,
       description: 'When a record is deleted' 
     },
     { 
       value: 'scheduled', 
-      label: 'Scheduled', 
-      icon: Clock,
-      description: 'Run on a specific schedule' 
-    },
-    { 
-      value: 'fieldUpdate', 
-      label: 'Field Update', 
-      icon: Hash,
-      description: 'When specific field changes' 
-    },
-    { 
-      value: 'stageChange', 
-      label: 'Stage Change', 
-      icon: FolderOpen,
-      description: 'When record stage/progress changes' 
+      label: 'Date/Time Field', 
+      description: 'Based on date/time field value' 
     },
   ];
 
-  // Execution frequencies exactly matching backend enum
-  const executionFrequencies = [
-    { 
-      value: 'immediate', 
-      label: 'Immediate', 
-      icon: Zap,
-      description: 'Execute immediately when triggered' 
-    },
-    { 
-      value: 'once', 
-      label: 'Once', 
-      icon: Calendar,
-      description: 'Execute only once per record' 
-    },
-    { 
-      value: 'every_time', 
-      label: 'Every Time', 
-      icon: Repeat,
-      description: 'Execute every time trigger occurs' 
-    },
-    { 
-      value: 'once_in_24_hours', 
-      label: 'Once in 24 Hours', 
-      icon: CalendarDays,
-      description: 'Execute once per 24 hours per record' 
-    },
+  // New: Trigger based on options (from screenshot)
+  const triggerBasedOn = [
+    { value: 'record_action', label: 'Record action', icon: '📝' },
+    { value: 'datetime_field', label: 'Date/Time field', icon: CalendarIcon },
+    { value: 'record_score', label: 'Record Score', icon: '⭐' },
+    { value: 'record_notes', label: 'Record Notes', icon: '📝' },
   ];
 
-  // Action types with proper structure
-  const actionTypes = [
-    { 
-      value: 'sendEmail', 
-      label: 'Send Email', 
-      icon: Mail, 
-      description: 'Send an email notification',
-      paramFields: [
-        { name: 'to', label: 'To Email', type: 'email', required: true },
-        { name: 'subject', label: 'Subject', type: 'text', required: true },
-        { name: 'body', label: 'Body', type: 'textarea', required: true },
-        { name: 'template', label: 'Template Name', type: 'text', required: false },
-        { name: 'cc', label: 'CC', type: 'text', required: false },
-        { name: 'bcc', label: 'BCC', type: 'text', required: false }
-      ]
-    },
-    { 
-      value: 'sendNotification', 
-      label: 'Send Notification', 
-      icon: Bell, 
-      description: 'Send in-app notification',
-      paramFields: [
-        { name: 'message', label: 'Message', type: 'text', required: true },
-        { name: 'userId', label: 'User ID', type: 'text', required: false },
-        { name: 'channel', label: 'Channel', type: 'text', required: false },
-        { name: 'priority', label: 'Priority', type: 'select', options: ['low', 'medium', 'high'], required: false }
-      ]
-    },
-    { 
-      value: 'createTask', 
-      label: 'Create Task', 
-      icon: Calendar, 
-      description: 'Create a new task',
-      paramFields: [
-        { name: 'title', label: 'Task Title', type: 'text', required: true },
-        { name: 'description', label: 'Description', type: 'textarea', required: false },
-        { name: 'assignedTo', label: 'Assigned To (User ID)', type: 'text', required: false },
-        { name: 'dueDate', label: 'Due Date', type: 'date', required: false },
-        { name: 'priority', label: 'Priority', type: 'select', options: ['low', 'medium', 'high'], required: false }
-      ]
-    },
-    { 
-      value: 'updateRecord', 
-      label: 'Update Record', 
-      icon: Settings, 
-      description: 'Update record fields',
-      paramFields: [
-        { name: 'field', label: 'Field Name', type: 'text', required: true },
-        { name: 'value', label: 'New Value', type: 'text', required: true },
-        { name: 'operation', label: 'Operation', type: 'select', options: ['set', 'increment', 'decrement'], required: false }
-      ]
-    },
-    { 
-      value: 'assignToUser', 
-      label: 'Assign to User', 
-      icon: Users, 
-      description: 'Assign record to user',
-      paramFields: [
-        { name: 'userId', label: 'User ID', type: 'text', required: true },
-        { name: 'role', label: 'Role', type: 'text', required: false },
-        { name: 'notify', label: 'Notify User', type: 'checkbox', required: false }
-      ]
-    },
+  // Record action types (from screenshot)
+  const recordActions = [
+    { value: 'create_or_edit', label: 'Create or Edit', description: 'When a record is created or edited' },
+    { value: 'create', label: 'Create', description: 'When a record is created' },
+    { value: 'edit', label: 'Edit', description: 'When a record is edited' },
+    { value: 'delete', label: 'Delete', description: 'When a record is deleted' },
   ];
 
-  const operators = [
-    { value: 'equals', label: 'Equals', symbol: '=' },
-    { value: 'notEquals', label: 'Not Equals', symbol: '≠' },
-    { value: 'contains', label: 'Contains', symbol: '⊃' },
-    { value: 'greaterThan', label: 'Greater Than', symbol: '>' },
-    { value: 'lessThan', label: 'Less Than', symbol: '<' },
-    { value: 'greaterThanOrEqual', label: 'Greater or Equal', symbol: '≥' },
-    { value: 'lessThanOrEqual', label: 'Less or Equal', symbol: '≤' },
-    { value: 'isSet', label: 'Is Set', symbol: '✓' },
-    { value: 'isNotSet', label: 'Is Not Set', symbol: '✗' },
-    { value: 'startsWith', label: 'Starts With', symbol: '→' },
-    { value: 'endsWith', label: 'Ends With', symbol: '←' },
+  // Field options for conditions (sample - should be dynamic based on module)
+  const fieldOptions = [
+    { value: 'status', label: 'Status', type: 'text' },
+    { value: 'country', label: 'Country', type: 'text' },
+    { value: 'converted_deal', label: 'Converted Deal', type: 'boolean' },
+    { value: 'created_by', label: 'Created By', type: 'user' },
+    { value: 'created_time', label: 'Created Time', type: 'datetime' },
+    { value: 'appointment_scheduled_date', label: 'Appointment Scheduled Date', type: 'datetime' },
   ];
 
-  const scheduleTypes = [
-    { value: 'daily', label: 'Daily' },
-    { value: 'weekly', label: 'Weekly' },
-    { value: 'monthly', label: 'Monthly' },
-    { value: 'custom', label: 'Custom Cron' },
-  ];
+  // Operators based on field type
+  const getOperatorsForField = (fieldType: string) => {
+    const baseOperators = [
+      { value: 'equals', label: 'Equals', symbol: '=' },
+      { value: 'not_equals', label: 'Not Equals', symbol: '≠' },
+      { value: 'contains', label: 'Contains', symbol: '⊃' },
+    ];
 
-  const daysOfWeek = [
-    { value: 0, label: 'Sunday' },
-    { value: 1, label: 'Monday' },
-    { value: 2, label: 'Tuesday' },
-    { value: 3, label: 'Wednesday' },
-    { value: 4, label: 'Thursday' },
-    { value: 5, label: 'Friday' },
-    { value: 6, label: 'Saturday' },
-  ];
+    if (fieldType === 'datetime') {
+      return [
+        { value: 'equals', label: 'Is', symbol: '=' },
+        { value: 'not_equals', label: 'Is Not', symbol: '≠' },
+        { value: 'before', label: 'Before', symbol: '<' },
+        { value: 'after', label: 'After', symbol: '>' },
+        { value: 'within', label: 'Within', symbol: '±' },
+      ];
+    }
+
+    return baseOperators;
+  };
 
   // Step navigation
   const nextStep = () => {
@@ -310,38 +219,24 @@ export default function CreateWorkflow() {
     const errors: string[] = [];
 
     switch (step) {
-      case 1: // Basic Details
+      case 1: // Rule Details
         if (!formData.name.trim()) {
-          errors.push('Workflow name is required');
+          errors.push('Rule name is required');
         }
         if (!formData.module) {
           errors.push('Module is required');
         }
         break;
 
-      case 2: // Trigger & Conditions
+      case 2: // When
         if (!formData.triggerEvent) {
-          errors.push('Trigger event is required');
+          errors.push('Trigger is required');
         }
         break;
 
-      case 3: // Actions & Schedule
+      case 3: // Actions
         if (formData.actions.length === 0) {
           errors.push('At least one action is required');
-        }
-        // Validate each action
-        formData.actions.forEach((action, index) => {
-          if (!action.actionType?.trim()) {
-            errors.push(`Action ${index + 1}: Action type is required`);
-          }
-          if (action.delayInMinutes && action.delayInMinutes < 0) {
-            errors.push(`Action ${index + 1}: Delay cannot be negative`);
-          }
-        });
-        
-        // Validate schedule if scheduled trigger
-        if (formData.triggerEvent === 'scheduled' && !formData.isScheduled) {
-          errors.push('Schedule configuration is required for scheduled triggers');
         }
         break;
     }
@@ -357,10 +252,116 @@ export default function CreateWorkflow() {
   };
 
   // Form handlers
-  const handleInputChange = (field: keyof CreateWorkflowDto, value: any) => {
+  const handleInputChange = (field: keyof ExtendedCreateWorkflowDto, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  // New: Handle WHEN section changes
+  const handleTriggerBasedOnChange = (value: string) => {
+    if (value === 'datetime_field') {
+      setFormData(prev => ({ 
+        ...prev, 
+        triggerEvent: 'scheduled',
+        isScheduled: true 
+      }));
+    } else if (value === 'record_action') {
+      setFormData(prev => ({ 
+        ...prev, 
+        triggerEvent: 'onCreateOrUpdate', // Default for record action
+        isScheduled: false 
+      }));
+    } else {
+      setFormData(prev => ({ 
+        ...prev, 
+        triggerEvent: 'onCreate', // Default
+        isScheduled: false 
+      }));
+    }
+  };
+
+  const handleRecordActionChange = (value: string) => {
+    const triggerMap: Record<string, ExtendedCreateWorkflowDto['triggerEvent']> = {
+      'create_or_edit': 'onCreateOrUpdate',
+      'create': 'onCreate',
+      'edit': 'onUpdate',
+      'delete': 'onDelete',
+    };
+    
+    if (triggerMap[value]) {
+      handleInputChange('triggerEvent', triggerMap[value]);
+    }
+  };
+
+  // Handle condition field selection
+  const handleConditionFieldSelect = (fieldValue: string) => {
+    setConditionField(fieldValue);
+    const field = fieldOptions.find(f => f.value === fieldValue);
+    if (field?.type === 'datetime') {
+      setConditionOperator('equals'); // Default for date fields
+    }
+    setShowFieldDropdown(false);
+  };
+
+  // Add condition
+  const handleAddCondition = () => {
+    if (conditionField && (conditionValue || dateConditionValue)) {
+      const value = conditionField.includes('date') ? dateConditionValue : conditionValue;
+      const newCondition = { 
+        field: conditionField, 
+        operator: conditionOperator, 
+        value 
+      };
+      
+      setFormData(prev => ({
+        ...prev,
+        conditions: {
+          ...prev.conditions,
+          [`${conditionField}_${Date.now()}`]: newCondition
+        }
+      }));
+      
+      // Reset fields
+      setConditionField('');
+      setConditionValue('');
+      setDateConditionValue('');
+    }
+  };
+
+  // Remove condition
+  const handleRemoveCondition = (key: string) => {
+    const newConditions = { ...formData.conditions };
+    delete newConditions[key];
+    setFormData(prev => ({ ...prev, conditions: newConditions }));
+  };
+
+  // Handle filter condition change
+  const handleFilterConditionChange = (value: 'all' | 'matching') => {
+    setFilterCondition(value);
+    if (value === 'all') {
+      // Clear conditions when selecting "All Leads"
+      setFormData(prev => ({ ...prev, conditions: {} }));
+    }
+  };
+
+  // Handle field selection for filter
+  const handleFieldToggle = (fieldValue: string) => {
+    if (selectedFields.includes(fieldValue)) {
+      setSelectedFields(prev => prev.filter(f => f !== fieldValue));
+    } else {
+      setSelectedFields(prev => [...prev, fieldValue]);
+    }
+  };
+
+  // Handle date condition value change
+  const handleDateConditionChange = (value: string) => {
+    setDateConditionValue(value);
+    // If it's a datetime field, set to IS operator by default
+    if (conditionField.includes('date') && !conditionOperator) {
+      setConditionOperator('equals');
+    }
+  };
+
+  // Action handlers (from original code)
   const handleAddAction = () => {
     const newAction: WorkflowAction = {
       actionType: 'sendEmail',
@@ -378,7 +379,6 @@ export default function CreateWorkflow() {
     if (formData.actions.length > 1) {
       const newActions = [...formData.actions];
       newActions.splice(index, 1);
-      // Reorder execution orders
       newActions.forEach((action, idx) => {
         action.executionOrder = idx + 1;
       });
@@ -390,7 +390,6 @@ export default function CreateWorkflow() {
     const newActions = [...formData.actions];
     newActions[index] = { ...newActions[index], [field]: value };
     
-    // If action type changes, reset params
     if (field === 'actionType') {
       newActions[index].params = {};
     }
@@ -410,85 +409,30 @@ export default function CreateWorkflow() {
     setFormData(prev => ({ ...prev, actions: newActions }));
   };
 
-  const handleAddCondition = () => {
-    if (conditionField && conditionValue) {
-      setConditions(prev => ({
-        ...prev,
-        [`${conditionField}.${conditionOperator}`]: conditionValue
-      }));
-      setConditionField('');
-      setConditionValue('');
-    }
-  };
-
-  const handleRemoveCondition = (field: string) => {
-    const newConditions = { ...conditions };
-    delete newConditions[field];
-    setConditions(newConditions);
-  };
-
-  const handleAddFieldCriteria = () => {
-    if (newFieldCriteria.field && newFieldCriteria.value) {
-      setFieldCriteria(prev => [...prev, { ...newFieldCriteria }]);
-      setNewFieldCriteria({ field: '', operator: 'equals', value: '' });
-    }
-  };
-
-  const handleRemoveFieldCriteria = (index: number) => {
-    setFieldCriteria(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleAddRole = () => {
-    if (newRole.trim()) {
-      setUserRoles(prev => [...prev, newRole.trim()]);
-      setNewRole('');
-    }
-  };
-
-  const handleRemoveRole = (index: number) => {
-    setUserRoles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleAddDepartment = () => {
-    if (newDepartment.trim()) {
-      setUserDepartments(prev => [...prev, newDepartment.trim()]);
-      setNewDepartment('');
-    }
-  };
-
-  const handleRemoveDepartment = (index: number) => {
-    setUserDepartments(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleDayToggle = (day: number) => {
-    setScheduleConfig(prev => {
-      const days = prev.daysOfWeek || [];
-      const newDays = days.includes(day)
-        ? days.filter(d => d !== day)
-        : [...days, day];
-      return { ...prev, daysOfWeek: newDays };
-    });
-  };
-
-  // Prepare final data for submission
+  // Prepare final data for submission - Convert to CreateWorkflowDto
   const prepareSubmitData = (): CreateWorkflowDto => {
+    // Map onCreateOrUpdate to onCreate for backend compatibility
+    const backendTriggerEvent = formData.triggerEvent === 'onCreateOrUpdate' 
+      ? 'onCreate' 
+      : (formData.triggerEvent as CreateWorkflowDto['triggerEvent']);
+
     const submitData: CreateWorkflowDto = {
       name: formData.name,
       module: formData.module,
-      triggerEvent: formData.triggerEvent,
+      triggerEvent: backendTriggerEvent,
       actions: formData.actions.map(action => ({
         actionType: action.actionType,
         params: action.params,
         executionOrder: action.executionOrder || 1,
         delayInMinutes: action.delayInMinutes || 0
       })),
-      active: formData.active !== false, // Default to true
+      active: formData.active !== false,
       executionFrequency: formData.executionFrequency || 'immediate',
     };
 
     // Add conditions if any
-    if (Object.keys(conditions).length > 0) {
-      submitData.conditions = conditions;
+    if (Object.keys(formData.conditions).length > 0) {
+      submitData.conditions = formData.conditions;
     }
 
     // Add schedule config if scheduled
@@ -497,26 +441,11 @@ export default function CreateWorkflow() {
       submitData.scheduleConfig = scheduleConfig;
     }
 
-    // Add additional criteria if any
-    const hasAdditionalCriteria = 
-      (additionalCriteria.timeRange?.from || additionalCriteria.timeRange?.to) ||
-      userRoles.length > 0 ||
-      userDepartments.length > 0 ||
-      fieldCriteria.length > 0;
-
-    if (hasAdditionalCriteria) {
-      submitData.additionalCriteria = {
-        ...additionalCriteria,
-        userCriteria: {
-          ...(userRoles.length > 0 && { roles: userRoles }),
-          ...(userDepartments.length > 0 && { departments: userDepartments })
-        },
-        ...(fieldCriteria.length > 0 && { fieldCriteria })
-      };
-    }
-
     return submitData;
   };
+
+  // Check if trigger is a record action (not scheduled)
+  const isRecordActionTrigger = formData.triggerEvent !== 'scheduled';
 
   // Final validation and submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -530,30 +459,25 @@ export default function CreateWorkflow() {
       const submitData = prepareSubmitData();
       console.log('Submitting workflow data:', submitData);
       
-      // Validate with service
       const validation = await workflowService.validateWorkflowConfiguration(submitData);
       
       if (!validation.valid) {
         setValidationErrors(validation.errors);
         showToast(`Validation errors: ${validation.errors.join(', ')}`, 'error');
-        if (validation.warnings.length > 0) {
-          console.warn('Validation warnings:', validation.warnings);
-        }
         return;
       }
       
       const createdWorkflow = await workflowService.createWorkflow(submitData);
 
       console.log('Created workflow object:', createdWorkflow);
-        console.log('Workflow ID to redirect to:', createdWorkflow.id);
-        
-        // Ensure we have a valid ID before redirecting
-        if (createdWorkflow && createdWorkflow.id) {
-            showToast('Workflow created successfully', 'success');
-            router.push(`/settings/workflows/${createdWorkflow.id}`);
-        } else {
-            throw new Error('Created workflow does not contain a valid ID');
-        }
+      console.log('Workflow ID to redirect to:', createdWorkflow.id);
+      
+      if (createdWorkflow && createdWorkflow.id) {
+        showToast('Workflow created successfully', 'success');
+        router.push(`/settings/workflows/${createdWorkflow.id}`);
+      } else {
+        throw new Error('Created workflow does not contain a valid ID');
+      }
       
     } catch (error: any) {
       console.error('Error creating workflow:', error);
@@ -569,24 +493,8 @@ export default function CreateWorkflow() {
     }
   };
 
-  // Effect to update formData when conditions change
-  useEffect(() => {
-    if (Object.keys(conditions).length > 0) {
-      setFormData(prev => ({ ...prev, conditions }));
-    }
-  }, [conditions]);
-
-  // Effect to update additional criteria when fields change
-  useEffect(() => {
-    setAdditionalCriteria(prev => ({
-      ...prev,
-      userCriteria: {
-        ...(userRoles.length > 0 && { roles: userRoles }),
-        ...(userDepartments.length > 0 && { departments: userDepartments })
-      },
-      ...(fieldCriteria.length > 0 && { fieldCriteria })
-    }));
-  }, [userRoles, userDepartments, fieldCriteria]);
+  // Get selected field type for operator selection
+  const selectedFieldType = fieldOptions.find(f => f.value === conditionField)?.type || 'text';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-purple-50/30 p-6">
@@ -605,10 +513,10 @@ export default function CreateWorkflow() {
                 <div className="p-3 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl">
                   <Zap className="h-6 w-6 text-white" />
                 </div>
-                Create New Workflow
+                Create New Rule
               </h1>
               <p className="text-gray-600 mt-2">
-                Automate processes with a multi-step configuration
+                Automate processes with conditional workflows
               </p>
             </div>
           </div>
@@ -633,7 +541,7 @@ export default function CreateWorkflow() {
               ) : (
                 <>
                   <Save className="h-5 w-5" />
-                  Create Workflow
+                  Save Rule
                 </>
               )}
             </button>
@@ -690,86 +598,65 @@ export default function CreateWorkflow() {
       )}
 
       <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
-        {/* Step 1: Basic Details */}
+        {/* Step 1: Rule Details */}
         {currentStep === 1 && (
           <div className="space-y-6">
             <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
                 <Type className="h-5 w-5 text-blue-600" />
-                Basic Information
+                Rule Details
               </h2>
               
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Workflow Name *
+                    Module *
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={formData.module}
+                      onChange={(e) => handleInputChange('module', e.target.value)}
+                      className="w-full px-4 py-3 border border-blue-200 bg-white/50 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+                      required
+                    >
+                      <option value="">Select Module</option>
+                      {modules.map((module) => (
+                        <option key={module.value} value={module.value}>
+                          {module.icon} {module.label}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                      <ChevronRight className="h-5 w-5 text-gray-400 rotate-90" />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Rule Name *
                   </label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
                     className="w-full px-4 py-3 border border-blue-200 bg-white/50 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="e.g., Notify Sales Team on New Lead"
+                    placeholder="Enter rule name"
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-2">Give your workflow a descriptive name</p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Module *
+                    Description (Optional)
                   </label>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {modules.map((module) => (
-                      <button
-                        key={module.value}
-                        type="button"
-                        onClick={() => handleInputChange('module', module.value)}
-                        className={`p-4 rounded-xl border text-center transition-all ${
-                          formData.module === module.value
-                            ? 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-300 text-blue-700 shadow-md'
-                            : 'bg-white/50 border-blue-100 hover:bg-blue-50/50 hover:shadow-sm'
-                        }`}
-                      >
-                        <div className="text-2xl mb-2">{module.icon}</div>
-                        <div className="text-sm font-medium">{module.label}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Status
-                  </label>
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleInputChange('active', true)}
-                      className={`flex-1 p-4 rounded-xl border text-center transition-all ${
-                        formData.active
-                          ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300 text-green-700 shadow-md'
-                          : 'bg-white/50 border-blue-100 hover:bg-green-50/50 hover:shadow-sm'
-                      }`}
-                    >
-                      <Check className="h-6 w-6 mx-auto mb-2" />
-                      <div className="font-medium">Active</div>
-                      <div className="text-xs text-gray-600 mt-1">Will run automatically</div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleInputChange('active', false)}
-                      className={`flex-1 p-4 rounded-xl border text-center transition-all ${
-                        !formData.active
-                          ? 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-300 text-gray-700 shadow-md'
-                          : 'bg-white/50 border-blue-100 hover:bg-gray-50/50 hover:shadow-sm'
-                      }`}
-                    >
-                      <X className="h-6 w-6 mx-auto mb-2" />
-                      <div className="font-medium">Inactive</div>
-                      <div className="text-xs text-gray-600 mt-1">Will not run</div>
-                    </button>
-                  </div>
+                  <textarea
+                    value={formData.description || ''}
+                    onChange={(e) => handleInputChange('description', e.target.value)}
+                    className="w-full px-4 py-3 border border-blue-200 bg-white/50 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Describe what this rule does"
+                    rows={3}
+                  />
                 </div>
               </div>
             </div>
@@ -787,193 +674,254 @@ export default function CreateWorkflow() {
                 onClick={nextStep}
                 className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-medium hover:from-blue-700 hover:to-purple-700 transition-all"
               >
-                Next: Trigger & Conditions
+                Next: When
                 <ChevronRight className="h-5 w-5" />
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 2: Trigger & Conditions */}
+        {/* Step 2: WHEN */}
         {currentStep === 2 && (
           <div className="space-y-6">
             <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
-                <Filter className="h-5 w-5 text-blue-600" />
-                Trigger & Conditions
+                <Clock className="h-5 w-5 text-blue-600" />
+                WHEN
               </h2>
               
               <div className="space-y-6">
+                {/* Trigger based on - like Zoho */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Trigger Event *
+                    Execute this workflow rule based on
                   </label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {triggerEvents.map((trigger) => {
-                      const Icon = trigger.icon;
-                      return (
-                        <label
-                          key={trigger.value}
-                          className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
-                            formData.triggerEvent === trigger.value
-                              ? 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-300 shadow-md'
-                              : 'bg-white/50 border-blue-100 hover:bg-blue-50/50 hover:shadow-sm'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="triggerEvent"
-                            value={trigger.value}
-                            checked={formData.triggerEvent === trigger.value}
-                            onChange={(e) => handleInputChange('triggerEvent', e.target.value)}
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 mt-1"
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <Icon className="h-5 w-5 text-blue-600" />
-                              <span className="font-medium text-gray-900">{trigger.label}</span>
-                            </div>
-                            <p className="text-sm text-gray-600 mt-2">{trigger.description}</p>
-                          </div>
-                        </label>
-                      );
-                    })}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {triggerBasedOn.map((trigger) => (
+                      <button
+                        key={trigger.value}
+                        type="button"
+                        onClick={() => handleTriggerBasedOnChange(trigger.value)}
+                        className={`p-4 rounded-xl border text-center transition-all ${
+                          (trigger.value === 'record_action' && isRecordActionTrigger) ||
+                          (trigger.value === 'datetime_field' && formData.triggerEvent === 'scheduled')
+                            ? 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-300 text-blue-700 shadow-md'
+                            : 'bg-white/50 border-blue-100 hover:bg-blue-50/50 hover:shadow-sm'
+                        }`}
+                      >
+                        <div className="text-lg mb-2">
+                          {typeof trigger.icon === 'string' ? trigger.icon : <trigger.icon className="h-5 w-5 mx-auto" />}
+                        </div>
+                        <div className="text-sm font-medium">{trigger.label}</div>
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Schedule toggle for scheduled trigger */}
-                {formData.triggerEvent === 'scheduled' && (
-                  <div className="p-4 bg-gradient-to-r from-blue-50/50 to-purple-50/50 border border-blue-200 rounded-xl">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium text-gray-900">Schedule Configuration</h3>
-                        <p className="text-sm text-gray-600">Configure when this workflow should run</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.isScheduled}
-                          onChange={(e) => handleInputChange('isScheduled', e.target.checked)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                        <span className="ml-3 text-sm font-medium text-gray-900">
-                          {formData.isScheduled ? 'Enabled' : 'Disabled'}
-                        </span>
-                      </label>
+                {/* Record Action Selection - like Zoho screenshot */}
+                {isRecordActionTrigger && (
+                  <div className="border-t border-blue-100 pt-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Record action
+                    </label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {recordActions.map((action) => {
+                        const isSelected = 
+                          (action.value === 'create_or_edit' && formData.triggerEvent === 'onCreateOrUpdate') ||
+                          (action.value === 'create' && formData.triggerEvent === 'onCreate') ||
+                          (action.value === 'edit' && formData.triggerEvent === 'onUpdate') ||
+                          (action.value === 'delete' && formData.triggerEvent === 'onDelete');
+                        
+                        return (
+                          <label
+                            key={action.value}
+                            className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
+                              isSelected
+                                ? 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-300 shadow-md'
+                                : 'bg-white/50 border-blue-100 hover:bg-blue-50/50 hover:shadow-sm'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="recordAction"
+                              value={action.value}
+                              checked={isSelected}
+                              onChange={() => handleRecordActionChange(action.value)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                            />
+                            <div>
+                              <span className="font-medium text-gray-900">{action.label}</span>
+                              <p className="text-xs text-gray-600 mt-1">{action.description}</p>
+                            </div>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Conditions (Optional)
-                  </label>
-                  <p className="text-sm text-gray-600 mb-4">Add conditions that must be met for the workflow to run</p>
-                  
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div>
-                        <input
-                          type="text"
-                          value={conditionField}
-                          onChange={(e) => setConditionField(e.target.value)}
-                          placeholder="Field name"
-                          className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white/50"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">e.g., status, amount, priority</p>
-                      </div>
-                      <div>
-                        <select
-                          value={conditionOperator}
-                          onChange={(e) => setConditionOperator(e.target.value)}
-                          className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white/50"
-                        >
-                          {operators.map(op => (
-                            <option key={op.value} value={op.value}>
-                              {op.symbol} {op.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={conditionValue}
-                          onChange={(e) => setConditionValue(e.target.value)}
-                          placeholder="Value"
-                          className="flex-1 px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white/50"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleAddCondition}
-                          className="px-3 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {Object.keys(conditions).length > 0 && (
-                      <div className="mt-4">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Current Conditions</h4>
-                        <div className="space-y-2">
-                          {Object.entries(conditions).map(([field, value]) => (
-                            <div key={field} className="flex items-center justify-between p-3 bg-blue-50/50 rounded-lg">
-                              <div className="text-sm">
-                                <code className="font-mono text-blue-700 bg-blue-100 px-2 py-1 rounded">{field}</code>
-                                <span className="text-gray-600 mx-2">=</span>
-                                <span className="text-gray-900">{value}</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveCondition(field)}
-                                className="p-1 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                {/* Condition Description */}
+                <div className="p-4 bg-gradient-to-r from-blue-50/50 to-purple-50/50 border border-blue-200 rounded-xl">
+                  <p className="text-sm text-gray-700">
+                    {formData.triggerEvent === 'scheduled' ? (
+                      'This rule will be executed based on the selected date/time field.'
+                    ) : (
+                      `This rule will be executed when a ${modules.find(m => m.value === formData.module)?.label?.toLowerCase() || 'record'} is ${recordActions.find(a => {
+                        if (formData.triggerEvent === 'onCreateOrUpdate') return a.value === 'create_or_edit';
+                        if (formData.triggerEvent === 'onCreate') return a.value === 'create';
+                        if (formData.triggerEvent === 'onUpdate') return a.value === 'edit';
+                        return false;
+                      })?.label?.toLowerCase() || 'modified'} to meet the condition (if any).`
                     )}
-                  </div>
+                  </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Execution Frequency
-                  </label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {executionFrequencies.map((freq) => {
-                      const Icon = freq.icon;
-                      return (
-                        <label
-                          key={freq.value}
-                          className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
-                            formData.executionFrequency === freq.value
-                              ? 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-300 shadow-md'
-                              : 'bg-white/50 border-blue-100 hover:bg-blue-50/50 hover:shadow-sm'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="executionFrequency"
-                            value={freq.value}
-                            checked={formData.executionFrequency === freq.value}
-                            onChange={(e) => handleInputChange('executionFrequency', e.target.value)}
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 mt-1"
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <Icon className="h-5 w-5 text-blue-600" />
-                              <span className="font-medium text-gray-900">{freq.label}</span>
-                            </div>
-                            <p className="text-sm text-gray-600 mt-2">{freq.description}</p>
+                {/* Filter Condition - like Zoho */}
+                <div className="border-t border-blue-100 pt-6">
+                  <h3 className="text-sm font-medium text-gray-700 mb-4">
+                    Which {modules.find(m => m.value === formData.module)?.label?.toLowerCase() || 'records'} would you like to apply the rule to?
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="filterCondition"
+                          checked={filterCondition === 'all'}
+                          onChange={() => handleFilterConditionChange('all')}
+                          className="h-4 w-4 text-blue-600"
+                        />
+                        <span className="text-sm text-gray-700">All {modules.find(m => m.value === formData.module)?.label || 'Records'}</span>
+                      </label>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="filterCondition"
+                          checked={filterCondition === 'matching'}
+                          onChange={() => handleFilterConditionChange('matching')}
+                          className="h-4 w-4 text-blue-600"
+                        />
+                        <span className="text-sm text-gray-700">{modules.find(m => m.value === formData.module)?.label || 'Records'} matching certain conditions</span>
+                      </label>
+                    </div>
+
+                    {/* Condition Builder - Only show when "matching" is selected */}
+                    {filterCondition === 'matching' && (
+                      <div className="mt-4 p-4 bg-white/50 border border-blue-100 rounded-xl">
+                        <h4 className="text-sm font-medium text-gray-700 mb-3">Add Condition</h4>
+                        
+                        {/* Field Selection with Dropdown */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setShowFieldDropdown(!showFieldDropdown)}
+                              className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white text-left flex items-center justify-between"
+                            >
+                              {conditionField ? (
+                                <span className="text-gray-900">
+                                  {fieldOptions.find(f => f.value === conditionField)?.label || conditionField}
+                                </span>
+                              ) : (
+                                <span className="text-gray-500">Select Field</span>
+                              )}
+                              <ChevronRight className="h-4 w-4 text-gray-400 rotate-90" />
+                            </button>
+                            
+                            {showFieldDropdown && (
+                              <div className="absolute z-10 w-full mt-1 bg-white border border-blue-200 rounded-lg shadow-lg max-h-60 overflow-auto">
+                                {fieldOptions.map((field) => (
+                                  <button
+                                    key={field.value}
+                                    type="button"
+                                    onClick={() => handleConditionFieldSelect(field.value)}
+                                    className="w-full px-3 py-2 text-left hover:bg-blue-50 text-sm"
+                                  >
+                                    {field.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        </label>
-                      );
-                    })}
+
+                          {/* Operator Selection */}
+                          <div>
+                            <select
+                              value={conditionOperator}
+                              onChange={(e) => setConditionOperator(e.target.value)}
+                              className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                            >
+                              {getOperatorsForField(selectedFieldType).map(op => (
+                                <option key={op.value} value={op.value}>
+                                  {op.symbol} {op.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Value Input - Dynamic based on field type */}
+                          <div className="flex gap-2">
+                            {selectedFieldType === 'datetime' ? (
+                              <input
+                                type="datetime-local"
+                                value={dateConditionValue}
+                                onChange={(e) => handleDateConditionChange(e.target.value)}
+                                className="flex-1 px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                                placeholder="Select date and time"
+                              />
+                            ) : (
+                              <input
+                                type={selectedFieldType === 'boolean' ? 'text' : 'text'}
+                                value={conditionValue}
+                                onChange={(e) => setConditionValue(e.target.value)}
+                                className="flex-1 px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                                placeholder="Enter value"
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={handleAddCondition}
+                              className="px-3 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Current Conditions */}
+                        {Object.keys(formData.conditions).length > 0 && (
+                          <div className="mt-4">
+                            <h5 className="text-xs font-medium text-gray-700 mb-2">Current Conditions</h5>
+                            <div className="space-y-2">
+                              {Object.entries(formData.conditions).map(([key, condition]: [string, any]) => (
+                                <div key={key} className="flex items-center justify-between p-3 bg-blue-50/50 rounded-lg">
+                                  <div className="text-sm">
+                                    <span className="font-medium text-blue-700">
+                                      {fieldOptions.find(f => f.value === condition.field)?.label || condition.field}
+                                    </span>
+                                    <span className="text-gray-600 mx-2">
+                                      {getOperatorsForField(selectedFieldType).find(op => op.value === condition.operator)?.symbol || '='}
+                                    </span>
+                                    <span className="text-gray-900">{condition.value}</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveCondition(key)}
+                                    className="p-1 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -986,62 +934,51 @@ export default function CreateWorkflow() {
                 className="flex items-center gap-2 px-6 py-3 border border-blue-200 text-blue-700 rounded-xl hover:bg-blue-50 transition-colors"
               >
                 <ChevronLeft className="h-5 w-5" />
-                Back: Basic Details
+                Back: Rule Details
               </button>
               <button
                 type="button"
                 onClick={nextStep}
                 className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-medium hover:from-blue-700 hover:to-purple-700 transition-all"
               >
-                Next: Actions & Schedule
+                Next: Actions
                 <ChevronRight className="h-5 w-5" />
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 3: Actions & Schedule */}
+        {/* Step 3: Actions - Simplified to match Zoho */}
         {currentStep === 3 && (
           <div className="space-y-6">
             {/* Actions Section */}
             <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <Settings className="h-5 w-5 text-blue-600" />
-                  Actions ({formData.actions.length})
-                </h2>
-                <button
-                  type="button"
-                  onClick={handleAddAction}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 rounded-lg hover:from-blue-100 hover:to-blue-200 transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Action
-                </button>
-              </div>
+              <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+                <Settings className="h-5 w-5 text-blue-600" />
+                Actions
+              </h2>
 
-              <div className="space-y-4">
-                {formData.actions.map((action, index) => {
-                  const actionConfig = actionTypes.find(a => a.value === action.actionType);
-                  const ActionIcon = actionConfig?.icon || Settings;
-                  
-                  return (
-                    <div key={index} className="border border-blue-100 rounded-xl p-4 bg-white/50">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-gradient-to-r from-blue-100 to-blue-50 rounded-lg">
-                            <ActionIcon className="h-5 w-5 text-blue-600" />
+              {/* Instant Actions */}
+              <div className="mb-8">
+                <h3 className="text-sm font-medium text-gray-700 mb-4">Instant Actions</h3>
+                <div className="space-y-4">
+                  {formData.actions.map((action, index) => {
+                    const actionConfig = actionTypes.find(a => a.value === action.actionType);
+                    const ActionIcon = actionConfig?.icon || Settings;
+                    
+                    return (
+                      <div key={index} className="border border-blue-100 rounded-xl p-4 bg-white/50">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-gradient-to-r from-blue-100 to-blue-50 rounded-lg">
+                              <ActionIcon className="h-5 w-5 text-blue-600" />
+                            </div>
+                            <div>
+                              <h3 className="font-medium text-gray-900">
+                                {actionConfig?.label || action.actionType}
+                              </h3>
+                            </div>
                           </div>
-                          <div>
-                            <h3 className="font-medium text-gray-900">
-                              Action #{index + 1}: {actionConfig?.label || action.actionType}
-                            </h3>
-                            <p className="text-sm text-gray-600">
-                              {actionConfig?.description}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => handleRemoveAction(index)}
@@ -1051,17 +988,16 @@ export default function CreateWorkflow() {
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
-                      </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                        <div>
+                        {/* Action Type Selection */}
+                        <div className="mb-4">
                           <label className="block text-xs font-medium text-gray-700 mb-2">
                             Action Type *
                           </label>
                           <select
                             value={action.actionType}
                             onChange={(e) => handleActionChange(index, 'actionType', e.target.value)}
-                            className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white/50"
+                            className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
                             required
                           >
                             {actionTypes.map(type => (
@@ -1072,464 +1008,114 @@ export default function CreateWorkflow() {
                           </select>
                         </div>
 
-                        <div>
+                        {/* Delay Configuration - Like Zoho's "Execute X Hour(s) after Rule Trigger Time" */}
+                        <div className="mb-4">
                           <label className="block text-xs font-medium text-gray-700 mb-2">
-                            Execution Order
+                            Execution Delay
                           </label>
-                          <input
-                            type="number"
-                            min="1"
-                            max={formData.actions.length}
-                            value={action.executionOrder || index + 1}
-                            onChange={(e) => handleActionChange(index, 'executionOrder', parseInt(e.target.value))}
-                            className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white/50"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-2">
-                            Delay (minutes)
-                          </label>
-                          <input
-                            type="number"
-                            min="0"
-                            value={action.delayInMinutes || 0}
-                            onChange={(e) => handleActionChange(index, 'delayInMinutes', parseInt(e.target.value))}
-                            className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white/50"
-                            placeholder="0 for immediate"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Action-specific parameters */}
-                      {actionConfig?.paramFields && actionConfig.paramFields.length > 0 && (
-                        <div className="mt-4">
-                          <h4 className="text-xs font-medium text-gray-700 mb-3">Action Parameters</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {actionConfig.paramFields.map((param) => (
-                              <div key={param.name}>
-                                <label className="block text-xs font-medium text-gray-700 mb-2">
-                                  {param.label} {param.required && '*'}
-                                </label>
-                                
-                                {param.type === 'select' ? (
-                                  <select
-                                    value={action.params[param.name] || ''}
-                                    onChange={(e) => handleParamsChange(index, param.name, e.target.value)}
-                                    className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white/50"
-                                    required={param.required}
-                                  >
-                                    <option value="">Select {param.label}</option>
-                                    {param.options?.map(option => (
-                                      <option key={option} value={option}>
-                                        {option.charAt(0).toUpperCase() + option.slice(1)}
-                                      </option>
-                                    ))}
-                                  </select>
-                                ) : param.type === 'checkbox' ? (
-                                  <label className="flex items-center gap-2">
-                                    <input
-                                      type="checkbox"
-                                      checked={!!action.params[param.name]}
-                                      onChange={(e) => handleParamsChange(index, param.name, e.target.checked)}
-                                      className="h-4 w-4 text-blue-600 rounded"
-                                    />
-                                    <span className="text-sm text-gray-700">{param.label}</span>
-                                  </label>
-                                ) : param.type === 'textarea' ? (
-                                  <textarea
-                                    value={action.params[param.name] || ''}
-                                    onChange={(e) => handleParamsChange(index, param.name, e.target.value)}
-                                    className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white/50"
-                                    rows={3}
-                                    required={param.required}
-                                    placeholder={`Enter ${param.label.toLowerCase()}`}
-                                  />
-                                ) : (
-                                  <input
-                                    type={param.type}
-                                    value={action.params[param.name] || ''}
-                                    onChange={(e) => handleParamsChange(index, param.name, e.target.value)}
-                                    className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white/50"
-                                    required={param.required}
-                                    placeholder={`Enter ${param.label.toLowerCase()}`}
-                                  />
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* JSON editor for custom params */}
-                      <div className="mt-4">
-                        <details className="border border-blue-100 rounded-lg">
-                          <summary className="px-3 py-2 bg-blue-50/50 text-sm font-medium text-blue-700 cursor-pointer">
-                            Advanced Parameters (JSON)
-                          </summary>
-                          <div className="p-3">
-                            <textarea
-                              value={JSON.stringify(action.params, null, 2)}
-                              onChange={(e) => {
-                                try {
-                                  const parsed = JSON.parse(e.target.value);
-                                  handleActionChange(index, 'params', parsed);
-                                } catch {
-                                  // Invalid JSON, keep as is
-                                }
-                              }}
-                              rows={4}
-                              className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white/50 font-mono text-xs"
-                              placeholder='{"key": "value"}'
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-600">Execute</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={action.delayInMinutes || 0}
+                              onChange={(e) => handleActionChange(index, 'delayInMinutes', parseInt(e.target.value))}
+                              className="w-20 px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                              placeholder="0"
                             />
-                            <p className="text-xs text-gray-500 mt-2">
-                              Enter valid JSON for custom parameters
-                            </p>
+                            <select
+                              value="hours"
+                              className="px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                            >
+                              <option value="minutes">Minute(s)</option>
+                              <option value="hours">Hour(s)</option>
+                              <option value="days">Day(s)</option>
+                            </select>
+                            <span className="text-sm text-gray-600">→ Rule Trigger Time</span>
                           </div>
-                        </details>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Schedule Configuration (only if scheduled trigger) */}
-            {formData.triggerEvent === 'scheduled' && formData.isScheduled && (
-              <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-6">
-                <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-blue-600" />
-                  Schedule Configuration
-                </h2>
-
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Schedule Type *
-                      </label>
-                      <div className="grid grid-cols-2 gap-3">
-                        {scheduleTypes.map(type => (
-                          <button
-                            key={type.value}
-                            type="button"
-                            onClick={() => setScheduleConfig(prev => ({ ...prev, type: type.value as any }))}
-                            className={`p-3 rounded-xl border text-center transition-all ${
-                              scheduleConfig.type === type.value
-                                ? 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-300 text-blue-700 shadow-md'
-                                : 'bg-white/50 border-blue-100 hover:bg-blue-50/50 hover:shadow-sm'
-                            }`}
-                          >
-                            <div className="text-sm font-medium">{type.label}</div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Time *
-                      </label>
-                      <input
-                        type="time"
-                        value={scheduleConfig.time}
-                        onChange={(e) => setScheduleConfig(prev => ({ ...prev, time: e.target.value }))}
-                        className="w-full px-4 py-3 border border-blue-200 bg-white/50 rounded-xl"
-                        required
-                      />
-                      <p className="text-xs text-gray-500 mt-2">When to run the workflow</p>
-                    </div>
-                  </div>
-
-                  {scheduleConfig.type === 'weekly' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Days of Week
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {daysOfWeek.map((day) => (
-                          <button
-                            key={day.value}
-                            type="button"
-                            onClick={() => handleDayToggle(day.value)}
-                            className={`px-4 py-2 rounded-lg text-sm transition-all ${
-                              scheduleConfig.daysOfWeek?.includes(day.value)
-                                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                                : 'bg-white border border-blue-200 text-gray-700 hover:bg-blue-50 hover:shadow-sm'
-                            }`}
-                          >
-                            {day.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {scheduleConfig.type === 'monthly' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Days of Month
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                          <button
-                            key={day}
-                            type="button"
-                            onClick={() => {
-                              setScheduleConfig(prev => {
-                                const days = prev.daysOfMonth || [];
-                                const newDays = days.includes(day)
-                                  ? days.filter(d => d !== day)
-                                  : [...days, day];
-                                return { ...prev, daysOfMonth: newDays };
-                              });
-                            }}
-                            className={`w-10 h-10 rounded-lg text-sm transition-all ${
-                              scheduleConfig.daysOfMonth?.includes(day)
-                                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                                : 'bg-white border border-blue-200 text-gray-700 hover:bg-blue-50 hover:shadow-sm'
-                            }`}
-                          >
-                            {day}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {scheduleConfig.type === 'custom' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Cron Expression *
-                      </label>
-                      <input
-                        type="text"
-                        value={scheduleConfig.customCron || ''}
-                        onChange={(e) => setScheduleConfig(prev => ({ ...prev, customCron: e.target.value }))}
-                        placeholder="0 9 * * *"
-                        className="w-full px-4 py-3 border border-blue-200 bg-white/50 rounded-xl font-mono"
-                        required
-                      />
-                      <div className="mt-2 text-sm text-gray-600">
-                        <p>Examples:</p>
-                        <ul className="list-disc list-inside mt-1 text-xs">
-                          <li><code>0 9 * * *</code> - Daily at 9 AM</li>
-                          <li><code>0 0 * * 0</code> - Weekly on Sunday</li>
-                          <li><code>0 0 1 * *</code> - Monthly on 1st day</li>
-                          <li><code>*/15 * * * *</code> - Every 15 minutes</li>
-                        </ul>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Additional Criteria */}
-            <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
-                <Key className="h-5 w-5 text-blue-600" />
-                Additional Criteria (Optional)
-              </h2>
-
-              <div className="space-y-6">
-                {/* Time Range */}
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-3">Time Range</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-2">From</label>
-                      <input
-                        type="time"
-                        value={additionalCriteria.timeRange?.from || ''}
-                        onChange={(e) => setAdditionalCriteria(prev => ({
-                          ...prev,
-                          timeRange: { 
-                            ...prev.timeRange,
-                            from: e.target.value,
-                            to: prev.timeRange?.to || ''
-                          }
-                        }))}
-                        className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white/50"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-2">To</label>
-                      <input
-                        type="time"
-                        value={additionalCriteria.timeRange?.to || ''}
-                        onChange={(e) => setAdditionalCriteria(prev => ({
-                          ...prev,
-                          timeRange: { 
-                            ...prev.timeRange,
-                            from: prev.timeRange?.from || '',
-                            to: e.target.value
-                          }
-                        }))}
-                        className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white/50"
-                      />
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">Only run within this time range</p>
-                </div>
-
-                {/* User Criteria */}
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-3">User Criteria</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-2">Roles</label>
-                      <div className="flex gap-2 mb-2">
-                        <input
-                          type="text"
-                          value={newRole}
-                          onChange={(e) => setNewRole(e.target.value)}
-                          placeholder="e.g., admin, manager"
-                          className="flex-1 px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white/50"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleAddRole}
-                          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors"
-                        >
-                          Add
-                        </button>
-                      </div>
-                      {userRoles.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {userRoles.map((role, index) => (
-                            <span
-                              key={index}
-                              className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm"
-                            >
-                              {role}
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveRole(index)}
-                                className="text-blue-500 hover:text-blue-700"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </span>
-                          ))}
                         </div>
-                      )}
-                    </div>
 
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-2">Departments</label>
-                      <div className="flex gap-2 mb-2">
-                        <input
-                          type="text"
-                          value={newDepartment}
-                          onChange={(e) => setNewDepartment(e.target.value)}
-                          placeholder="e.g., sales, marketing"
-                          className="flex-1 px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white/50"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleAddDepartment}
-                          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors"
-                        >
-                          Add
-                        </button>
+                        {/* Action Parameters - Simplified for common actions */}
+                        {action.actionType === 'sendEmail' && (
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-2">
+                                To Email
+                              </label>
+                              <input
+                                type="email"
+                                value={action.params.to || ''}
+                                onChange={(e) => handleParamsChange(index, 'to', e.target.value)}
+                                className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                                placeholder="recipient@example.com"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-2">
+                                Subject
+                              </label>
+                              <input
+                                type="text"
+                                value={action.params.subject || ''}
+                                onChange={(e) => handleParamsChange(index, 'subject', e.target.value)}
+                                className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
+                                placeholder="Email subject"
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      {userDepartments.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {userDepartments.map((dept, index) => (
-                            <span
-                              key={index}
-                              className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm"
-                            >
-                              {dept}
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveDepartment(index)}
-                                className="text-purple-500 hover:text-purple-700"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                    );
+                  })}
                 </div>
+                
+                {/* Add Action Button */}
+                <button
+                  type="button"
+                  onClick={handleAddAction}
+                  className="mt-4 flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 rounded-lg hover:from-blue-100 hover:to-blue-200 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Action
+                </button>
+              </div>
 
-                {/* Field Criteria */}
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-3">Field Criteria</h3>
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Scheduled Actions - Only show for date/time triggers */}
+              {formData.triggerEvent === 'scheduled' && (
+                <div className="border-t border-blue-100 pt-6">
+                  <h3 className="text-sm font-medium text-gray-700 mb-4">Scheduled Actions</h3>
+                  <div className="p-4 bg-gradient-to-r from-blue-50/50 to-purple-50/50 border border-blue-200 rounded-xl">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <input
-                          type="text"
-                          value={newFieldCriteria.field}
-                          onChange={(e) => setNewFieldCriteria(prev => ({ ...prev, field: e.target.value }))}
-                          placeholder="Field name"
-                          className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white/50"
-                        />
-                      </div>
-                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-2">
+                          Schedule Type
+                        </label>
                         <select
-                          value={newFieldCriteria.operator}
-                          onChange={(e) => setNewFieldCriteria(prev => ({ ...prev, operator: e.target.value }))}
-                          className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white/50"
+                          value={scheduleConfig.type}
+                          onChange={(e) => setScheduleConfig(prev => ({ ...prev, type: e.target.value as any }))}
+                          className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
                         >
-                          {operators.map(op => (
-                            <option key={op.value} value={op.value}>
-                              {op.label}
-                            </option>
-                          ))}
+                          <option value="daily">Daily</option>
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                          <option value="custom">Custom</option>
                         </select>
                       </div>
-                      <div className="flex gap-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-2">
+                          Time
+                        </label>
                         <input
-                          type="text"
-                          value={newFieldCriteria.value}
-                          onChange={(e) => setNewFieldCriteria(prev => ({ ...prev, value: e.target.value }))}
-                          placeholder="Value"
-                          className="flex-1 px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white/50"
+                          type="time"
+                          value={scheduleConfig.time}
+                          onChange={(e) => setScheduleConfig(prev => ({ ...prev, time: e.target.value }))}
+                          className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm bg-white"
                         />
-                        <button
-                          type="button"
-                          onClick={handleAddFieldCriteria}
-                          className="px-3 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
                       </div>
                     </div>
-
-                    {fieldCriteria.length > 0 && (
-                      <div className="mt-4">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Current Field Criteria</h4>
-                        <div className="space-y-2">
-                          {fieldCriteria.map((criteria, index) => (
-                            <div key={index} className="flex items-center justify-between p-3 bg-gray-50/50 rounded-lg">
-                              <div className="text-sm">
-                                <span className="font-medium text-gray-900">{criteria.field}</span>
-                                <span className="text-gray-600 mx-2">
-                                  {operators.find(op => op.value === criteria.operator)?.symbol || '='}
-                                </span>
-                                <span className="text-gray-700">{criteria.value}</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveFieldCriteria(index)}
-                                className="p-1 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="flex justify-between">
@@ -1539,7 +1125,7 @@ export default function CreateWorkflow() {
                 className="flex items-center gap-2 px-6 py-3 border border-blue-200 text-blue-700 rounded-xl hover:bg-blue-50 transition-colors"
               >
                 <ChevronLeft className="h-5 w-5" />
-                Back: Trigger & Conditions
+                Back: When
               </button>
               <button
                 type="submit"
@@ -1549,12 +1135,12 @@ export default function CreateWorkflow() {
                 {saving ? (
                   <>
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    Creating...
+                    Creating Rule...
                   </>
                 ) : (
                   <>
                     <Save className="h-5 w-5" />
-                    Create Workflow
+                    Save Rule
                   </>
                 )}
               </button>
@@ -1563,11 +1149,11 @@ export default function CreateWorkflow() {
         )}
       </form>
 
-      {/* Summary Preview */}
+      {/* Summary Preview - Simplified */}
       {currentStep === 3 && (
         <div className="max-w-4xl mx-auto mt-8">
           <div className="bg-gradient-to-br from-blue-50/50 to-purple-50/50 border border-blue-100/50 rounded-2xl p-6">
-            <h3 className="font-medium text-gray-900 mb-4">Workflow Summary</h3>
+            <h3 className="font-medium text-gray-900 mb-4">Rule Summary</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <h4 className="text-xs font-medium text-gray-500 mb-2">Basic Info</h4>
@@ -1582,12 +1168,6 @@ export default function CreateWorkflow() {
                       {modules.find(m => m.value === formData.module)?.label}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Status:</span>
-                    <span className={`font-medium ${formData.active ? 'text-green-700' : 'text-gray-700'}`}>
-                      {formData.active ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
                 </div>
               </div>
               
@@ -1597,13 +1177,20 @@ export default function CreateWorkflow() {
                   <div className="flex justify-between">
                     <span className="text-gray-600">Trigger:</span>
                     <span className="font-medium text-blue-700">
-                      {triggerEvents.find(t => t.value === formData.triggerEvent)?.label}
+                      {formData.triggerEvent === 'scheduled' ? 'Date/Time Field' : 
+                       recordActions.find(a => {
+                         if (formData.triggerEvent === 'onCreateOrUpdate') return a.value === 'create_or_edit';
+                         if (formData.triggerEvent === 'onCreate') return a.value === 'create';
+                         if (formData.triggerEvent === 'onUpdate') return a.value === 'edit';
+                         if (formData.triggerEvent === 'onDelete') return a.value === 'delete';
+                         return false;
+                       })?.label || formData.triggerEvent}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Frequency:</span>
+                    <span className="text-gray-600">Conditions:</span>
                     <span className="font-medium text-blue-700">
-                      {executionFrequencies.find(f => f.value === formData.executionFrequency)?.label}
+                      {filterCondition === 'all' ? 'All records' : `${Object.keys(formData.conditions).length} condition(s)`}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -1619,3 +1206,46 @@ export default function CreateWorkflow() {
     </div>
   );
 }
+
+// Keep the existing actionTypes array from your original code
+const actionTypes = [
+  { 
+    value: 'sendEmail', 
+    label: 'Send Email', 
+    icon: Mail, 
+    description: 'Send an email notification',
+    paramFields: [
+      { name: 'to', label: 'To Email', type: 'email', required: true },
+      { name: 'subject', label: 'Subject', type: 'text', required: true },
+      { name: 'body', label: 'Body', type: 'textarea', required: true },
+    ]
+  },
+  { 
+    value: 'sendNotification', 
+    label: 'Send Notification', 
+    icon: Bell, 
+    description: 'Send in-app notification',
+    paramFields: [
+      { name: 'message', label: 'Message', type: 'text', required: true },
+    ]
+  },
+  { 
+    value: 'createTask', 
+    label: 'Create Task', 
+    icon: Calendar, 
+    description: 'Create a new task',
+    paramFields: [
+      { name: 'title', label: 'Task Title', type: 'text', required: true },
+    ]
+  },
+  { 
+    value: 'updateRecord', 
+    label: 'Update Record', 
+    icon: Settings, 
+    description: 'Update record fields',
+    paramFields: [
+      { name: 'field', label: 'Field Name', type: 'text', required: true },
+      { name: 'value', label: 'New Value', type: 'text', required: true },
+    ]
+  },
+];

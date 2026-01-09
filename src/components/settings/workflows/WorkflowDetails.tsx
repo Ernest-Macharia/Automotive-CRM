@@ -26,6 +26,15 @@ import {
   BarChart,
   Download,
   RefreshCw,
+  Plus,
+  Calendar as CalendarIcon,
+  ListFilter,
+  FileText,
+  Target,
+  Building,
+  User,
+  FileCheck,
+  CreditCard,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { workflowService } from '@/services/settings/workflowService';
@@ -35,11 +44,17 @@ interface WorkflowDetailsProps {
   workflowId: string;
 }
 
+// Extended Workflow type to include onCreateOrUpdate
+interface ExtendedWorkflow extends Omit<Workflow, 'triggerEvent'> {
+  triggerEvent: Workflow['triggerEvent'] | 'onCreateOrUpdate';
+  description?: string;
+}
+
 export default function WorkflowDetails({ workflowId }: WorkflowDetailsProps) {
   const router = useRouter();
   const { showToast } = useToast();
   
-  const [workflow, setWorkflow] = useState<Workflow | null>(null);
+  const [workflow, setWorkflow] = useState<ExtendedWorkflow | null>(null);
   const [loading, setLoading] = useState(true);
   const [history, setHistory] = useState<WorkflowExecutionHistory[]>([]);
   const [testResult, setTestResult] = useState<TestWorkflowResult | null>(null);
@@ -59,7 +74,13 @@ export default function WorkflowDetails({ workflowId }: WorkflowDetailsProps) {
     try {
       setLoading(true);
       const data = await workflowService.getWorkflowById(workflowId);
-      setWorkflow(data);
+      // Convert to ExtendedWorkflow type
+      const extendedData: ExtendedWorkflow = {
+        ...data,
+        triggerEvent: data.triggerEvent as ExtendedWorkflow['triggerEvent'],
+        description: (data as any).description || '',
+      };
+      setWorkflow(extendedData);
     } catch (error) {
       console.error('Error loading workflow:', error);
       showToast('Failed to load workflow', 'error');
@@ -83,7 +104,7 @@ export default function WorkflowDetails({ workflowId }: WorkflowDetailsProps) {
     
     try {
       const updatedWorkflow = await workflowService.toggleWorkflowStatus(workflow.id);
-      setWorkflow(updatedWorkflow);
+      setWorkflow(prev => prev ? { ...prev, active: updatedWorkflow.active } : null);
       showToast(
         `Workflow ${workflow.active ? 'deactivated' : 'activated'} successfully`,
         'success'
@@ -172,19 +193,57 @@ export default function WorkflowDetails({ workflowId }: WorkflowDetailsProps) {
       case 'sendNotification': return Bell;
       case 'createTask': return Calendar;
       case 'assignToUser': return Users;
+      case 'updateRecord': return Settings;
       default: return Settings;
     }
   };
 
-  const getTriggerIcon = (trigger: string) => {
+  const getTriggerIcon = (trigger: ExtendedWorkflow['triggerEvent']) => {
     switch (trigger) {
       case 'onCreate': return Plus;
       case 'onUpdate': return Edit;
+      case 'onCreateOrUpdate': return Edit;
       case 'onDelete': return Trash2;
       case 'scheduled': return Clock;
       case 'fieldUpdate': return Activity;
       case 'stageChange': return BarChart;
       default: return Zap;
+    }
+  };
+
+  const getModuleIcon = (module: ExtendedWorkflow['module']) => {
+    switch (module) {
+      case 'leads': return Target;
+      case 'opportunities': return FileCheck;
+      case 'accounts': return Building;
+      case 'contacts': return User;
+      case 'quotes': return FileText;
+      case 'invoices': return FileText;
+      case 'payments': return CreditCard;
+      default: return Settings;
+    }
+  };
+
+  const formatTriggerLabel = (trigger: ExtendedWorkflow['triggerEvent']) => {
+    switch (trigger) {
+      case 'onCreate': return 'On Create';
+      case 'onUpdate': return 'On Update';
+      case 'onCreateOrUpdate': return 'On Create or Edit';
+      case 'onDelete': return 'On Delete';
+      case 'scheduled': return 'Date/Time Field';
+      case 'fieldUpdate': return 'Field Update';
+      case 'stageChange': return 'Stage Change';
+      default: return trigger;
+    }
+  };
+
+  const formatExecutionFrequency = (frequency: string) => {
+    switch (frequency) {
+      case 'immediate': return 'Immediate';
+      case 'once': return 'Once';
+      case 'every_time': return 'Every Time';
+      case 'once_in_24_hours': return 'Once in 24 Hours';
+      default: return frequency;
     }
   };
 
@@ -218,6 +277,7 @@ export default function WorkflowDetails({ workflowId }: WorkflowDetailsProps) {
   }
 
   const TriggerIcon = getTriggerIcon(workflow.triggerEvent);
+  const ModuleIcon = getModuleIcon(workflow.module);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-purple-50/30 p-6">
@@ -248,9 +308,10 @@ export default function WorkflowDetails({ workflowId }: WorkflowDetailsProps) {
                     </span>
                     <span className="inline-flex items-center gap-1 text-sm text-blue-600">
                       <TriggerIcon className="h-4 w-4" />
-                      {workflow.triggerEvent.replace(/([A-Z])/g, ' $1').trim()}
+                      {formatTriggerLabel(workflow.triggerEvent)}
                     </span>
-                    <span className="text-sm text-gray-600">
+                    <span className="inline-flex items-center gap-1 text-sm text-gray-600">
+                      <ModuleIcon className="h-4 w-4" />
                       {workflow.module.charAt(0).toUpperCase() + workflow.module.slice(1)} Module
                     </span>
                   </div>
@@ -369,11 +430,24 @@ export default function WorkflowDetails({ workflowId }: WorkflowDetailsProps) {
                 </p>
               </div>
               <div className="p-3 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 rounded-xl">
-                <Calendar className="h-6 w-6 text-cyan-600" />
+                <CalendarIcon className="h-6 w-6 text-cyan-600" />
               </div>
             </div>
           </div>
         </div>
+
+        {/* Description */}
+        {workflow.description && (
+          <div className="mb-8">
+            <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-6">
+              <div className="flex items-center gap-2 mb-3">
+                <FileText className="h-5 w-5 text-blue-600" />
+                <h3 className="font-medium text-gray-900">Description</h3>
+              </div>
+              <p className="text-gray-700">{workflow.description}</p>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -518,15 +592,24 @@ export default function WorkflowDetails({ workflowId }: WorkflowDetailsProps) {
             {workflow.conditions && Object.keys(workflow.conditions).length > 0 && (
               <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-6">
                 <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-blue-600" />
+                  <ListFilter className="h-5 w-5 text-blue-600" />
                   Conditions
                 </h2>
                 <div className="space-y-2">
-                  {Object.entries(workflow.conditions).map(([field, value]) => (
-                    <div key={field} className="flex items-center justify-between p-2 bg-blue-50/50 rounded-lg">
-                      <span className="font-medium text-blue-700">{field}</span>
-                      <span className="text-gray-900">=</span>
-                      <span className="text-gray-900">{value}</span>
+                  {Object.entries(workflow.conditions).map(([key, condition]: [string, any]) => (
+                    <div key={key} className="flex items-center justify-between p-2 bg-blue-50/50 rounded-lg">
+                      <div className="text-sm">
+                        <span className="font-medium text-blue-700">{condition.field}</span>
+                        <span className="text-gray-600 mx-2">
+                          {condition.operator === 'equals' ? '=' : 
+                           condition.operator === 'not_equals' ? '≠' : 
+                           condition.operator === 'contains' ? '⊃' : 
+                           condition.operator === 'before' ? '<' : 
+                           condition.operator === 'after' ? '>' : 
+                           condition.operator === 'within' ? '±' : '='}
+                        </span>
+                        <span className="text-gray-900">{condition.value}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -541,7 +624,7 @@ export default function WorkflowDetails({ workflowId }: WorkflowDetailsProps) {
           <div className="bg-white/80 backdrop-blur-sm border border-blue-100/50 rounded-2xl p-6">
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <Zap className="h-5 w-5 text-blue-600" />
-              Workflow Information
+              Rule Information
             </h2>
             
             <div className="space-y-4">
@@ -550,15 +633,18 @@ export default function WorkflowDetails({ workflowId }: WorkflowDetailsProps) {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Module:</span>
-                    <span className="font-medium text-blue-700">{workflow.module}</span>
+                    <span className="font-medium text-blue-700 flex items-center gap-1">
+                      <ModuleIcon className="h-4 w-4" />
+                      {workflow.module.charAt(0).toUpperCase() + workflow.module.slice(1)}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Trigger:</span>
-                    <span className="font-medium text-blue-700">{workflow.triggerEvent}</span>
+                    <span className="font-medium text-blue-700">{formatTriggerLabel(workflow.triggerEvent)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Frequency:</span>
-                    <span className="font-medium text-blue-700">{workflow.executionFrequency}</span>
+                    <span className="font-medium text-blue-700">{formatExecutionFrequency(workflow.executionFrequency)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Scheduled:</span>
@@ -624,7 +710,7 @@ export default function WorkflowDetails({ workflowId }: WorkflowDetailsProps) {
               >
                 <div className="flex items-center gap-3">
                   <Edit className="h-4 w-4" />
-                  <span>Edit Workflow</span>
+                  <span>Edit Rule</span>
                 </div>
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -635,7 +721,7 @@ export default function WorkflowDetails({ workflowId }: WorkflowDetailsProps) {
               >
                 <div className="flex items-center gap-3">
                   <Copy className="h-4 w-4" />
-                  <span>Clone Workflow</span>
+                  <span>Clone Rule</span>
                 </div>
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -657,7 +743,7 @@ export default function WorkflowDetails({ workflowId }: WorkflowDetailsProps) {
               >
                 <div className="flex items-center gap-3">
                   <Trash2 className="h-4 w-4" />
-                  <span>Delete Workflow</span>
+                  <span>Delete Rule</span>
                 </div>
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -702,13 +788,13 @@ export default function WorkflowDetails({ workflowId }: WorkflowDetailsProps) {
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between">
-                          <span className="text-sm font-medium text-gray-900">Record {record.recordId.substring(0, 8)}...</span>
+                          <span className="text-sm font-medium text-gray-900">Record {record.recordId?.substring(0, 8) || 'N/A'}</span>
                           <span className="text-xs text-gray-500">
                             {new Date(record.timestamp).toLocaleTimeString()}
                           </span>
                         </div>
                         <div className="text-xs text-gray-600 mt-1">
-                          {record.actionsExecuted} actions executed
+                          {record.actionsExecuted || 0} actions executed
                           {record.errorMessage && ` • Error: ${record.errorMessage}`}
                         </div>
                       </div>
@@ -723,6 +809,3 @@ export default function WorkflowDetails({ workflowId }: WorkflowDetailsProps) {
     </div>
   );
 }
-
-// Import Plus for icons
-import { Plus } from 'lucide-react';
