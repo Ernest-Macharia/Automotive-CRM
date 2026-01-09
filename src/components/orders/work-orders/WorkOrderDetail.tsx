@@ -25,7 +25,8 @@ import {
   X, Maximize2, Minimize2, AlertTriangle, HelpCircle,
   MessageCircle, PhoneCall, Mail as MailIcon, UserCheck,
   FileSearch, FileBarChart, FileImage, FileVideo,
-  Download as DownloadIcon, Upload as UploadIcon
+  Download as DownloadIcon, Upload as UploadIcon,
+  CheckSquare
 } from 'lucide-react';
 import { workOrderService } from '@/services/workOrderService';
 import { lifecycleIntegrationService, LifecycleStageUI } from '@/services/lifecycleIntegrationService';
@@ -180,7 +181,10 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   const getStageActions = (stage: LifecycleStageUI) => {
     const actions = [];
     
-    if (stage.completed && stage.document) {
+    // Check if we have a real document, not just a stage marked as complete
+    const hasRealDocument = stage.document && stage.document._id;
+    
+    if (hasRealDocument) {
       actions.push({
         id: 'view',
         label: 'View Document',
@@ -198,8 +202,8 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         });
       }
     } else if (stage.isCurrent) {
-      // Show create button if no document exists
-      if (!stage.document) {
+      // Show create button if no document exists AND stage is not completed
+      if (!stage.completed) {
         actions.push({
           id: 'create',
           label: 'Create Document',
@@ -207,17 +211,17 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
           variant: 'primary'
         });
       } else {
-        // Show update button if document exists but stage isn't completed
+        // Stage is marked as complete but has no document - show create option
         actions.push({
-          id: 'update',
-          label: 'Update Document',
-          icon: <Edit className="h-4 w-4" />,
-          variant: 'primary'
+          id: 'create',
+          label: 'Create Document',
+          icon: <FilePlus className="h-4 w-4" />,
+          variant: 'warning'
         });
       }
       
       // Only show skip for waiver when no document exists
-      if (stage.stage === 'waiver' && !stage.document) {
+      if (stage.stage === 'waiver' && !hasRealDocument) {
         actions.push({
           id: 'skip',
           label: 'Skip Waiver',
@@ -235,7 +239,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
           variant: 'success'
         });
       }
-    } else if (stage.document) {
+    } else if (hasRealDocument) {
       // For non-current stages with documents
       actions.push({
         id: 'view',
@@ -250,10 +254,14 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
 
   const isStageReadyForCompletion = (stage: LifecycleStageUI): boolean => {
     if (stage.stage === 'waiver') {
+      // Waiver can be marked complete even without document
       return true;
     }
     
-    if (!stage.document) {
+    // Check if we have a real document (not just an ID from lifecycle)
+    const hasRealDocument = stage.document && stage.document._id;
+    
+    if (!hasRealDocument) {
       return false;
     }
     
@@ -371,17 +379,36 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         return;
       }
       
+      console.log('Stage action triggered:', {
+        stage: stage.stage,
+        actionId,
+        hasDocument: !!stage.document,
+        documentId: stage.documentId,
+        document: stage.document
+      });
+      
       switch (actionId) {
         case 'create':
           await handleCreateDocument(stage.stage);
           break;
         case 'view':
-          if (stage.documentId) {
+          if (stage.document && stage.document._id) {
             await handleViewDocument(stage);
+          } else {
+            showToast('No document exists to view. Please create one first.', 'warning');
           }
           break;
         case 'complete':
           await handleCompleteStage(stage);
+          break;
+        case 'completeDetails':
+          // Special action for job card to complete details
+          if (stage.stage === 'jobcard' && stage.documentId) {
+            router.push(`/job-cards/${stage.documentId}/complete-details`);
+          }
+          break;
+        case 'markChecklistComplete':
+          await handleMarkChecklistComplete(stage);
           break;
         case 'skip':
           if (stage.stage === 'waiver') {
@@ -394,6 +421,52 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       }
     } catch (error: any) {
       showToast(error.message || 'Action failed', 'error');
+    }
+  };
+
+  const handleMarkChecklistComplete = async (stage: WorkflowSidebarStage) => {
+    try {
+      if (!stage.documentId) {
+        showToast('No checklist document found', 'error');
+        return;
+      }
+      
+      setWorkflowLoading(true);
+      
+      // Update the checklist document to mark as completed
+      // You'll need to import your checklist service
+      const checklistService = stage.stage === 'prechecklist' 
+        ? require('@/services/preChecklistService') 
+        : require('@/services/postChecklistService');
+      
+      await checklistService.markChecklistAsCompleted(stage.documentId, {
+        completedBy: 'current-user-id', // You need to get this from auth context
+        completedAt: new Date().toISOString(),
+        notes: 'Marked complete from workflow'
+      });
+      
+      // Then mark the stage as completed in lifecycle
+      const opportunityId = typeof workOrder.opportunityId === 'object' 
+        ? workOrder.opportunityId._id 
+        : workOrder.opportunityId;
+      
+      await lifecycleIntegrationService.markStageAsCompleted(
+        opportunityId, 
+        stage.stage,
+        { 
+          documentId: stage.documentId,
+          completedBy: 'current-user-id'
+        }
+      );
+      
+      showToast(`${stage.label} marked as completed`, 'success');
+      fetchWorkOrder();
+      
+    } catch (error: any) {
+      console.error('Error marking checklist complete:', error);
+      showToast(error.message || 'Failed to mark checklist as complete', 'error');
+    } finally {
+      setWorkflowLoading(false);
     }
   };
 
@@ -426,13 +499,18 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         router.push(`/waivers/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
         break;
       case 'jobcard':
-        router.push(`/jobcards/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
+        const currentStage = workflowStages.find(stage => stage.stage === 'jobcard');
+        if (currentStage?.documentId) {
+          router.push(`/job-cards/${currentStage.documentId}/edit`);
+        } else {
+          router.push(`/job-cards/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
+        }
         break;
       case 'prechecklist':
-        router.push(`/prechecklists/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
+        router.push(`/pre-checklist/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
         break;
       case 'postchecklist':
-        router.push(`/postchecklists/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
+        router.push(`/post-checklist/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
         break;
       case 'invoice':
         router.push(`/invoices/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
@@ -444,9 +522,9 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   const handleViewDocument = async (stage: WorkflowSidebarStage) => {
     if (!stage.documentId) return;
     
-    const route = stage.documentType === 'Job Card' ? 'jobcards' :
-                 stage.documentType === 'Pre-Checklist' ? 'prechecklists' :
-                 stage.documentType === 'Post-Checklist' ? 'postchecklists' :
+    const route = stage.documentType === 'Job Card' ? 'job-cards' :
+                 stage.documentType === 'Pre-Checklist' ? 'pre-checklist' :
+                 stage.documentType === 'Post-Checklist' ? 'post-checklist' :
                  stage.documentType === 'Waiver' ? 'waivers' :
                  `${stage.documentType?.toLowerCase()}s`;
     
@@ -557,6 +635,14 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         return;
       }
       
+      // For non-waiver stages, check if document exists
+      if (currentStage?.stage !== 'waiver' && !currentStage?.document) {
+        showToast('Please create the document for current stage first', 'warning');
+        setWorkflowLoading(false);
+        return;
+      }
+      
+      // Then check if stage is completed
       if (currentStage && !currentStage.completed) {
         showToast('Please complete the current stage first', 'warning');
         setWorkflowLoading(false);
@@ -981,11 +1067,11 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                                 </span>
                               )}
                             </div>
-                            
+
                             {stage.completed ? (
                               <span className="text-xs text-green-600 font-medium flex items-center gap-1">
                                 <CheckCircle className="h-3 w-3" />
-                                Completed
+                                {stage.document ? 'Completed' : 'Skipped'}
                               </span>
                             ) : (
                               <span className="text-xs text-gray-500">
@@ -1258,27 +1344,40 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                 <div className="mb-6">
                   <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Document Status</h3>
                   <div className={`p-4 rounded-lg ${
-                    selectedStage.document 
+                    selectedStage.document && selectedStage.document._id
                       ? 'bg-green-50 border border-green-200' 
                       : 'bg-gray-50 border border-gray-200'
                   }`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className={`p-2 rounded-lg ${
-                          selectedStage.document ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'
+                          selectedStage.document && selectedStage.document._id
+                            ? 'bg-green-100 text-green-600' 
+                            : 'bg-gray-100 text-gray-400'
                         }`}>
-                          {selectedStage.document ? <FileCheck className="h-5 w-5" /> : <FileX className="h-5 w-5" />}
+                          {selectedStage.document && selectedStage.document._id 
+                            ? <FileCheck className="h-5 w-5" /> 
+                            : <FileX className="h-5 w-5" />
+                          }
                         </div>
                         <div>
                           <p className="font-medium text-gray-900">
-                            {selectedStage.document ? 'Document Created' : 'No Document Yet'}
+                            {selectedStage.document && selectedStage.document._id
+                              ? 'Document Created' 
+                              : 'No Document Yet'
+                            }
                           </p>
                           {selectedStage.documentType && (
                             <p className="text-sm text-gray-600">{selectedStage.documentType}</p>
                           )}
+                          {selectedStage.document && selectedStage.document._id && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              ID: {selectedStage.document._id.substring(0, 8)}...
+                            </p>
+                          )}
                         </div>
                       </div>
-                      {selectedStage.document && selectedStage.documentId && (
+                      {selectedStage.document && selectedStage.document._id && (
                         <button
                           onClick={() => handleViewDocument(selectedStage)}
                           className="text-blue-600 hover:text-blue-800 text-sm font-medium"
@@ -1288,29 +1387,23 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                       )}
                     </div>
                     
-                    {selectedStage.stage === 'waiver' && !selectedStage.document && (
-                      <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    {/* Show warning if stage shows as having document but doesn't really have one */}
+                    {selectedStage.document && !selectedStage.document._id && (
+                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
                         <div className="flex items-start gap-2">
-                          <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
                           <div>
-                            <p className="text-sm font-medium text-amber-800">Waiver is Optional</p>
-                            <p className="text-xs text-amber-700 mt-1">
-                              This is the only optional stage in the workflow. You can proceed without creating a waiver document.
+                            <p className="text-sm font-medium text-red-800">Document Data Issue</p>
+                            <p className="text-xs text-red-700 mt-1">
+                              This stage appears to have a document, but no actual document exists. 
+                              Please create the document to proceed.
                             </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {selectedStage.stage !== 'waiver' && !selectedStage.document && !selectedStage.completed && (
-                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div className="flex items-start gap-2">
-                          <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-sm font-medium text-blue-800">Document Required</p>
-                            <p className="text-xs text-blue-700 mt-1">
-                              This stage requires a document to be created before proceeding.
-                            </p>
+                            <button
+                              onClick={() => handleStageAction(selectedStage, 'create')}
+                              className="mt-2 px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                            >
+                              Create Document
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -1384,6 +1477,67 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                         </button>
                       )}
 
+                      {/* CHECKLIST COMPLETE BUTTON - NEW */}
+                      {(selectedStage.stage === 'prechecklist' || selectedStage.stage === 'postchecklist') && 
+                      selectedStage.document && selectedStage.document._id && !selectedStage.document.completed && (
+                        <button
+                          onClick={() => handleStageAction(selectedStage, 'markChecklistComplete')}
+                          disabled={workflowLoading}
+                          className={`w-full flex items-center justify-center gap-3 py-3 px-4 rounded-lg font-medium transition-colors ${
+                            workflowLoading
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              : 'bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-600 hover:to-green-700'
+                          }`}
+                        >
+                          {workflowLoading ? (
+                            <>
+                              <Loader2 className="h-5 w-5 animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <CheckSquare className="h-5 w-5" />
+                              Mark Checklist as Complete
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                      {/* JOB CARD COMPLETE DETAILS BUTTON - NEW */}
+                      {selectedStage.stage === 'jobcard' && selectedStage.document && selectedStage.document._id && (
+                        <button
+                          onClick={() => handleStageAction(selectedStage, 'completeDetails')}
+                          className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg hover:from-purple-600 hover:to-indigo-700 font-medium transition-colors"
+                        >
+                          <Wrench className="h-5 w-5" />
+                          Complete Job Card Details
+                        </button>
+                      )}
+
+                      {/* JOB CARD UPDATE BUTTON - NEW */}
+                      {selectedStage.stage === 'jobcard' && selectedStage.document && selectedStage.document._id && (
+                        <button
+                          onClick={() => handleStageAction(selectedStage, 'update')}
+                          className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-lg hover:from-blue-600 hover:to-cyan-700 font-medium transition-colors"
+                        >
+                          <Edit className="h-5 w-5" />
+                          Update Job Card
+                        </button>
+                      )}
+
+                      {/* CHECKLIST UPDATE BUTTON - NEW */}
+                      {(selectedStage.stage === 'prechecklist' || selectedStage.stage === 'postchecklist') && 
+                      selectedStage.document && selectedStage.document._id && (
+                        <button
+                          onClick={() => handleStageAction(selectedStage, 'update')}
+                          className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-lg hover:from-amber-600 hover:to-orange-700 font-medium transition-colors"
+                        >
+                          <Edit className="h-5 w-5" />
+                          Update Checklist
+                        </button>
+                      )}
+
+                      {/* MARK STAGE AS COMPLETE BUTTON */}
                       {(selectedStage.document || selectedStage.stage === 'waiver') && (
                         <button
                           onClick={() => handleStageAction(selectedStage, 'complete')}
@@ -1391,7 +1545,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                           className={`w-full flex items-center justify-center gap-3 py-3 px-4 rounded-lg font-medium transition-colors ${
                             workflowLoading
                               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                              : 'bg-green-600 text-white hover:bg-green-700'
+                              : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700'
                           }`}
                         >
                           {workflowLoading ? (
@@ -1402,12 +1556,16 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                           ) : (
                             <>
                               <CheckCircle className="h-5 w-5" />
-                              Mark Stage as Complete
+                              {selectedStage.stage === 'waiver' && !selectedStage.document 
+                                ? 'Mark Waiver as Complete (Skipped)' 
+                                : 'Mark Stage as Complete'
+                              }
                             </>
                           )}
                         </button>
                       )}
 
+                      {/* WAIVER SKIP BUTTON */}
                       {selectedStage.stage === 'waiver' && (
                         <button
                           onClick={() => handleStageAction(selectedStage, 'skip')}
@@ -1415,7 +1573,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                           className={`w-full flex items-center justify-center gap-3 py-3 px-4 rounded-lg font-medium transition-colors ${
                             workflowLoading
                               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                              : 'bg-amber-600 text-white hover:bg-amber-700'
+                              : 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700'
                           }`}
                         >
                           <ArrowRight className="h-5 w-5" />
@@ -1423,6 +1581,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                         </button>
                       )}
 
+                      {/* STAGE REQUIREMENT MESSAGE */}
                       {selectedStage.stage !== 'waiver' && !selectedStage.document && (
                         <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                           <p className="text-sm text-blue-700 text-center">
@@ -1431,6 +1590,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                         </div>
                       )}
 
+                      {/* QUICK WAIVER SKIP LINK */}
                       {selectedStage.stage === 'waiver' && !selectedStage.document && (
                         <div className="text-center pt-2">
                           <button
