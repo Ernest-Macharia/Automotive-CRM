@@ -221,16 +221,25 @@ export class LifecycleIntegrationService {
   }
 
   private isStageTrulyCompleted(stageName: string, lifecycleStage: any, document: any): boolean {
-    // For waiver stage, it's optional, so we consider it completed if:
-    // 1. It has a document that's signed, OR
-    // 2. It's marked as completed in lifecycle but we check if it actually has a document
+    // First check if lifecycle marks it as completed
+    const lifecycleCompleted = lifecycleStage?.completed || false;
+    
+    // If lifecycle says it's not completed, return false immediately
+    if (!lifecycleCompleted) {
+      return false;
+    }
+    
+    // Special handling for waiver stage
     if (stageName === 'waiver') {
+      // Waiver is optional - consider it completed if:
+      // 1. It has a signed document, OR
+      // 2. It was skipped (no document but lifecycle marks it as completed)
       if (document?.signed) {
         return true; // Waiver document exists and is signed
       }
-      // If lifecycle says it's completed but no document, it might have been skipped
-      // We'll show it as not completed if no document exists
-      return lifecycleStage?.completed && document !== undefined;
+      // If lifecycle says it's completed but no document exists, it was skipped
+      // This should return true because waiver can be skipped
+      return true;
     }
     
     // For all other stages, they must have a document to be considered completed
@@ -1035,20 +1044,83 @@ export class LifecycleIntegrationService {
         });
       }
     } else if (isCurrent) {
-      // Always show create button if no document exists (except for waiver which is optional)
-      if (!document) {
-        actions.push({
-          label: 'Create',
-          action: 'create',
-          color: 'green'
-        });
-      } else {
-        // If document exists but stage isn't completed, show update/complete options
-        actions.push({
-          label: 'Update',
-          action: 'update',
-          color: 'green'
-        });
+      // For checklist stages
+      if (['prechecklist', 'postchecklist'].includes(stage)) {
+        if (document && document._id) {
+          if (document.completed === true) {
+            actions.push({
+              label: 'View',
+              action: 'view',
+              color: 'blue'
+            });
+          } else {
+            // Checklist exists but not completed
+            actions.push({
+              label: 'Complete Checklist',
+              action: 'markChecklistComplete',
+              color: 'green'
+            });
+            actions.push({
+              label: 'View/Edit',
+              action: 'update',
+              color: 'yellow'
+            });
+          }
+        } else {
+          // No checklist exists
+          actions.push({
+            label: 'Create',
+            action: 'create',
+            color: 'green'
+          });
+        }
+      } 
+      // For job card stage
+      else if (stage === 'jobcard') {
+        if (document && document._id) {
+          if (document.status === 'completed') {
+            actions.push({
+              label: 'View',
+              action: 'view',
+              color: 'blue'
+            });
+          } else {
+            // Job card exists but not completed
+            actions.push({
+              label: 'Complete Details',
+              action: 'completeDetails',
+              color: 'green'
+            });
+            actions.push({
+              label: 'Update',
+              action: 'update',
+              color: 'yellow'
+            });
+          }
+        } else {
+          // No job card exists
+          actions.push({
+            label: 'Create',
+            action: 'create',
+            color: 'green'
+          });
+        }
+      } 
+      // For other stages
+      else {
+        if (!document) {
+          actions.push({
+            label: 'Create',
+            action: 'create',
+            color: 'green'
+          });
+        } else {
+          actions.push({
+            label: 'Update',
+            action: 'update',
+            color: 'green'
+          });
+        }
       }
       
       // Only show skip for waiver
