@@ -28,6 +28,7 @@ export interface LifecycleStageUI {
     label: string;
     action: string;
     color: string;
+    description: string;
   }>;
   required?: boolean;
   skippable?: boolean;
@@ -748,7 +749,418 @@ export class LifecycleIntegrationService {
     return requirements;
   }
 
-  private async fetchDocumentsForStages(opportunityId: string, stages: string[]): Promise<Record<string, any>> {
+  // Add to your LifecycleIntegrationService class
+
+// Integration for checklist approval and stage completion
+  async handleChecklistApproval(
+    checklistId: string,
+    checklistType: 'prechecklist' | 'postchecklist',
+    approvedBy?: string
+  ): Promise<{
+    checklistApproved: boolean;
+    stageCompleted: boolean;
+    nextStage?: string;
+    workflowProgress: any;
+  }> {
+    try {
+      // 1. Get opportunity from checklist
+      let opportunityId: string;
+      
+      if (checklistType === 'prechecklist') {
+        const preChecklistService = require('./preChecklistService').preChecklistService;
+        const checklist = await preChecklistService.getPreChecklistById(checklistId);
+        opportunityId = typeof checklist.opportunityId === 'object' 
+          ? checklist.opportunityId._id 
+          : checklist.opportunityId;
+      } else {
+        const postChecklistService = require('./postChecklistService').postChecklistService;
+        const checklist = await postChecklistService.getPostChecklistById(checklistId);
+        opportunityId = typeof checklist.opportunityId === 'object' 
+          ? checklist.opportunityId._id 
+          : checklist.opportunityId;
+      }
+      
+      if (!opportunityId) {
+        throw new Error('Could not find opportunity for this checklist');
+      }
+      
+      // 2. Get current lifecycle state
+      const lifecycleUI = await this.getWorkOrderLifecycleUI(opportunityId);
+      
+      // 3. Determine which stage should be completed
+      const currentStage = lifecycleUI.progress.currentStage;
+      const shouldCompleteStage = currentStage === checklistType;
+      
+      if (shouldCompleteStage) {
+        // 4. Mark the stage as completed in lifecycle
+        const stageCompletion = await this.markStageAsCompleted(opportunityId, currentStage, {
+          documentId: checklistId,
+          completedBy: approvedBy,
+          notes: `${checklistType} approved`
+        });
+        
+        // 5. Check if we should auto-transition to next stage
+        const pattern = WORKFLOW_PATTERNS.WORK_ORDER;
+        const currentIndex = pattern.indexOf(currentStage);
+        
+        if (currentIndex < pattern.length - 1) {
+          const nextStage = pattern[currentIndex + 1];
+          
+          // Check if ready to transition
+          const documents = await this.fetchDocumentsForStages(opportunityId, [currentStage]);
+          const canTransition = await this.validateStageCompletion(opportunityId, currentStage, documents[currentStage]);
+          
+          if (canTransition) {
+            // Auto-transition to next stage
+            await this.transitionToStage(opportunityId, nextStage, {
+              skipValidation: true,
+              metadata: {
+                triggeredBy: `${checklistType}-approval`,
+                checklistId,
+                approvedBy
+              }
+            });
+            
+            return {
+              checklistApproved: true,
+              stageCompleted: true,
+              nextStage,
+              workflowProgress: await this.getWorkOrderLifecycleUI(opportunityId)
+            };
+          }
+        }
+        
+        return {
+          checklistApproved: true,
+          stageCompleted: true,
+          nextStage: null, // No next stage (already at last stage)
+          workflowProgress: await this.getWorkOrderLifecycleUI(opportunityId)
+        };
+      }
+      
+      // If checklist isn't for current stage, just approve it
+      return {
+        checklistApproved: true,
+        stageCompleted: false,
+        workflowProgress: lifecycleUI
+      };
+    } catch (error) {
+      console.error(`Error handling ${checklistType} approval:`, error);
+      throw error;
+    }
+  }
+
+  // Method to validate checklist completion before stage transition
+  async validateChecklistForStageTransition(
+    opportunityId: string,
+    checklistType: 'prechecklist' | 'postchecklist'
+  ): Promise<{
+    isValid: boolean;
+    checklists: any[];
+    requirements: string[];
+    missing: string[];
+  }> {
+    try {
+      const requirements: string[] = [];
+      const missing: string[] = [];
+      
+      // Get checklists for the opportunity
+      let checklists: any[] = [];
+      
+      if (checklistType === 'prechecklist') {
+        const preChecklistService = require('./preChecklistService').preChecklistService;
+        checklists = await preChecklistService.getPreChecklistsByOpportunity(opportunityId);
+      } else {
+        const postChecklistService = require('./postChecklistService').postChecklistService;
+        checklists = await postChecklistService.getPostChecklistsByOpportunity(opportunityId);
+      }
+      
+      // Check if we have at least one checklist
+      if (checklists.length === 0) {
+        requirements.push(`${checklistType} is required`);
+        missing.push('checklist');
+      }
+      
+      // Check if we have an approved checklist
+      const approvedChecklists = checklists.filter(c => c.approved);
+      if (approvedChecklists.length === 0) {
+        requirements.push(`Approved ${checklistType} is required`);
+        missing.push('approved-checklist');
+      }
+      
+      // Check checklist completion status
+      const completedChecklists = checklists.filter(c => {
+        if (checklistType === 'prechecklist') {
+          return c.inspectionItems.every((item: any) => item.status !== 'fault');
+        } else {
+          return c.inspectionItems.every((item: any) => 
+            item.status === 'completed' || item.status === 'not_applicable'
+          );
+        }
+      });
+      
+      if (completedChecklists.length === 0) {
+        requirements.push(`Fully completed ${checklistType} is required`);
+        missing.push('completed-checklist');
+      }
+      
+      return {
+        isValid: requirements.length === 0,
+        checklists,
+        requirements,
+        missing
+      };
+    } catch (error) {
+      console.error(`Error validating ${checklistType}:`, error);
+      throw error;
+    }
+  }
+
+  // Method to auto-create checklist if needed
+  async autoCreateChecklistIfNeeded(
+    opportunityId: string,
+    checklistType: 'prechecklist' | 'postchecklist',
+    userId?: string
+  ): Promise<any> {
+    try {
+      // Get opportunity details
+      const opportunity = await opportunityService.getOpportunityById(opportunityId);
+      
+      // Check if checklist already exists
+      let existingChecklists: any[] = [];
+      
+      if (checklistType === 'prechecklist') {
+        const preChecklistService = require('./preChecklistService').preChecklistService;
+        existingChecklists = await preChecklistService.getPreChecklistsByOpportunity(opportunityId);
+      } else {
+        const postChecklistService = require('./postChecklistService').postChecklistService;
+        existingChecklists = await postChecklistService.getPostChecklistsByOpportunity(opportunityId);
+      }
+      
+      // If checklist already exists, return it
+      if (existingChecklists.length > 0) {
+        return existingChecklists[0];
+      }
+      
+      // Get related information for checklist creation
+      const jobCards = await jobCardService.getJobCardsByOpportunity(opportunityId);
+      const jobCard = jobCards[0];
+      
+      const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
+      const workOrder = workOrders[0];
+      
+      // Get vehicle ID
+      let vehicleId = '';
+      if (jobCard?.vehicleId) {
+        vehicleId = typeof jobCard.vehicleId === 'object' ? jobCard.vehicleId._id : jobCard.vehicleId;
+      } else if ((opportunity as any).vehicleId) {
+        vehicleId = typeof (opportunity as any).vehicleId === 'object' 
+          ? (opportunity as any).vehicleId._id 
+          : (opportunity as any).vehicleId;
+      } else if ((workOrder as any).vehicleId) {
+        vehicleId = typeof (workOrder as any).vehicleId === 'object'
+          ? (workOrder as any).vehicleId._id
+          : (workOrder as any).vehicleId;
+      }
+      
+      // Create checklist based on type
+      if (checklistType === 'prechecklist') {
+        const preChecklistService = require('./preChecklistService').preChecklistService;
+        
+        // Create default pre-checklist items
+        const defaultItems = [
+          { item: 'Vehicle Exterior', status: 'n/a', remarks: 'To be inspected' },
+          { item: 'Vehicle Interior', status: 'n/a', remarks: 'To be inspected' },
+          { item: 'Engine Bay', status: 'n/a', remarks: 'To be inspected' },
+          { item: 'Tires & Wheels', status: 'n/a', remarks: 'To be inspected' },
+          { item: 'Lights & Signals', status: 'n/a', remarks: 'To be inspected' },
+          { item: 'Fluid Levels', status: 'n/a', remarks: 'To be checked' },
+          { item: 'Brake System', status: 'n/a', remarks: 'To be checked' },
+          { item: 'Suspension', status: 'n/a', remarks: 'To be checked' }
+        ];
+        
+        const checklistData = {
+          opportunityId,
+          vehicleId,
+          inspectionItems: defaultItems,
+          remarks: `Pre-service inspection for ${opportunity.subject}`,
+          approved: false
+        };
+        
+        return await preChecklistService.createPreChecklist(checklistData, userId);
+      } else {
+        const postChecklistService = require('./postChecklistService').postChecklistService;
+        
+        // Create default post-checklist items
+        const defaultItems = [
+          { 
+            item: 'Work Quality Verification', 
+            status: 'incomplete', 
+            required: true,
+            category: 'quality' 
+          },
+          { 
+            item: 'Safety Inspection', 
+            status: 'incomplete', 
+            required: true,
+            category: 'safety' 
+          },
+          { 
+            item: 'Cleanliness Check', 
+            status: 'incomplete', 
+            required: true,
+            category: 'cleanliness' 
+          },
+          { 
+            item: 'Test Drive', 
+            status: 'incomplete', 
+            required: false,
+            category: 'testing' 
+          },
+          { 
+            item: 'Customer Walkthrough', 
+            status: 'incomplete', 
+            required: true,
+            category: 'customer' 
+          },
+          { 
+            item: 'Documentation Review', 
+            status: 'incomplete', 
+            required: true,
+            category: 'documentation' 
+          }
+        ];
+        
+        const checklistData = {
+          opportunityId,
+          vehicleId,
+          jobCardId: jobCard?._id || jobCard?.id || '',
+          inspectedBy: userId,
+          inspectionItems: defaultItems,
+          notes: `Post-service quality check for ${opportunity.subject}`,
+          overallCondition: 'pending'
+        };
+        
+        return await postChecklistService.createPostChecklist(checklistData, userId);
+      }
+    } catch (error) {
+      console.error(`Error auto-creating ${checklistType}:`, error);
+      throw error;
+    }
+  }
+
+  // Add to LifecycleIntegrationService class
+  async completeChecklistAndTransition(
+    checklistId: string,
+    checklistType: 'prechecklist' | 'postchecklist',
+    userId?: string
+  ): Promise<{
+    checklistCompleted: boolean;
+    stageTransitioned: boolean;
+    nextStage?: string;
+    message: string;
+  }> {
+    try {
+      // Get checklist to find opportunity
+      let opportunityId: string;
+      
+      if (checklistType === 'prechecklist') {
+        const preChecklistService = require('./preChecklistService').preChecklistService;
+        const checklist = await preChecklistService.getPreChecklistById(checklistId);
+        opportunityId = typeof checklist.opportunityId === 'object' 
+          ? checklist.opportunityId._id 
+          : checklist.opportunityId;
+      } else {
+        const postChecklistService = require('./postChecklistService').postChecklistService;
+        const checklist = await postChecklistService.getPostChecklistById(checklistId);
+        opportunityId = typeof checklist.opportunityId === 'object' 
+          ? checklist.opportunityId._id 
+          : checklist.opportunityId;
+      }
+      
+      if (!opportunityId) {
+        throw new Error('Could not find opportunity for this checklist');
+      }
+      
+      // Get current lifecycle state
+      const lifecycleUI = await this.getWorkOrderLifecycleUI(opportunityId);
+      const currentStage = lifecycleUI.progress.currentStage;
+      
+      // Verify this checklist belongs to current stage
+      if (currentStage !== checklistType) {
+        return {
+          checklistCompleted: false,
+          stageTransitioned: false,
+          message: `Checklist is not for current stage. Current stage is ${currentStage}`
+        };
+      }
+      
+      // Mark checklist as completed/approved
+      if (checklistType === 'prechecklist') {
+        const preChecklistService = require('./preChecklistService').preChecklistService;
+        await preChecklistService.approvePreChecklist(checklistId, userId);
+      } else {
+        const postChecklistService = require('./postChecklistService').postChecklistService;
+        await postChecklistService.approvePostChecklist(checklistId, userId);
+      }
+      
+      // Mark stage as completed
+      await this.markStageAsCompleted(opportunityId, checklistType, {
+        documentId: checklistId,
+        completedBy: userId,
+        notes: `${checklistType} completed`
+      });
+      
+      // Check if we should auto-transition
+      const pattern = lifecycleUI.pattern;
+      const currentIndex = pattern.indexOf(currentStage);
+      
+      if (currentIndex < pattern.length - 1) {
+        const nextStage = pattern[currentIndex + 1];
+        
+        // Validate current stage completion
+        const documents = await this.fetchDocumentsForStages(opportunityId, [currentStage]);
+        const isValid = await this.validateStageCompletion(opportunityId, currentStage, documents[currentStage]);
+        
+        if (isValid) {
+          // Auto-transition to next stage
+          await this.transitionToStage(opportunityId, nextStage, {
+            skipValidation: true,
+            metadata: {
+              triggeredBy: 'checklist-completion',
+              checklistId,
+              completedBy: userId
+            }
+          });
+          
+          return {
+            checklistCompleted: true,
+            stageTransitioned: true,
+            nextStage,
+            message: `${checklistType} completed and auto-transitioned to ${nextStage}`
+          };
+        } else {
+          return {
+            checklistCompleted: true,
+            stageTransitioned: false,
+            message: `${checklistType} completed but not ready for auto-transition`
+          };
+        }
+      }
+      
+      return {
+        checklistCompleted: true,
+        stageTransitioned: false,
+        message: `${checklistType} completed (final stage)`
+      };
+      
+    } catch (error) {
+      console.error('Error completing checklist and transition:', error);
+      throw error;
+    }
+  }
+
+  public async fetchDocumentsForStages(opportunityId: string, stages: string[]): Promise<Record<string, any>> {
     const documents: Record<string, any> = {};
     
     try {
@@ -775,8 +1187,39 @@ export class LifecycleIntegrationService {
           documents.jobcard = jobCards[0];
         }
       }
+
+      if (stages.includes('prechecklist')) {
+      try {
+        const preChecklistService = require('./preChecklistService').preChecklistService;
+        const preChecklists = await preChecklistService.getPreChecklistsByOpportunity(opportunityId);
+        if (preChecklists.length > 0) {
+          // Sort by date and take the most recent one
+          documents.prechecklist = preChecklists.sort((a: any, b: any) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )[0];
+        }
+      } catch (error) {
+        console.error('Error fetching pre-checklists:', error);
+      }
+    }
+    
+    // Fetch post-checklists
+    if (stages.includes('postchecklist')) {
+      try {
+        const postChecklistService = require('./postChecklistService').postChecklistService;
+        const postChecklists = await postChecklistService.getPostChecklistsByOpportunity(opportunityId);
+        if (postChecklists.length > 0) {
+          // Sort by date and take the most recent one
+          documents.postchecklist = postChecklists.sort((a: any, b: any) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )[0];
+        }
+      } catch (error) {
+        console.error('Error fetching post-checklists:', error);
+      }
+    }
       
-      // Note: Add other document types here (waivers, checklists, etc.)
+      // Note: Add other document types here (waivers, etc.)
       
       return documents;
     } catch (error) {
@@ -986,6 +1429,8 @@ export class LifecycleIntegrationService {
         return !!document;
     }
   }
+
+  
   
   private getStageActions(
     stage: string,
@@ -994,155 +1439,199 @@ export class LifecycleIntegrationService {
     document: any,
     packageType: string
   ): any[] {
-    const actions = [];
+    const actions: any[] = [];
+    const isWaiver = stage === 'waiver';
     
-    if (completed && document) {
+    // Check if we have a real document (not just a stage marked as complete)
+    const hasRealDocument = document && document._id;
+    
+    // For completed stages with documents
+    if (completed && hasRealDocument) {
       actions.push({
         label: 'View',
         action: 'view',
-        color: 'blue'
+        color: 'blue',
+        icon: 'eye'
       });
-    } else if (isCurrent) {
-      actions.push({
-        label: 'Create',
-        action: 'create',
-        color: 'green'
-      });
+      
+      // Show update option for certain stages that can be updated
+      if (['jobcard', 'prechecklist', 'postchecklist', 'waiver'].includes(stage)) {
+        actions.push({
+          label: 'Update',
+          action: 'update',
+          color: 'yellow',
+          icon: 'edit'
+        });
+      }
+    } 
+    // For current stage (not completed)
+    else if (isCurrent) {
+      
+      // ============ WAIVER STAGE SPECIFIC LOGIC ============
+      if (isWaiver) {
+        // Always show create option for waiver when no document exists
+        if (!hasRealDocument) {
+          actions.push({
+            label: 'Create Waiver',
+            action: 'create',
+            color: 'green',
+            icon: 'file-plus',
+            description: 'Generate and send waiver document'
+          });
+        } else {
+          // If document exists, show view instead
+          actions.push({
+            label: 'View Waiver',
+            action: 'view',
+            color: 'blue',
+            icon: 'eye'
+          });
+          
+          // Show update option if waiver document exists
+          actions.push({
+            label: 'Update Waiver',
+            action: 'update',
+            color: 'yellow',
+            icon: 'edit'
+          });
+        }
+        
+        // Show skip option for waiver when no document exists
+        if (!hasRealDocument) {
+          actions.push({
+            label: 'Skip Waiver',
+            action: 'skip',
+            color: 'orange',
+            icon: 'arrow-right',
+            description: 'Continue without waiver document'
+          });
+        }
+        
+        // Show complete button - waiver can be marked complete with or without document
+        if (this.isStageReadyForCompletion(stage, document, completed)) { // Fixed: added this.
+          actions.push({
+            label: hasRealDocument ? 'Mark Complete' : 'Skip & Complete',
+            action: 'complete',
+            color: hasRealDocument ? 'green' : 'gray',
+            icon: 'check-circle',
+            description: hasRealDocument ? 'Mark waiver as completed' : 'Skip and move to next stage'
+          });
+        }
+      } 
+      // ============ NON-WAIVER STAGES LOGIC ============
+      else {
+        // For other stages, show create button if no document exists
+        if (!hasRealDocument) {
+          actions.push({
+            label: 'Create',
+            action: 'create',
+            color: 'green',
+            icon: 'file-plus'
+          });
+        } else {
+          // If document exists, show view
+          actions.push({
+            label: 'View',
+            action: 'view',
+            color: 'blue',
+            icon: 'eye'
+          });
+          
+          // Show update for certain document types
+          if (['jobcard', 'prechecklist', 'postchecklist'].includes(stage)) {
+            actions.push({
+              label: 'Update',
+              action: 'update',
+              color: 'yellow',
+              icon: 'edit'
+            });
+          }
+        }
+        
+        // Show complete button only if stage is ready for completion
+        if (this.isStageReadyForCompletion(stage, document, completed)) { // Fixed: added this.
+          actions.push({
+            label: 'Mark Complete',
+            action: 'complete',
+            color: 'green',
+            icon: 'check-circle'
+          });
+        }
+        
+        // Special actions for specific stages
+        if (stage === 'jobcard' && hasRealDocument) {
+          if (document.status !== 'completed') {
+            actions.push({
+              label: 'Complete Details',
+              action: 'completeDetails',
+              color: 'purple',
+              icon: 'wrench'
+            });
+          }
+        }
+        
+        if ((stage === 'prechecklist' || stage === 'postchecklist') && hasRealDocument) {
+          if (!document.completed) {
+            actions.push({
+              label: 'Mark Checklist Complete',
+              action: 'markChecklistComplete',
+              color: 'green',
+              icon: 'check-square'
+            });
+          }
+        }
+      }
+      
+      // Show transition/next button if stage is ready
+      if (hasRealDocument && this.isStageReadyForTransition(stage, document)) { // Fixed: added this.
+        actions.push({
+          label: 'Next Stage',
+          action: 'transition',
+          color: 'purple',
+          icon: 'arrow-right'
+        });
+      }
     }
     
-    if (isCurrent && document) {
+    // For non-current, non-completed stages with documents
+    if (!isCurrent && !completed && hasRealDocument) {
       actions.push({
-        label: 'Next',
-        action: 'transition',
-        color: 'purple'
+        label: 'View',
+        action: 'view',
+        color: 'gray',
+        icon: 'eye'
       });
     }
     
     return actions;
   }
-  
-  private getWorkOrderStageActions(
-    stage: string,
-    completed: boolean,
-    isCurrent: boolean,
-    document: any
-  ): any[] {
-    const actions = [];
-    
-    if (completed && document) {
-      actions.push({
-        label: 'View',
-        action: 'view',
-        color: 'blue'
-      });
-      
-      if (stage === 'jobcard' && document.status !== 'completed') {
-        actions.push({
-          label: 'Update',
-          action: 'update',
-          color: 'yellow'
-        });
-      }
-    } else if (isCurrent) {
-      // For checklist stages
-      if (['prechecklist', 'postchecklist'].includes(stage)) {
-        if (document && document._id) {
-          if (document.completed === true) {
-            actions.push({
-              label: 'View',
-              action: 'view',
-              color: 'blue'
-            });
-          } else {
-            // Checklist exists but not completed
-            actions.push({
-              label: 'Complete Checklist',
-              action: 'markChecklistComplete',
-              color: 'green'
-            });
-            actions.push({
-              label: 'View/Edit',
-              action: 'update',
-              color: 'yellow'
-            });
-          }
-        } else {
-          // No checklist exists
-          actions.push({
-            label: 'Create',
-            action: 'create',
-            color: 'green'
-          });
-        }
-      } 
-      // For job card stage
-      else if (stage === 'jobcard') {
-        if (document && document._id) {
-          if (document.status === 'completed') {
-            actions.push({
-              label: 'View',
-              action: 'view',
-              color: 'blue'
-            });
-          } else {
-            // Job card exists but not completed
-            actions.push({
-              label: 'Complete Details',
-              action: 'completeDetails',
-              color: 'green'
-            });
-            actions.push({
-              label: 'Update',
-              action: 'update',
-              color: 'yellow'
-            });
-          }
-        } else {
-          // No job card exists
-          actions.push({
-            label: 'Create',
-            action: 'create',
-            color: 'green'
-          });
-        }
-      } 
-      // For other stages
-      else {
-        if (!document) {
-          actions.push({
-            label: 'Create',
-            action: 'create',
-            color: 'green'
-          });
-        } else {
-          actions.push({
-            label: 'Update',
-            action: 'update',
-            color: 'green'
-          });
-        }
-      }
-      
-      // Only show skip for waiver
-      if (stage === 'waiver' && !document) {
-        actions.push({
-          label: 'Skip',
-          action: 'skip',
-          color: 'gray'
-        });
-      }
+
+  private isStageReadyForCompletion(stage: string, document: any, completed: boolean): boolean {
+    if (stage === 'waiver') {
+      // Waiver can be marked complete even without document
+      return true;
     }
     
-    // Show continue/transition only if stage is ready
-    if (isCurrent && this.isStageReadyForTransition(stage, document)) {
-      actions.push({
-        label: 'Continue',
-        action: 'transition',
-        color: 'purple'
-      });
+    // For other stages, need a real document
+    const hasRealDocument = document && document._id;
+    if (!hasRealDocument) {
+      return false;
     }
     
-    return actions;
+    // Check stage-specific completion criteria
+    switch (stage) {
+      case 'quote':
+        return document.status === 'approved';
+      case 'jobcard':
+        return document.status === 'completed' || document.status === 'closed';
+      case 'prechecklist':
+      case 'postchecklist':
+        return document.completed === true;
+      case 'invoice':
+        return document.status === 'sent' || document.status === 'paid';
+      default:
+        return !!document;
+    }
   }
 
   private isStageReadyForTransition(stage: string, document: any): boolean {
@@ -1170,7 +1659,17 @@ export class LifecycleIntegrationService {
         return !!document;
     }
   }
-  
+
+  private getWorkOrderStageActions(
+    stage: string,
+    completed: boolean,
+    isCurrent: boolean,
+    document: any
+  ): any[] {
+    // Delegate to the main getStageActions method for consistency
+    return this.getStageActions(stage, completed, isCurrent, document, 'work_order');
+  }
+    
   private getSalesOrderStageActions(
     stage: string,
     completed: boolean,
@@ -1178,7 +1677,6 @@ export class LifecycleIntegrationService {
     document: any
   ): any[] {
     const actions = [];
-    
     if (completed && document) {
       actions.push({
         label: 'View',
@@ -1202,11 +1700,14 @@ export class LifecycleIntegrationService {
     }
     
     if (isCurrent && document) {
-      actions.push({
-        label: 'Next',
-        action: 'transition',
-        color: 'purple'
-      });
+      // Check if ready for transition
+      if (this.isStageReadyForTransition(stage, document)) { // Fixed: added this.
+        actions.push({
+          label: 'Next',
+          action: 'transition',
+          color: 'purple'
+        });
+      }
     }
     
     return actions;

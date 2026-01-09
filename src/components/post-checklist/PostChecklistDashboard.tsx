@@ -297,7 +297,7 @@ export default function PostChecklistDashboard() {
           </div>
 
           <Link
-            href="/postchecklists/create"
+            href="/post-checklist/create"
             className="inline-flex items-center gap-2 px-4 py-2 bg-white text-teal-600 rounded-lg font-medium hover:bg-teal-50 transition-colors shadow-sm"
           >
             <PlusCircle className="h-5 w-5" />
@@ -460,7 +460,7 @@ export default function PostChecklistDashboard() {
                   : 'No post-service checklists have been created yet.'}
               </p>
               <Link
-                href="/postchecklists/create"
+                href="/post-checklist/create"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
               >
                 <PlusCircle className="h-4 w-4" />
@@ -605,7 +605,7 @@ export default function PostChecklistDashboard() {
                                 )}
                               </button>
                               <Link
-                                href={`/postchecklists/${checklist._id}`}
+                                href={`/post-checklist/${checklist._id}`}
                                 className="p-1 hover:bg-gray-100 rounded transition-colors"
                                 title="View Details"
                               >
@@ -680,14 +680,14 @@ export default function PostChecklistDashboard() {
                                   <h4 className="text-sm font-medium text-gray-900 mb-2">Quick Actions</h4>
                                   <div className="space-y-2">
                                     <Link
-                                      href={`/postchecklists/${checklist._id}/edit`}
+                                      href={`/post-checklist/${checklist._id}/edit`}
                                       className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
                                     >
                                       <Edit className="h-3 w-3" />
                                       Edit Checklist
                                     </Link>
                                     <Link
-                                      href={`/postchecklists/${checklist._id}`}
+                                      href={`/post-checklist/${checklist._id}`}
                                       className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-800"
                                     >
                                       <Eye className="h-3 w-3" />

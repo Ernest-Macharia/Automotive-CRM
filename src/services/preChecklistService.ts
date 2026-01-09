@@ -341,26 +341,155 @@ class PreChecklistService {
 
   async approvePreChecklist(id: string, approvedBy?: string): Promise<PreChecklist> {
     try {
-      const updateData: UpdatePreChecklistDto = {
-        approved: true,
-      };
+      const headers: Record<string, string> = {};
       
       if (approvedBy) {
-        updateData.approvedBy = approvedBy;
+        headers['X-Approved-By'] = approvedBy;
       }
       
-      return await this.updatePreChecklist(id, updateData);
+      return await extendedApiClient.patch<{ approvedBy?: string }, PreChecklist>(
+        `/prechecklists/${id}/approve`, 
+        { approvedBy }, 
+        headers
+      );
     } catch (error) {
       console.error(`Error approving pre-checklist ${id}:`, error);
       throw error;
     }
   }
 
-  async rejectPreChecklist(id: string): Promise<PreChecklist> {
+  // 8. Reject a pre-checklist (could be PATCH /api/v1/prechecklists/{id}/reject)
+  async rejectPreChecklist(id: string, reason?: string): Promise<PreChecklist> {
     try {
-      return await this.updatePreChecklist(id, { approved: false });
+      const headers: Record<string, string> = {};
+      
+      if (reason) {
+        headers['X-Rejection-Reason'] = reason;
+      }
+      
+      return await extendedApiClient.patch<{ rejected: boolean; reason?: string }, PreChecklist>(
+        `/prechecklists/${id}/approve`, 
+        { approved: false, reason }, 
+        headers
+      );
     } catch (error) {
       console.error(`Error rejecting pre-checklist ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // 9. Mark stage complete after approval
+  async markStageCompleteAfterApproval(checklistId: string, stageName: string): Promise<{ 
+    success: boolean; 
+    message: string; 
+    stageCompleted: boolean 
+  }> {
+    try {
+      // This would typically call your workflow/stage management API
+      // to mark the corresponding stage as complete
+      return await extendedApiClient.post<{
+        checklistId: string;
+        stageName: string;
+        action: 'complete-stage';
+      }, { success: boolean; message: string; stageCompleted: boolean }>(
+        `/workflow/stages/complete`,
+        {
+          checklistId,
+          stageName,
+          action: 'complete-stage'
+        }
+      );
+    } catch (error) {
+      console.error(`Error marking stage complete for checklist ${checklistId}:`, error);
+      throw error;
+    }
+  }
+
+  // 10. Get approval workflow status
+  async getApprovalWorkflowStatus(checklistId: string): Promise<{
+    checklistId: string;
+    approved: boolean;
+    stageName: string;
+    stageStatus: 'pending' | 'in-progress' | 'completed' | 'blocked';
+    nextStage?: string;
+    canProceed: boolean;
+  }> {
+    try {
+      return await extendedApiClient.get<{
+        checklistId: string;
+        approved: boolean;
+        stageName: string;
+        stageStatus: 'pending' | 'in-progress' | 'completed' | 'blocked';
+        nextStage?: string;
+        canProceed: boolean;
+      }>(`/prechecklists/${checklistId}/workflow-status`);
+    } catch (error) {
+      console.error(`Error getting workflow status for checklist ${checklistId}:`, error);
+      throw error;
+    }
+  }
+
+  // In preChecklistService.ts, add these methods:
+
+// Enhanced approval method with lifecycle integration
+  async approvePreChecklistWithLifecycle(
+    id: string, 
+    approvedBy?: string
+  ): Promise<{
+    checklist: PreChecklist;
+    lifecycleUpdate: any;
+  }> {
+    try {
+      const lifecycleIntegrationService = require('./lifecycleIntegrationService').lifecycleIntegrationService;
+      
+      // 1. Approve the checklist
+      const approvedChecklist = await this.approvePreChecklist(id, approvedBy);
+      
+      // 2. Update lifecycle stage
+      const lifecycleUpdate = await lifecycleIntegrationService.handleChecklistApproval(
+        id, 
+        'prechecklist', 
+        approvedBy
+      );
+      
+      return {
+        checklist: approvedChecklist,
+        lifecycleUpdate
+      };
+    } catch (error) {
+      console.error(`Error approving pre-checklist with lifecycle:`, error);
+      throw error;
+    }
+  }
+
+  // Method to check if pre-checklist is required for stage transition
+  async isRequiredForStageTransition(opportunityId: string): Promise<{
+    required: boolean;
+    reason: string;
+    hasChecklist: boolean;
+    hasApprovedChecklist: boolean;
+    isComplete: boolean;
+  }> {
+    try {
+      const checklists = await this.getPreChecklistsByOpportunity(opportunityId);
+      
+      const hasChecklist = checklists.length > 0;
+      const hasApprovedChecklist = checklists.some(c => c.approved);
+      
+      // Check if any checklist is complete (no faults)
+      const isComplete = checklists.some(checklist => 
+        checklist.inspectionItems.every(item => item.status !== 'fault')
+      );
+      
+      return {
+        required: true, // Pre-checklist is always required for work orders
+        reason: 'Pre-service inspection is mandatory for quality assurance',
+        hasChecklist,
+        hasApprovedChecklist,
+        isComplete
+      };
+    } catch (error) {
+      console.error(`Error checking pre-checklist requirements:`, error);
       throw error;
     }
   }

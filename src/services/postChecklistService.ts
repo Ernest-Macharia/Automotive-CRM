@@ -419,32 +419,177 @@ class PostChecklistService {
     }
   }
 
-  async approvePostChecklist(id: string, approvedBy?: string): Promise<PostChecklist> {
+  async approveOrRejectPostChecklist(
+    id: string, 
+    approved: boolean, 
+    approvedBy?: string, 
+    comments?: string
+  ): Promise<PostChecklist> {
     try {
-      const updateData: UpdatePostChecklistDto = {
-        approved: true,
-        notes: 'Checklist approved',
-        overallCondition: 'satisfactory'
-      };
+      const headers: Record<string, string> = {};
       
-      return await this.updatePostChecklist(id, updateData, approvedBy);
+      if (approvedBy) {
+        headers['X-Approved-By'] = approvedBy;
+      }
+      
+      if (comments) {
+        headers['X-Approval-Comments'] = comments;
+      }
+      
+      return await extendedApiClient.patch<{ 
+        approved: boolean; 
+        approvedBy?: string; 
+        comments?: string 
+      }, PostChecklist>(
+        `/postchecklist/${id}/approve`, 
+        { approved, approvedBy, comments }, 
+        headers
+      );
+    } catch (error) {
+      console.error(`Error ${approved ? 'approving' : 'rejecting'} post-checklist ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // 9. Approve a post-checklist
+  async approvePostChecklist(id: string, approvedBy?: string, comments?: string): Promise<PostChecklist> {
+    try {
+      return await this.approveOrRejectPostChecklist(id, true, approvedBy, comments);
     } catch (error) {
       console.error(`Error approving post-checklist ${id}:`, error);
       throw error;
     }
   }
 
-  async rejectPostChecklist(id: string, reason?: string): Promise<PostChecklist> {
+  // Reject a post-checklist
+  async rejectPostChecklist(id: string, approvedBy?: string, comments?: string): Promise<PostChecklist> {
     try {
-      const updateData: UpdatePostChecklistDto = {
-        approved: false,
-        notes: reason || 'Checklist rejected - requires re-inspection',
-        overallCondition: 'needs_attention'
-      };
-      
-      return await this.updatePostChecklist(id, updateData);
+      return await this.approveOrRejectPostChecklist(id, false, approvedBy, comments);
     } catch (error) {
       console.error(`Error rejecting post-checklist ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // Mark stage complete after approval
+  async markStageCompleteAfterApproval(checklistId: string, stageName: string): Promise<{ 
+    success: boolean; 
+    message: string; 
+    stageCompleted: boolean 
+  }> {
+    try {
+      // This would typically call your workflow/stage management API
+      return await extendedApiClient.post<{
+        checklistId: string;
+        stageName: string;
+        checklistType: 'post';
+        action: 'complete-stage';
+      }, { success: boolean; message: string; stageCompleted: boolean }>(
+        `/workflow/stages/complete`,
+        {
+          checklistId,
+          stageName,
+          checklistType: 'post',
+          action: 'complete-stage'
+        }
+      );
+    } catch (error) {
+      console.error(`Error marking stage complete for post-checklist ${checklistId}:`, error);
+      throw error;
+    }
+  }
+
+  // Get post-checklist approval workflow status
+  async getApprovalWorkflowStatus(checklistId: string): Promise<{
+    checklistId: string;
+    approved: boolean;
+    stageName: string;
+    stageStatus: 'pending' | 'in-progress' | 'completed' | 'blocked';
+    nextStage?: string;
+    canProceed: boolean;
+    requiresCustomerApproval: boolean;
+  }> {
+    try {
+      return await extendedApiClient.get<{
+        checklistId: string;
+        approved: boolean;
+        stageName: string;
+        stageStatus: 'pending' | 'in-progress' | 'completed' | 'blocked';
+        nextStage?: string;
+        canProceed: boolean;
+        requiresCustomerApproval: boolean;
+      }>(`/postchecklist/${checklistId}/workflow-status`);
+    } catch (error) {
+      console.error(`Error getting workflow status for post-checklist ${checklistId}:`, error);
+      throw error;
+    }
+  }
+
+  // In postChecklistService.ts, add these methods:
+
+// Enhanced approval method with lifecycle integration
+  async approvePostChecklistWithLifecycle(
+    id: string, 
+    approvedBy?: string,
+    comments?: string
+  ): Promise<{
+    checklist: PostChecklist;
+    lifecycleUpdate: any;
+  }> {
+    try {
+      const lifecycleIntegrationService = require('./lifecycleIntegrationService').lifecycleIntegrationService;
+      
+      // 1. Approve the checklist
+      const approvedChecklist = await this.approvePostChecklist(id, approvedBy, comments);
+      
+      // 2. Update lifecycle stage
+      const lifecycleUpdate = await lifecycleIntegrationService.handleChecklistApproval(
+        id, 
+        'postchecklist', 
+        approvedBy
+      );
+      
+      return {
+        checklist: approvedChecklist,
+        lifecycleUpdate
+      };
+    } catch (error) {
+      console.error(`Error approving post-checklist with lifecycle:`, error);
+      throw error;
+    }
+  }
+
+  // Method to check if post-checklist is required for stage transition
+  async isRequiredForStageTransition(opportunityId: string): Promise<{
+    required: boolean;
+    reason: string;
+    hasChecklist: boolean;
+    hasApprovedChecklist: boolean;
+    isComplete: boolean;
+  }> {
+    try {
+      const checklists = await this.getPostChecklistsByOpportunity(opportunityId);
+      
+      const hasChecklist = checklists.length > 0;
+      const hasApprovedChecklist = checklists.some(c => c.approved);
+      
+      // Check if any checklist is complete (all items completed or N/A)
+      const isComplete = checklists.some(checklist => 
+        checklist.inspectionItems.every(item => 
+          item.status === ChecklistItemStatus.COMPLETED || 
+          item.status === ChecklistItemStatus.NOT_APPLICABLE
+        )
+      );
+      
+      return {
+        required: true, // Post-checklist is always required for work orders
+        reason: 'Post-service quality check is mandatory before final invoice',
+        hasChecklist,
+        hasApprovedChecklist,
+        isComplete
+      };
+    } catch (error) {
+      console.error(`Error checking post-checklist requirements:`, error);
       throw error;
     }
   }

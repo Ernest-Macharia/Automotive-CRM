@@ -267,7 +267,7 @@ export default function PreChecklistDashboard() {
           </div>
 
           <Link
-            href="/prechecklists/create"
+            href="/pre-checklist/create"
             className="inline-flex items-center gap-2 px-4 py-2 bg-white text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition-colors shadow-sm"
           >
             <PlusCircle className="h-5 w-5" />
@@ -430,7 +430,7 @@ export default function PreChecklistDashboard() {
                   : 'No pre-service checklists have been created yet.'}
               </p>
               <Link
-                href="/prechecklists/create"
+                href="/pre-checklist/create"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <PlusCircle className="h-4 w-4" />
@@ -576,7 +576,7 @@ export default function PreChecklistDashboard() {
                                 )}
                               </button>
                               <Link
-                                href={`/prechecklists/${checklist._id}`}
+                                href={`/pre-checklist/${checklist._id}`}
                                 className="p-1 hover:bg-gray-100 rounded transition-colors"
                                 title="View Details"
                               >
@@ -648,7 +648,7 @@ export default function PreChecklistDashboard() {
                                   <h4 className="text-sm font-medium text-gray-900 mb-2">Quick Actions</h4>
                                   <div className="space-y-2">
                                     <Link
-                                      href={`/prechecklists/${checklist._id}/edit`}
+                                      href={`/pre-checklist/${checklist._id}/edit`}
                                       className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
                                     >
                                       <Edit className="h-3 w-3" />
@@ -664,7 +664,7 @@ export default function PreChecklistDashboard() {
                                       Clone Checklist
                                     </button>
                                     <Link
-                                      href={`/prechecklists/${checklist._id}`}
+                                      href={`/pre-checklist/${checklist._id}`}
                                       className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-800"
                                     >
                                       <Eye className="h-3 w-3" />

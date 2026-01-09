@@ -146,6 +146,37 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
     }
   };
 
+  const handleApproveWithLifecycle = async () => {
+    if (!checklist) return;
+    try {
+      setUpdating(true);
+      const approvedBy = sessionStorage.getItem('userId') || undefined;
+      
+      const result = await postChecklistService.approvePostChecklistWithLifecycle(
+        checklist._id, 
+        approvedBy,
+        'Post-service quality inspection approved'
+      );
+      
+      setChecklist(result.checklist);
+      
+      if (result.lifecycleUpdate.stageCompleted) {
+        if (result.lifecycleUpdate.nextStage) {
+          showToast(`Checklist approved! Auto-advanced to ${result.lifecycleUpdate.nextStage} stage`, 'success');
+        } else {
+          showToast('Checklist approved! Stage marked as complete.', 'success');
+        }
+      } else {
+        showToast('Checklist approved!', 'success');
+      }
+    } catch (error) {
+      console.error('Error approving post-checklist:', error);
+      showToast('Failed to approve checklist', 'error');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!checklist) return;
     if (!confirm('Are you sure you want to delete this post-checklist? This action cannot be undone.')) return;
@@ -523,7 +554,7 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
             <div className="space-y-4">
               {!checklist.approved && completionStats.completionPercentage === 100 && (
                 <button 
-                  onClick={handleApprove} 
+                  onClick={handleApproveWithLifecycle} 
                   className="btn-primary-green w-full flex items-center justify-center gap-2"
                   disabled={updating}
                 >

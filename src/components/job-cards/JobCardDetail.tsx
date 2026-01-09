@@ -21,6 +21,7 @@ import { userService, User } from '@/services/settings/userService';
 import { vehicleService, Vehicle } from '@/services/vehicleService';
 import { useToast } from '@/contexts/ToastContext';
 import { format } from 'date-fns';
+import { lifecycleIntegrationService } from '@/services/lifecycleIntegrationService';
 
 interface JobCardDetailProps {
   jobCardId: string;
@@ -191,12 +192,12 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
       // Calculate totals
       const partsCost = completeForm.partsUsed.reduce((sum, part) => sum + (part.totalCost || 0), 0);
       const totalCost = partsCost + (completeForm.laborCost || 0);
-      
+
       const updateData = {
         assignedTo: completeForm.assignedTo,
-        startDate: completeForm.startDate ? `${completeForm.startDate}T00:00:00.000Z` : undefined,
-        endDate: completeForm.endDate ? `${completeForm.endDate}T00:00:00.000Z` : undefined,
-        completedDate: completeForm.completedDate ? `${completeForm.completedDate}T00:00:00.000Z` : undefined,
+        startDate: completeForm.startDate ? new Date(completeForm.startDate).toISOString() : undefined,
+        endDate: completeForm.endDate ? new Date(completeForm.endDate).toISOString() : undefined,
+        completedDate: completeForm.completedDate ? new Date(completeForm.completedDate).toISOString() : undefined,
         estimatedHours: completeForm.estimatedHours,
         actualHours: completeForm.actualHours,
         laborCost: completeForm.laborCost,
@@ -205,14 +206,66 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
         status: completeForm.status,
         priority: completeForm.priority,
         notes: completeForm.notes,
-        partsUsed: completeForm.partsUsed
+        partsUsed: completeForm.partsUsed,
+        // Add vehicleId if needed by backend
+        vehicleId: jobCard?.vehicleId || (typeof jobCard?.vehicleId === 'string' ? jobCard.vehicleId : undefined)
       };
       
+      console.log('📤 Sending update data:', updateData); // Debug log
+      
+      // Update the job card
       await jobCardService.updateJobCard(jobCardId, updateData);
       
-      showToast('Job card details updated successfully!', 'success');
-      setShowCompleteDetails(false);
-      fetchJobCard();
+      // Show success toast
+      showToast('Job card completed successfully! ✅', 'success');
+      
+      // If this job card is linked to a work order/opportunity, update lifecycle
+      if (jobCard?.opportunityId) {
+        // Get the opportunity ID
+        const opportunityId = typeof jobCard.opportunityId === 'object' 
+          ? jobCard.opportunityId._id || jobCard.opportunityId.id 
+          : jobCard.opportunityId;
+        
+        if (opportunityId) {
+          try {
+            // Mark the jobcard stage as completed in the lifecycle
+            await lifecycleIntegrationService.markStageAsCompleted(opportunityId, 'jobcard', {
+              documentId: jobCardId,
+              notes: 'Job card completed via details form'
+            });
+            
+            // Show additional success message
+            showToast('Workflow stage updated successfully!', 'success');
+            
+            // Give a small delay for the toast to be visible
+            setTimeout(() => {
+              // Redirect back to work order details page
+              // You might need to adjust this URL based on your routing structure
+              router.push(`/orders/work-orders?opportunity=${opportunityId}`);
+              // OR if you have a specific work order ID:
+              // router.push(`/orders/work-orders/${workOrderId}`);
+            }, 1500);
+            
+          } catch (lifecycleError) {
+            console.error('⚠️ Error updating lifecycle stage:', lifecycleError);
+            // Don't fail the whole operation if lifecycle update fails
+            showToast('Job card saved but workflow update may need attention', 'warning');
+            
+            // Still redirect after a delay
+            setTimeout(() => {
+              router.push(`/orders/work-orders?opportunity=${opportunityId}`);
+            }, 1500);
+          }
+        } else {
+          // If no opportunity ID, just close the modal
+          setShowCompleteDetails(false);
+          fetchJobCard();
+        }
+      } else {
+        // If not linked to work order, just close the modal and refresh
+        setShowCompleteDetails(false);
+        fetchJobCard();
+      }
       
     } catch (error: any) {
       console.error('Error updating job card details:', error);
