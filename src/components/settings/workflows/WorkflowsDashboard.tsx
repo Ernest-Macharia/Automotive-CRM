@@ -322,7 +322,7 @@ const WorkflowCard = ({
                             Delay: {action.delayInMinutes} min
                           </span>
                         )}
-                        {Object.keys(action.params).length > 0 && (
+                        {action.params && Object.keys(action.params).length > 0 && (
                           <pre className="text-xs bg-white p-2 mt-2 rounded overflow-x-auto max-w-full">
                             {JSON.stringify(action.params, null, 2)}
                           </pre>
