@@ -76,7 +76,6 @@ export default function PreChecklistDashboard() {
       c.inspectionItems.some(item => item.status === 'fault')
     ).length;
     
-    // Calculate average completion
     let totalCompletion = 0;
     checklists.forEach(checklist => {
       const okItems = checklist.inspectionItems.filter(item => item.status === 'ok').length;
@@ -91,11 +90,9 @@ export default function PreChecklistDashboard() {
   };
 
   const filteredChecklists = checklists.filter(checklist => {
-    // Filter by status
     if (filterStatus === 'approved' && !checklist.approved) return false;
     if (filterStatus === 'pending' && checklist.approved) return false;
 
-    // Filter by search term
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
       const matchesSearch = 
@@ -215,12 +212,12 @@ export default function PreChecklistDashboard() {
 
   const getStatusBadge = (approved: boolean) => {
     return approved ? (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
         <CheckCircle className="w-3 h-3 mr-1" />
         Approved
       </span>
     ) : (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
         <Clock className="w-3 h-3 mr-1" />
         Pending
       </span>
@@ -245,116 +242,82 @@ export default function PreChecklistDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-teal-50/30 flex items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-teal-50/30">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 via-blue-500 to-teal-600 text-white px-8 py-6 shadow-lg">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
-              <ClipboardCheck className="h-6 w-6" />
+      <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-md flex items-center px-6 flex-shrink-0">
+        <div className="max-w-7xl mx-auto flex items-center justify-between w-full">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white/20 rounded-xl">
+              <ClipboardCheck className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Pre-Service Checklists</h1>
-              <p className="text-blue-100">Manage vehicle pre-service inspections</p>
+              <h1 className="text-xl font-bold text-white">Pre-Service Checklists</h1>
+              <p className="text-blue-100 text-sm">Manage vehicle pre-service inspections</p>
             </div>
           </div>
 
           <Link
             href="/pre-checklist/create"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition-colors shadow-sm"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/20 backdrop-blur-sm text-white text-sm font-medium rounded-lg hover:bg-white/30 transition"
           >
-            <PlusCircle className="h-5 w-5" />
+            <PlusCircle className="h-4 w-4" />
             New Checklist
           </Link>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="max-w-7xl mx-auto px-8 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div className="bg-white rounded-xl shadow-md border p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Checklists</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+          {[
+            { label: 'Total Checklists', value: stats.total, icon: ClipboardCheck, color: 'text-blue-600' },
+            { label: 'Approved', value: stats.approved, icon: CheckCircle, color: 'text-green-600' },
+            { label: 'Pending', value: stats.pending, icon: Clock, color: 'text-yellow-600' },
+            { label: 'With Faults', value: stats.withFaults, icon: AlertCircle, color: 'text-red-600' },
+            { label: 'Avg. Completion', value: `${stats.avgCompletion}%`, icon: BarChart3, color: 'text-purple-600' },
+          ].map((stat, idx) => (
+            <div key={idx} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-500">{stat.label}</p>
+                  <p className="text-lg font-bold text-gray-900">{stat.value}</p>
+                </div>
+                <stat.icon className={`h-6 w-6 ${stat.color}`} />
               </div>
-              <ClipboardCheck className="h-8 w-8 text-blue-500" />
             </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md border p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Approved</p>
-                <p className="text-2xl font-bold text-green-600">{stats.approved}</p>
-              </div>
-              <CheckCircle className="h-8 w-8 text-green-500" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md border p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Pending</p>
-                <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
-              </div>
-              <Clock className="h-8 w-8 text-yellow-500" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md border p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">With Faults</p>
-                <p className="text-2xl font-bold text-red-600">{stats.withFaults}</p>
-              </div>
-              <AlertCircle className="h-8 w-8 text-red-500" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md border p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Avg. Completion</p>
-                <p className="text-2xl font-bold text-purple-600">{stats.avgCompletion}%</p>
-              </div>
-              <BarChart3 className="h-8 w-8 text-purple-500" />
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
       {/* Controls */}
-      <div className="max-w-7xl mx-auto px-8 pb-6">
-        <div className="bg-white rounded-xl shadow-md border p-4">
-          <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-            <div className="flex-1 w-full">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search checklists, vehicles, or remarks..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search checklists, vehicles, or remarks..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              />
             </div>
 
-            <div className="flex items-center gap-4 w-full md:w-auto">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <Filter className="h-4 w-4 text-gray-400" />
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value as any)}
-                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="all">All Status</option>
                   <option value="approved">Approved</option>
@@ -362,7 +325,7 @@ export default function PreChecklistDashboard() {
                 </select>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <select
                   value={`${sortField}-${sortDirection}`}
                   onChange={(e) => {
@@ -370,7 +333,7 @@ export default function PreChecklistDashboard() {
                     setSortField(field as 'createdAt' | 'updatedAt');
                     setSortDirection(direction as 'asc' | 'desc');
                   }}
-                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="createdAt-desc">Newest First</option>
                   <option value="createdAt-asc">Oldest First</option>
@@ -380,36 +343,34 @@ export default function PreChecklistDashboard() {
 
               <button
                 onClick={loadChecklists}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
                 title="Refresh"
               >
-                <RefreshCw className="h-5 w-5 text-gray-600" />
+                <RefreshCw className="h-4 w-4 text-gray-600" />
               </button>
             </div>
           </div>
 
           {/* Bulk Actions */}
           {selectedChecklists.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">
-                  {selectedChecklists.length} checklist(s) selected
-                </span>
+            <div className="mt-4 pt-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="text-sm font-medium text-gray-700">
+                {selectedChecklists.length} checklist{selectedChecklists.length !== 1 ? 's' : ''} selected
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleBulkApprove}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
                 >
                   <CheckCircle className="h-4 w-4" />
-                  Approve Selected
+                  Approve
                 </button>
                 <button
                   onClick={handleBulkDelete}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
                 >
                   <Trash2 className="h-4 w-4" />
-                  Delete Selected
+                  Delete
                 </button>
               </div>
             </div>
@@ -418,31 +379,31 @@ export default function PreChecklistDashboard() {
       </div>
 
       {/* Checklists Table */}
-      <div className="max-w-7xl mx-auto px-8 pb-8">
-        <div className="bg-white rounded-xl shadow-md border overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           {filteredChecklists.length === 0 ? (
             <div className="p-8 text-center">
-              <ClipboardCheck className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Pre-Checklists Found</h3>
-              <p className="text-gray-600 mb-4">
+              <ClipboardCheck className="h-8 w-8 text-gray-400 mx-auto mb-3" />
+              <h3 className="text-base font-semibold text-gray-900 mb-1">No Pre-Checklists Found</h3>
+              <p className="text-gray-600 text-sm mb-4">
                 {searchTerm || filterStatus !== 'all' 
                   ? 'No checklists match your search criteria.'
-                  : 'No pre-service checklists have been created yet.'}
+                  : 'Create your first pre-service checklist to get started.'}
               </p>
               <Link
                 href="/pre-checklist/create"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
               >
                 <PlusCircle className="h-4 w-4" />
-                Create Your First Checklist
+                Create Checklist
               </Link>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left">
+                    <th className="px-4 py-3 text-left w-12">
                       <input
                         type="checkbox"
                         checked={selectedChecklists.length === filteredChecklists.length && filteredChecklists.length > 0}
@@ -450,30 +411,30 @@ export default function PreChecklistDashboard() {
                         className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Checklist
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Vehicle
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       <button
                         onClick={() => handleSort('createdAt')}
                         className="flex items-center gap-1 hover:text-gray-700"
                       >
                         Created
                         {sortField === 'createdAt' && (
-                          sortDirection === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                          sortDirection === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
                         )}
                       </button>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Progress
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
                       Actions
                     </th>
                   </tr>
@@ -487,8 +448,8 @@ export default function PreChecklistDashboard() {
 
                     return (
                       <>
-                        <tr key={checklist._id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4">
+                        <tr key={checklist._id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
                             <input
                               type="checkbox"
                               checked={selectedChecklists.includes(checklist._id)}
@@ -496,62 +457,59 @@ export default function PreChecklistDashboard() {
                               className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                             />
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-4 py-3">
                             <div>
-                              <div className="font-medium text-gray-900">
+                              <div className="font-medium text-gray-900 text-sm">
                                 Pre-Service #{checklist._id.slice(-6)}
                               </div>
-                              <div className="text-sm text-gray-500">
+                              <div className="text-xs text-gray-500 mt-0.5">
                                 {checklist.remarks?.substring(0, 50) || 'No remarks'}
                                 {checklist.remarks && checklist.remarks.length > 50 && '...'}
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-4 py-3">
                             {vehicleInfo ? (
-                              <div className="flex items-center gap-2">
-                                <Car className="h-4 w-4 text-gray-400" />
-                                <div>
-                                  <div className="font-medium text-gray-900">
-                                    {vehicleInfo.make} {vehicleInfo.model}
-                                  </div>
-                                  <div className="text-sm text-gray-500">
-                                    {vehicleInfo.registrationNumber || 'No plate'}
-                                  </div>
+                              <div className="text-sm">
+                                <div className="font-medium text-gray-900">
+                                  {vehicleInfo.make} {vehicleInfo.model}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {vehicleInfo.registrationNumber || 'No plate'}
                                 </div>
                               </div>
                             ) : (
-                              <span className="text-gray-500">No vehicle info</span>
+                              <span className="text-gray-500 text-sm">—</span>
                             )}
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-4 py-3">
                             <div className="text-sm text-gray-900">{formatDate(checklist.createdAt as string)}</div>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-gray-500 mt-0.5">
                               {typeof checklist.inspectedBy === 'object' 
                                 ? `${checklist.inspectedBy.firstName?.charAt(0)}. ${checklist.inspectedBy.lastName}`
                                 : 'System'
                               }
                             </div>
                           </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1.5">
                               {getStatusBadge(checklist.approved)}
                               {faultItems.length > 0 && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
                                   {faultItems.length} fault{faultItems.length !== 1 ? 's' : ''}
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td className="px-6 py-4">
-                            <div className="w-full max-w-xs">
-                              <div className="flex justify-between text-xs mb-1">
-                                <span className="text-gray-600">Completion</span>
+                          <td className="px-4 py-3">
+                            <div className="w-full max-w-[120px]">
+                              <div className="flex justify-between text-xs text-gray-600 mb-1">
+                                <span>Completion</span>
                                 <span className="font-medium">{completion}%</span>
                               </div>
-                              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
                                 <div 
-                                  className={`h-full rounded-full transition-all duration-500 ${
+                                  className={`h-full rounded-full ${
                                     completion === 100 ? 'bg-green-500' :
                                     completion >= 50 ? 'bg-blue-500' :
                                     completion > 0 ? 'bg-yellow-500' :
@@ -562,41 +520,41 @@ export default function PreChecklistDashboard() {
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1.5">
                               <button
                                 onClick={() => setExpandedChecklist(isExpanded ? null : checklist._id)}
-                                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                                className="p-1.5 rounded hover:bg-gray-100"
                                 title={isExpanded ? 'Collapse' : 'Expand'}
                               >
                                 {isExpanded ? (
-                                  <ChevronUp className="h-4 w-4 text-gray-600" />
+                                  <ChevronUp className="h-3.5 w-3.5 text-gray-600" />
                                 ) : (
-                                  <ChevronDown className="h-4 w-4 text-gray-600" />
+                                  <ChevronDown className="h-3.5 w-3.5 text-gray-600" />
                                 )}
                               </button>
                               <Link
                                 href={`/pre-checklist/${checklist._id}`}
-                                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                                className="p-1.5 rounded hover:bg-gray-100"
                                 title="View Details"
                               >
-                                <Eye className="h-4 w-4 text-blue-600" />
+                                <Eye className="h-3.5 w-3.5 text-blue-600" />
                               </Link>
                               {!checklist.approved && (
                                 <button
                                   onClick={() => handleApproveChecklist(checklist._id)}
-                                  className="p-1 hover:bg-green-100 rounded transition-colors"
+                                  className="p-1.5 rounded hover:bg-green-100"
                                   title="Approve"
                                 >
-                                  <CheckCircle className="h-4 w-4 text-green-600" />
+                                  <CheckCircle className="h-3.5 w-3.5 text-green-600" />
                                 </button>
                               )}
                               <button
                                 onClick={() => handleDeleteChecklist(checklist._id)}
-                                className="p-1 hover:bg-red-100 rounded transition-colors"
+                                className="p-1.5 rounded hover:bg-red-100"
                                 title="Delete"
                               >
-                                <Trash2 className="h-4 w-4 text-red-600" />
+                                <Trash2 className="h-3.5 w-3.5 text-red-600" />
                               </button>
                             </div>
                           </td>
@@ -605,22 +563,22 @@ export default function PreChecklistDashboard() {
                         {/* Expanded Row */}
                         {isExpanded && (
                           <tr>
-                            <td colSpan={7} className="px-6 py-4 bg-gray-50">
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <td colSpan={7} className="px-4 py-4 bg-gray-50 border-t border-gray-200">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                                 <div>
-                                  <h4 className="text-sm font-medium text-gray-900 mb-2">Quick Summary</h4>
-                                  <div className="space-y-2">
-                                    <div className="flex justify-between text-sm">
+                                  <h4 className="font-medium text-gray-900 mb-2">Summary</h4>
+                                  <div className="space-y-1.5">
+                                    <div className="flex justify-between">
                                       <span className="text-gray-600">Total Items:</span>
                                       <span className="font-medium">{checklist.inspectionItems.length}</span>
                                     </div>
-                                    <div className="flex justify-between text-sm">
+                                    <div className="flex justify-between">
                                       <span className="text-gray-600">OK Items:</span>
                                       <span className="font-medium text-green-600">
                                         {checklist.inspectionItems.filter(item => item.status === 'ok').length}
                                       </span>
                                     </div>
-                                    <div className="flex justify-between text-sm">
+                                    <div className="flex justify-between">
                                       <span className="text-gray-600">Fault Items:</span>
                                       <span className="font-medium text-red-600">{faultItems.length}</span>
                                     </div>
@@ -628,9 +586,9 @@ export default function PreChecklistDashboard() {
                                 </div>
                                 
                                 <div>
-                                  <h4 className="text-sm font-medium text-gray-900 mb-2">Vehicle Details</h4>
+                                  <h4 className="font-medium text-gray-900 mb-2">Vehicle Details</h4>
                                   {vehicleInfo && (
-                                    <div className="space-y-1 text-sm">
+                                    <div className="space-y-1">
                                       {vehicleInfo.registrationNumber && (
                                         <div>Plate: {vehicleInfo.registrationNumber}</div>
                                       )}
@@ -645,29 +603,29 @@ export default function PreChecklistDashboard() {
                                 </div>
                                 
                                 <div>
-                                  <h4 className="text-sm font-medium text-gray-900 mb-2">Quick Actions</h4>
+                                  <h4 className="font-medium text-gray-900 mb-2">Actions</h4>
                                   <div className="space-y-2">
                                     <Link
                                       href={`/pre-checklist/${checklist._id}/edit`}
-                                      className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
+                                      className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800"
                                     >
-                                      <Edit className="h-3 w-3" />
+                                      <Edit className="h-3.5 w-3.5" />
                                       Edit Checklist
                                     </Link>
                                     <button
                                       onClick={() => {
-                                        // Clone logic here
+                                        // Clone logic can be added here
                                       }}
-                                      className="inline-flex items-center gap-1 text-sm text-purple-600 hover:text-purple-800"
+                                      className="inline-flex items-center gap-1.5 text-purple-600 hover:text-purple-800"
                                     >
-                                      <FileText className="h-3 w-3" />
+                                      <FileText className="h-3.5 w-3.5" />
                                       Clone Checklist
                                     </button>
                                     <Link
                                       href={`/pre-checklist/${checklist._id}`}
-                                      className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-800"
+                                      className="inline-flex items-center gap-1.5 text-green-600 hover:text-green-800"
                                     >
-                                      <Eye className="h-3 w-3" />
+                                      <Eye className="h-3.5 w-3.5" />
                                       Full Details
                                     </Link>
                                   </div>
@@ -684,27 +642,10 @@ export default function PreChecklistDashboard() {
             </div>
           )}
 
-          {/* Pagination */}
+          {/* Pagination Placeholder */}
           {filteredChecklists.length > 0 && (
-            <div className="px-6 py-4 border-t border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-700">
-                  Showing <span className="font-medium">1</span> to{' '}
-                  <span className="font-medium">{filteredChecklists.length}</span> of{' '}
-                  <span className="font-medium">{checklists.length}</span> results
-                </div>
-                <div className="flex items-center gap-2">
-                  <button className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50">
-                    Previous
-                  </button>
-                  <button className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50">
-                    1
-                  </button>
-                  <button className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50">
-                    Next
-                  </button>
-                </div>
-              </div>
+            <div className="px-4 py-3 border-t border-gray-200 text-sm text-gray-600">
+              Showing 1–{filteredChecklists.length} of {checklists.length} results
             </div>
           )}
         </div>

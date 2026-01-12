@@ -41,7 +41,8 @@ import {
   FileCheck,
   FileSearch,
   Check,
-  X
+  X,
+  Square
 } from 'lucide-react';
 import { postChecklistService, PostChecklist, ChecklistItemStatus } from '@/services/postChecklistService';
 import { preChecklistService, PreChecklist } from '@/services/preChecklistService';
@@ -79,12 +80,78 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
     message?: string;
   } | null>(null);
   const [showComparison, setShowComparison] = useState(false);
+  const [comparedItems, setComparedItems] = useState<Array<{
+    preItem: any;
+    postItem: any | null;
+    isOkay: boolean;
+    notes?: string;
+  }>>([]);
 
   useEffect(() => {
     if (id) {
       loadChecklist(id);
     }
   }, [id]);
+
+  useEffect(() => {
+    if (showComparison && preChecklist && checklist) {
+      const comparison = preChecklist.inspectionItems.map(preItem => {
+        // Find matching post-checklist item
+        const matchingPostItem = checklist.inspectionItems.find(postItem => 
+          postItem.item.toLowerCase().includes(preItem.item.toLowerCase()) ||
+          (postItem.remarks && postItem.remarks.toLowerCase().includes(preItem.item.toLowerCase()))
+        ) || null;
+        
+        // Auto-determine if okay based on status
+        const isOkay = matchingPostItem ? 
+          matchingPostItem.status === ChecklistItemStatus.COMPLETED &&
+          preItem.status === 'ok' ||
+          (preItem.status === 'fault' && matchingPostItem.status === ChecklistItemStatus.COMPLETED)
+          : false;
+        
+        return {
+          preItem,
+          postItem: matchingPostItem,
+          isOkay,
+          notes: ''
+        };
+      });
+      
+      setComparedItems(comparison);
+    }
+  }, [showComparison, preChecklist, checklist]);
+
+  // Add this function to handle checking/unchecking
+  const handleToggleOkay = (index: number) => {
+    setComparedItems(prev => prev.map((item, i) => 
+      i === index ? { ...item, isOkay: !item.isOkay } : item
+    ));
+  };
+
+  // Add this function to update notes
+  const handleUpdateNotes = (index: number, notes: string) => {
+    setComparedItems(prev => prev.map((item, i) => 
+      i === index ? { ...item, notes } : item
+    ));
+  };
+
+  // Add this function to save comparison results
+  const handleSaveComparison = async () => {
+    if (!checklist) return;
+    
+    try {
+      const okayCount = comparedItems.filter(item => item.isOkay).length;
+      const totalCount = comparedItems.length;
+      
+      // You can save this comparison data to your backend
+      // For now, we'll just show a toast
+      showToast(`Marked ${okayCount}/${totalCount} items as okay`, 'success');
+      setShowComparison(false);
+    } catch (error) {
+      console.error('Error saving comparison:', error);
+      showToast('Failed to save comparison', 'error');
+    }
+  };
 
   const loadChecklist = async (id: string) => {
     try {
@@ -198,7 +265,7 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
   };
 
   const getStatusColor = (approved: boolean) => {
-    return approved ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
+    return approved ? 'bg-emerald-100 text-emerald-800' : 'bg-yellow-100 text-yellow-800';
   };
 
   const getStatusText = (approved: boolean) => {
@@ -206,10 +273,14 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
   };
 
   const getStatusIcon = (approved: boolean) => {
-    return approved ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />;
+    return approved ? <Award className="h-4 w-4" /> : <Clock className="h-4 w-4" />;
   };
 
-  const getItemStatusColor = (status: ChecklistItemStatus) => {
+  const getItemStatusColor = (status: ChecklistItemStatus, checklistApproved: boolean = false) => {
+    if (checklistApproved && status === ChecklistItemStatus.COMPLETED) {
+      return 'bg-emerald-100 text-emerald-800 border border-emerald-200';
+    }
+    
     switch (status) {
       case ChecklistItemStatus.COMPLETED: return 'bg-green-100 text-green-800';
       case ChecklistItemStatus.INCOMPLETE: return 'bg-red-100 text-red-800';
@@ -218,7 +289,11 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
     }
   };
 
-  const getItemStatusIcon = (status: ChecklistItemStatus) => {
+  const getItemStatusIcon = (status: ChecklistItemStatus, checklistApproved: boolean = false) => {
+    if (checklistApproved && status === ChecklistItemStatus.COMPLETED) {
+      return <ShieldCheck className="h-4 w-4 text-emerald-600" />;
+    }
+    
     switch (status) {
       case ChecklistItemStatus.COMPLETED: return <CheckSquare className="h-4 w-4" />;
       case ChecklistItemStatus.INCOMPLETE: return <XSquare className="h-4 w-4" />;
@@ -264,49 +339,65 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
 
   const handleApprove = async () => {
     if (!checklist) return;
+    
     try {
       setApproving(true);
+      
+      // Get user info
       const approvedBy = sessionStorage.getItem('userId') || undefined;
-      const currentUserName = sessionStorage.getItem('userName') || 'User';
-
-      if (preChecklist) {
-        const unresolvedFaults = preChecklist.inspectionItems.filter(item => item.status === 'fault');
-        if (unresolvedFaults.length > 0) {
-          const allFaultsAddressed = unresolvedFaults.every(fault => {
-            const correspondingItem = checklist.inspectionItems.find(item =>
-              item.item.includes(fault.item) || item.remarks?.includes(fault.item)
-            );
-            return correspondingItem?.status === ChecklistItemStatus.COMPLETED;
-          });
-          if (!allFaultsAddressed) {
-            showToast('Some pre-checklist faults are not yet addressed.', 'warning');
-            setApproving(false);
-            setShowApprovalConfirm(false);
-            return;
-          }
-        }
-      }
-
+      const userName = sessionStorage.getItem('userName') || 'User';
+      
+      // Create approval message
+      const comments = `Post-service verification approved by ${userName} on ${new Date().toLocaleDateString()}`;
+      
+      console.log('🔍 Starting approval process:', {
+        checklistId: checklist._id,
+        approvedBy,
+        userName,
+        comments
+      });
+      
+      // Call the updated service method
       const approvedChecklist = await postChecklistService.approvePostChecklist(
         checklist._id,
         approvedBy,
-        `Approved by ${currentUserName}`
+        comments
       );
+      
+      console.log('✅ Approval successful:', approvedChecklist);
+      
+      // Update state
       setChecklist(approvedChecklist);
-      setApprovalResult({
-        success: true,
-        stageCompleted: false,
-        message: 'Post-checklist approved successfully!'
-      });
+      
+      // Show success message
+      showToast('Post-checklist approved successfully!', 'success');
+      
+      // Refresh data to get latest status
+      await loadChecklist(id);
+      
+      // Update UI state
       setCanApprove(false);
-      showToast('Post-checklist approved!', 'success');
+      
     } catch (error: any) {
-      console.error('Error approving:', error);
-      setApprovalResult({
-        success: false,
-        message: error.message || 'Failed to approve'
+      console.error('❌ Approval error details:', {
+        message: error.message,
+        stack: error.stack,
+        checklistId: checklist?._id
       });
-      showToast('Failed to approve', 'error');
+      
+      // Show user-friendly error
+      let errorMessage = 'Failed to approve post-checklist';
+      if (error.message.includes('400')) {
+        errorMessage = 'Invalid approval request. Please check the data.';
+      } else if (error.message.includes('401')) {
+        errorMessage = 'Session expired. Please log in again.';
+      } else if (error.message.includes('404')) {
+        errorMessage = 'Checklist not found or approval endpoint missing.';
+      } else if (error.message.includes('already approved')) {
+        errorMessage = 'This checklist is already approved.';
+      }
+      
+      showToast(errorMessage, 'error');
     } finally {
       setApproving(false);
       setShowApprovalConfirm(false);
@@ -470,14 +561,35 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
               <p className="text-sm text-gray-500">Quality Assurance & Pre-Checklist Resolution</p>
             </div>
           </div>
+          {/* Update the header status section */}
           <div className="flex items-center gap-2">
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${getStatusColor(checklist.approved)}`}>
-              {getStatusIcon(checklist.approved)}
-              {getStatusText(checklist.approved)}
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
+              checklist.approved ? 'bg-emerald-100 text-emerald-800' : 'bg-yellow-100 text-yellow-800'
+            }`}>
+              {checklist.approved ? (
+                <>
+                  <Award className="h-4 w-4" />
+                  Approved ✓
+                </>
+              ) : (
+                <>
+                  <Clock className="h-4 w-4" />
+                  Pending Approval
+                </>
+              )}
             </span>
             <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${getConditionColor(checklist.overallCondition)}`}>
               {checklist.overallCondition?.replace('_', ' ') || 'Not Rated'}
             </span>
+            {/* Add approval details if approved */}
+            {checklist.approved && checklist.approvedBy && (
+              <div className="text-xs text-gray-600">
+                {typeof checklist.approvedBy === 'object' 
+                  ? `by ${checklist.approvedBy.firstName} ${checklist.approvedBy.lastName}`
+                  : 'by ' + checklist.approvedBy}
+                {checklist.approvedAt && ` on ${formatDate(checklist.approvedAt as string)}`}
+              </div>
+            )}
           </div>
         </div>
 
@@ -556,12 +668,33 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
               {isReadyForApproval && (
                 <button
                   onClick={() => setShowApprovalConfirm(true)}
-                  className="text-xs px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700"
+                  className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
                 >
-                  <ThumbsUp className="h-3.5 w-3.5 inline mr-1" />
-                  Approve
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  Approve Verification
                 </button>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Approved Banner */}
+        {checklist.approved && (
+          <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Award className="h-4 w-4 text-emerald-600" />
+              <div>
+                <p className="text-sm font-medium text-emerald-800">✓ Post-Service Verification Approved</p>
+                <p className="text-xs text-emerald-700">
+                  {formatDate(checklist.approvedAt as string)}
+                  {checklist.approvedBy && (
+                    <> • Approved by: {typeof checklist.approvedBy === 'object' 
+                      ? `${checklist.approvedBy.firstName} ${checklist.approvedBy.lastName}`
+                      : checklist.approvedBy}
+                    </>
+                  )}
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -723,7 +856,7 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
                       key={index}
                       className={`p-3 rounded border ${
                         isRequired ? 'border-blue-200 bg-blue-50/30' : 'border-gray-200'
-                      }`}
+                      } ${checklist.approved ? 'bg-emerald-50/20 border-emerald-200' : ''}`}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -732,9 +865,15 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
                               {isRequired && <span className="text-red-500">*</span>}
                               {index + 1}. {item.item}
                             </span>
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getItemStatusColor(item.status)}`}>
-                              {getItemStatusIcon(item.status)}
-                              <span className="capitalize">{item.status.replace('_', ' ')}</span>
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                              getItemStatusColor(item.status, checklist.approved)
+                            }`}>
+                              {getItemStatusIcon(item.status, checklist.approved)}
+                              <span className="capitalize">
+                                {checklist.approved && item.status === ChecklistItemStatus.COMPLETED 
+                                  ? 'Verified ✓' 
+                                  : item.status.replace('_', ' ')}
+                              </span>
                             </span>
                             {isRequired && (
                               <span className="text-xs px-1.5 py-0.5 bg-red-100 text-red-800 rounded-full">
@@ -751,6 +890,13 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
                                 {item.category}
                               </span>
                             )}
+                            {/* Add approved badge */}
+                            {checklist.approved && item.status === ChecklistItemStatus.COMPLETED && (
+                              <span className="text-xs px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-full flex items-center gap-0.5">
+                                <ShieldCheck className="h-2.5 w-2.5" />
+                                Approved
+                              </span>
+                            )}
                           </div>
                           {item.remarks && (
                             <p className="text-xs text-gray-600 mt-1">{item.remarks}</p>
@@ -761,9 +907,17 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
                               Verified: {formatDate(item.checkedAt as string)}
                             </div>
                           )}
+                          {/* Add approval stamp for approved checklists */}
+                          {checklist.approved && checklist.approvedAt && (
+                            <div className="flex items-center gap-1 mt-1 text-xs text-emerald-600">
+                              <CheckCircle className="h-3 w-3" />
+                              Approved on {formatDate(checklist.approvedAt as string)}
+                            </div>
+                          )}
                         </div>
 
-                        {!checklist.approved && (
+                        {/* Only show action buttons if NOT approved */}
+                        {!checklist.approved ? (
                           <div className="flex items-center gap-1 ml-2">
                             <button
                               onClick={() => handleUpdateItemStatus(index, ChecklistItemStatus.COMPLETED)}
@@ -799,6 +953,11 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
                               <FileText className="h-3.5 w-3.5" />
                             </button>
                           </div>
+                        ) : (
+                          // Show lock icon when approved
+                          <div className="ml-2 p-1.5 text-emerald-600">
+                            <ShieldCheck className="h-4 w-4" />
+                          </div>
                         )}
                       </div>
                     </div>
@@ -827,7 +986,7 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
                       </>
                     ) : (
                       <>
-                        <ShieldCheck className="h-4 w-4" />
+                        <CheckCircle className="h-4 w-4" />
                         Approve Verification
                       </>
                     )}
@@ -847,14 +1006,15 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
                 )}
 
                 {checklist.approved && (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded text-xs text-green-800">
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800">
                     <div className="flex items-center gap-1.5 mb-1">
                       <Award className="h-3.5 w-3.5" />
                       <span className="font-medium">Verification Approved</span>
                     </div>
+                    <p className="mb-2">This checklist has been approved and locked.</p>
                     <button
                       onClick={handleGoToWorkflow}
-                      className="mt-2 w-full text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                      className="mt-2 w-full text-xs px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700"
                     >
                       Go to Workflow
                     </button>
@@ -864,7 +1024,7 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
                 <button
                   onClick={handleDelete}
                   className="w-full flex items-center justify-center gap-1.5 px-3 py-2 border border-red-600 text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 disabled:opacity-60"
-                  disabled={updating}
+                  disabled={updating || checklist.approved}
                 >
                   <Trash2 className="h-4 w-4" />
                   Delete Verification
@@ -995,6 +1155,12 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
                     <span className="text-amber-700">{pendingFaults.length} fault(s) need attention.</span>
                   </li>
                 )}
+                {checklist.approved && (
+                  <li className="flex items-start gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-500 mt-0.5 flex-shrink-0" />
+                    <span className="text-emerald-700">Approved checklists are locked and cannot be edited.</span>
+                  </li>
+                )}
               </ul>
             </div>
           </div>
@@ -1007,39 +1173,51 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
           <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
             <div className="p-5">
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <ShieldCheck className="h-5 w-5 text-green-600" />
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <CheckCircle className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
                   <h3 className="text-base font-semibold text-gray-900">Approve Verification</h3>
                   <p className="text-xs text-gray-600">Confirm approval of this post-checklist.</p>
                 </div>
               </div>
+              
               <div className="space-y-3 mb-5">
-                <div className="p-3 bg-green-50 border border-green-200 rounded">
-                  <p className="text-xs text-green-700">
-                    {preFaultItems.length > 0
-                      ? `All ${preFaultItems.length} faults have been resolved.`
-                      : 'All required items are complete.'}
-                  </p>
-                </div>
-                <div className="text-xs text-gray-600 space-y-1">
-                  <div className="flex justify-between">
-                    <span>Total Items</span>
-                    <span>{checklist.inspectionItems.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Completed</span>
-                    <span className="text-green-700">{completedItems}</span>
-                  </div>
-                  {preFaultItems.length > 0 && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                  <p className="text-sm font-medium text-blue-800 mb-1">Verification Summary</p>
+                  <div className="text-xs text-blue-700 space-y-1">
                     <div className="flex justify-between">
-                      <span>Faults Resolved</span>
-                      <span className="text-green-700">{addressedFaults.length}/{preFaultItems.length}</span>
+                      <span>Total Items</span>
+                      <span>{checklist.inspectionItems.length}</span>
                     </div>
-                  )}
+                    <div className="flex justify-between">
+                      <span>Completed Items</span>
+                      <span className="text-green-700">{completedItems}</span>
+                    </div>
+                    {preFaultItems.length > 0 && (
+                      <div className="flex justify-between">
+                        <span>Faults Resolved</span>
+                        <span className="text-green-700">{addressedFaults.length}/{preFaultItems.length}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Add comments field like in many approval flows */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Approval Comments (Optional)
+                  </label>
+                  <textarea
+                    id="approvalComments"
+                    className="w-full text-xs px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    rows={2}
+                    placeholder="Add any comments about this approval..."
+                    defaultValue={`Post-service verification completed and approved`}
+                  />
                 </div>
               </div>
+              
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowApprovalConfirm(false)}
@@ -1050,10 +1228,17 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
                 </button>
                 <button
                   onClick={handleApprove}
-                  className="flex-1 px-3 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-60"
+                  className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60"
                   disabled={approving}
                 >
-                  {approving ? 'Approving...' : 'Approve'}
+                  {approving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin inline mr-1" />
+                      Approving...
+                    </>
+                  ) : (
+                    'Approve'
+                  )}
                 </button>
               </div>
             </div>
@@ -1063,67 +1248,193 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
 
       {showComparison && preChecklist && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-5xl max-h-[90vh] overflow-y-auto">
             <div className="p-5 sticky top-0 bg-white border-b z-10">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <GitCompare className="h-5 w-5 text-blue-600" />
-                  <h3 className="text-base font-semibold">Pre vs Post Comparison</h3>
+                  <div>
+                    <h3 className="text-base font-semibold">Pre vs Post Checklist Comparison</h3>
+                    <p className="text-xs text-gray-600">Check items that are okay and note discrepancies</p>
+                  </div>
                 </div>
-                <button onClick={() => setShowComparison(false)} className="p-1.5 rounded hover:bg-gray-100">
+                <button 
+                  onClick={() => setShowComparison(false)} 
+                  className="p-1.5 rounded hover:bg-gray-100"
+                >
                   <X className="h-4 w-4" />
                 </button>
               </div>
-            </div>
-            <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="text-sm font-medium text-gray-800 mb-3">Pre-Checklist Issues</h4>
-                <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-                  {preChecklist.inspectionItems.map((item, i) => (
-                    <div key={i} className={`p-2.5 rounded border ${
-                      item.status === 'fault' ? 'bg-red-50 border-red-200' :
-                      item.status === 'ok' ? 'bg-green-50 border-green-200' :
-                      'bg-gray-50 border-gray-200'
-                    }`}>
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${getPreChecklistStatusColor(item.status)}`}>
-                          {item.status.toUpperCase()}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-800">{item.item}</p>
-                      {item.remarks && <p className="text-xs text-gray-600 mt-1">{item.remarks}</p>}
-                    </div>
-                  ))}
+              
+              {/* Summary bar */}
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <div className="bg-blue-50 p-2 rounded">
+                  <div className="text-sm font-bold text-blue-700">{comparedItems.length}</div>
+                  <div className="text-xs text-blue-600">Total Items</div>
                 </div>
-              </div>
-              <div>
-                <h4 className="text-sm font-medium text-gray-800 mb-3">Post-Checklist Resolutions</h4>
-                <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-                  {checklist.inspectionItems.map((item, i) => (
-                    <div key={i} className={`p-2.5 rounded border ${
-                      item.status === ChecklistItemStatus.COMPLETED ? 'bg-green-50 border-green-200' :
-                      item.status === ChecklistItemStatus.INCOMPLETE ? 'bg-red-50 border-red-200' :
-                      'bg-gray-50 border-gray-200'
-                    }`}>
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${getItemStatusColor(item.status)}`}>
-                          {item.status.replace('_', ' ').toUpperCase()}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-800">{item.item}</p>
-                      {item.remarks && <p className="text-xs text-gray-600 mt-1">{item.remarks}</p>}
-                    </div>
-                  ))}
+                <div className="bg-green-50 p-2 rounded">
+                  <div className="text-sm font-bold text-green-700">
+                    {comparedItems.filter(item => item.isOkay).length}
+                  </div>
+                  <div className="text-xs text-green-600">Marked Okay</div>
+                </div>
+                <div className="bg-amber-50 p-2 rounded">
+                  <div className="text-sm font-bold text-amber-700">
+                    {comparedItems.filter(item => !item.isOkay).length}
+                  </div>
+                  <div className="text-xs text-amber-600">Needs Review</div>
                 </div>
               </div>
             </div>
-            <div className="p-5 border-t flex justify-end">
-              <button
-                onClick={() => setShowComparison(false)}
-                className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-              >
-                Close
-              </button>
+            
+            <div className="p-5">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 w-12">Status</th>
+                      <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Pre-Checklist Item</th>
+                      <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Pre Status</th>
+                      <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Post-Checklist Item</th>
+                      <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Post Status</th>
+                      <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Notes</th>
+                      <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 w-16">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {comparedItems.map((comparison, index) => (
+                      <tr key={index} className="hover:bg-gray-50">
+                        <td className="py-3 px-3">
+                          <button
+                            onClick={() => handleToggleOkay(index)}
+                            className={`p-1.5 rounded border ${
+                              comparison.isOkay 
+                                ? 'bg-green-100 border-green-300 text-green-700' 
+                                : 'bg-gray-100 border-gray-300 text-gray-500 hover:bg-gray-200'
+                            }`}
+                            title={comparison.isOkay ? "Marked as okay" : "Mark as okay"}
+                          >
+                            {comparison.isOkay ? (
+                              <CheckSquare className="h-4 w-4" />
+                            ) : (
+                              <Square className="h-4 w-4" />
+                            )}
+                          </button>
+                        </td>
+                        <td className="py-3 px-3">
+                          <div>
+                            <p className="text-sm text-gray-800">{comparison.preItem.item}</p>
+                            {comparison.preItem.remarks && (
+                              <p className="text-xs text-gray-500 mt-0.5">{comparison.preItem.remarks}</p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                            comparison.preItem.status === 'ok' ? 'bg-green-100 text-green-800' :
+                            comparison.preItem.status === 'fault' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {comparison.preItem.status.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3">
+                          {comparison.postItem ? (
+                            <div>
+                              <p className="text-sm text-gray-800">{comparison.postItem.item}</p>
+                              {comparison.postItem.remarks && (
+                                <p className="text-xs text-gray-500 mt-0.5">{comparison.postItem.remarks}</p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400 italic">No matching item</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3">
+                          {comparison.postItem ? (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                              comparison.postItem.status === ChecklistItemStatus.COMPLETED ? 'bg-green-100 text-green-800' :
+                              comparison.postItem.status === ChecklistItemStatus.INCOMPLETE ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {comparison.postItem.status.replace('_', ' ').toUpperCase()}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3">
+                          <input
+                            type="text"
+                            value={comparison.notes || ''}
+                            onChange={(e) => handleUpdateNotes(index, e.target.value)}
+                            placeholder="Add notes..."
+                            className="w-full text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </td>
+                        <td className="py-3 px-3">
+                          {!comparison.isOkay && comparison.postItem && (
+                            <button
+                              onClick={() => {
+                                // Find the post-checklist item index
+                                const postIndex = checklist.inspectionItems.findIndex(
+                                  item => item.item === comparison.postItem?.item
+                                );
+                                if (postIndex !== -1) {
+                                  handleUpdateItemStatus(postIndex, ChecklistItemStatus.COMPLETED);
+                                  // Update comparison
+                                  setComparedItems(prev => prev.map((item, i) => 
+                                    i === index ? { ...item, isOkay: true } : item
+                                  ));
+                                }
+                              }}
+                              className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                            >
+                              Mark Fixed
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* Bulk Actions */}
+              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm">
+                    <span className="font-medium text-gray-700">Summary: </span>
+                    <span className="text-gray-600">
+                      {comparedItems.filter(item => item.isOkay).length} of {comparedItems.length} items verified
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setComparedItems(prev => prev.map(item => ({ ...item, isOkay: true })));
+                      }}
+                      className="text-xs px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-100"
+                    >
+                      Mark All Okay
+                    </button>
+                    <button
+                      onClick={() => {
+                        setComparedItems(prev => prev.map(item => ({ ...item, isOkay: false })));
+                      }}
+                      className="text-xs px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-100"
+                    >
+                      Clear All
+                    </button>
+                    <button
+                      onClick={handleSaveComparison}
+                      className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                      Save Comparison
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
