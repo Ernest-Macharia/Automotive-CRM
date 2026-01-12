@@ -1775,22 +1775,6 @@ export default function CreateOpportunityPage() {
                     </div>
                   )}
 
-                  {/* Settings Indicator */}
-                  <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <SettingsIcon className="h-4 w-4 text-blue-600" />
-                      <span className="text-sm text-blue-600">
-                        {userPreferences.useDropdowns ? 'Dropdown mode: Type or select from suggestions' : 'Free text mode: Type anything in all fields'}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => setShowPreferences(true)}
-                      className="text-xs text-blue-500 hover:text-blue-600 underline"
-                    >
-                      Change
-                    </button>
-                  </div>
-
                   {/* Vehicles Section */}
                   <div className="space-y-4">
                     {formData.vehicles.map((vehicle, index) => (

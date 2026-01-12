@@ -193,29 +193,15 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
       };
 
       await jobCardService.updateJobCard(jobCardId, updateData);
-      showToast('Job card completed successfully! ✅', 'success');
+      showToast('Job card completed successfully!', 'success');
 
-      if (jobCard?.opportunityId) {
-        const opportunityId = typeof jobCard.opportunityId === 'object'
+      const opportunityId = typeof jobCard.opportunityId === 'object'
           ? jobCard.opportunityId._id || jobCard.opportunityId.id
           : jobCard.opportunityId;
-        if (opportunityId) {
-          await lifecycleIntegrationService.markStageAsCompleted(opportunityId, 'jobcard', {
-            documentId: jobCardId,
-            notes: 'Job card completed via details form'
-          });
-          showToast('Workflow stage updated successfully!', 'success');
-          setTimeout(() => {
+      
+      setTimeout(() => {
             router.push(`/orders/work-orders?opportunity=${opportunityId}`);
           }, 1500);
-        } else {
-          setShowCompleteDetails(false);
-          fetchJobCard();
-        }
-      } else {
-        setShowCompleteDetails(false);
-        fetchJobCard();
-      }
     } catch (error: any) {
       console.error('Error updating job card details:', error);
       showToast(error.message || 'Failed to update job card', 'error');

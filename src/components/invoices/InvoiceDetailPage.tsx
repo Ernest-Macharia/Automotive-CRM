@@ -27,7 +27,10 @@ import {
   Send,
   Copy,
   History,
-  ChevronRight
+  ChevronRight,
+  X,
+  Loader2,
+  ShieldCheck
 } from 'lucide-react';
 import { invoiceService, Invoice, INVOICE_STATUS, PAYMENT_STATUS } from '@/services/invoiceService';
 import { useToast } from '@/contexts/ToastContext';
@@ -45,6 +48,10 @@ export default function InvoiceDetailPage({ id }: InvoiceDetailPageProps) {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('bank_transfer');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -210,12 +217,39 @@ export default function InvoiceDetailPage({ id }: InvoiceDetailPageProps) {
     }
   };
 
-  // 👇 NEW: Simulate "Pay Now" action
-  const handlePayNow = () => {
+  const handleMockPayment = async () => {
     if (!invoice) return;
-    // In real app, this would open Stripe, M-Pesa, etc.
-    alert(`Simulating payment for ${invoiceService.formatCurrency(invoice.total)}...\n\nIn a real app, this would redirect to a secure payment gateway.`);
-    showToast('Redirecting to payment...', 'info');
+    
+    setIsProcessingPayment(true);
+    
+    try {
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Generate a mock payment reference
+      const mockReference = `PAY-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      
+      // Mark invoice as paid
+      const paidInvoice = await invoiceService.markInvoiceAsPaid(
+        invoice.id,
+        undefined,
+        undefined,
+        paymentMethod,
+        paymentReference || mockReference
+      );
+      
+      setInvoice(paidInvoice);
+      setShowPaymentModal(false);
+      showToast('Payment processed successfully! Invoice marked as paid.', 'success');
+      
+      // Reset form
+      setPaymentMethod('bank_transfer');
+      setPaymentReference('');
+    } catch (error: any) {
+      showToast(error.message || 'Failed to process payment', 'error');
+    } finally {
+      setIsProcessingPayment(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -325,7 +359,7 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
         <div className="text-center">
           <Receipt className="h-8 w-8 text-gray-400 mx-auto mb-2" />
           <h3 className="text-base font-semibold text-gray-900 mb-1">Invoice Not Found</h3>
-          <p className="text-gray-600 text-sm mb-4">The invoice doesn’t exist or was removed.</p>
+          <p className="text-gray-600 text-sm mb-4">The invoice doesn't exist or was removed.</p>
           <Link
             href="/invoices"
             className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 inline-flex items-center gap-1"
@@ -547,11 +581,11 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
               <h2 className="text-base font-semibold text-gray-800 mb-4">Actions</h2>
               
               <div className="space-y-3">
-                {/* 👇 NEW: Pay Now Button */}
+                {/* Pay Now Button - Only show for unpaid, approved invoices */}
                 {invoice.paymentStatus === PAYMENT_STATUS.UNPAID && invoice.status === INVOICE_STATUS.APPROVED && (
                   <button 
-                    onClick={handlePayNow}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm font-medium rounded-lg hover:from-blue-700 hover:to-purple-700"
+                    onClick={() => setShowPaymentModal(true)}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 text-white text-sm font-medium rounded-lg hover:from-emerald-700 hover:to-green-700"
                   >
                     <CreditCard className="h-4 w-4" />
                     Pay Now
@@ -562,7 +596,7 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
                   <button 
                     onClick={handleApprove}
                     disabled={processing}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-60"
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60"
                   >
                     <CheckCircle className="h-4 w-4" />
                     Approve Invoice
@@ -676,6 +710,139 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
           </div>
         </div>
       </div>
+
+      {/* Payment Modal */}
+      {showPaymentModal && invoice && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
+            <div className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-100 rounded-lg">
+                    <CreditCard className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900">Process Payment</h3>
+                    <p className="text-xs text-gray-600">Complete payment for invoice #{invoice.invoiceNumber}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowPaymentModal(false)}
+                  className="p-1.5 rounded hover:bg-gray-100"
+                  disabled={isProcessingPayment}
+                >
+                  <X className="h-4 w-4 text-gray-500" />
+                </button>
+              </div>
+              
+              <div className="space-y-4 mb-5">
+                {/* Payment Summary */}
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded">
+                  <p className="text-sm font-medium text-emerald-800 mb-1">Payment Summary</p>
+                  <div className="text-xs text-emerald-700 space-y-1">
+                    <div className="flex justify-between">
+                      <span>Invoice Total:</span>
+                      <span className="font-bold">{invoiceService.formatCurrency(invoice.total)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Status:</span>
+                      <span className={`px-1.5 py-0.5 rounded-full font-medium ${
+                        getPaymentStatusColor(invoice.paymentStatus)
+                      }`}>
+                        {invoiceService.getPaymentStatusText(invoice.paymentStatus)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Payment Method */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Payment Method
+                  </label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="w-full text-xs px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                    disabled={isProcessingPayment}
+                  >
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="mpesa">M-Pesa</option>
+                    <option value="cash">Cash</option>
+                    <option value="credit_card">Credit Card</option>
+                    <option value="check">Check</option>
+                  </select>
+                </div>
+                
+                {/* Payment Reference */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Payment Reference (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={paymentReference}
+                    onChange={(e) => setPaymentReference(e.target.value)}
+                    placeholder="e.g., Transaction ID, Check #, etc."
+                    className="w-full text-xs px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                    disabled={isProcessingPayment}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Leave blank to auto-generate a reference number
+                  </p>
+                </div>
+                
+                {/* Terms Checkbox */}
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    id="terms"
+                    className="mt-1 h-3 w-3 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                    disabled={isProcessingPayment}
+                  />
+                  <label htmlFor="terms" className="text-xs text-gray-700">
+                    I confirm that this payment is for invoice #{invoice.invoiceNumber} and will be processed as a mock transaction for demonstration purposes.
+                  </label>
+                </div>
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-60"
+                  disabled={isProcessingPayment}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleMockPayment}
+                  className="flex-1 px-3 py-2 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-60 flex items-center justify-center gap-1"
+                  disabled={isProcessingPayment}
+                >
+                  {isProcessingPayment ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4" />
+                      Complete Payment
+                    </>
+                  )}
+                </button>
+              </div>
+              
+              <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+                <div className="flex items-center gap-1.5">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  <span>This is a mock payment for demonstration only. No real transaction will occur.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
