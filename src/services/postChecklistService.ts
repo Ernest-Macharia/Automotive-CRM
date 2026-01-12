@@ -254,7 +254,20 @@ class PostChecklistService {
   // 2. Get all post-checklists for an opportunity
   async getPostChecklistsByOpportunity(opportunityId: string): Promise<PostChecklist[]> {
     try {
-      return await extendedApiClient.get<PostChecklist[]>(`/postchecklist/opportunity/${opportunityId}`);
+      // Try direct endpoint first
+      try {
+        return await extendedApiClient.get<PostChecklist[]>(`/postchecklist/opportunity/${opportunityId}`);
+      } catch (endpointError) {
+        // Fallback to filtering all checklists
+        console.warn('Direct endpoint failed, falling back to filtering:', endpointError);
+        const allChecklists = await this.getAllPostChecklists();
+        return allChecklists.filter(checklist => {
+          const oppId = typeof checklist.opportunityId === 'object' 
+            ? checklist.opportunityId._id 
+            : checklist.opportunityId;
+          return oppId === opportunityId;
+        });
+      }
     } catch (error) {
       console.error(`Error getting post-checklists for opportunity ${opportunityId}:`, error);
       throw error;
@@ -280,18 +293,15 @@ class PostChecklistService {
         headers['X-User-Id'] = userId;
       }
       
-      // Get current checklist
+      // Get current checklist first (like pre-checklist does)
       const currentChecklist = await this.getPostChecklistById(id);
       
-      // If approved and updating inspection items or critical fields
-      if (currentChecklist.approved && (data.inspectionItems || data.overallCondition)) {
+      // If approved and updating items, handle specially
+      if (currentChecklist.approved && data.inspectionItems) {
+        // Create audit log entry
         console.log(`Audit: Post-checklist ${id} updated after approval`, {
-          previousData: {
-            items: currentChecklist.inspectionItems,
-            condition: currentChecklist.overallCondition
-          },
-          newData: data,
-          updatedBy: userId,
+          previousItems: currentChecklist.inspectionItems,
+          newItems: data.inspectionItems,
           timestamp: new Date().toISOString()
         });
         
@@ -302,7 +312,6 @@ class PostChecklistService {
           approvedBy: typeof currentChecklist.approvedBy === 'object' 
             ? currentChecklist.approvedBy._id 
             : currentChecklist.approvedBy,
-          // Don't include approvedAt here, backend will handle it
         };
         
         return await extendedApiClient.patch<UpdatePostChecklistDto, PostChecklist>(
@@ -401,9 +410,8 @@ class PostChecklistService {
 
   async getAllPostChecklists(): Promise<PostChecklist[]> {
     try {
-      // Since there's no direct endpoint for all checklists, we'll get them by opportunity
-      // This is a utility method that might need backend support for full implementation
-      throw new Error('Method not fully implemented - requires backend endpoint for all post-checklists');
+      // Use the same pattern as pre-checklist
+      return await extendedApiClient.get<PostChecklist[]>('/postchecklist');
     } catch (error) {
       console.error('Error getting all post-checklists:', error);
       throw error;
@@ -463,25 +471,32 @@ class PostChecklistService {
     comments?: string
   ): Promise<PostChecklist> {
     try {
-      const headers: Record<string, string> = {};
+      const endpoint = `/postchecklist/${id}/approve`;
       
+      const requestData: any = { approved };
+      
+      // Add optional fields only if provided
       if (approvedBy) {
-        headers['X-Approved-By'] = approvedBy;
+        requestData.approvedBy = approvedBy;
       }
       
       if (comments) {
-        headers['X-Approval-Comments'] = comments;
+        requestData.comments = comments;
       }
       
-      return await extendedApiClient.patch<{ 
-        approved: boolean; 
-        approvedBy?: string; 
-        comments?: string 
-      }, PostChecklist>(
-        `/postchecklist/${id}/approve`, 
-        { approved, approvedBy, comments }, 
-        headers
-      );
+      // Try PATCH first, fallback to PUT if needed
+      try {
+        return await extendedApiClient.patch<typeof requestData, PostChecklist>(
+          endpoint, 
+          requestData
+        );
+      } catch (patchError) {
+        console.warn('PATCH failed, trying PUT:', patchError);
+        return await extendedApiClient.put<typeof requestData, PostChecklist>(
+          endpoint, 
+          requestData
+        );
+      }
     } catch (error) {
       console.error(`Error ${approved ? 'approving' : 'rejecting'} post-checklist ${id}:`, error);
       throw error;
@@ -491,17 +506,71 @@ class PostChecklistService {
   // 9. Approve a post-checklist
   async approvePostChecklist(id: string, approvedBy?: string, comments?: string): Promise<PostChecklist> {
     try {
-      return await this.approveOrRejectPostChecklist(id, true, approvedBy, comments);
+      console.log('🔍 Approving post-checklist:', {
+        id,
+        approvedBy,
+        comments,
+        endpoint: `/postchecklist/${id}/approve`
+      });
+      
+      // Create request body matching the API spec
+      const requestBody = {
+        isApproved: true,
+        overallRemarks: comments || 'Post-service verification approved',
+        approvalNotes: `Approved by: ${approvedBy || 'system'}`
+      };
+      
+      console.log('🔍 Request body:', requestBody);
+      
+      const headers: Record<string, string> = {};
+      if (approvedBy) {
+        headers['X-Approved-By'] = approvedBy;
+      }
+      
+      // Call the API
+      const approvalResult = await extendedApiClient.patch<typeof requestBody, any>(
+        `/postchecklist/${id}/approve`,
+        requestBody,
+        headers
+      );
+      
+      console.log('✅ Approval response:', approvalResult);
+      
+      // IMPORTANT: The API returns approval details, not the full checklist
+      // We need to fetch the updated checklist
+      const updatedChecklist = await this.getPostChecklistById(id);
+      console.log('✅ Updated checklist:', updatedChecklist);
+      
+      return updatedChecklist;
+      
     } catch (error) {
-      console.error(`Error approving post-checklist ${id}:`, error);
+      console.error(`❌ Error approving post-checklist ${id}:`, error);
       throw error;
     }
   }
 
   // Reject a post-checklist
-  async rejectPostChecklist(id: string, approvedBy?: string, comments?: string): Promise<PostChecklist> {
+  async rejectPostChecklist(id: string, reason?: string, rejectedBy?: string): Promise<PostChecklist> {
     try {
-      return await this.approveOrRejectPostChecklist(id, false, approvedBy, comments);
+      const requestBody = {
+        isApproved: false,
+        overallRemarks: reason || 'Post-checklist rejected',
+        approvalNotes: `Rejected by: ${rejectedBy || 'system'}`
+      };
+      
+      const headers: Record<string, string> = {};
+      if (rejectedBy) {
+        headers['X-Rejected-By'] = rejectedBy;
+      }
+      
+      await extendedApiClient.patch<typeof requestBody, any>(
+        `/postchecklist/${id}/approve`,
+        requestBody,
+        headers
+      );
+      
+      // Fetch the updated checklist
+      return await this.getPostChecklistById(id);
     } catch (error) {
       console.error(`Error rejecting post-checklist ${id}:`, error);
       throw error;
@@ -568,84 +637,33 @@ class PostChecklistService {
     comments?: string
   ): Promise<{
     checklist: PostChecklist;
-    lifecycleUpdate: any;
-    workflowTransitioned: boolean;
-    nextStage?: string;
+    lifecycleUpdate?: any;
   }> {
     try {
-      // 1. Get the checklist first to get opportunity ID
-      const checklist = await this.getPostChecklistById(id);
-      
-      if (!checklist) {
-        throw new Error('Checklist not found');
-      }
-      
-      const opportunityId = typeof checklist.opportunityId === 'object' 
-        ? checklist.opportunityId._id 
-        : checklist.opportunityId;
-      
-      if (!opportunityId) {
-        throw new Error('Cannot find opportunity for this checklist');
-      }
-      
-      // 2. Approve the checklist
+      // First, approve the checklist using simple method
       const approvedChecklist = await this.approvePostChecklist(id, approvedBy, comments);
       
-      // 3. Get lifecycle service
-      const lifecycleIntegrationService = require('./lifecycleIntegrationService').lifecycleIntegrationService;
-      
-      // 4. Try to mark the post-checklist stage as complete
+      // Try lifecycle integration, but don't fail if it doesn't work
       try {
-        const stageResult = await lifecycleIntegrationService.markStageAsCompleted(
-          opportunityId, 
+        const { lifecycleIntegrationService } = require('./lifecycleIntegrationService');
+        const lifecycleUpdate = await lifecycleIntegrationService.handleChecklistApproval(
+          id,
           'postchecklist',
-          {
-            documentId: id,
-            completedBy: approvedBy,
-            notes: comments || 'Post-checklist approved'
-          }
+          approvedBy
         );
         
-        // 5. Try to auto-transition to invoice stage
-        try {
-          const transitionResult = await lifecycleIntegrationService.transitionToNextStage(opportunityId, {
-            skipValidation: false,
-            metadata: {
-              triggeredBy: 'postchecklist-approval',
-              checklistId: id
-            }
-          });
-          
-          return {
-            checklist: approvedChecklist,
-            lifecycleUpdate: stageResult,
-            workflowTransitioned: true,
-            nextStage: transitionResult.currentStage
-          };
-          
-        } catch (transitionError) {
-          console.warn('Auto-transition failed:', transitionError);
-          // Return with warning - stage was marked complete but not auto-transitioned
-          return {
-            checklist: approvedChecklist,
-            lifecycleUpdate: stageResult,
-            workflowTransitioned: false,
-            nextStage: undefined
-          };
-        }
-        
-      } catch (stageError) {
-        console.warn('Stage completion failed:', stageError);
-        // Fallback: just return the approved checklist
         return {
           checklist: approvedChecklist,
-          lifecycleUpdate: { success: false, message: 'Stage completion failed' },
-          workflowTransitioned: false,
-          nextStage: undefined
+          lifecycleUpdate
+        };
+      } catch (lifecycleError) {
+        console.warn('Lifecycle integration failed, but checklist approved:', lifecycleError);
+        return {
+          checklist: approvedChecklist
         };
       }
     } catch (error) {
-      console.error('Error in approvePostChecklistWithLifecycle:', error);
+      console.error(`Error approving post-checklist with lifecycle:`, error);
       throw error;
     }
   }
