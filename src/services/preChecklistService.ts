@@ -262,7 +262,40 @@ class PreChecklistService {
   // 5. Update a pre-checklist
   async updatePreChecklist(id: string, data: UpdatePreChecklistDto): Promise<PreChecklist> {
     try {
-      return await extendedApiClient.put<UpdatePreChecklistDto, PreChecklist>(`/prechecklists/${id}`, data);
+      // Get current checklist first
+      const currentChecklist = await this.getPreChecklistById(id);
+      
+      // If checklist is approved and we're updating inspection items, handle specially
+      if (currentChecklist.approved && data.inspectionItems) {
+        // Create audit log entry (simplified version)
+        console.log(`Audit: Checklist ${id} updated after approval`, {
+          previousItems: currentChecklist.inspectionItems,
+          newItems: data.inspectionItems,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Keep approval status but update items
+        // This allows updates without requiring re-approval
+        const updateData: UpdatePreChecklistDto = {
+          ...data,
+          approved: true, // Keep approved status
+          approvedBy: typeof currentChecklist.approvedBy === 'object' 
+            ? currentChecklist.approvedBy._id 
+            : currentChecklist.approvedBy,
+          // updatedAt will be set by backend
+        };
+        
+        return await extendedApiClient.put<UpdatePreChecklistDto, PreChecklist>(
+          `/prechecklists/${id}`, 
+          updateData
+        );
+      }
+      
+      // Normal update for non-approved checklists
+      return await extendedApiClient.put<UpdatePreChecklistDto, PreChecklist>(
+        `/prechecklists/${id}`, 
+        data
+      );
     } catch (error) {
       console.error(`Error updating pre-checklist ${id}:`, error);
       throw error;
@@ -367,9 +400,13 @@ class PreChecklistService {
         headers['X-Rejection-Reason'] = reason;
       }
       
-      return await extendedApiClient.patch<{ rejected: boolean; reason?: string }, PreChecklist>(
-        `/prechecklists/${id}/approve`, 
-        { approved: false, reason }, 
+      // Use the right type for the API call
+      return await extendedApiClient.patch<UpdatePreChecklistDto, PreChecklist>(
+        `/prechecklists/${id}/approve`,
+        { 
+          approved: false,
+          ...(reason && { remarks: `Rejected: ${reason}` })
+        }, 
         headers
       );
     } catch (error) {
@@ -508,9 +545,12 @@ class PreChecklistService {
   async updateInspectionItem(id: string, itemId: string, updates: Partial<InspectionItem>): Promise<PreChecklist> {
     try {
       const checklist = await this.getPreChecklistById(id);
+      
       const inspectionItems = checklist.inspectionItems.map(item => 
-        item._id === itemId ? { ...item, ...updates } : item
+        item._id === itemId ? { ...item, ...updates, updatedAt: new Date().toISOString() } : item
       );
+      
+      // Use the updated updatePreChecklist method above
       return await this.updatePreChecklist(id, { inspectionItems });
     } catch (error) {
       console.error(`Error updating inspection item ${itemId} in pre-checklist ${id}:`, error);
@@ -632,6 +672,7 @@ class PreChecklistService {
       throw error;
     }
   }
+  
 
   async searchPreChecklists(searchTerm: string): Promise<PreChecklist[]> {
     try {

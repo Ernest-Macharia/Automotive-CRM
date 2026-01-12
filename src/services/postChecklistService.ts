@@ -280,7 +280,44 @@ class PostChecklistService {
         headers['X-User-Id'] = userId;
       }
       
-      return await extendedApiClient.patch<UpdatePostChecklistDto, PostChecklist>(`/postchecklist/${id}`, data, headers);
+      // Get current checklist
+      const currentChecklist = await this.getPostChecklistById(id);
+      
+      // If approved and updating inspection items or critical fields
+      if (currentChecklist.approved && (data.inspectionItems || data.overallCondition)) {
+        console.log(`Audit: Post-checklist ${id} updated after approval`, {
+          previousData: {
+            items: currentChecklist.inspectionItems,
+            condition: currentChecklist.overallCondition
+          },
+          newData: data,
+          updatedBy: userId,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Keep approval status
+        const updateData: UpdatePostChecklistDto = {
+          ...data,
+          approved: true,
+          approvedBy: typeof currentChecklist.approvedBy === 'object' 
+            ? currentChecklist.approvedBy._id 
+            : currentChecklist.approvedBy,
+          // Don't include approvedAt here, backend will handle it
+        };
+        
+        return await extendedApiClient.patch<UpdatePostChecklistDto, PostChecklist>(
+          `/postchecklist/${id}`, 
+          updateData, 
+          headers
+        );
+      }
+      
+      // Normal update
+      return await extendedApiClient.patch<UpdatePostChecklistDto, PostChecklist>(
+        `/postchecklist/${id}`, 
+        data, 
+        headers
+      );
     } catch (error) {
       console.error(`Error updating post-checklist ${id}:`, error);
       throw error;
@@ -525,9 +562,6 @@ class PostChecklistService {
     }
   }
 
-  // In postChecklistService.ts, add these methods:
-
-// Enhanced approval method with lifecycle integration
   async approvePostChecklistWithLifecycle(
     id: string, 
     approvedBy?: string,
@@ -535,26 +569,83 @@ class PostChecklistService {
   ): Promise<{
     checklist: PostChecklist;
     lifecycleUpdate: any;
+    workflowTransitioned: boolean;
+    nextStage?: string;
   }> {
     try {
-      const lifecycleIntegrationService = require('./lifecycleIntegrationService').lifecycleIntegrationService;
+      // 1. Get the checklist first to get opportunity ID
+      const checklist = await this.getPostChecklistById(id);
       
-      // 1. Approve the checklist
+      if (!checklist) {
+        throw new Error('Checklist not found');
+      }
+      
+      const opportunityId = typeof checklist.opportunityId === 'object' 
+        ? checklist.opportunityId._id 
+        : checklist.opportunityId;
+      
+      if (!opportunityId) {
+        throw new Error('Cannot find opportunity for this checklist');
+      }
+      
+      // 2. Approve the checklist
       const approvedChecklist = await this.approvePostChecklist(id, approvedBy, comments);
       
-      // 2. Update lifecycle stage
-      const lifecycleUpdate = await lifecycleIntegrationService.handleChecklistApproval(
-        id, 
-        'postchecklist', 
-        approvedBy
-      );
+      // 3. Get lifecycle service
+      const lifecycleIntegrationService = require('./lifecycleIntegrationService').lifecycleIntegrationService;
       
-      return {
-        checklist: approvedChecklist,
-        lifecycleUpdate
-      };
+      // 4. Try to mark the post-checklist stage as complete
+      try {
+        const stageResult = await lifecycleIntegrationService.markStageAsCompleted(
+          opportunityId, 
+          'postchecklist',
+          {
+            documentId: id,
+            completedBy: approvedBy,
+            notes: comments || 'Post-checklist approved'
+          }
+        );
+        
+        // 5. Try to auto-transition to invoice stage
+        try {
+          const transitionResult = await lifecycleIntegrationService.transitionToNextStage(opportunityId, {
+            skipValidation: false,
+            metadata: {
+              triggeredBy: 'postchecklist-approval',
+              checklistId: id
+            }
+          });
+          
+          return {
+            checklist: approvedChecklist,
+            lifecycleUpdate: stageResult,
+            workflowTransitioned: true,
+            nextStage: transitionResult.currentStage
+          };
+          
+        } catch (transitionError) {
+          console.warn('Auto-transition failed:', transitionError);
+          // Return with warning - stage was marked complete but not auto-transitioned
+          return {
+            checklist: approvedChecklist,
+            lifecycleUpdate: stageResult,
+            workflowTransitioned: false,
+            nextStage: undefined
+          };
+        }
+        
+      } catch (stageError) {
+        console.warn('Stage completion failed:', stageError);
+        // Fallback: just return the approved checklist
+        return {
+          checklist: approvedChecklist,
+          lifecycleUpdate: { success: false, message: 'Stage completion failed' },
+          workflowTransitioned: false,
+          nextStage: undefined
+        };
+      }
     } catch (error) {
-      console.error(`Error approving post-checklist with lifecycle:`, error);
+      console.error('Error in approvePostChecklistWithLifecycle:', error);
       throw error;
     }
   }

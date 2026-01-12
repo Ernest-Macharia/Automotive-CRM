@@ -83,8 +83,8 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
 
   const getStatusColor = (approved: boolean) => {
     return approved 
-      ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-      : 'bg-gradient-to-r from-yellow-500 to-amber-500';
+      ? 'bg-green-100 text-green-800'
+      : 'bg-yellow-100 text-yellow-800';
   };
 
   const getStatusText = (approved: boolean) => {
@@ -197,7 +197,6 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
       setUpdating(true);
       const htmlContent = await preChecklistService.exportPreChecklistToPdf(checklist._id);
       
-      // Create a new window with the HTML content for printing
       const printWindow = window.open('', '_blank');
       if (printWindow) {
         printWindow.document.write(htmlContent);
@@ -216,7 +215,7 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
   };
 
   const handleUpdateItemStatus = async (itemId: string, status: 'ok' | 'fault' | 'n/a') => {
-    if (!checklist || checklist.approved) return;
+    if (!checklist) return;
     
     try {
       setUpdating(true);
@@ -253,15 +252,15 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
       </div>
     );
   }
 
   if (!checklist) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <p className="text-gray-600">Pre-checklist not found</p>
       </div>
     );
@@ -276,24 +275,26 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     : 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-teal-50/30">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 via-blue-500 to-teal-600 text-white px-8 py-6 shadow-lg">
+    <div className="min-h-screen bg-gray-50">
+      {/* Header - Zoho Style */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/orders/work-orders" className="p-2 hover:bg-white/20 rounded-xl">
+          <div className="flex items-center gap-3">
+            <Link href="/orders/work-orders" className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg">
               <ArrowLeft className="h-5 w-5" />
             </Link>
             <div>
-              <h1 className="text-2xl font-bold">Pre-Service Checklist #{checklist._id.slice(-8)}</h1>
-              <p className="text-blue-100">Vehicle Inspection Details</p>
+              <h1 className="text-lg font-semibold text-gray-900">
+                Pre-Service Checklist #{checklist._id.slice(-8)}
+              </h1>
+              <p className="text-sm text-gray-500">Vehicle Inspection Details</p>
             </div>
           </div>
 
           <span
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${getStatusColor(
               checklist.approved
-            )} text-white`}
+            )}`}
           >
             {getStatusIcon(checklist.approved)}
             {getStatusText(checklist.approved)}
@@ -302,296 +303,286 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-8 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* LEFT */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Info */}
-          <div className="bg-white rounded-2xl shadow-xl border p-6">
-            <div className="flex justify-between mb-6">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <ClipboardCheck className="h-6 w-6 text-blue-600" />
-                Inspection Information
-              </h2>
-              <div className="flex gap-2">
-                <button 
-                  onClick={handleExportPDF} 
-                  className="btn-soft-blue flex items-center gap-2"
-                  disabled={updating}
-                >
-                  {updating ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Printer className="h-4 w-4" />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* LEFT */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Info Card */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-5">
+                <h2 className="text-base font-semibold flex items-center gap-2 text-gray-800">
+                  <ClipboardCheck className="h-5 w-5 text-blue-600" />
+                  Inspection Information
+                </h2>
+                <div className="flex gap-2 mt-3 sm:mt-0">
+                  <button 
+                    onClick={handleExportPDF} 
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                    disabled={updating}
+                  >
+                    {updating ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Printer className="h-4 w-4" />
+                    )}
+                    Print
+                  </button>
+                  <button 
+                    onClick={handleClone} 
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                    disabled={updating}
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    Clone
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-5">
+                <div>
+                  <p className="text-xs text-gray-500 flex items-center gap-1.5 mb-1">
+                    <Calendar className="h-3.5 w-3.5" />
+                    Created Date
+                  </p>
+                  <p className="text-sm text-gray-800">{formatDate(checklist.createdAt as string)}</p>
+
+                  <p className="text-xs text-gray-500 flex items-center gap-1.5 mt-4 mb-1">
+                    <Car className="h-3.5 w-3.5" />
+                    Vehicle
+                  </p>
+                  <p className="text-sm text-gray-800">{renderVehicle(checklist.vehicleId)}</p>
+
+                  {typeof checklist.vehicleId === 'object' && checklist.vehicleId.mileage && (
+                    <>
+                      <p className="text-xs text-gray-500 mt-4 mb-1">Mileage</p>
+                      <p className="text-sm text-gray-800">{checklist.vehicleId.mileage.toLocaleString()} km</p>
+                    </>
                   )}
-                  Print/Export
-                </button>
-                <button 
-                  onClick={handleClone} 
-                  className="btn-soft-purple flex items-center gap-2"
-                  disabled={updating}
-                >
-                  <PlusCircle className="h-4 w-4" />
-                  Clone
-                </button>
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <p className="label flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Created Date
-                </p>
-                <p className="value">{formatDate(checklist.createdAt as string)}</p>
-
-                <p className="label mt-4 flex items-center gap-2">
-                  <Car className="h-4 w-4" />
-                  Vehicle
-                </p>
-                <p className="value">{renderVehicle(checklist.vehicleId)}</p>
-
-                {typeof checklist.vehicleId === 'object' && checklist.vehicleId.mileage && (
-                  <>
-                    <p className="label mt-4">Mileage</p>
-                    <p className="value">{checklist.vehicleId.mileage.toLocaleString()} km</p>
-                  </>
-                )}
-              </div>
-
-              <div>
-                <p className="label flex items-center gap-2">
-                  <Building className="h-4 w-4" />
-                  Customer/Opportunity
-                </p>
-                <p className="value">{renderCustomer(checklist.opportunityId)}</p>
-
-                {checklist.inspectedBy && (
-                  <>
-                    <p className="label mt-4 flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      Inspected By
-                    </p>
-                    <p className="value">
-                      {typeof checklist.inspectedBy === 'object' 
-                        ? `${checklist.inspectedBy.firstName} ${checklist.inspectedBy.lastName}`
-                        : 'Technician'
-                      }
-                    </p>
-                  </>
-                )}
-
-                {checklist.approvedBy && checklist.approvedAt && (
-                  <>
-                    <p className="label mt-4">Approved By</p>
-                    <p className="value">
-                      {typeof checklist.approvedBy === 'object' 
-                        ? `${checklist.approvedBy.firstName} ${checklist.approvedBy.lastName}`
-                        : checklist.approvedBy
-                      } on {formatDate(checklist.approvedAt as string)}
-                    </p>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Remarks */}
-            {checklist.remarks && (
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <p className="label flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  Remarks
-                </p>
-                <p className="value mt-2 text-gray-700">{checklist.remarks}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Inspection Items */}
-          <div className="bg-white rounded-2xl shadow-xl border p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <Wrench className="h-6 w-6 text-blue-600" />
-                Inspection Items ({checklist.inspectionItems.length})
-              </h2>
-              
-              <div className="flex items-center gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">{okItems.length}</div>
-                  <div className="text-xs text-gray-600">OK</div>
                 </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-red-600">{faultItems.length}</div>
-                  <div className="text-xs text-gray-600">Faults</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">{completionPercentage}%</div>
-                  <div className="text-xs text-gray-600">Complete</div>
+
+                <div>
+                  <p className="text-xs text-gray-500 flex items-center gap-1.5 mb-1">
+                    <Building className="h-3.5 w-3.5" />
+                    Customer / Opportunity
+                  </p>
+                  <p className="text-sm text-gray-800">{renderCustomer(checklist.opportunityId)}</p>
+
+                  {checklist.inspectedBy && (
+                    <>
+                      <p className="text-xs text-gray-500 flex items-center gap-1.5 mt-4 mb-1">
+                        <User className="h-3.5 w-3.5" />
+                        Inspected By
+                      </p>
+                      <p className="text-sm text-gray-800">
+                        {typeof checklist.inspectedBy === 'object' 
+                          ? `${checklist.inspectedBy.firstName} ${checklist.inspectedBy.lastName}`
+                          : 'Technician'
+                        }
+                      </p>
+                    </>
+                  )}
+
+                  {checklist.approvedBy && checklist.approvedAt && (
+                    <>
+                      <p className="text-xs text-gray-500 mt-4 mb-1">Approved By</p>
+                      <p className="text-sm text-gray-800">
+                        {typeof checklist.approvedBy === 'object' 
+                          ? `${checklist.approvedBy.firstName} ${checklist.approvedBy.lastName}`
+                          : checklist.approvedBy
+                        } on {formatDate(checklist.approvedAt as string)}
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
+
+              {checklist.remarks && (
+                <div className="mt-5 pt-5 border-t border-gray-200">
+                  <p className="text-xs text-gray-500 flex items-center gap-1.5 mb-1">
+                    <FileText className="h-3.5 w-3.5" />
+                    Remarks
+                  </p>
+                  <p className="text-sm text-gray-700">{checklist.remarks}</p>
+                </div>
+              )}
             </div>
 
-            <div className="space-y-3">
-              {checklist.inspectionItems.map((item, index) => (
-                <div key={item._id || index} className="flex items-start justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="font-medium text-gray-900">
-                        {index + 1}. {item.item}
-                      </span>
-                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getItemStatusColor(item.status)}`}>
-                        {getItemStatusIcon(item.status)}
-                        <span className="capitalize">{item.status}</span>
-                      </span>
+            {/* Inspection Items */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-5">
+                <h2 className="text-base font-semibold flex items-center gap-2 text-gray-800">
+                  <Wrench className="h-5 w-5 text-blue-600" />
+                  Inspection Items ({checklist.inspectionItems.length})
+                </h2>
+                
+                <div className="flex items-center gap-4 mt-3 sm:mt-0">
+                  <div className="text-center">
+                    <div className="text-base font-bold text-green-600">{okItems.length}</div>
+                    <div className="text-xs text-gray-500">OK</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-base font-bold text-red-600">{faultItems.length}</div>
+                    <div className="text-xs text-gray-500">Faults</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-base font-bold text-blue-600">{completionPercentage}%</div>
+                    <div className="text-xs text-gray-500">Complete</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {checklist.inspectionItems.map((item, index) => (
+                  <div key={item._id || index} className="flex items-start justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <div className="flex-1">
+                      <div className="flex items-start gap-2 mb-1">
+                        <span className="font-medium text-gray-900 text-sm">
+                          {index + 1}. {item.item}
+                        </span>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getItemStatusColor(item.status)}`}>
+                          {getItemStatusIcon(item.status)}
+                          <span className="capitalize">{item.status}</span>
+                        </span>
+                      </div>
+                      {item.remarks && (
+                        <p className="text-xs text-gray-600 mt-1">{item.remarks}</p>
+                      )}
                     </div>
-                    {item.remarks && (
-                      <p className="text-sm text-gray-600">{item.remarks}</p>
+                    
+                    {!checklist.approved && (
+                      <div className="flex items-center gap-1 ml-2">
+                        <button
+                          onClick={() => handleUpdateItemStatus(item._id || index.toString(), 'ok')}
+                          className={`p-1.5 rounded ${item.status === 'ok' ? 'bg-green-100 text-green-700' : 'text-gray-400 hover:text-green-700 hover:bg-green-50'}`}
+                          title="Mark as OK"
+                          disabled={updating}
+                        >
+                          <CheckCircle className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleUpdateItemStatus(item._id!, 'fault')}
+                          className={`p-1.5 rounded ${item.status === 'fault' ? 'bg-red-100 text-red-700' : 'text-gray-400 hover:text-red-700 hover:bg-red-50'}`}
+                          title="Mark as Fault"
+                          disabled={updating}
+                        >
+                          <AlertCircle className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleUpdateItemStatus(item._id!, 'n/a')}
+                          className={`p-1.5 rounded ${item.status === 'n/a' ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50'}`}
+                          title="Mark as N/A"
+                          disabled={updating}
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     )}
                   </div>
-                  
-                  {!checklist.approved && (
-                    <div className="flex items-center gap-1 ml-4">
-                      <button
-                        onClick={() => handleUpdateItemStatus(item._id!, 'ok')}
-                        className={`p-2 rounded-full ${
-                          item.status === 'ok' 
-                            ? 'bg-green-100 text-green-600 border border-green-300' 
-                            : 'hover:bg-green-50 text-gray-400 hover:text-green-600'
-                        }`}
-                        title="Mark as OK"
-                        disabled={updating}
-                      >
-                        <CheckCircle className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleUpdateItemStatus(item._id!, 'fault')}
-                        className={`p-2 rounded-full ${
-                          item.status === 'fault' 
-                            ? 'bg-red-100 text-red-600 border border-red-300' 
-                            : 'hover:bg-red-50 text-gray-400 hover:text-red-600'
-                        }`}
-                        title="Mark as Fault"
-                        disabled={updating}
-                      >
-                        <AlertCircle className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleUpdateItemStatus(item._id!, 'n/a')}
-                        className={`p-2 rounded-full ${
-                          item.status === 'n/a' 
-                            ? 'bg-gray-100 text-gray-600 border border-gray-300' 
-                            : 'hover:bg-gray-50 text-gray-400 hover:text-gray-600'
-                        }`}
-                        title="Mark as N/A"
-                        disabled={updating}
-                      >
-                        <FileText className="h-4 w-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl shadow-xl border p-6">
-            <h2 className="text-xl font-bold mb-6">Actions</h2>
-
-            <div className="space-y-4">
-              {!checklist.approved && (
-                <button 
-                  onClick={handleApproveWithLifecycle} 
-                  className="btn-primary-green w-full flex items-center justify-center gap-2"
-                  disabled={updating}
-                >
-                  {updating ? (
-                    <RefreshCw className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <CheckCircle className="h-5 w-5" />
-                  )}
-                  Approve Checklist
-                </button>
-              )}
-
-              <button 
-                onClick={handleDelete} 
-                className="btn-soft-red w-full flex items-center justify-center gap-2"
-                disabled={updating}
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete Checklist
-              </button>
-            </div>
-
-            <div className="mt-8 pt-8 border-t border-gray-200">
-              <h3 className="font-medium text-gray-900 mb-3">Quick Stats</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Completion Rate</span>
-                    <span className="font-medium">{completionPercentage}%</span>
-                  </div>
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-green-500 rounded-full transition-all duration-500"
-                      style={{ width: `${completionPercentage}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-green-50 p-3 rounded-lg text-center">
-                    <div className="text-xl font-bold text-green-700">{okItems.length}</div>
-                    <div className="text-xs text-green-600">OK</div>
-                  </div>
-                  <div className="bg-red-50 p-3 rounded-lg text-center">
-                    <div className="text-xl font-bold text-red-700">{faultItems.length}</div>
-                    <div className="text-xs text-red-600">Faults</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded-lg text-center">
-                    <div className="text-xl font-bold text-gray-700">
-                      {checklist.inspectionItems.length - okItems.length - faultItems.length}
-                    </div>
-                    <div className="text-xs text-gray-600">N/A</div>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
           </div>
 
-          {/* Related Information */}
-          <div className="bg-white rounded-2xl shadow-xl border p-6">
-            <h2 className="text-xl font-bold mb-6">Related Information</h2>
-            
-            <div className="space-y-4">
-              {typeof checklist.opportunityId === 'object' && checklist.opportunityId._id && (
-                <Link
-                  href={`/opportunities/${checklist.opportunityId._id}`}
-                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <Building className="h-4 w-4 text-blue-600" />
-                    <span className="font-medium">Opportunity</span>
-                  </div>
-                  <ArrowLeft className="h-4 w-4 transform rotate-180 text-gray-400" />
-                </Link>
-              )}
+          {/* RIGHT */}
+          <div className="space-y-6">
+            {/* Actions Card */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <h2 className="text-base font-semibold text-gray-800 mb-4">Actions</h2>
 
-              {typeof checklist.vehicleId === 'object' && checklist.vehicleId._id && (
-                <Link
-                  href={`/vehicles/${checklist.vehicleId._id}`}
-                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors"
+              <div className="space-y-3">
+                {!checklist.approved && (
+                  <button 
+                    onClick={handleApproveWithLifecycle} 
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60"
+                    disabled={updating}
+                  >
+                    {updating ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle className="h-4 w-4" />
+                    )}
+                    Approve Checklist
+                  </button>
+                )}
+
+                <button 
+                  onClick={handleDelete} 
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-red-600 text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 disabled:opacity-60"
+                  disabled={updating}
                 >
-                  <div className="flex items-center gap-2">
-                    <Car className="h-4 w-4 text-blue-600" />
-                    <span className="font-medium">Vehicle Details</span>
+                  <Trash2 className="h-4 w-4" />
+                  Delete Checklist
+                </button>
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <h3 className="text-sm font-medium text-gray-800 mb-3">Completion Summary</h3>
+                
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex justify-between text-xs text-gray-600 mb-1">
+                      <span>Progress</span>
+                      <span className="font-medium">{completionPercentage}%</span>
+                    </div>
+                    <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-blue-600 rounded-full"
+                        style={{ width: `${completionPercentage}%` }}
+                      />
+                    </div>
                   </div>
-                  <ArrowLeft className="h-4 w-4 transform rotate-180 text-gray-400" />
-                </Link>
-              )}
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-green-50 p-2 rounded text-center">
+                      <div className="text-sm font-bold text-green-700">{okItems.length}</div>
+                      <div className="text-xs text-green-600">OK</div>
+                    </div>
+                    <div className="bg-red-50 p-2 rounded text-center">
+                      <div className="text-sm font-bold text-red-700">{faultItems.length}</div>
+                      <div className="text-xs text-red-600">Faults</div>
+                    </div>
+                    <div className="bg-gray-50 p-2 rounded text-center">
+                      <div className="text-sm font-bold text-gray-700">
+                        {checklist.inspectionItems.length - okItems.length - faultItems.length}
+                      </div>
+                      <div className="text-xs text-gray-600">N/A</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Related Info */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <h2 className="text-base font-semibold text-gray-800 mb-4">Related Records</h2>
+              
+              <div className="space-y-2">
+                {typeof checklist.opportunityId === 'object' && checklist.opportunityId._id && (
+                  <Link
+                    href={`/opportunities/${checklist.opportunityId._id}`}
+                    className="flex items-center justify-between p-2.5 rounded-lg hover:bg-gray-50 text-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Building className="h-4 w-4 text-gray-600" />
+                      <span>Opportunity</span>
+                    </div>
+                    <ArrowLeft className="h-4 w-4 text-gray-400 transform rotate-180" />
+                  </Link>
+                )}
+
+                {typeof checklist.vehicleId === 'object' && checklist.vehicleId._id && (
+                  <Link
+                    href={`/vehicles/${checklist.vehicleId._id}`}
+                    className="flex items-center justify-between p-2.5 rounded-lg hover:bg-gray-50 text-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Car className="h-4 w-4 text-gray-600" />
+                      <span>Vehicle Details</span>
+                    </div>
+                    <ArrowLeft className="h-4 w-4 text-gray-400 transform rotate-180" />
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
         </div>

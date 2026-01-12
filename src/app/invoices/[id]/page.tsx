@@ -1,39 +1,36 @@
-'use client';
-
-import { useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import InvoiceDetailPage from '@/components/invoices/InvoiceDetailPage';
+// app/invoices/[id]/page.tsx
+import { Metadata } from 'next';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import InvoiceDetailPage from '@/components/invoices/InvoiceDetailPage';
 
-export default function InvoiceDetailRoute() {
-  const params = useParams();
-  const router = useRouter();
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
 
-  const invoiceId = params?.id as string;
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+  return {
+    title: `Invoice ${id} - Details`,
+  };
+}
 
-  useEffect(() => {
-    if (!invoiceId || invoiceId === 'undefined') {
-      console.error('Invalid invoice ID detected, redirecting...');
-      router.push('/invoices');
-    }
-  }, [invoiceId, router]);
-
-  if (!invoiceId || invoiceId === 'undefined') {
+export default async function Page({ params }: PageProps) {
+  const { id } = await params;
+  
+  if (!id || id === 'undefined') {
     return (
-      <ProtectedRoute>
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50/30 via-white to-purple-50/30">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4" />
-            <p className="text-gray-600">Loading invoice...</p>
-          </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4" />
+          <p className="text-gray-600">Invalid invoice ID</p>
         </div>
-      </ProtectedRoute>
+      </div>
     );
   }
 
   return (
     <ProtectedRoute>
-      <InvoiceDetailPage id={invoiceId} />
+      <InvoiceDetailPage id={id} />
     </ProtectedRoute>
   );
 }

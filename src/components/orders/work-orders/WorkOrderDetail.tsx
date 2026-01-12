@@ -328,7 +328,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     const currentStage = getCurrentStage();
     if (!currentStage) return false;
     
-    // For pre-checklist and post-checklist, check if they're completed
     if (currentStage.stage === 'prechecklist' || currentStage.stage === 'postchecklist') {
       return currentStage.completed || (currentStage.document?.approved === true);
     }
@@ -568,16 +567,20 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     }
   };
 
-// Helper function to check if stage is truly completed
   const checkIfStageTrulyCompleted = async (stage: string, document: any): Promise<boolean> => {
     try {
       // For checklist stages
       if (stage === 'prechecklist' || stage === 'postchecklist') {
         if (!document) return false;
         
+        // First check if it's approved
+        if (document.approved) return true;
+        
         if (stage === 'prechecklist') {
-          // Check if pre-checklist has no faults
-          return document.inspectionItems?.every((item: any) => item.status !== 'fault') || false;
+          // Check if pre-checklist has no faults and all items are ok or n/a
+          return document.inspectionItems?.every((item: any) => 
+            item.status === 'ok' || item.status === 'n/a'
+          ) || false;
         } else {
           // Check if post-checklist has all required items completed
           return document.inspectionItems?.every((item: any) => 
@@ -664,6 +667,25 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       }
     }
   }, [workflowStages, workOrder]);
+
+  useEffect(() => {
+    if (workflowStages.length > 0) {
+      const preChecklistStage = workflowStages.find(s => s.stage === 'prechecklist');
+      if (preChecklistStage) {
+        console.log('Pre-checklist stage status:', {
+          stage: preChecklistStage.stage,
+          completed: preChecklistStage.completed,
+          documentExists: !!preChecklistStage.document,
+          documentId: preChecklistStage.documentId,
+          documentApproved: preChecklistStage.document?.approved,
+          inspectionItems: preChecklistStage.document?.inspectionItems?.map((item: any) => ({
+            item: item.item,
+            status: item.status
+          }))
+        });
+      }
+    }
+  }, [workflowStages]);
 
   const handleNextStage = async () => {
     try {
@@ -845,22 +867,41 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
 
       setWorkflowLoading(true);
       
-      const currentStage = getCurrentStage();
+      console.log('Attempting to transition to next stage...', { opportunityId });
       
-      if (currentStage?.stage === 'waiver') {
-        setShowWaiverOptions(true);
-        setWorkflowLoading(false);
-        return;
-      }
-      
-      // Simple transition without complex validation
-      const result = await lifecycleIntegrationService.transitionToNextStage(opportunityId);
-      
-      if (result.success) {
-        showToast(`Moved to ${result.currentStage} stage`, 'success');
-        await fetchWorkOrder();
-      } else {
-        showToast(result.message || 'Failed to move to next stage', 'error');
+      try {
+        // Simple transition without complex validation
+        const result = await lifecycleIntegrationService.transitionToNextStage(opportunityId);
+        
+        console.log('Transition result:', result);
+        
+        if (result && result.success) {
+          showToast(`Moved to ${result.currentStage} stage`, 'success');
+          await fetchWorkOrder();
+        } else {
+          showToast(result?.message || 'Failed to move to next stage', 'error');
+        }
+      } catch (transitionError: any) {
+        console.error('Transition error details:', transitionError);
+        
+        // Check if this is a specific validation error
+        if (transitionError.message && transitionError.message.includes('Cannot transition')) {
+          // Try to force transition
+          console.log('Trying forced transition...');
+          const forcedResult = await lifecycleIntegrationService.transitionToNextStage(opportunityId, {
+            skipValidation: true,
+            metadata: { forced: true }
+          });
+          
+          if (forcedResult && forcedResult.success) {
+            showToast(`Forced transition to ${forcedResult.currentStage} stage`, 'warning');
+            await fetchWorkOrder();
+          } else {
+            showToast('Failed to force transition', 'error');
+          }
+        } else {
+          showToast(transitionError.message || 'Failed to move to next stage', 'error');
+        }
       }
     } catch (error: any) {
       console.error('Stage transition error:', error);

@@ -255,8 +255,23 @@ export class LifecycleIntegrationService {
       case 'jobcard':
         return document.status === 'completed' || document.status === 'closed';
       case 'prechecklist':
+        // For pre-checklist, check if it's approved
+        if (document.approved) {
+          return true; // Approved checklist is completed
+        }
+        // Also check if all items are OK (no faults)
+        return document.inspectionItems?.every((item: any) => 
+          item.status === 'ok' || item.status === 'n/a'
+        ) || false;
       case 'postchecklist':
-        return document.completed === true;
+        // For post-checklist, check if it's approved
+        if (document.approved) {
+          return true; // Approved checklist is completed
+        }
+        // Also check if all required items are completed
+        return document.inspectionItems?.every((item: any) => 
+          !item.required || item.status === 'completed' || item.status === 'n/a'
+        ) || false;
       case 'invoice':
         return document.status === 'sent' || document.status === 'paid';
       default:
@@ -490,7 +505,36 @@ export class LifecycleIntegrationService {
       
       // Validate current stage completion
       const documents = await this.fetchDocumentsForStages(opportunityId, pattern.slice(0, currentIndex + 1));
-      const isValid = await this.validateStageCompletion(opportunityId, currentStage, documents[currentStage]);
+      const currentDocument = documents[currentStage];
+      
+      // DEBUG LOGGING
+      console.log('DEBUG - Stage Transition Validation:', {
+        currentStage,
+        nextStage,
+        currentDocument,
+        hasDocument: !!currentDocument,
+        documentApproved: currentDocument?.approved,
+        documentInspectionItems: currentDocument?.inspectionItems,
+        documentStatus: currentDocument?.status,
+        documentId: currentDocument?._id || currentDocument?.id
+      });
+      
+      const isValid = await this.validateStageCompletion(opportunityId, currentStage, currentDocument);
+      
+      console.log('DEBUG - Validation Result:', {
+        isValid,
+        stage: currentStage,
+        validationDetails: {
+          prechecklist: currentStage === 'prechecklist' ? {
+            approved: currentDocument?.approved,
+            allItemsOk: currentDocument?.inspectionItems?.every((item: any) => 
+              item.status === 'ok' || item.status === 'n/a'
+            ),
+            itemCount: currentDocument?.inspectionItems?.length,
+            items: currentDocument?.inspectionItems
+          } : null
+        }
+      });
       
       if (!isValid && !options?.skipValidation) {
         throw new Error(`Cannot transition: Current stage "${currentStage}" not completed`);
@@ -1814,9 +1858,19 @@ export class LifecycleIntegrationService {
       case 'jobcard':
         return document.status === 'completed' || document.status === 'closed';
       case 'prechecklist':
-        return document.completed === true;
+        // For pre-checklist, check if it's approved
+        if (document.approved) return true;
+        // Also check if all items are OK (no faults)
+        return document.inspectionItems?.every((item: any) => 
+          item.status === 'ok' || item.status === 'n/a'
+        ) || false;
       case 'postchecklist':
-        return document.completed === true;
+        // For post-checklist, check if it's approved
+        if (document.approved) return true;
+        // Also check if all required items are completed
+        return document.inspectionItems?.every((item: any) => 
+          !item.required || item.status === 'completed' || item.status === 'n/a'
+        ) || false;
       case 'invoice':
         return document.status === 'sent' || document.status === 'paid';
       default:
