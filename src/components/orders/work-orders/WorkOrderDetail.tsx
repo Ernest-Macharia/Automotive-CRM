@@ -328,12 +328,65 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     const currentStage = getCurrentStage();
     if (!currentStage) return false;
     
-    if (currentStage.stage === 'prechecklist' || currentStage.stage === 'postchecklist') {
-      return currentStage.completed || (currentStage.document?.approved === true);
-    }
+    // Check if current stage is truly completed based on stage type
+    const isCompleted = isStageCompleted(currentStage);
     
-    // For other stages, check if they're completed
-    return currentStage.completed;
+    console.log(`canMoveToNextStage check:`, {
+      stage: currentStage.label,
+      isCompleted,
+      hasDocument: !!currentStage.document,
+      documentStatus: currentStage.document?.status,
+      documentApproved: currentStage.document?.approved
+    });
+    
+    return isCompleted;
+  };
+  // New function to check if a specific stage is completed
+  const isStageCompleted = (stage: WorkflowSidebarStage): boolean => {
+    switch (stage.stage) {
+      case 'quote':
+        // Quote requires approval
+        return stage.document?.status === 'approved';
+      
+      case 'waiver':
+        // Waiver is optional - can be completed with or without document
+        // If document exists, it should be signed
+        if (stage.document) {
+          return stage.document.signed === true;
+        }
+        // Waiver can be skipped, so it's considered complete if no document
+        return true;
+      
+      case 'jobcard':
+        // Job card should have a document and be in progress or completed
+        return !!stage.document && (
+          stage.document.status === 'in_progress' || 
+          stage.document.status === 'completed'
+        );
+      
+      case 'prechecklist':
+        // Pre-checklist requires approval or all items OK
+        if (!stage.document) {
+          return false; // No document created yet
+        }
+        
+        // Check if checklist is explicitly approved
+        return stage.document.approved === true;
+      
+      case 'postchecklist':
+        // Post-checklist requires approval
+        if (stage.document?.approved) return true;
+        return stage.document?.inspectionItems?.every((item: any) => 
+          !item.required || item.status === 'completed' || item.status === 'n/a'
+        ) || false;
+      
+      case 'invoice':
+        // Invoice requires a document
+        return !!stage.document;
+      
+      default:
+        return stage.completed || false;
+    }
   };
 
   const canMoveToPreviousStage = (): boolean => {
@@ -856,6 +909,18 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         return;
       }
 
+      const currentStage = getCurrentStage();
+      if (!currentStage) {
+        showToast('No current stage found', 'error');
+        return;
+      }
+
+      // Check if current stage is completed
+      if (!isStageCompleted(currentStage)) {
+        showToast(`Please complete the ${currentStage.label} stage first`, 'warning');
+        return;
+      }
+
       const opportunityId = typeof workOrder.opportunityId === 'object' 
         ? workOrder.opportunityId._id 
         : workOrder.opportunityId;
@@ -867,45 +932,107 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
 
       setWorkflowLoading(true);
       
-      console.log('Attempting to transition to next stage...', { opportunityId });
+      const stageOrder = ['quote', 'waiver', 'jobcard', 'prechecklist', 'postchecklist', 'invoice'];
+      const currentIndex = stageOrder.indexOf(currentStage.stage);
       
-      try {
-        // Simple transition without complex validation
-        const result = await lifecycleIntegrationService.transitionToNextStage(opportunityId);
-        
-        console.log('Transition result:', result);
-        
-        if (result && result.success) {
-          showToast(`Moved to ${result.currentStage} stage`, 'success');
-          await fetchWorkOrder();
-        } else {
-          showToast(result?.message || 'Failed to move to next stage', 'error');
-        }
-      } catch (transitionError: any) {
-        console.error('Transition error details:', transitionError);
-        
-        // Check if this is a specific validation error
-        if (transitionError.message && transitionError.message.includes('Cannot transition')) {
-          // Try to force transition
-          console.log('Trying forced transition...');
-          const forcedResult = await lifecycleIntegrationService.transitionToNextStage(opportunityId, {
-            skipValidation: true,
-            metadata: { forced: true }
-          });
-          
-          if (forcedResult && forcedResult.success) {
-            showToast(`Forced transition to ${forcedResult.currentStage} stage`, 'warning');
-            await fetchWorkOrder();
-          } else {
-            showToast('Failed to force transition', 'error');
-          }
-        } else {
-          showToast(transitionError.message || 'Failed to move to next stage', 'error');
-        }
+      if (currentIndex === -1 || currentIndex >= stageOrder.length - 1) {
+        showToast('Already at the final stage', 'info');
+        setWorkflowLoading(false);
+        return;
       }
+      
+      const nextStage = stageOrder[currentIndex + 1];
+      
+      // Special handling for moving from job card to pre-checklist
+      if (currentStage.stage === 'jobcard' && nextStage === 'prechecklist') {
+        // Show message about creating pre-checklist
+        showToast('Please create and approve a pre-checklist to proceed', 'info');
+        
+        // Refresh to show pre-checklist stage as current
+        await fetchWorkOrder();
+        
+        setWorkflowLoading(false);
+        return;
+      }
+      
+      // For all other transitions, proceed normally
+      const result = await lifecycleIntegrationService.transitionToStage(
+        opportunityId,
+        nextStage,
+        { skipValidation: false }
+      );
+      
+      if (result.success) {
+        showToast(`Successfully moved to ${nextStage} stage`, 'success');
+        await fetchWorkOrder();
+      } else {
+        showToast(result.message || 'Failed to move to next stage', 'error');
+      }
+      
     } catch (error: any) {
       console.error('Stage transition error:', error);
       showToast(error.message || 'Failed to move to next stage', 'error');
+    } finally {
+      setWorkflowLoading(false);
+    }
+  };
+
+  const handleWaiverOption = async (option: 'create' | 'skip' | 'complete') => {
+    try {
+      const waiverStage = workflowStages.find(s => s.stage === 'waiver');
+      if (!waiverStage || !workOrder) return;
+      
+      const opportunityId = typeof workOrder.opportunityId === 'object' 
+        ? workOrder.opportunityId._id 
+        : workOrder.opportunityId;
+      
+      if (!opportunityId) return;
+      
+      setWorkflowLoading(true);
+      
+      if (option === 'create') {
+        // Create waiver document
+        router.push(`/waivers/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
+        setShowWaiverOptions(false);
+      } else if (option === 'skip') {
+        // Skip waiver stage and move to jobcard
+        const result = await lifecycleIntegrationService.transitionToStage(
+          opportunityId,
+          'jobcard',
+          { 
+            skipValidation: true,
+            metadata: { skippedStage: 'waiver', reason: 'User skipped' }
+          }
+        );
+        
+        if (result.success) {
+          showToast('Waiver skipped, moving to job card stage', 'info');
+          await fetchWorkOrder();
+        }
+        setShowWaiverOptions(false);
+      } else if (option === 'complete') {
+        // Mark waiver as completed (for cases where waiver already exists)
+        await lifecycleIntegrationService.markStageAsCompleted(
+          opportunityId,
+          'waiver',
+          { documentId: waiverStage.documentId }
+        );
+        
+        // Then move to next stage
+        const result = await lifecycleIntegrationService.transitionToStage(
+          opportunityId,
+          'jobcard'
+        );
+        
+        if (result.success) {
+          showToast('Waiver completed, moving to job card stage', 'success');
+          await fetchWorkOrder();
+        }
+        setShowWaiverOptions(false);
+      }
+    } catch (error: any) {
+      console.error('Error handling waiver option:', error);
+      showToast(error.message || 'Failed to process waiver option', 'error');
     } finally {
       setWorkflowLoading(false);
     }
@@ -1026,19 +1153,12 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         </div>
         
         <p className="text-gray-600 mb-6">
-          What would you like to do with the waiver stage?
+          You're moving from Quote to Waiver stage. What would you like to do?
         </p>
         
         <div className="space-y-3 mb-6">
           <button
-            onClick={async () => {
-              setSelectedWaiverAction('create');
-              const waiverStage = workflowStages.find(s => s.stage === 'waiver');
-              if (waiverStage) {
-                await handleStageAction(waiverStage, 'create');
-              }
-              setShowWaiverOptions(false);
-            }}
+            onClick={() => handleWaiverOption('create')}
             className="w-full flex items-center gap-3 p-4 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-left transition-colors"
           >
             <FilePlus className="h-5 w-5 text-blue-600" />
@@ -1049,14 +1169,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
           </button>
           
           <button
-            onClick={async () => {
-              setSelectedWaiverAction('skip');
-              const waiverStage = workflowStages.find(s => s.stage === 'waiver');
-              if (waiverStage) {
-                await handleSkipStage(waiverStage);
-              }
-              setShowWaiverOptions(false);
-            }}
+            onClick={() => handleWaiverOption('skip')}
             className="w-full flex items-center gap-3 p-4 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg text-left transition-colors"
           >
             <ArrowRight className="h-5 w-5 text-amber-600" />
@@ -1066,23 +1179,19 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
             </div>
           </button>
           
-          <button
-            onClick={async () => {
-              setSelectedWaiverAction('complete');
-              const waiverStage = workflowStages.find(s => s.stage === 'waiver');
-              if (waiverStage) {
-                await handleStageAction(waiverStage, 'complete');
-              }
-              setShowWaiverOptions(false);
-            }}
-            className="w-full flex items-center gap-3 p-4 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg text-left transition-colors"
-          >
-            <CheckCircle className="h-5 w-5 text-green-600" />
-            <div>
-              <p className="font-medium text-gray-900">Mark Complete</p>
-              <p className="text-sm text-gray-600">Mark waiver stage as completed</p>
-            </div>
-          </button>
+          {/* Add complete option if waiver already exists */}
+          {workflowStages.some(s => s.stage === 'waiver' && s.document) && (
+            <button
+              onClick={() => handleWaiverOption('complete')}
+              className="w-full flex items-center gap-3 p-4 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg text-left transition-colors"
+            >
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <div>
+                <p className="font-medium text-gray-900">Mark Complete</p>
+                <p className="text-sm text-gray-600">Use existing waiver document</p>
+              </div>
+            </button>
+          )}
         </div>
         
         <div className="flex justify-end">
@@ -1096,6 +1205,38 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       </div>
     </div>
   );
+
+  // Add this function after isStageCompleted
+    const getStageCompletionRequirements = (stage: WorkflowSidebarStage): string => {
+      switch (stage.stage) {
+        case 'quote':
+          return 'Requires approval to proceed';
+        case 'waiver':
+          return 'Optional - can create waiver or skip';
+        case 'jobcard':
+          return 'Requires job card document';
+        case 'prechecklist':
+          if (!stage.document) {
+            return 'Create pre-checklist document first';
+          }
+          
+          if (!stage.document.approved) {
+            const totalItems = stage.document.inspectionItems?.length || 0;
+            const completedItems = stage.document.inspectionItems?.filter(
+              (item: any) => item.status === 'ok' || item.status === 'n/a'
+            ).length || 0;
+            
+            return `Complete inspection (${completedItems}/${totalItems} items) and get approval`;
+          }
+          return 'Checklist approved. Ready to proceed.';
+        case 'postchecklist':
+          return 'Requires post-service verification';
+        case 'invoice':
+          return 'Requires invoice generation';
+        default:
+          return 'Complete this stage to proceed';
+      }
+    };
 
   // Skeleton Loading Components
   const SkeletonHeader = () => (
@@ -1375,34 +1516,58 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                             <div className="flex items-center gap-2">
                               <h3 className="font-medium truncate">{stage.label}</h3>
                               {getStageStatusIcon(stage)}
-                            </div>
-                            {stage.isCurrent && (
-                              <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-                                Current
-                              </span>
-                            )}
-                          </div>
-                          
-                          <div className="mt-2 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className="text-xs text-gray-500">
-                                {stage.estimatedTime}
-                              </span>
+                              
+                              {/* Add requirement indicator */}
                               {!stage.mandatory && stage.stage === 'waiver' && (
                                 <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full">
                                   Optional
                                 </span>
                               )}
                             </div>
+                            <div className="flex items-center gap-2">
+                              {stage.isCurrent && (
+                                <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                                  Current
+                                </span>
+                              )}
+                              {stage.isCurrent && !isStageCompleted(stage) && (
+                                <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">
+                                  In Progress
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Add completion requirements summary */}
+                          {stage.isCurrent && !isStageCompleted(stage) && (
+                            <div className="mt-2 flex items-start gap-2">
+                              <AlertCircle className="h-4 w-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+                              <p className="text-xs text-gray-600 flex-1">
+                                {getStageCompletionRequirements(stage)}
+                              </p>
+                            </div>
+                          )}
+                          
+                          <div className="mt-2 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs text-gray-500">
+                                {stage.estimatedTime}
+                              </span>
+                            </div>
 
-                            {stage.completed ? (
+                            {isStageCompleted(stage) ? (
                               <span className="text-xs text-green-600 font-medium flex items-center gap-1">
                                 <CheckCircle className="h-3 w-3" />
-                                {stage.document ? 'Completed' : 'Skipped'}
+                                Ready
+                              </span>
+                            ) : stage.document ? (
+                              <span className="text-xs text-yellow-600 font-medium flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                In Progress
                               </span>
                             ) : (
                               <span className="text-xs text-gray-500">
-                                {stage.document ? 'Document ready' : 'No document'}
+                                Not Started
                               </span>
                             )}
                           </div>
@@ -1444,7 +1609,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                       </>
                     ) : (
                       <>
-                        Next
+                        Next Stage
                         <ChevronRight className="h-4 w-4" />
                       </>
                     )}
@@ -1452,7 +1617,10 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                 </div>
                 <div className="mt-2 text-center">
                   <p className="text-xs text-gray-500">
-                    Stage {workflowStages.findIndex(s => s.isCurrent) + 1} of {workflowStages.length}
+                    {canMoveToNextStage() 
+                      ? 'Ready to proceed to next stage' 
+                      : `Complete ${workflowStages.find(s => s.isCurrent)?.label || 'current stage'} to proceed`
+                    }
                   </p>
                 </div>
               </div>
@@ -1819,7 +1987,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                       
                       {/* Other actions */}
                       {selectedStage.actions
-                        .filter(action => action.id !== 'markChecklistComplete') // Remove duplicate
+                        .filter(action => action.id !== 'markChecklistComplete')
                         .map((action) => (
                           <button
                             key={action.id}
@@ -1865,7 +2033,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                     </button>
                     <button
                       onClick={handleMoveToNextStage}
-                      disabled={!canMoveToNextStage() || workflowLoading}
+                      disabled={!canMoveToNextStage() || workflowLoading}  // Disabled if not completed
                       className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium ${
                         canMoveToNextStage() && !workflowLoading
                           ? 'bg-blue-600 text-white hover:bg-blue-700'
@@ -1886,12 +2054,13 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                     </button>
                   </div>
                   
-                  {selectedStage.isCurrent && (
+                  {selectedStage?.isCurrent && (
                     <div className="mt-3 text-center">
                       <p className="text-xs text-gray-500">
-                        {selectedStage.stage === 'waiver' 
-                          ? 'Waiver is optional - you can skip or complete it' 
-                          : 'Complete this stage to unlock next stage'}
+                        {canMoveToNextStage() 
+                          ? 'Ready to proceed to next stage' 
+                          : `Complete ${selectedStage.label} to unlock next stage`
+                        }
                       </p>
                     </div>
                   )}

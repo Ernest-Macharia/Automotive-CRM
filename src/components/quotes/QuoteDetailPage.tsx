@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FileText,
@@ -64,12 +64,25 @@ interface QuoteDetailPageProps {
 export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
   const router = useRouter();
   const { showToast } = useToast();
+  const actionsMenuRef = useRef<HTMLDivElement>(null);
 
   const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target as Node)) {
+        setShowActionsMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (id) {
@@ -290,9 +303,9 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
   const statusConfig = getStatusBadge(quote.status);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gray-50">
       {/* Header with Blue to Purple Gradient */}
-      <div className="bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-700 p-4 sm:p-6 shadow-lg relative overflow-hidden">
+      <div className="bg-gradient-to-r from-blue-600 via-indigo-700 to-purple-800 p-4 sm:p-6 shadow-xl relative overflow-hidden">
         {/* Animated background elements */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10">
           <div className="absolute -top-24 -right-24 w-64 h-64 bg-white rounded-full blur-3xl"></div>
@@ -305,17 +318,18 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => router.push('/quotes')}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors backdrop-blur-sm"
+                className="p-2.5 hover:bg-white/20 rounded-lg transition-colors backdrop-blur-sm"
+                aria-label="Back to quotes"
               >
                 <ArrowLeft className="h-5 w-5 text-white" />
               </button>
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-white/20 backdrop-blur-sm rounded-lg">
+                <div className="p-3 bg-white/20 backdrop-blur-sm rounded-lg">
                   <FileText className="h-6 w-6 text-white" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h1 className="text-xl font-semibold text-white">{quote.quoteNumber}</h1>
+                    <h1 className="text-xl font-bold text-white">{quote.quoteNumber}</h1>
                     <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${statusConfig.bg} ${statusConfig.text}`}>
                       {statusConfig.icon}
                       <span className="text-xs font-medium capitalize">{quote.status}</span>
@@ -329,68 +343,69 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setRefreshKey(prev => prev + 1)}
-                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors"
+                className="p-2.5 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors"
                 title="Refresh"
+                aria-label="Refresh"
               >
                 <RefreshCw className="h-5 w-5 text-white" />
               </button>
               <Link
                 href={`/quotes/${quote.id}/edit`}
-                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors"
+                className="p-2.5 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors"
                 title="Edit"
+                aria-label="Edit quote"
               >
                 <Edit className="h-5 w-5 text-white" />
               </Link>
               <button
                 onClick={handleExportPDF}
-                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors"
+                className="p-2.5 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors"
                 title="Export PDF"
+                aria-label="Export PDF"
               >
                 <Download className="h-5 w-5 text-white" />
               </button>
-              <button
-                onClick={() => setShowActionsMenu(!showActionsMenu)}
-                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors relative"
-                title="More actions"
-              >
-                <MoreVertical className="h-5 w-5 text-white" />
-              </button>
+              <div className="relative" ref={actionsMenuRef}>
+                <button
+                  onClick={() => setShowActionsMenu(!showActionsMenu)}
+                  className="p-2.5 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors"
+                  title="More actions"
+                  aria-label="More actions"
+                  aria-expanded={showActionsMenu}
+                >
+                  <MoreVertical className="h-5 w-5 text-white" />
+                </button>
+                
+                {/* Actions Menu */}
+                {showActionsMenu && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-20 animate-fade-in">
+                    <div className="px-3 py-2 border-b border-gray-100">
+                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Quick Actions</span>
+                    </div>
+                    
+                    <button onClick={handlePrint} className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 w-full">
+                      <Printer className="h-4 w-4" />
+                      Print Quote
+                    </button>
+                    
+                    <button onClick={copyQuoteNumber} className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 w-full">
+                      <Copy className="h-4 w-4" />
+                      Copy Quote Number
+                    </button>
+                    
+                    <div className="border-t border-gray-200 mt-1 pt-1">
+                      <button onClick={handleDelete} className="flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 w-full">
+                        <Trash2 className="h-4 w-4" />
+                        Delete Quote
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Actions Menu */}
-      {showActionsMenu && (
-        <>
-          <div
-            className="fixed inset-0 z-10"
-            onClick={() => setShowActionsMenu(false)}
-          />
-          <div className="absolute right-4 top-24 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-20 animate-fade-in">
-            <div className="px-3 py-2 border-b border-gray-100">
-              <span className="text-xs font-semibold text-gray-500 uppercase">Quick Actions</span>
-            </div>
-            
-            <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full">
-              <Printer className="h-4 w-4" />
-              Print Quote
-            </button>
-            
-            <button onClick={copyQuoteNumber} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full">
-              <Copy className="h-4 w-4" />
-              Copy Quote Number
-            </button>
-            
-            <div className="border-t border-gray-200 mt-1 pt-1">
-              <button onClick={handleDelete} className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full">
-                <Trash2 className="h-4 w-4" />
-                Delete Quote
-              </button>
-            </div>
-          </div>
-        </>
-      )}
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
@@ -398,8 +413,8 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
           {/* Left Column - Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Tabs Navigation */}
-            <div className="border-b border-gray-200 bg-white rounded-t-xl">
-              <nav className="flex space-x-8 px-6">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+              <nav className="flex overflow-x-auto px-4">
                 {[
                   { id: 'overview', label: 'Overview', icon: <BarChart3 className="h-4 w-4" /> },
                   { id: 'items', label: 'Items', icon: <Package className="h-4 w-4" /> },
@@ -410,7 +425,7 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 py-3 px-1 border-b-2 text-sm font-medium transition-colors whitespace-nowrap ${
+                    className={`flex-shrink-0 flex items-center gap-2 py-4 px-4 border-b-2 text-sm font-medium transition-colors whitespace-nowrap ${
                       activeTab === tab.id
                         ? 'border-blue-600 text-blue-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -424,48 +439,48 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
             </div>
 
             {/* Tab Content */}
-            <div className="bg-white rounded-b-xl border border-t-0 border-gray-200 p-6">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
               {activeTab === 'overview' && (
                 <div className="space-y-6">
                   {/* Quick Stats */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100 p-5">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm text-gray-600">Total Amount</p>
-                          <h3 className="text-xl md:text-2xl font-bold text-gray-900 mt-1 truncate">
+                          <p className="text-sm font-medium text-gray-600">Total Amount</p>
+                          <h3 className="text-xl font-bold text-gray-900 mt-1 truncate">
                             {formatCurrency(quote.totalAmount)}
                           </h3>
                         </div>
-                        <div className="p-3 bg-blue-100 rounded-lg">
-                          <DollarSign className="h-6 w-6 text-blue-600" />
+                        <div className="p-2.5 bg-blue-100 rounded-lg">
+                          <DollarSign className="h-5 w-5 text-blue-600" />
                         </div>
                       </div>
                     </div>
                     
-                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 p-6">
+                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-100 p-5">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm text-gray-600">Items Count</p>
-                          <h3 className="text-2xl font-bold text-gray-900 mt-1">
+                          <p className="text-sm font-medium text-gray-600">Items Count</p>
+                          <h3 className="text-xl font-bold text-gray-900 mt-1">
                             {quote.items.length}
                           </h3>
                         </div>
-                        <div className="p-3 bg-green-100 rounded-lg">
-                          <Package className="h-6 w-6 text-green-600" />
+                        <div className="p-2.5 bg-green-100 rounded-lg">
+                          <Package className="h-5 w-5 text-green-600" />
                         </div>
                       </div>
                     </div>
                     
-                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200 p-6">
+                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-100 p-5">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm text-gray-600">Status</p>
-                          <h3 className="text-2xl font-bold text-gray-900 mt-1 capitalize">
+                          <p className="text-sm font-medium text-gray-600">Status</p>
+                          <h3 className="text-xl font-bold text-gray-900 mt-1 capitalize">
                             {quote.status}
                           </h3>
                         </div>
-                        <div className="p-3 bg-purple-100 rounded-lg">
+                        <div className="p-2.5 bg-purple-100 rounded-lg">
                           {statusConfig.icon}
                         </div>
                       </div>
@@ -473,27 +488,27 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
                   </div>
 
                   {/* Quote Details Card */}
-                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 p-6">
+                  <div className="bg-gray-50 rounded-xl border border-gray-200 p-5">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Quote Information</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <div className="space-y-4">
                         <div className="flex items-start gap-3">
-                          <div className="p-2 bg-white rounded-lg shadow-sm">
+                          <div className="p-2 bg-white rounded-lg shadow-sm border border-gray-200">
                             <Calendar className="h-5 w-5 text-blue-600" />
                           </div>
                           <div>
-                            <p className="text-sm text-gray-600">Created Date</p>
+                            <p className="text-sm font-medium text-gray-600">Created Date</p>
                             <p className="font-medium text-gray-900">{formatDateTime(quote.createdAt)}</p>
                           </div>
                         </div>
                         
                         {typeof quote.opportunityId === 'object' && quote.opportunityId.customer && (
                           <div className="flex items-start gap-3">
-                            <div className="p-2 bg-white rounded-lg shadow-sm">
+                            <div className="p-2 bg-white rounded-lg shadow-sm border border-gray-200">
                               <User className="h-5 w-5 text-green-600" />
                             </div>
                             <div>
-                              <p className="text-sm text-gray-600">Customer</p>
+                              <p className="text-sm font-medium text-gray-600">Customer</p>
                               <p className="font-medium text-gray-900">{quote.opportunityId.customer.name}</p>
                               {quote.opportunityId.customer.companyName && (
                                 <p className="text-sm text-gray-600">{quote.opportunityId.customer.companyName}</p>
@@ -505,22 +520,22 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
                       
                       <div className="space-y-4">
                         <div className="flex items-start gap-3">
-                          <div className="p-2 bg-white rounded-lg shadow-sm">
+                          <div className="p-2 bg-white rounded-lg shadow-sm border border-gray-200">
                             <Building className="h-5 w-5 text-purple-600" />
                           </div>
                           <div>
-                            <p className="text-sm text-gray-600">Opportunity</p>
+                            <p className="text-sm font-medium text-gray-600">Opportunity</p>
                             <p className="font-medium text-gray-900">{renderOpportunity(quote.opportunityId)}</p>
                           </div>
                         </div>
                         
                         {quote.approvedBy && (
                           <div className="flex items-start gap-3">
-                            <div className="p-2 bg-white rounded-lg shadow-sm">
+                            <div className="p-2 bg-white rounded-lg shadow-sm border border-gray-200">
                               <CheckCircle className="h-5 w-5 text-green-600" />
                             </div>
                             <div>
-                              <p className="text-sm text-gray-600">Approved By</p>
+                              <p className="text-sm font-medium text-gray-600">Approved By</p>
                               <p className="font-medium text-gray-900">
                                 {typeof quote.approvedBy === 'object' 
                                   ? quote.approvedBy.name || quote.approvedBy.email 
@@ -551,16 +566,16 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th scope="col" className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                             Description
                           </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th scope="col" className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                             Quantity
                           </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th scope="col" className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                             Unit Price
                           </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th scope="col" className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                             Total
                           </th>
                         </tr>
@@ -568,16 +583,16 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
                       <tbody className="bg-white divide-y divide-gray-200">
                         {quote.items.map((item, i) => (
                           <tr key={i} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="px-5 py-4">
                               <div className="text-sm font-medium text-gray-900">{item.description}</div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="px-5 py-4">
                               <div className="text-sm text-gray-900">{item.quantity}</div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="px-5 py-4">
                               <div className="text-sm text-gray-900">{formatCurrency(item.unitPrice)}</div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="px-5 py-4">
                               <div className="text-sm font-semibold text-gray-900">{formatCurrency(item.total)}</div>
                             </td>
                           </tr>
@@ -585,10 +600,10 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
                       </tbody>
                       <tfoot className="bg-gray-50 border-t border-gray-200">
                         <tr>
-                          <td colSpan={3} className="px-6 py-3 text-right text-sm font-medium text-gray-700">
+                          <td colSpan={3} className="px-5 py-3.5 text-right text-sm font-semibold text-gray-700">
                             Total Amount
                           </td>
-                          <td className="px-6 py-3 text-right">
+                          <td className="px-5 py-3.5 text-right">
                             <span className="text-lg font-bold text-blue-600">
                               {formatCurrency(quote.totalAmount)}
                             </span>
@@ -605,8 +620,8 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
           {/* Right Column - Sidebar */}
           <div className="space-y-6">
             {/* Action Buttons Card */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-200 bg-gray-50">
                 <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
               </div>
               
@@ -614,7 +629,7 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
                 {quote.status === 'pending' && (
                   <button
                     onClick={handleApprove}
-                    className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 font-medium transition-all duration-300 shadow-sm hover:shadow-md"
+                    className="w-full flex items-center justify-center gap-2.5 py-3 px-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 font-medium transition-all duration-300 shadow-sm hover:shadow-md"
                   >
                     <CheckCircle className="h-5 w-5" />
                     Approve Quote
@@ -624,7 +639,7 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
                 <button
                   onClick={handleCreateInvoice}
                   disabled={quote.status !== 'approved'}
-                  className={`w-full flex items-center justify-center gap-3 py-3 px-4 rounded-lg font-medium transition-all duration-300 shadow-sm hover:shadow-md ${
+                  className={`w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-lg font-medium transition-all duration-300 shadow-sm hover:shadow-md ${
                     quote.status === 'approved'
                       ? 'bg-gradient-to-r from-purple-500 to-pink-600 text-white hover:from-purple-600 hover:to-pink-700'
                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
@@ -655,7 +670,7 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
                 <div className="pt-4 border-t border-gray-200">
                   <button
                     onClick={handleDelete}
-                    className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-gradient-to-r from-red-50 to-red-100 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 font-medium transition-colors"
+                    className="w-full flex items-center justify-center gap-2.5 py-3 px-4 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 font-medium transition-colors"
                   >
                     <Trash2 className="h-5 w-5" />
                     Delete Quote
@@ -666,8 +681,8 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
 
             {/* Customer Info Card */}
             {typeof quote.opportunityId === 'object' && quote.opportunityId.customer && (
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-200 bg-gray-50">
                   <h2 className="text-lg font-semibold text-gray-900">Customer</h2>
                 </div>
                 
@@ -706,8 +721,8 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
             )}
 
             {/* Summary Card */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-200 bg-gray-50">
                 <h2 className="text-lg font-semibold text-gray-900">Summary</h2>
               </div>
               
@@ -739,8 +754,8 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
             </div>
 
             {/* Created By Card */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-200 bg-gray-50">
                 <h2 className="text-lg font-semibold text-gray-900">Created By</h2>
               </div>
               
