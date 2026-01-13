@@ -143,7 +143,7 @@ class BlueprintsService {
       
       // Make sure the endpoint is correct
       const response = await apiClient.post<typeof backendData, any>(
-        '/blueprints/test/automation',
+        '/blueprints',
         backendData
       );
       
