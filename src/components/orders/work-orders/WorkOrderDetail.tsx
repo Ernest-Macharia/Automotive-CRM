@@ -1,45 +1,39 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
-  Wrench, ArrowLeft, Calendar, User, DollarSign, 
+  Wrench, ArrowLeft, Calendar, User, 
   Edit, Printer, Download, MapPin, Phone, Mail,
-  Building, CheckCircle, Truck, Package, Clock,
-  Play, FileText, CreditCard, Loader2,
-  TrendingUp, ChevronDown, ChevronUp, FileSignature, Receipt,
+  CheckCircle, Clock,
+  Play, FileText, Loader2,
+  FileSignature, 
   ChevronRight, Share2, Copy, MoreVertical, AlertCircle,
-  BarChart3, History, MessageSquare, Star, EyeOff,
-  Users, Tag, Globe, Shield, Bell, Settings,
-  PlusCircle, MinusCircle, ExternalLink, Filter,
-  CopyCheck, QrCode, Lock, Unlock, BellOff,
-  Save, Upload, Trash2, Eye, Settings as SettingsIcon,
-  RefreshCw, ShieldAlert, Truck as TruckIcon, Package as PackageIcon,
+  BarChart3, History, MessageSquare, EyeOff,
+  Trash2, Eye, 
+  RefreshCw, Truck as TruckIcon, 
   CreditCard as CreditCardIcon, Receipt as ReceiptIcon,
-  ClipboardCheck, ClipboardList, Car, Layers, GitBranch,
-  Workflow, Zap, Target, Rocket, LineChart, PieChart,
-  ChevronLeft, ChevronsRight, FolderTree, GitPullRequest,
-  BarChart, Circle, CircleCheck, CircleDot, CircleEllipsis,
-  Clock4, FileCheck, FilePlus, FileX, ArrowRight,
-  X, Maximize2, Minimize2, AlertTriangle, HelpCircle,
-  MessageCircle, PhoneCall, Mail as MailIcon, UserCheck,
-  FileSearch, FileBarChart, FileImage, FileVideo,
-  Download as DownloadIcon, Upload as UploadIcon,
-  CheckSquare, FileType, FileEdit
+  ClipboardCheck, ClipboardList,
+  ChevronLeft, 
+  Circle, CircleDot, 
+  FileCheck, FilePlus, FileX, ArrowRight,
+  X, HelpCircle,
+  CheckSquare, Check,
+  Activity,
+  Archive,
+  Link as LinkIcon,
 } from 'lucide-react';
 import { workOrderService } from '@/services/workOrderService';
 import { lifecycleIntegrationService, LifecycleStageUI } from '@/services/lifecycleIntegrationService';
 import { useToast } from '@/contexts/ToastContext';
 import { format } from 'date-fns';
-import { preChecklistService } from '@/services/preChecklistService';
-import { postChecklistService } from '@/services/postChecklistService';
 
 interface WorkOrderDetailPageProps {
   orderId: string;
 }
 
-interface WorkflowSidebarStage {
+interface WorkflowStage {
   id: string;
   stage: string;
   label: string;
@@ -57,7 +51,360 @@ interface WorkflowSidebarStage {
   estimatedTime: string;
   dependencies?: string[];
   canSkip: boolean;
+  progress?: {
+    percentage: number;
+    completedSteps: number;
+    totalSteps: number;
+  };
+  steps?: Array<{
+    id: string;
+    label: string;
+    completed: boolean;
+    description?: string;
+    required?: boolean;
+    action?: () => void;
+  }>;
 }
+
+// Skeleton Loader Components
+const SkeletonLoader = {
+  // Header Skeleton
+  Header: () => (
+    <div className="animate-pulse">
+      <div className="bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-700 p-4 sm:p-6 shadow-lg">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-lg"></div>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-white/20 rounded-lg"></div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-48 h-6 bg-white/30 rounded"></div>
+                    <div className="w-20 h-6 bg-white/30 rounded-full"></div>
+                  </div>
+                  <div className="w-40 h-4 bg-white/30 rounded"></div>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="w-10 h-10 bg-white/20 rounded-lg"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  ),
+
+  // Tabs Navigation Skeleton
+  Tabs: () => (
+    <div className="animate-pulse border-b border-gray-200 bg-white">
+      <div className="px-6">
+        <div className="flex space-x-8">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex items-center gap-2 py-3 px-1">
+              <div className="w-4 h-4 bg-gray-200 rounded"></div>
+              <div className="w-16 h-4 bg-gray-200 rounded"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  ),
+
+  // Current Stage Focus Skeleton
+  CurrentStage: () => (
+    <div className="animate-pulse bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 p-6">
+      <div className="flex items-start justify-between">
+        <div className="flex items-start gap-4">
+          <div className="w-14 h-14 bg-blue-100 rounded-lg"></div>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-48 h-6 bg-blue-100 rounded"></div>
+              <div className="w-20 h-6 bg-blue-100 rounded-full"></div>
+            </div>
+            <div className="w-96 h-4 bg-blue-100 rounded"></div>
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-blue-100 rounded"></div>
+                <div className="w-24 h-4 bg-blue-100 rounded"></div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-blue-100 rounded"></div>
+                <div className="w-32 h-4 bg-blue-100 rounded"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="w-40 h-10 bg-blue-200 rounded-lg"></div>
+      </div>
+    </div>
+  ),
+
+  // Workflow Progress Skeleton
+  WorkflowProgress: () => (
+    <div className="animate-pulse bg-white rounded-xl border border-gray-200 p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div className="space-y-2">
+          <div className="w-40 h-5 bg-gray-200 rounded"></div>
+          <div className="w-56 h-4 bg-gray-200 rounded"></div>
+        </div>
+        <div className="space-y-2 text-right">
+          <div className="w-24 h-4 bg-gray-200 rounded ml-auto"></div>
+          <div className="w-20 h-3 bg-gray-200 rounded ml-auto"></div>
+        </div>
+      </div>
+      
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-2">
+          <div className="w-32 h-4 bg-gray-200 rounded"></div>
+          <div className="w-12 h-5 bg-gray-200 rounded"></div>
+        </div>
+        <div className="h-3 bg-gray-200 rounded-full"></div>
+      </div>
+      
+      <div className="relative mb-8">
+        <div className="absolute left-0 right-0 top-6 h-0.5 bg-gray-200"></div>
+        <div className="relative flex justify-between">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex flex-col items-center">
+              <div className="w-12 h-12 bg-gray-200 rounded-full mb-3"></div>
+              <div className="text-center max-w-[120px] space-y-1">
+                <div className="w-20 h-3 bg-gray-200 rounded mx-auto"></div>
+                <div className="w-16 h-2 bg-gray-200 rounded mx-auto"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-3 gap-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="text-center space-y-2">
+            <div className="w-16 h-7 bg-gray-200 rounded mx-auto"></div>
+            <div className="w-24 h-3 bg-gray-200 rounded mx-auto"></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  ),
+
+  // Quick Actions Skeleton
+  QuickActions: () => (
+    <div className="animate-pulse bg-white rounded-xl border border-gray-200 p-6">
+      <div className="w-32 h-5 bg-gray-200 rounded mb-4"></div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="p-4 rounded-xl border-2 flex items-center gap-3">
+            <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
+            <div className="space-y-2 flex-1">
+              <div className="w-24 h-4 bg-gray-200 rounded"></div>
+              <div className="w-32 h-3 bg-gray-200 rounded"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  ),
+
+  // Service Details Skeleton
+  ServiceDetails: () => (
+    <div className="animate-pulse space-y-6">
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="w-40 h-5 bg-gray-200 rounded mb-4"></div>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <div className="w-24 h-4 bg-gray-200 rounded"></div>
+              <div className="w-32 h-5 bg-gray-200 rounded"></div>
+            </div>
+            <div className="space-y-2">
+              <div className="w-24 h-4 bg-gray-200 rounded"></div>
+              <div className="w-20 h-6 bg-gray-200 rounded-full"></div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <div className="w-32 h-4 bg-gray-200 rounded"></div>
+              <div className="w-40 h-5 bg-gray-200 rounded"></div>
+            </div>
+            <div className="space-y-2">
+              <div className="w-32 h-4 bg-gray-200 rounded"></div>
+              <div className="w-28 h-5 bg-gray-200 rounded"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="w-40 h-5 bg-gray-200 rounded mb-4"></div>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <div className="w-32 h-4 bg-gray-200 rounded"></div>
+              <div className="w-48 h-5 bg-gray-200 rounded"></div>
+            </div>
+            <div className="space-y-2">
+              <div className="w-32 h-4 bg-gray-200 rounded"></div>
+              <div className="w-36 h-5 bg-gray-200 rounded"></div>
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <div className="w-28 h-4 bg-gray-200 rounded"></div>
+            <div className="w-56 h-5 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  ),
+
+  // Documents Skeleton
+  Documents: () => (
+    <div className="animate-pulse space-y-6">
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="w-48 h-5 bg-gray-200 rounded mb-4"></div>
+        <div className="space-y-4">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gray-200 rounded-lg"></div>
+                <div className="space-y-2">
+                  <div className="w-32 h-4 bg-gray-200 rounded"></div>
+                  <div className="w-40 h-3 bg-gray-200 rounded"></div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-16 h-8 bg-gray-200 rounded"></div>
+                <div className="w-16 h-8 bg-gray-200 rounded"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  ),
+
+  // Activity Skeleton
+  Activity: () => (
+    <div className="animate-pulse space-y-6">
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="w-40 h-5 bg-gray-200 rounded mb-4"></div>
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
+              <div className="flex-1 space-y-2">
+                <div className="w-3/4 h-4 bg-gray-200 rounded"></div>
+                <div className="w-32 h-3 bg-gray-200 rounded"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  ),
+
+  // Notes Skeleton
+  Notes: () => (
+    <div className="animate-pulse space-y-6">
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="w-32 h-5 bg-gray-200 rounded mb-4"></div>
+        <div className="w-full h-24 bg-gray-200 rounded-lg mb-4"></div>
+        <div className="flex justify-end">
+          <div className="w-24 h-10 bg-gray-200 rounded-lg"></div>
+        </div>
+        
+        <div className="mt-6">
+          <div className="w-40 h-5 bg-gray-200 rounded mb-4"></div>
+          <div className="space-y-4">
+            <div className="p-4 bg-gray-200 rounded-lg space-y-2">
+              <div className="w-3/4 h-4 bg-gray-300 rounded"></div>
+              <div className="w-1/2 h-4 bg-gray-300 rounded"></div>
+            </div>
+            <div className="p-4 bg-gray-200 rounded-lg space-y-2">
+              <div className="w-2/3 h-4 bg-gray-300 rounded"></div>
+              <div className="w-1/3 h-4 bg-gray-300 rounded"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  ),
+
+  // Modal Skeleton
+  Modal: () => (
+    <>
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 animate-pulse" />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+          <div className="p-8 border-b border-gray-200">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-gray-200 rounded-2xl"></div>
+                <div className="space-y-2">
+                  <div className="w-64 h-7 bg-gray-200 rounded"></div>
+                  <div className="w-96 h-4 bg-gray-200 rounded"></div>
+                </div>
+              </div>
+              <div className="w-12 h-12 bg-gray-200 rounded-xl"></div>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="w-32 h-8 bg-gray-200 rounded-full"></div>
+              ))}
+            </div>
+          </div>
+
+          <div className="overflow-y-auto max-h-[calc(90vh-200px)] p-8">
+            <div className="mb-8">
+              <div className="w-40 h-6 bg-gray-200 rounded mb-4"></div>
+              <div className="flex items-center justify-between mb-6">
+                <div className="w-48 h-4 bg-gray-200 rounded"></div>
+                <div className="space-y-2 text-right">
+                  <div className="w-24 h-3 bg-gray-200 rounded ml-auto"></div>
+                  <div className="w-16 h-5 bg-gray-200 rounded ml-auto"></div>
+                </div>
+              </div>
+
+              <div className="relative space-y-8">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="flex items-start gap-4">
+                    <div className="w-16 h-16 bg-gray-200 rounded-full"></div>
+                    <div className="flex-1 p-6 bg-gray-100 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="w-48 h-5 bg-gray-300 rounded"></div>
+                        <div className="w-24 h-6 bg-gray-300 rounded-full"></div>
+                      </div>
+                      <div className="w-3/4 h-4 bg-gray-300 rounded"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  ),
+};
+
+// Full Page Skeleton Loader
+const FullPageSkeleton = () => (
+  <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+    <SkeletonLoader.Header />
+    <SkeletonLoader.Tabs />
+    <div className="p-6 space-y-6">
+      <SkeletonLoader.CurrentStage />
+      <SkeletonLoader.WorkflowProgress />
+      <SkeletonLoader.QuickActions />
+    </div>
+  </div>
+);
 
 export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProps) {
   const router = useRouter();
@@ -76,9 +423,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   const [addingNote, setAddingNote] = useState(false);
   const [activityLog, setActivityLog] = useState<any[]>([]);
   const [attachments, setAttachments] = useState<any[]>([]);
-  const [selectedStage, setSelectedStage] = useState<WorkflowSidebarStage | null>(null);
-  const [showStageDetail, setShowStageDetail] = useState(false);
-  const [workflowStages, setWorkflowStages] = useState<WorkflowSidebarStage[]>([]);
+  const [workflowStages, setWorkflowStages] = useState<WorkflowStage[]>([]);
   const [workflowProgress, setWorkflowProgress] = useState({
     percentage: 0,
     completed: 0,
@@ -90,7 +435,21 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   const [checklistId, setChecklistId] = useState<string>('');
   const [updating, setUpdating] = useState(false);
   
-  // Add these missing state variables
+  // Modal state
+  const [modalStage, setModalStage] = useState<WorkflowStage | null>(null);
+  const [modalSteps, setModalSteps] = useState<any[]>([]);
+  const [modalCurrentStep, setModalCurrentStep] = useState(0);
+  const [modalLoading, setModalLoading] = useState(false);
+
+  // Additional states
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [showActivityLog, setShowActivityLog] = useState(false);
+  const [showAttachments, setShowAttachments] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+  const [showServiceDetails, setShowServiceDetails] = useState(false);
+  const [showCustomerDetails, setShowCustomerDetails] = useState(false);
+  const [showCostBreakdown, setShowCostBreakdown] = useState(false);
   const [showWaiverOptions, setShowWaiverOptions] = useState(false);
   const [selectedWaiverAction, setSelectedWaiverAction] = useState<string | null>(null);
 
@@ -131,8 +490,8 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       setLifecycle(lifecycleData);
       
       if (lifecycleData?.stages) {
-        const transformedStages = transformLifecycleToSidebarStages(lifecycleData.stages);
-        setWorkflowStages(transformedStages);
+        const workflowStages = transformLifecycleToStages(lifecycleData.stages);
+        setWorkflowStages(workflowStages);
         
         const completed = lifecycleData.stages.filter((s: any) => s.completed).length;
         const total = lifecycleData.stages.length;
@@ -151,7 +510,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     }
   };
 
-  const transformLifecycleToSidebarStages = (stages: LifecycleStageUI[]): WorkflowSidebarStage[] => {
+  const transformLifecycleToStages = (stages: LifecycleStageUI[]): WorkflowStage[] => {
     return stages.map((stage, index) => {
       const actions = stage.actions?.map(action => {
         let icon: React.ReactNode;
@@ -208,12 +567,10 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         };
       }) || [];
       
-      // Add special handling for checklist stages
       const isChecklistStage = stage.stage === 'prechecklist' || stage.stage === 'postchecklist';
       const hasChecklistDocument = stage.document && stage.document._id;
       const isChecklistApproved = stage.document?.approved;
       
-      // If it's a checklist stage with a document but not approved, add a "Mark Complete" action
       if (isChecklistStage && hasChecklistDocument && !isChecklistApproved) {
         if (!actions.some(a => a.id === 'markChecklistComplete')) {
           actions.push({
@@ -225,6 +582,8 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
           });
         }
       }
+      
+      const steps = getStageSteps(stage);
       
       return {
         id: `stage-${index}`,
@@ -243,7 +602,9 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         mandatory: stage.mandatory || stage.required || true,
         estimatedTime: getStageTimeEstimate(stage.stage),
         dependencies: stage.dependencies || [],
-        canSkip: stage.canSkip || stage.skippable || false
+        canSkip: stage.canSkip || stage.skippable || false,
+        steps,
+        progress: calculateStageProgress(stage, steps)
       };
     });
   };
@@ -262,9 +623,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     };
     return icons[stage] || <Circle className="h-5 w-5" />;
   };
-
-  // Remove the old getStageActions function since we're now using the transformed actions
-  // The actions are now coming from the lifecycleIntegrationService
 
   const getStageRequirements = (stage: LifecycleStageUI): string[] => {
     const requirements: string[] = [];
@@ -300,6 +658,95 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     return stageEstimates[stage] || '30 min';
   };
 
+  const getStageSteps = (stage: LifecycleStageUI): any[] => {
+    const baseSteps = [
+      { id: 'preparation', label: 'Preparation', description: 'Review requirements and gather resources', completed: false },
+      { id: 'documentation', label: 'Documentation', description: 'Create and prepare documents', completed: false },
+      { id: 'verification', label: 'Verification', description: 'Verify all requirements are met', completed: false },
+      { id: 'approval', label: 'Approval', description: 'Get necessary approvals', completed: false },
+      { id: 'completion', label: 'Completion', description: 'Mark stage as complete', completed: false }
+    ];
+
+    const markSteps = (steps: any[], stage: LifecycleStageUI) => {
+      if (stage.completed) {
+        return steps.map(step => ({ ...step, completed: true }));
+      }
+      
+      if (stage.document) {
+        const updatedSteps = [...steps];
+        if (stage.document._id) updatedSteps[0].completed = true;
+        if (stage.document.status === 'created') updatedSteps[1].completed = true;
+        if (stage.document.status === 'verified') updatedSteps[2].completed = true;
+        if (stage.document.approved) updatedSteps[3].completed = true;
+        return updatedSteps;
+      }
+      
+      return steps;
+    };
+
+    switch (stage.stage) {
+      case 'quote':
+        return markSteps([
+          { id: 'gather-info', label: 'Gather Information', description: 'Collect client and service details', completed: false },
+          { id: 'create-quote', label: 'Create Quote', description: 'Generate detailed quote document', completed: false },
+          { id: 'review-quote', label: 'Review Quote', description: 'Double-check all details and pricing', completed: false },
+          { id: 'send-quote', label: 'Send to Client', description: 'Deliver quote to client for approval', completed: false },
+          { id: 'get-approval', label: 'Get Approval', description: 'Receive client approval signature', completed: false }
+        ], stage);
+      
+      case 'jobcard':
+        return markSteps([
+          { id: 'assign-technician', label: 'Assign Technician', description: 'Assign qualified technician to job', completed: false },
+          { id: 'create-jobcard', label: 'Create Job Card', description: 'Generate detailed job card with tasks', completed: false },
+          { id: 'gather-parts', label: 'Gather Parts', description: 'Collect all required parts and tools', completed: false },
+          { id: 'schedule-service', label: 'Schedule Service', description: 'Set service date and time', completed: false },
+          { id: 'dispatch', label: 'Dispatch Technician', description: 'Send technician to site', completed: false }
+        ], stage);
+      
+      case 'prechecklist':
+        return markSteps([
+          { id: 'create-checklist', label: 'Create Checklist', description: 'Generate pre-service checklist', completed: false },
+          { id: 'inspect-equipment', label: 'Inspect Equipment', description: 'Thoroughly inspect equipment', completed: false },
+          { id: 'document-findings', label: 'Document Findings', description: 'Record all inspection results', completed: false },
+          { id: 'get-approval', label: 'Get Approval', description: 'Get supervisor approval', completed: false },
+          { id: 'mark-ready', label: 'Mark as Ready', description: 'Mark equipment ready for service', completed: false }
+        ], stage);
+      
+      case 'postchecklist':
+        return markSteps([
+          { id: 'create-checklist', label: 'Create Checklist', description: 'Generate post-service checklist', completed: false },
+          { id: 'verify-service', label: 'Verify Service', description: 'Verify all services completed', completed: false },
+          { id: 'test-equipment', label: 'Test Equipment', description: 'Test equipment functionality', completed: false },
+          { id: 'get-approval', label: 'Get Approval', description: 'Get client approval signature', completed: false },
+          { id: 'document-completion', label: 'Document Completion', description: 'Complete all documentation', completed: false }
+        ], stage);
+      
+      case 'invoice':
+        return markSteps([
+          { id: 'gather-costs', label: 'Gather Costs', description: 'Collect all labor and parts costs', completed: false },
+          { id: 'create-invoice', label: 'Create Invoice', description: 'Generate detailed invoice', completed: false },
+          { id: 'apply-discounts', label: 'Apply Discounts', description: 'Apply any applicable discounts', completed: false },
+          { id: 'review-invoice', label: 'Review Invoice', description: 'Verify all charges are accurate', completed: false },
+          { id: 'send-invoice', label: 'Send to Client', description: 'Deliver invoice to client', completed: false }
+        ], stage);
+      
+      default:
+        return markSteps(baseSteps, stage);
+    }
+  };
+
+  const calculateStageProgress = (stage: LifecycleStageUI, steps: any[]): { percentage: number; completedSteps: number; totalSteps: number } => {
+    const totalSteps = steps.length;
+    const completedSteps = steps.filter(step => step.completed).length;
+    const percentage = Math.round((completedSteps / totalSteps) * 100);
+    
+    return {
+      percentage,
+      completedSteps,
+      totalSteps
+    };
+  };
+
   const calculateEstimatedTime = (stages: LifecycleStageUI[]): string => {
     const stageEstimates: Record<string, number> = {
       'quote': 1,
@@ -320,15 +767,51 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     return `${totalHours} hours`;
   };
 
-  const getCurrentStage = (): WorkflowSidebarStage | undefined => {
+  const getCurrentStage = (): WorkflowStage | undefined => {
     return workflowStages.find(stage => stage.isCurrent);
+  };
+
+  const isStageCompleted = (stage: WorkflowStage): boolean => {
+    switch (stage.stage) {
+      case 'quote':
+        return stage.document?.status === 'approved';
+      
+      case 'waiver':
+        if (stage.document) {
+          return stage.document.signed === true;
+        }
+        return true;
+      
+      case 'jobcard':
+        return !!stage.document && (
+          stage.document.status === 'in_progress' || 
+          stage.document.status === 'completed'
+        );
+      
+      case 'prechecklist':
+        if (!stage.document) {
+          return false;
+        }
+        return stage.document.approved === true;
+      
+      case 'postchecklist':
+        if (stage.document?.approved) return true;
+        return stage.document?.inspectionItems?.every((item: any) => 
+          !item.required || item.status === 'completed' || item.status === 'n/a'
+        ) || false;
+      
+      case 'invoice':
+        return !!stage.document;
+      
+      default:
+        return stage.completed || false;
+    }
   };
 
   const canMoveToNextStage = (): boolean => {
     const currentStage = getCurrentStage();
     if (!currentStage) return false;
     
-    // Check if current stage is truly completed based on stage type
     const isCompleted = isStageCompleted(currentStage);
     
     console.log(`canMoveToNextStage check:`, {
@@ -341,73 +824,79 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     
     return isCompleted;
   };
-  // New function to check if a specific stage is completed
-  const isStageCompleted = (stage: WorkflowSidebarStage): boolean => {
-    switch (stage.stage) {
-      case 'quote':
-        // Quote requires approval
-        return stage.document?.status === 'approved';
-      
-      case 'waiver':
-        // Waiver is optional - can be completed with or without document
-        // If document exists, it should be signed
-        if (stage.document) {
-          return stage.document.signed === true;
-        }
-        // Waiver can be skipped, so it's considered complete if no document
-        return true;
-      
-      case 'jobcard':
-        // Job card should have a document and be in progress or completed
-        return !!stage.document && (
-          stage.document.status === 'in_progress' || 
-          stage.document.status === 'completed'
-        );
-      
-      case 'prechecklist':
-        // Pre-checklist requires approval or all items OK
-        if (!stage.document) {
-          return false; // No document created yet
-        }
-        
-        // Check if checklist is explicitly approved
-        return stage.document.approved === true;
-      
-      case 'postchecklist':
-        // Post-checklist requires approval
-        if (stage.document?.approved) return true;
-        return stage.document?.inspectionItems?.every((item: any) => 
-          !item.required || item.status === 'completed' || item.status === 'n/a'
-        ) || false;
-      
-      case 'invoice':
-        // Invoice requires a document
-        return !!stage.document;
-      
-      default:
-        return stage.completed || false;
+
+  const handleStageModalClick = (stage: WorkflowStage) => {
+    setModalStage(stage);
+    setModalSteps(stage.steps || []);
+    setModalCurrentStep(stage.steps?.filter(s => s.completed).length || 0);
+  };
+
+  const handleCloseModal = () => {
+    setModalStage(null);
+    setModalCurrentStep(0);
+  };
+
+  const handleModalNextStep = () => {
+    if (modalCurrentStep < modalSteps.length - 1) {
+      setModalCurrentStep(prev => prev + 1);
     }
   };
 
-  const canMoveToPreviousStage = (): boolean => {
-    const currentStage = getCurrentStage();
-    if (!currentStage) return false;
+  const handleModalPrevStep = () => {
+    if (modalCurrentStep > 0) {
+      setModalCurrentStep(prev => prev - 1);
+    }
+  };
+
+  const handleCompleteStep = async (stepId: string) => {
+    if (!modalStage) return;
     
-    const currentIndex = workflowStages.findIndex(stage => stage.id === currentStage.id);
-    return currentIndex > 0;
+    setModalLoading(true);
+    try {
+      const updatedSteps = modalSteps.map(step => 
+        step.id === stepId ? { ...step, completed: true } : step
+      );
+      setModalSteps(updatedSteps);
+      
+      const allCompleted = updatedSteps.every(step => step.completed);
+      if (allCompleted && modalStage && !modalStage.completed) {
+        await handleCompleteStageModal(modalStage);
+      }
+      
+      showToast('Step completed successfully', 'success');
+    } catch (error) {
+      showToast('Failed to complete step', 'error');
+    } finally {
+      setModalLoading(false);
+    }
   };
 
-  const handleStageClick = (stage: WorkflowSidebarStage) => {
-    setSelectedStage(stage);
-    setShowStageDetail(true);
+  const handleCompleteStageModal = async (stage: WorkflowStage) => {
+    try {
+      const opportunityId = typeof workOrder.opportunityId === 'object' 
+        ? workOrder.opportunityId._id 
+        : workOrder.opportunityId;
+      
+      if (!opportunityId) return;
+      
+      setModalLoading(true);
+      await lifecycleIntegrationService.markStageAsCompleted(
+        opportunityId, 
+        stage.stage,
+        { documentId: stage.documentId }
+      );
+      
+      showToast(`${stage.label} marked as completed`, 'success');
+      fetchWorkOrder();
+      handleCloseModal();
+    } catch (error: any) {
+      showToast(error.message || 'Failed to complete stage', 'error');
+    } finally {
+      setModalLoading(false);
+    }
   };
 
-  const handleCloseStageDetail = () => {
-    setShowStageDetail(false);
-    setSelectedStage(null);
-  };
-
-  const handleStageAction = async (stage: WorkflowSidebarStage, actionId: string) => {
+  const handleStageAction = async (stage: WorkflowStage, actionId: string) => {
     try {
       if (!workOrder) return;
       
@@ -443,7 +932,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
           await handleCompleteStage(stage);
           break;
         case 'completeDetails':
-          // Special action for job card to complete details
           if (stage.stage === 'jobcard' && stage.documentId) {
             router.push(`/job-cards/${stage.documentId}/complete-details`);
           }
@@ -460,11 +948,9 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
           await handleUpdateDocument(stage);
           break;
         case 'transition':
-          // Handle transition to next stage
           await handleMoveToNextStage();
           break;
         case 'approve':
-          // Handle quote approval
           if (stage.stage === 'quote' && stage.documentId) {
             await handleApproveQuote(stage);
           }
@@ -475,10 +961,9 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     }
   };
 
-  const handleApproveQuote = async (stage: WorkflowSidebarStage) => {
+  const handleApproveQuote = async (stage: WorkflowStage) => {
     try {
       setWorkflowLoading(true);
-      // Call quote service to approve the quote
       const quoteService = require('@/services/quoteService');
       await quoteService.approveQuote(stage.documentId, {
         approvedBy: 'current-user-id',
@@ -494,7 +979,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     }
   };
 
-  const handleMarkChecklistComplete = async (stage: WorkflowSidebarStage) => {
+  const handleMarkChecklistComplete = async (stage: WorkflowStage) => {
     try {
       if (!stage.documentId) {
         showToast('No checklist document found', 'error');
@@ -503,11 +988,9 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       
       setWorkflowLoading(true);
       
-      // Get current user info
       const currentUserId = sessionStorage.getItem('userId') || 'system';
       const currentUserName = sessionStorage.getItem('userName') || 'User';
       
-      // Get opportunity ID from work order
       const opportunityId = typeof workOrder.opportunityId === 'object' 
         ? workOrder.opportunityId._id 
         : workOrder.opportunityId;
@@ -518,11 +1001,8 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         return;
       }
       
-      // Simple approval without lifecycle integration
       if (stage.stage === 'prechecklist') {
-        // Direct API call to approve the checklist
         try {
-          // First, let's mark the checklist as approved via the API
           const response = await fetch(`/api/v1/prechecklists/${stage.documentId}/approve`, {
             method: 'PATCH',
             headers: {
@@ -541,7 +1021,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
           
           const approvedChecklist = await response.json();
           
-          // Update local state
           setWorkflowStages(prevStages => 
             prevStages.map(s => 
               s.stage === 'prechecklist' 
@@ -559,7 +1038,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         } catch (apiError) {
           console.error('API error:', apiError);
           
-          // Fallback: Mark as completed locally
           setWorkflowStages(prevStages => 
             prevStages.map(s => 
               s.stage === 'prechecklist' ? { ...s, completed: true } : s
@@ -570,7 +1048,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         }
       } 
       else if (stage.stage === 'postchecklist') {
-        // Similar for post-checklist
         try {
           const response = await fetch(`/api/v1/postchecklist/${stage.documentId}/approve`, {
             method: 'PATCH',
@@ -609,7 +1086,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         }
       }
       
-      // Refresh the UI
       setRefreshKey(prev => prev + 1);
       
     } catch (error: any) {
@@ -620,7 +1096,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     }
   };
 
-  const checkIfStageTrulyCompleted = async (stage: string, document: any): Promise<boolean> => {
+   const checkIfStageTrulyCompleted = async (stage: string, document: any): Promise<boolean> => {
     try {
       // For checklist stages
       if (stage === 'prechecklist' || stage === 'postchecklist') {
@@ -773,7 +1249,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     }
   };
 
-  const handleUpdateDocument = async (stage: WorkflowSidebarStage) => {
+  const handleUpdateDocument = async (stage: WorkflowStage) => {
     if (!stage.documentId) {
       await handleCreateDocument(stage.stage);
       return;
@@ -786,7 +1262,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                 `${stage.documentType?.toLowerCase()}s`;
     
     router.push(`/${route}/${stage.documentId}/edit`);
-    handleCloseStageDetail();
   }
 
   const handleCreateDocument = async (stageType: string) => {
@@ -819,10 +1294,9 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         router.push(`/invoices/create?opportunityId=${opportunityId}&workOrderId=${workOrder._id}`);
         break;
     }
-    handleCloseStageDetail();
   };
 
-  const handleViewDocument = async (stage: WorkflowSidebarStage) => {
+  const handleViewDocument = async (stage: WorkflowStage) => {
     if (!stage.documentId) return;
     
     const route = stage.documentType === 'Job Card' ? 'job-cards' :
@@ -832,10 +1306,9 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                  `${stage.documentType?.toLowerCase()}s`;
     
     router.push(`/${route}/${stage.documentId}`);
-    handleCloseStageDetail();
   };
 
-  const handleCompleteStage = async (stage: WorkflowSidebarStage) => {
+  const handleCompleteStage = async (stage: WorkflowStage) => {
     try {
       const opportunityId = typeof workOrder.opportunityId === 'object' 
         ? workOrder.opportunityId._id 
@@ -857,7 +1330,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       
       showToast(`${stage.label} marked as completed`, 'success');
       fetchWorkOrder();
-      handleCloseStageDetail();
     } catch (error: any) {
       showToast(error.message || 'Failed to complete stage', 'error');
     } finally {
@@ -865,7 +1337,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     }
   };
 
-  const validateStageCompletion = async (stage: WorkflowSidebarStage): Promise<boolean> => {
+  const validateStageCompletion = async (stage: WorkflowStage): Promise<boolean> => {
     const stagesRequiringDocuments = ['quote', 'jobcard', 'prechecklist', 'postchecklist', 'invoice'];
     
     if (stagesRequiringDocuments.includes(stage.stage) && !stage.document) {
@@ -876,7 +1348,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     return true;
   };
 
-  const handleSkipStage = async (stage: WorkflowSidebarStage) => {
+  const handleSkipStage = async (stage: WorkflowStage) => {
     try {
       const opportunityId = typeof workOrder.opportunityId === 'object' 
         ? workOrder.opportunityId._id 
@@ -893,7 +1365,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       if (result.success) {
         showToast(`${stage.label} stage skipped`, 'info');
         fetchWorkOrder();
-        handleCloseStageDetail();
       }
     } catch (error: any) {
       showToast(error.message || 'Failed to skip stage', 'error');
@@ -915,7 +1386,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         return;
       }
 
-      // Check if current stage is completed
       if (!isStageCompleted(currentStage)) {
         showToast(`Please complete the ${currentStage.label} stage first`, 'warning');
         return;
@@ -943,19 +1413,15 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       
       const nextStage = stageOrder[currentIndex + 1];
       
-      // Special handling for moving from job card to pre-checklist
       if (currentStage.stage === 'jobcard' && nextStage === 'prechecklist') {
-        // Show message about creating pre-checklist
         showToast('Please create and approve a pre-checklist to proceed', 'info');
         
-        // Refresh to show pre-checklist stage as current
         await fetchWorkOrder();
         
         setWorkflowLoading(false);
         return;
       }
       
-      // For all other transitions, proceed normally
       const result = await lifecycleIntegrationService.transitionToStage(
         opportunityId,
         nextStage,
@@ -972,6 +1438,18 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     } catch (error: any) {
       console.error('Stage transition error:', error);
       showToast(error.message || 'Failed to move to next stage', 'error');
+    } finally {
+      setWorkflowLoading(false);
+    }
+  };
+
+  const startWorkflow = async () => {
+    try {
+      setWorkflowLoading(true);
+      router.push(`/quotes/create?workOrderId=${orderId}&source=work-order`);
+    } catch (error) {
+      console.error('Error starting workflow:', error);
+      showToast('Failed to start workflow', 'error');
     } finally {
       setWorkflowLoading(false);
     }
@@ -1070,17 +1548,77 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     }
   };
 
-  const startWorkflow = async () => {
+  const handlePrint = async () => {
     try {
-      setWorkflowLoading(true);
-      router.push(`/quotes/create?workOrderId=${orderId}&source=work-order`);
+      setIsPrinting(true);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      window.print();
+      showToast('Printing work order...', 'info');
     } catch (error) {
-      console.error('Error starting workflow:', error);
-      showToast('Failed to start workflow', 'error');
+      showToast('Failed to print', 'error');
     } finally {
-      setWorkflowLoading(false);
+      setIsPrinting(false);
     }
   };
+
+  const handleExport = async (format: 'pdf' | 'csv' | 'excel') => {
+    try {
+      setIsExporting(true);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      showToast(`Exported as ${format.toUpperCase()}`, 'success');
+    } catch (error) {
+      showToast('Export failed', 'error');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleShare = async (method: 'email' | 'link' | 'download') => {
+    try {
+      setShowShareMenu(false);
+      switch (method) {
+        case 'email':
+          showToast('Share via email', 'info');
+          break;
+        case 'link':
+          await navigator.clipboard.writeText(window.location.href);
+          showToast('Link copied to clipboard', 'success');
+          break;
+        case 'download':
+          handleExport('pdf');
+          break;
+      }
+    } catch (error) {
+      showToast('Share failed', 'error');
+    }
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
+  try {
+    // Validate that the status matches the expected type
+    const validStatuses = ['draft', 'in_progress', 'on_hold', 'completed', 'cancelled'] as const;
+    
+    // Type guard to check if the status is valid
+    const isValidStatus = (status: string): status is 'draft' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled' => {
+      return validStatuses.includes(status as any);
+    };
+    
+    if (!isValidStatus(newStatus)) {
+      showToast(`Invalid status: ${newStatus}`, 'error');
+      return;
+    }
+    
+    setUpdating(true);
+    await workOrderService.updateWorkOrder(orderId, { status: newStatus });
+    showToast(`Status changed to ${newStatus.replace('_', ' ')}`, 'success');
+    fetchWorkOrder();
+  } catch (error) {
+    console.error('Error updating status:', error);
+    showToast('Failed to update status', 'error');
+  } finally {
+    setUpdating(false);
+  }
+};
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-KE', {
@@ -1093,11 +1631,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   const formatDate = (dateString: string) => {
     if (!dateString) return '—';
     return format(new Date(dateString), 'MMM dd, yyyy');
-  };
-
-  const formatDateTime = (dateString: string) => {
-    if (!dateString) return '—';
-    return format(new Date(dateString), 'MMM dd, yyyy HH:mm');
   };
 
   const getStatusBadge = (status: string) => {
@@ -1131,13 +1664,13 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     return config[status] || config.draft;
   };
 
-  const getStageStatusColor = (stage: WorkflowSidebarStage) => {
+  const getStageStatusColor = (stage: WorkflowStage) => {
     if (stage.completed) return 'text-green-600 bg-green-50 border-green-200';
     if (stage.isCurrent) return 'text-blue-600 bg-blue-50 border-blue-200';
     return 'text-gray-500 bg-gray-50 border-gray-200';
   };
 
-  const getStageStatusIcon = (stage: WorkflowSidebarStage) => {
+  const getStageStatusIcon = (stage: WorkflowStage) => {
     if (stage.completed) return <CheckCircle className="h-4 w-4 text-green-500" />;
     if (stage.isCurrent) return <CircleDot className="h-4 w-4 text-blue-500 animate-pulse" />;
     return <Circle className="h-4 w-4 text-gray-400" />;
@@ -1207,7 +1740,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   );
 
   // Add this function after isStageCompleted
-    const getStageCompletionRequirements = (stage: WorkflowSidebarStage): string => {
+    const getStageCompletionRequirements = (stage: WorkflowStage): string => {
       switch (stage.stage) {
         case 'quote':
           return 'Requires approval to proceed';
@@ -1238,119 +1771,9 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       }
     };
 
-  // Skeleton Loading Components
-  const SkeletonHeader = () => (
-    <div className="animate-pulse">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gray-200 rounded-lg"></div>
-            <div>
-              <div className="h-6 w-48 bg-gray-200 rounded mb-2"></div>
-              <div className="h-4 w-32 bg-gray-200 rounded"></div>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
-          <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
-          <div className="w-9 h-9 bg-gray-200 rounded-lg"></div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const SkeletonSidebar = () => (
-    <div className="animate-pulse h-full flex flex-col">
-      <div className="p-4 border-b border-gray-200">
-        <div className="h-5 w-32 bg-gray-200 rounded mb-2"></div>
-        <div className="h-4 w-48 bg-gray-200 rounded mb-4"></div>
-        <div className="bg-gradient-to-r from-gray-100 to-gray-200 rounded-lg p-4">
-          <div className="h-4 w-24 bg-gray-300 rounded mb-2"></div>
-          <div className="h-2 w-full bg-gray-300 rounded-full mb-2"></div>
-          <div className="flex justify-between">
-            <div className="h-3 w-20 bg-gray-300 rounded"></div>
-            <div className="h-3 w-16 bg-gray-300 rounded"></div>
-          </div>
-        </div>
-      </div>
-      <div className="flex-1 p-4 space-y-3">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
-          <div key={i} className="p-4 bg-gray-100 rounded-lg">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-gray-300 rounded-lg"></div>
-              <div className="flex-1">
-                <div className="h-5 w-32 bg-gray-300 rounded mb-2"></div>
-                <div className="h-4 w-24 bg-gray-300 rounded"></div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const SkeletonTabContent = () => (
-    <div className="animate-pulse space-y-6">
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="h-4 w-20 bg-gray-200 rounded mb-2"></div>
-                <div className="h-8 w-24 bg-gray-200 rounded"></div>
-              </div>
-              <div className="w-12 h-12 bg-gray-200 rounded-lg"></div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Current Stage Card */}
-      <div className="bg-gradient-to-r from-gray-100 to-gray-200 rounded-xl border border-gray-300 p-6">
-        <div className="flex items-start justify-between">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 bg-gray-300 rounded-lg"></div>
-            <div>
-              <div className="h-6 w-48 bg-gray-300 rounded mb-2"></div>
-              <div className="h-4 w-64 bg-gray-300 rounded mb-4"></div>
-              <div className="flex items-center gap-4">
-                <div className="h-4 w-16 bg-gray-300 rounded"></div>
-                <div className="h-4 w-20 bg-gray-300 rounded"></div>
-              </div>
-            </div>
-          </div>
-          <div className="w-24 h-10 bg-gray-300 rounded-lg"></div>
-        </div>
-      </div>
-
-      {/* Additional Content */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {[1, 2].map((i) => (
-          <div key={i} className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="h-5 w-32 bg-gray-200 rounded mb-4"></div>
-            <div className="space-y-3">
-              {[1, 2, 3].map((j) => (
-                <div key={j} className="h-12 bg-gray-100 rounded-lg"></div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
+  // Show full page skeleton on initial load
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading work order details...</p>
-        </div>
-      </div>
-    );
+    return <FullPageSkeleton />;
   }
 
   if (!workOrder) {
@@ -1374,720 +1797,934 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   const statusConfig = getStatusBadge(workOrder.status);
   const currentStage = getCurrentStage();
 
+  // Show skeleton for modal when loading
+  if (modalLoading) {
+    return <SkeletonLoader.Modal />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
-      {/* Header with Blue to Purple Gradient */}
-      <div className="bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-700 p-4 sm:p-6 shadow-lg relative overflow-hidden">
-        {/* Animated background elements */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10">
-          <div className="absolute -top-24 -right-24 w-64 h-64 bg-white rounded-full blur-3xl"></div>
-          <div className="absolute top-1/2 left-1/4 w-48 h-48 bg-purple-400 rounded-full blur-3xl"></div>
-          <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-400 rounded-full blur-3xl"></div>
-        </div>
-        
-        <div className="max-w-7xl mx-auto relative z-10">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => router.push('/orders/work-orders')}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors backdrop-blur-sm"
-              >
-                <ArrowLeft className="h-5 w-5 text-white" />
-              </button>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-white/20 backdrop-blur-sm rounded-lg">
-                  <Wrench className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-xl font-semibold text-white">{workOrder.workOrderNumber}</h1>
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full">
-                      {statusConfig.icon}
-                      <span className="text-xs font-medium text-white capitalize">{workOrder.status.replace('_', ' ')}</span>
-                    </div>
-                  </div>
-                  <p className="text-sm text-white/90">Work Order • Created {formatDate(workOrder.createdAt)}</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setRefreshKey(prev => prev + 1)}
-                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors"
-                title="Refresh"
-              >
-                <RefreshCw className="h-5 w-5 text-white" />
-              </button>
-              <Link
-                href={`/orders/work-orders/${workOrder._id}/edit`}
-                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors"
-                title="Edit"
-              >
-                <Edit className="h-5 w-5 text-white" />
-              </Link>
-              <button
-                onClick={() => setShowActionsMenu(!showActionsMenu)}
-                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors relative"
-                title="More actions"
-              >
-                <MoreVertical className="h-5 w-5 text-white" />
-              </button>
-            </div>
+      {/* Header */}
+      {loading ? (
+        <SkeletonLoader.Header />
+      ) : (
+        <div className="bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-700 p-4 sm:p-6 shadow-lg relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10">
+            <div className="absolute -top-24 -right-24 w-64 h-64 bg-white rounded-full blur-3xl"></div>
+            <div className="absolute top-1/2 left-1/4 w-48 h-48 bg-purple-400 rounded-full blur-3xl"></div>
+            <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-400 rounded-full blur-3xl"></div>
           </div>
-        </div>
-      </div>
-
-      {/* Main Content with Sidebar */}
-      <div className="flex h-[calc(100vh-88px)]">
-        {/* Workflow Sidebar - Compact View */}
-        <div className="w-80 bg-white border-r border-gray-200">
-          {lifecycleLoading ? (
-            <SkeletonSidebar />
-          ) : (
-            <div className="h-full flex flex-col">
-              {/* Sidebar Header */}
-              <div className="p-4 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="font-semibold text-gray-900">Workflow Stages</h2>
-                    <p className="text-sm text-gray-600">Click any stage for details</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={startWorkflow}
-                      disabled={workflowLoading || lifecycle}
-                      className={`p-2 rounded-lg ${
-                        workflowLoading || lifecycle
-                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
-                      }`}
-                      title="Start Workflow"
-                    >
-                      <Play className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Progress Overview */}
-                <div className="mt-4">
-                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700">Overall Progress</span>
-                      <span className="text-sm font-bold text-blue-600">{workflowProgress.percentage}%</span>
-                    </div>
-                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-500"
-                        style={{ width: `${workflowProgress.percentage}%` }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-                      <span>{workflowProgress.completed} of {workflowProgress.total} stages</span>
-                      <span>~{workflowProgress.estimatedTime}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stages List - Full Height Scrollable */}
-              <div className="flex-1 overflow-y-auto">
-                <div className="p-4 space-y-3">
-                  {workflowStages.map((stage) => (
-                    <div
-                      key={stage.id}
-                      className={`p-4 border rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md ${getStageStatusColor(stage)}`}
-                      onClick={() => handleStageClick(stage)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0">
-                          <div className={`p-2 rounded-lg ${
-                            stage.completed 
-                              ? 'bg-green-100 text-green-600' 
-                              : stage.isCurrent 
-                                ? 'bg-blue-100 text-blue-600' 
-                                : 'bg-gray-100 text-gray-400'
-                          }`}>
-                            {stage.icon}
-                          </div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-medium truncate">{stage.label}</h3>
-                              {getStageStatusIcon(stage)}
-                              
-                              {/* Add requirement indicator */}
-                              {!stage.mandatory && stage.stage === 'waiver' && (
-                                <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full">
-                                  Optional
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {stage.isCurrent && (
-                                <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-                                  Current
-                                </span>
-                              )}
-                              {stage.isCurrent && !isStageCompleted(stage) && (
-                                <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">
-                                  In Progress
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          
-                          {/* Add completion requirements summary */}
-                          {stage.isCurrent && !isStageCompleted(stage) && (
-                            <div className="mt-2 flex items-start gap-2">
-                              <AlertCircle className="h-4 w-4 text-yellow-500 flex-shrink-0 mt-0.5" />
-                              <p className="text-xs text-gray-600 flex-1">
-                                {getStageCompletionRequirements(stage)}
-                              </p>
-                            </div>
-                          )}
-                          
-                          <div className="mt-2 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className="text-xs text-gray-500">
-                                {stage.estimatedTime}
-                              </span>
-                            </div>
-
-                            {isStageCompleted(stage) ? (
-                              <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-                                <CheckCircle className="h-3 w-3" />
-                                Ready
-                              </span>
-                            ) : stage.document ? (
-                              <span className="text-xs text-yellow-600 font-medium flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                In Progress
-                              </span>
-                            ) : (
-                              <span className="text-xs text-gray-500">
-                                Not Started
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Quick Actions Footer */}
-              <div className="p-4 border-t border-gray-200 bg-gray-50">
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={handleMoveToPreviousStage}
-                    disabled={!canMoveToPreviousStage() || workflowLoading}
-                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium ${
-                      canMoveToPreviousStage() && !workflowLoading
-                        ? 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    }`}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    Previous
-                  </button>
-                  <button
-                    onClick={handleMoveToNextStage}
-                    disabled={!canMoveToNextStage() || workflowLoading}
-                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium ${
-                      canMoveToNextStage() && !workflowLoading
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    }`}
-                  >
-                    {workflowLoading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        Next Stage
-                        <ChevronRight className="h-4 w-4" />
-                      </>
-                    )}
-                  </button>
-                </div>
-                <div className="mt-2 text-center">
-                  <p className="text-xs text-gray-500">
-                    {canMoveToNextStage() 
-                      ? 'Ready to proceed to next stage' 
-                      : `Complete ${workflowStages.find(s => s.isCurrent)?.label || 'current stage'} to proceed`
-                    }
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Main Content Area */}
-        <div className="flex-1 overflow-auto">
-          {/* Tabs Navigation */}
-          <div className="border-b border-gray-200 bg-white">
-            <div className="px-6">
-              <nav className="flex space-x-8">
-                {[
-                  { id: 'overview', label: 'Overview', icon: <BarChart3 className="h-4 w-4" /> },
-                  { id: 'services', label: 'Services', icon: <Wrench className="h-4 w-4" /> },
-                  { id: 'documents', label: 'Documents', icon: <FileText className="h-4 w-4" /> },
-                  { id: 'activity', label: 'Activity', icon: <History className="h-4 w-4" /> },
-                  { id: 'notes', label: 'Notes', icon: <MessageSquare className="h-4 w-4" /> },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 py-3 px-1 border-b-2 text-sm font-medium transition-colors ${
-                      activeTab === tab.id
-                        ? 'border-blue-600 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
-                  >
-                    {tab.icon}
-                    {tab.label}
-                  </button>
-                ))}
-              </nav>
-            </div>
-          </div>
-
-          {/* Tab Content */}
-          <div className="p-6">
-            {lifecycleLoading ? (
-              <SkeletonTabContent />
-            ) : (
-              <>
-                {activeTab === 'overview' && (
-                  <div className="space-y-6">
-                    {/* Quick Stats */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="bg-white rounded-xl border border-gray-200 p-6">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-gray-600">Total Cost</p>
-                            <h3 className="text-2xl font-bold text-gray-900 mt-1">
-                              {formatCurrency(
-                                (workOrder.laborCost || 0) + 
-                                (workOrder.partsCost || 0) + 
-                                (workOrder.tax || 0) - 
-                                (workOrder.discount || 0)
-                              )}
-                            </h3>
-                          </div>
-                          <div className="p-3 bg-blue-100 rounded-lg">
-                            <DollarSign className="h-6 w-6 text-blue-600" />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="bg-white rounded-xl border border-gray-200 p-6">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-gray-600">Time Spent</p>
-                            <h3 className="text-2xl font-bold text-gray-900 mt-1">
-                              {workOrder.actualHours || workOrder.estimatedHours || 0} hours
-                            </h3>
-                          </div>
-                          <div className="p-3 bg-green-100 rounded-lg">
-                            <Clock className="h-6 w-6 text-green-600" />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="bg-white rounded-xl border border-gray-200 p-6">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm text-gray-600">Workflow Progress</p>
-                            <h3 className="text-2xl font-bold text-gray-900 mt-1">
-                              {workflowProgress.percentage}%
-                            </h3>
-                          </div>
-                          <div className="p-3 bg-purple-100 rounded-lg">
-                            <TrendingUp className="h-6 w-6 text-purple-600" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Current Stage Card */}
-                    {currentStage && (
-                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-6">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start gap-4">
-                            <div className="p-3 bg-white rounded-lg shadow-sm">
-                              {currentStage.icon}
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <h3 className="text-lg font-semibold text-gray-900">{currentStage.label}</h3>
-                                <span className="px-3 py-1 text-sm font-medium bg-blue-100 text-blue-800 rounded-full">
-                                  Current Stage
-                                </span>
-                              </div>
-                              <p className="text-gray-600 mb-4">{currentStage.description}</p>
-                              <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-2">
-                                  <Clock className="h-4 w-4 text-gray-500" />
-                                  <span className="text-sm text-gray-700">{currentStage.estimatedTime}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {currentStage.mandatory ? (
-                                    <AlertCircle className="h-4 w-4 text-amber-500" />
-                                  ) : (
-                                    <HelpCircle className="h-4 w-4 text-green-500" />
-                                  )}
-                                  <span className="text-sm text-gray-700">
-                                    {currentStage.mandatory ? 'Required' : 'Optional'}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleStageClick(currentStage)}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-                          >
-                            View Details
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Stage Detail Drawer/Modal */}
-      {showStageDetail && selectedStage && (
-        <>
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
-            onClick={handleCloseStageDetail}
-          />
           
-          {/* Drawer */}
-          <div className="fixed inset-y-0 right-0 w-[500px] bg-white z-50 shadow-2xl transform transition-transform duration-300">
-            <div className="h-full flex flex-col">
-              {/* Drawer Header */}
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${
-                      selectedStage.completed 
-                        ? 'bg-green-100 text-green-600' 
-                        : selectedStage.isCurrent 
-                          ? 'bg-blue-100 text-blue-600' 
-                          : 'bg-gray-100 text-gray-400'
-                    }`}>
-                      {selectedStage.icon}
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-semibold text-gray-900">{selectedStage.label}</h2>
-                      <p className="text-sm text-gray-600">Stage Details</p>
-                    </div>
+          <div className="max-w-7xl mx-auto relative z-10">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => router.push('/orders/work-orders')}
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors backdrop-blur-sm"
+                >
+                  <ArrowLeft className="h-5 w-5 text-white" />
+                </button>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 backdrop-blur-sm rounded-lg">
+                    <Wrench className="h-6 w-6 text-white" />
                   </div>
-                  <button
-                    onClick={handleCloseStageDetail}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <X className="h-5 w-5 text-gray-600" />
-                  </button>
-                </div>
-                
-                {/* Stage Status */}
-                <div className="mt-4 flex items-center gap-3">
-                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full ${
-                    selectedStage.completed 
-                      ? 'bg-green-100 text-green-800' 
-                      : selectedStage.isCurrent 
-                        ? 'bg-blue-100 text-blue-800' 
-                        : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {getStageStatusIcon(selectedStage)}
-                    <span className="text-sm font-medium">
-                      {selectedStage.completed ? 'Completed' : selectedStage.isCurrent ? 'In Progress' : 'Pending'}
-                    </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-xl font-semibold text-white">{workOrder.workOrderNumber}</h1>
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full">
+                        {statusConfig.icon}
+                        <span className="text-xs font-medium text-white capitalize">{workOrder.status.replace('_', ' ')}</span>
+                      </div>
+                    </div>
+                    <p className="text-sm text-white/90">Work Order • Created {formatDate(workOrder.createdAt)}</p>
                   </div>
-                  
-                  {selectedStage.stage === 'waiver' && (
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-100 text-amber-800">
-                      <HelpCircle className="h-4 w-4" />
-                      <span className="text-sm font-medium">Optional</span>
-                    </div>
-                  )}
-                  
-                  {selectedStage.stage !== 'waiver' && !selectedStage.completed && (
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100 text-blue-800">
-                      <AlertCircle className="h-4 w-4" />
-                      <span className="text-sm font-medium">Required</span>
-                    </div>
-                  )}
                 </div>
               </div>
+              
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePrint}
+                  disabled={isPrinting}
+                  className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors disabled:opacity-50"
+                  title="Print"
+                >
+                  {isPrinting ? <Loader2 className="h-5 w-5 text-white animate-spin" /> : <Printer className="h-5 w-5 text-white" />}
+                </button>
+                <button
+                  onClick={() => handleExport('pdf')}
+                  disabled={isExporting}
+                  className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors disabled:opacity-50"
+                  title="Export"
+                >
+                  {isExporting ? <Loader2 className="h-5 w-5 text-white animate-spin" /> : <Download className="h-5 w-5 text-white" />}
+                </button>
+                <Link
+                  href={`/orders/work-orders/${workOrder._id}/edit`}
+                  className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors"
+                  title="Edit"
+                >
+                  <Edit className="h-5 w-5 text-white" />
+                </Link>
+                <button
+                  onClick={() => setShowShareMenu(!showShareMenu)}
+                  className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors relative"
+                  title="Share"
+                >
+                  <Share2 className="h-5 w-5 text-white" />
+                  {showShareMenu && (
+                    <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
+                      <button
+                        onClick={() => handleShare('email')}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      >
+                        <Mail className="h-4 w-4" />
+                        Share via Email
+                      </button>
+                      <button
+                        onClick={() => handleShare('link')}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      >
+                        <LinkIcon className="h-4 w-4" />
+                        Copy Link
+                      </button>
+                      <button
+                        onClick={() => handleShare('download')}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download PDF
+                      </button>
+                    </div>
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowActionsMenu(!showActionsMenu)}
+                  className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors relative"
+                  title="More actions"
+                >
+                  <MoreVertical className="h-5 w-5 text-white" />
+                  {showActionsMenu && (
+                    <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
+                      <button
+                        onClick={() => handleStatusChange('completed')}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      >
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        Mark as Complete
+                      </button>
+                      <button
+                        onClick={() => handleStatusChange('on_hold')}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      >
+                        <Clock className="h-4 w-4 text-yellow-600" />
+                        Put on Hold
+                      </button>
+                      <button
+                        onClick={() => handleStatusChange('cancelled')}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      >
+                        <AlertCircle className="h-4 w-4 text-red-600" />
+                        Cancel Work Order
+                      </button>
+                      <div className="border-t border-gray-200 my-2"></div>
+                      <button
+                        onClick={() => router.push(`/orders/work-orders/${workOrder._id}/assign`)}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      >
+                        <User className="h-4 w-4" />
+                        Assign to Technician
+                      </button>
+                      <button
+                        onClick={() => router.push(`/orders/work-orders/${workOrder._id}/schedule`)}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      >
+                        <Calendar className="h-4 w-4" />
+                        Schedule Service
+                      </button>
+                      <button
+                        onClick={() => router.push(`/orders/work-orders/${workOrder._id}/duplicate`)}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Duplicate Work Order
+                      </button>
+                      <div className="border-t border-gray-200 my-2"></div>
+                      <button
+                        onClick={() => router.push(`/orders/work-orders/${workOrder._id}/archive`)}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2"
+                      >
+                        <Archive className="h-4 w-4" />
+                        Archive Work Order
+                      </button>
+                    </div>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-              {/* Drawer Content - Scrollable */}
-              <div className="flex-1 overflow-y-auto p-6">
-                {/* Description */}
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Description</h3>
-                  <p className="text-gray-700">{selectedStage.description || 'No description available.'}</p>
-                </div>
+      {/* Tabs Navigation */}
+      {loading ? (
+        <SkeletonLoader.Tabs />
+      ) : (
+        <div className="border-b border-gray-200 bg-white">
+          <div className="px-6">
+            <nav className="flex space-x-8">
+              {[
+                { id: 'overview', label: 'Overview', icon: <BarChart3 className="h-4 w-4" /> },
+                { id: 'services', label: 'Services', icon: <Wrench className="h-4 w-4" /> },
+                { id: 'documents', label: 'Documents', icon: <FileText className="h-4 w-4" /> },
+                { id: 'activity', label: 'Activity', icon: <History className="h-4 w-4" /> },
+                { id: 'notes', label: 'Technician Notes', icon: <MessageSquare className="h-4 w-4" /> },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 py-3 px-1 border-b-2 text-sm font-medium transition-colors ${
+                    activeTab === tab.id
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </div>
+      )}
 
-                {/* Document Status */}
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Document Status</h3>
-                  <div className={`p-4 rounded-lg ${
-                    selectedStage.document && selectedStage.document._id
-                      ? 'bg-green-50 border border-green-200' 
-                      : 'bg-gray-50 border border-gray-200'
-                  }`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${
-                          selectedStage.document && selectedStage.document._id
-                            ? 'bg-green-100 text-green-600' 
-                            : 'bg-gray-100 text-gray-400'
-                        }`}>
-                          {selectedStage.document && selectedStage.document._id 
-                            ? <FileCheck className="h-5 w-5" /> 
-                            : <FileX className="h-5 w-5" />
-                          }
+      {/* Main Content */}
+      <div className="p-6">
+        {loading ? (
+          <div className="space-y-6">
+            <SkeletonLoader.CurrentStage />
+            <SkeletonLoader.WorkflowProgress />
+            <SkeletonLoader.QuickActions />
+          </div>
+        ) : (
+          <>
+            {activeTab === 'overview' && (
+              <div className="space-y-6">
+                {/* Current Stage Focus */}
+                {currentStage && (
+                  workflowLoading ? <SkeletonLoader.CurrentStage /> : (
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-4">
+                          <div className="p-3 bg-white rounded-lg shadow-sm">
+                            {currentStage.icon}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <h2 className="text-xl font-semibold text-gray-900">Current Stage: {currentStage.label}</h2>
+                              <span className="px-3 py-1 text-sm font-medium bg-blue-100 text-blue-800 rounded-full">
+                                Current
+                              </span>
+                            </div>
+                            <p className="text-gray-600 mb-4">{currentStage.description}</p>
+                            <div className="flex items-center gap-6">
+                              <div className="flex items-center gap-2">
+                                <Clock className="h-4 w-4 text-gray-500" />
+                                <span className="text-sm font-medium text-gray-700">{currentStage.estimatedTime}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <CheckCircle className="h-4 w-4 text-gray-500" />
+                                <span className="text-sm font-medium text-gray-700">
+                                  {currentStage.progress?.completedSteps || 0} of {currentStage.progress?.totalSteps || 5} steps
+                                </span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {selectedStage.document && selectedStage.document._id
-                              ? 'Document Created' 
-                              : 'No Document Yet'
-                            }
-                          </p>
-                          {selectedStage.documentType && (
-                            <p className="text-sm text-gray-600">{selectedStage.documentType}</p>
-                          )}
-                          {selectedStage.document && selectedStage.document._id && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              ID: {selectedStage.document._id.substring(0, 8)}...
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      {selectedStage.document && selectedStage.document._id && (
                         <button
-                          onClick={() => handleViewDocument(selectedStage)}
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          onClick={() => handleStageModalClick(currentStage)}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                         >
-                          View →
+                          Open Stage Details
                         </button>
-                      )}
+                      </div>
+                    </div>
+                  )
+                )}
+
+                {/* Workflow Progress Timeline */}
+                {lifecycleLoading ? (
+                  <SkeletonLoader.WorkflowProgress />
+                ) : (
+                  <div className="bg-white rounded-xl border border-gray-200 p-6">
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">Workflow Progress</h3>
+                        <p className="text-sm text-gray-600">Track progress through all stages</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-gray-700">{workflowProgress.completed} of {workflowProgress.total} stages</p>
+                        <p className="text-xs text-gray-500">~{workflowProgress.estimatedTime} total</p>
+                      </div>
                     </div>
                     
-                    {/* Show warning if stage shows as having document but doesn't really have one */}
-                    {selectedStage.document && !selectedStage.document._id && (
-                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <div className="flex items-start gap-2">
-                          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-sm font-medium text-red-800">Document Data Issue</p>
-                            <p className="text-xs text-red-700 mt-1">
-                              This stage appears to have a document, but no actual document exists. 
-                              Please create the document to proceed.
-                            </p>
-                            <button
-                              onClick={() => handleStageAction(selectedStage, 'create')}
-                              className="mt-2 px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
-                            >
-                              Create Document
-                            </button>
-                          </div>
-                        </div>
+                    {/* Progress Bar */}
+                    <div className="mb-8">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-700">Overall Progress</span>
+                        <span className="text-lg font-bold text-blue-600">{workflowProgress.percentage}%</span>
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                {selectedStage.requirements && selectedStage.requirements.length > 0 && (
-                  <div className="mb-6">
-                    <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Requirements</h3>
-                    <ul className="space-y-2">
-                      {selectedStage.requirements.map((req, idx) => (
-                        <li key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0" />
-                          <span className="text-sm text-gray-700">{req}</span>
-                        </li>
-                      ))}
-                    </ul>
+                      <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-500"
+                          style={{ width: `${workflowProgress.percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* Stages Timeline */}
+                    <div className="relative">
+                      {/* Connecting Line */}
+                      <div className="absolute left-0 right-0 top-6 h-0.5 bg-gray-200"></div>
+                      
+                      <div className="relative flex justify-between">
+                        {workflowStages.map((stage, index) => (
+                          <div key={stage.id} className="flex flex-col items-center">
+                            {/* Stage Dot */}
+                            <div 
+                              className={`relative z-10 w-12 h-12 rounded-full flex items-center justify-center mb-3 border-4 ${
+                                stage.completed 
+                                  ? 'bg-green-100 border-green-400 text-green-600' 
+                                  : stage.isCurrent 
+                                    ? 'bg-blue-100 border-blue-400 text-blue-600 animate-pulse' 
+                                    : 'bg-gray-100 border-gray-300 text-gray-400'
+                              }`}
+                              onClick={() => handleStageModalClick(stage)}
+                            >
+                              {stage.completed ? (
+                                <CheckCircle className="h-5 w-5" />
+                              ) : stage.isCurrent ? (
+                                <CircleDot className="h-5 w-5" />
+                              ) : (
+                                <Circle className="h-5 w-5" />
+                              )}
+                            </div>
+                            
+                            {/* Stage Label */}
+                            <div className="text-center max-w-[120px]">
+                              <p className={`text-sm font-medium ${
+                                stage.completed ? 'text-green-700' : 
+                                stage.isCurrent ? 'text-blue-700' : 
+                                'text-gray-500'
+                              }`}>
+                                {stage.label}
+                              </p>
+                              {stage.isCurrent && (
+                                <p className="text-xs text-blue-600 mt-1">Current</p>
+                              )}
+                              {stage.completed && (
+                                <p className="text-xs text-green-600 mt-1">Completed</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Quick Stats */}
+                    <div className="grid grid-cols-3 gap-4 mt-8">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-blue-600">{workflowProgress.percentage}%</div>
+                        <div className="text-sm text-gray-600">Overall Progress</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-600">{workflowProgress.completed}</div>
+                        <div className="text-sm text-gray-600">Stages Completed</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-gray-600">{workflowProgress.total - workflowProgress.completed}</div>
+                        <div className="text-sm text-gray-600">Remaining</div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                {/* Stage Information */}
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Stage Information</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Estimated Time</p>
-                      <p className="font-medium text-gray-900">{selectedStage.estimatedTime}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Status</p>
-                      <p className={`font-medium ${
-                        selectedStage.stage === 'waiver' 
-                          ? 'text-amber-600' 
-                          : 'text-blue-600'
-                      }`}>
-                        {selectedStage.stage === 'waiver' ? 'Optional' : 'Required'}
-                      </p>
-                    </div>
-                    {selectedStage.completionDate && (
-                      <div className="col-span-2">
-                        <p className="text-xs text-gray-500 mb-1">Completed On</p>
-                        <p className="font-medium text-gray-900">{formatDate(selectedStage.completionDate)}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {selectedStage.isCurrent && !selectedStage.completed && (
-                  <div className="mb-6">
-                    <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Actions</h3>
-                    <div className="space-y-3">
-                      {/* For checklist stages, show "Mark Checklist Complete" */}
-                      {(selectedStage.stage === 'prechecklist' || selectedStage.stage === 'postchecklist') && (
-                        <button
-                          onClick={() => handleMarkChecklistComplete(selectedStage)}
-                          disabled={workflowLoading}
-                          className={`w-full flex items-center justify-center gap-3 py-3 px-4 rounded-lg font-medium transition-colors ${
-                            workflowLoading
-                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                              : 'bg-green-600 text-white hover:bg-green-700'
-                          }`}
-                        >
-                          {workflowLoading ? (
-                            <>
-                              <Loader2 className="h-5 w-5 animate-spin" />
-                              Processing...
-                            </>
-                          ) : (
-                            <>
-                              <CheckSquare className="h-5 w-5" />
-                              Mark Checklist Complete
-                            </>
-                          )}
-                        </button>
-                      )}
-                      
-                      {/* Other actions */}
-                      {selectedStage.actions
-                        .filter(action => action.id !== 'markChecklistComplete')
-                        .map((action) => (
+                {/* Quick Actions */}
+                {currentStage && currentStage.actions && currentStage.actions.length > 0 && (
+                  workflowLoading ? (
+                    <SkeletonLoader.QuickActions />
+                  ) : (
+                    <div className="bg-white rounded-xl border border-gray-200 p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {currentStage.actions.slice(0, 3).map((action) => (
                           <button
                             key={action.id}
-                            onClick={() => handleStageAction(selectedStage, action.id)}
-                            disabled={workflowLoading}
-                            className={`w-full flex items-center justify-center gap-3 py-3 px-4 rounded-lg font-medium transition-colors ${
-                              workflowLoading
-                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                : action.variant === 'primary'
-                                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                  : action.variant === 'secondary'
-                                    ? 'bg-gray-200 text-gray-800 hover:bg-gray-300'
-                                    : action.variant === 'success'
-                                      ? 'bg-green-600 text-white hover:bg-green-700'
-                                      : action.variant === 'warning'
-                                        ? 'bg-amber-500 text-white hover:bg-amber-600'
-                                        : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                            onClick={() => handleStageAction(currentStage, action.id)}
+                            className={`p-4 rounded-xl border-2 flex items-center gap-3 transition-all duration-200 hover:scale-[1.02] ${
+                              action.variant === 'primary'
+                                ? 'bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200 text-blue-700 hover:from-blue-100 hover:to-blue-200'
+                                : action.variant === 'secondary'
+                                  ? 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200 text-gray-700 hover:from-gray-100 hover:to-gray-200'
+                                  : action.variant === 'success'
+                                    ? 'bg-gradient-to-r from-green-50 to-green-100 border-green-200 text-green-700 hover:from-green-100 hover:to-green-200'
+                                    : action.variant === 'warning'
+                                      ? 'bg-gradient-to-r from-amber-50 to-amber-100 border-amber-200 text-amber-700 hover:from-amber-100 hover:to-amber-200'
+                                      : 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200 text-gray-700'
                             }`}
                           >
                             {action.icon}
-                            {action.label}
+                            <div className="text-left">
+                              <p className="font-semibold">{action.label}</p>
+                              <p className="text-xs opacity-75">{action.description}</p>
+                            </div>
                           </button>
                         ))}
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+
+            {/* Services Tab */}
+            {activeTab === 'services' && (
+              <div className="space-y-6">
+                {workflowLoading ? (
+                  <SkeletonLoader.ServiceDetails />
+                ) : (
+                  <>
+                    <div className="bg-white rounded-xl border border-gray-200 p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Service Details</h3>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Service Type</label>
+                            <p className="text-gray-900">{workOrder.serviceType || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              workOrder.priority === 'high' 
+                                ? 'bg-red-100 text-red-800'
+                                : workOrder.priority === 'medium'
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-green-100 text-green-800'
+                            }`}>
+                              {workOrder.priority || 'normal'}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Scheduled Date</label>
+                            <p className="text-gray-900">{formatDate(workOrder.scheduledDate) || 'Not scheduled'}</p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Hours</label>
+                            <p className="text-gray-900">{workOrder.estimatedHours || 0} hours</p>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Actual Hours</label>
+                            <p className="text-gray-900">{workOrder.actualHours || 0} hours</p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                            <p className="text-gray-900 capitalize">{workOrder.status.replace('_', ' ') || 'N/A'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-white rounded-xl border border-gray-200 p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Customer Details</h3>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
+                            <p className="text-gray-900">{workOrder.customer?.name || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Contact Phone</label>
+                            <p className="text-gray-900">{workOrder.customer?.phone || 'N/A'}</p>
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                          <p className="text-gray-900">{workOrder.customer?.email || 'N/A'}</p>
+                        </div>
+                        
+                        {workOrder.customer?.address && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                            <p className="text-gray-900">{workOrder.customer.address}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Documents Tab */}
+            {activeTab === 'documents' && (
+              <div className="space-y-6">
+                {workflowLoading ? (
+                  <SkeletonLoader.Documents />
+                ) : (
+                  <div className="bg-white rounded-xl border border-gray-200 p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Workflow Documents</h3>
+                    <div className="space-y-4">
+                      {workflowStages.map((stage) => (
+                        <div key={stage.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg ${
+                              stage.completed 
+                                ? 'bg-green-100 text-green-600' 
+                                : stage.isCurrent 
+                                  ? 'bg-blue-100 text-blue-600' 
+                                  : 'bg-gray-100 text-gray-400'
+                            }`}>
+                              {stage.icon}
+                            </div>
+                            <div>
+                              <h4 className="font-medium text-gray-900">{stage.label}</h4>
+                              <p className="text-sm text-gray-600">{stage.documentType || 'No document yet'}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {stage.document && stage.document._id ? (
+                              <>
+                                <button
+                                  onClick={() => handleViewDocument(stage)}
+                                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                                >
+                                  View
+                                </button>
+                                <button
+                                  onClick={() => handleUpdateDocument(stage)}
+                                  className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700"
+                                >
+                                  Edit
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => handleCreateDocument(stage.stage)}
+                                className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+                              >
+                                Create
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
+              </div>
+            )}
 
-                {/* Navigation Actions for All Stages */}
-                <div className="border-t border-gray-200 pt-6">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Stage Navigation</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={handleMoveToPreviousStage}
-                      disabled={!canMoveToPreviousStage() || workflowLoading}
-                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium ${
-                        canMoveToPreviousStage() && !workflowLoading
-                          ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      }`}
-                    >
-                      <ChevronLeft className="h-5 w-5" />
-                      Previous Stage
-                    </button>
-                    <button
-                      onClick={handleMoveToNextStage}
-                      disabled={!canMoveToNextStage() || workflowLoading}  // Disabled if not completed
-                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium ${
-                        canMoveToNextStage() && !workflowLoading
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      }`}
-                    >
-                      {workflowLoading ? (
-                        <>
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                          Processing...
-                        </>
+            {/* Activity Tab */}
+            {activeTab === 'activity' && (
+              <div className="space-y-6">
+                {workflowLoading ? (
+                  <SkeletonLoader.Activity />
+                ) : (
+                  <div className="bg-white rounded-xl border border-gray-200 p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
+                    <div className="space-y-4">
+                      {activityLog.length > 0 ? (
+                        activityLog.map((activity, index) => (
+                          <div key={index} className="flex items-start gap-3">
+                            <div className="flex-shrink-0">
+                              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                                {activity.type === 'status_change' ? (
+                                  <RefreshCw className="h-4 w-4 text-blue-600" />
+                                ) : activity.type === 'note_added' ? (
+                                  <MessageSquare className="h-4 w-4 text-blue-600" />
+                                ) : activity.type === 'assignment' ? (
+                                  <User className="h-4 w-4 text-blue-600" />
+                                ) : (
+                                  <Activity className="h-4 w-4 text-blue-600" />
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm text-gray-700">{activity.description}</p>
+                              <p className="text-xs text-gray-500 mt-1">{formatDate(activity.timestamp)}</p>
+                            </div>
+                          </div>
+                        ))
                       ) : (
-                        <>
-                          Next Stage
-                          <ChevronRight className="h-5 w-5" />
-                        </>
+                        <p className="text-gray-500 text-sm">No activity recorded yet.</p>
                       )}
-                    </button>
+                    </div>
                   </div>
-                  
-                  {selectedStage?.isCurrent && (
-                    <div className="mt-3 text-center">
-                      <p className="text-xs text-gray-500">
-                        {canMoveToNextStage() 
-                          ? 'Ready to proceed to next stage' 
-                          : `Complete ${selectedStage.label} to unlock next stage`
-                        }
-                      </p>
+                )}
+              </div>
+            )}
+
+            {/* Notes Tab */}
+            {activeTab === 'notes' && (
+              <div className="space-y-6">
+                {workflowLoading ? (
+                  <SkeletonLoader.Notes />
+                ) : (
+                  <div className="bg-white rounded-xl border border-gray-200 p-6">
+                    <div className="mb-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Note</h3>
+                      <textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Add a note about this work order..."
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        rows={3}
+                      />
+                      <div className="flex justify-end mt-2">
+                        <button
+                          onClick={() => {
+                            setAddingNote(true);
+                            setTimeout(() => {
+                              setAddingNote(false);
+                              setNotes('');
+                              showToast('Note added successfully', 'success');
+                            }, 1000);
+                          }}
+                          disabled={addingNote || !notes.trim()}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {addingNote ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                              Adding...
+                            </>
+                          ) : (
+                            'Add Note'
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Notes</h3>
+                    <div className="space-y-4">
+                      {notes.length > 0 ? (
+                        <div className="p-4 bg-gray-50 rounded-lg">
+                          <p className="text-gray-700">Your new note will appear here...</p>
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 text-sm">No notes yet. Add your first note above.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Stage Details Modal */}
+      {modalStage && (
+        <>
+          <div 
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50"
+            onClick={handleCloseModal}
+          />
+          
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+              {/* Modal Header */}
+              <div className="p-8 border-b border-gray-200">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-4">
+                    <div className={`p-4 rounded-2xl ${
+                      modalStage.completed 
+                        ? 'bg-gradient-to-br from-green-100 to-green-200' 
+                        : modalStage.isCurrent 
+                          ? 'bg-gradient-to-br from-blue-100 to-indigo-100' 
+                          : 'bg-gradient-to-br from-gray-100 to-gray-200'
+                    }`}>
+                      {modalStage.icon}
+                    </div>
+                    <div>
+                      <h2 className="text-3xl font-bold text-gray-900">{modalStage.label}</h2>
+                      <p className="text-gray-600">{modalStage.description}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleCloseModal}
+                    className="p-3 hover:bg-gray-100 rounded-xl transition-colors"
+                  >
+                    <X className="h-6 w-6 text-gray-600" />
+                  </button>
+                </div>
+                
+                {/* Stage Status Badges */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className={`px-4 py-2 rounded-full font-semibold ${
+                    modalStage.completed 
+                      ? 'bg-gradient-to-r from-green-100 to-green-200 text-green-800' 
+                      : modalStage.isCurrent 
+                        ? 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800' 
+                        : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800'
+                  }`}>
+                    {modalStage.completed ? 'Completed' : modalStage.isCurrent ? 'In Progress' : 'Pending'}
+                  </div>
+                  <div className="px-4 py-2 bg-gradient-to-r from-amber-50 to-amber-100 text-amber-800 rounded-full font-semibold">
+                    {modalStage.estimatedTime}
+                  </div>
+                  {modalStage.stage === 'waiver' && (
+                    <div className="px-4 py-2 bg-gradient-to-r from-purple-50 to-purple-100 text-purple-800 rounded-full font-semibold">
+                      Optional Stage
+                    </div>
+                  )}
+                  {modalStage.stage !== 'waiver' && (
+                    <div className="px-4 py-2 bg-gradient-to-r from-blue-50 to-blue-100 text-blue-800 rounded-full font-semibold">
+                      Required
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Drawer Footer */}
-              <div className="p-6 border-t border-gray-200 bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
-                    <p>Stage {workflowStages.findIndex(s => s.id === selectedStage.id) + 1} of {workflowStages.length}</p>
+              {/* Modal Content */}
+              <div className="overflow-y-auto max-h-[calc(90vh-200px)] p-8">
+                {/* Stepper Header */}
+                <div className="mb-8">
+                  <h3 className="text-xl font-bold text-gray-900 mb-4">Stage Steps</h3>
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <p className="text-gray-700">Complete each step to finish this stage</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-600">Progress</p>
+                      <p className="text-2xl font-bold text-blue-600">
+                        {Math.round((modalSteps.filter(s => s.completed).length / modalSteps.length) * 100)}%
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
+
+                  {/* Stepper */}
+                  <div className="relative">
+                    <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-200 z-0" />
+                    
+                    {/* Steps */}
+                    <div className="space-y-8 relative z-10">
+                      {modalSteps.map((step, index) => (
+                        <div key={step.id} className="flex items-start gap-4">
+                          {/* Step Number */}
+                          <div className={`flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold border-4 ${
+                            step.completed
+                              ? 'bg-gradient-to-br from-green-500 to-green-600 border-green-600 text-white'
+                              : index === modalCurrentStep
+                                ? 'bg-gradient-to-br from-blue-500 to-indigo-600 border-blue-600 text-white animate-pulse'
+                                : 'bg-white border-gray-300 text-gray-500'
+                          }`}>
+                            {step.completed ? (
+                              <Check className="h-6 w-6" />
+                            ) : (
+                              index + 1
+                            )}
+                          </div>
+                          
+                          {/* Step Content */}
+                          <div className={`flex-1 p-6 rounded-2xl transition-all duration-300 ${
+                            index === modalCurrentStep
+                              ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 shadow-lg'
+                              : step.completed
+                                ? 'bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200'
+                                : 'bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200'
+                          }`}>
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className={`text-lg font-semibold ${
+                                index === modalCurrentStep
+                                  ? 'text-blue-900'
+                                  : step.completed
+                                    ? 'text-green-900'
+                                    : 'text-gray-900'
+                              }`}>
+                                {step.label}
+                              </h4>
+                              {step.completed ? (
+                                <span className="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">
+                                  Completed
+                                </span>
+                              ) : index === modalCurrentStep ? (
+                                <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
+                                  Current Step
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="text-gray-700 mb-4">{step.description}</p>
+                            
+                            {index === modalCurrentStep && !step.completed && (
+                              <div className="mt-4 flex items-center gap-3">
+                                <button
+                                  onClick={() => handleCompleteStep(step.id)}
+                                  disabled={modalLoading}
+                                  className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl hover:from-green-600 hover:to-green-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {modalLoading ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                                      Processing...
+                                    </>
+                                  ) : (
+                                    'Mark as Complete'
+                                  )}
+                                </button>
+                                {step.required && (
+                                  <span className="px-3 py-1 bg-red-50 text-red-700 text-sm font-medium rounded-full">
+                                    Required
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stage Requirements */}
+                {modalStage.requirements && modalStage.requirements.length > 0 && (
+                  <div className="mt-12">
+                    <h3 className="text-xl font-bold text-gray-900 mb-4">Requirements</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {modalStage.requirements.map((req, idx) => (
+                        <div key={idx} className="p-4 bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl">
+                          <div className="flex items-center gap-3">
+                            <AlertCircle className="h-5 w-5 text-amber-600" />
+                            <span className="font-medium text-amber-900">{req}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Document Status */}
+                {modalStage.documentType && (
+                  <div className="mt-12">
+                    <h3 className="text-xl font-bold text-gray-900 mb-4">Document</h3>
+                    <div className={`p-6 rounded-2xl ${
+                      modalStage.document && modalStage.document._id
+                        ? 'bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200' 
+                        : 'bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className={`p-4 rounded-xl ${
+                            modalStage.document && modalStage.document._id
+                              ? 'bg-gradient-to-br from-green-100 to-green-200' 
+                              : 'bg-gradient-to-br from-gray-100 to-gray-200'
+                          }`}>
+                            {modalStage.document && modalStage.document._id 
+                              ? <FileCheck className="h-8 w-8 text-green-600" /> 
+                              : <FileX className="h-8 w-8 text-gray-500" />
+                            }
+                          </div>
+                          <div>
+                            <p className="text-xl font-bold text-gray-900">
+                              {modalStage.documentType}
+                            </p>
+                            <p className="text-gray-600">
+                              {modalStage.document && modalStage.document._id
+                                ? 'Document created and ready' 
+                                : 'Document not created yet'
+                              }
+                            </p>
+                          </div>
+                        </div>
+                        {modalStage.document && modalStage.document._id && (
+                          <button
+                            onClick={() => handleViewDocument(modalStage)}
+                            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 font-semibold"
+                          >
+                            View Document
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-8 border-t border-gray-200 bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
                     <button
-                      onClick={() => window.print()}
-                      className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
-                      title="Print"
+                      onClick={handleModalPrevStep}
+                      disabled={modalCurrentStep === 0}
+                      className={`px-6 py-3 rounded-xl font-semibold ${
+                        modalCurrentStep === 0
+                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 hover:from-gray-200 hover:to-gray-300'
+                      }`}
                     >
-                      <Printer className="h-4 w-4 text-gray-600" />
+                      <ChevronLeft className="h-4 w-4 inline mr-2" />
+                      Previous Step
                     </button>
                     <button
-                      onClick={() => navigator.clipboard.writeText(selectedStage.label)}
-                      className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
-                      title="Copy Stage Name"
+                      onClick={handleModalNextStep}
+                      disabled={modalCurrentStep === modalSteps.length - 1}
+                      className={`px-6 py-3 rounded-xl font-semibold ${
+                        modalCurrentStep === modalSteps.length - 1
+                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700'
+                      }`}
                     >
-                      <Copy className="h-4 w-4 text-gray-600" />
+                      Next Step
+                      <ChevronRight className="h-4 w-4 inline ml-2" />
                     </button>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-600">Step {modalCurrentStep + 1} of {modalSteps.length}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-300"
+                          style={{ width: `${((modalCurrentStep + 1) / modalSteps.length) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-blue-600">
+                        {Math.round(((modalCurrentStep + 1) / modalSteps.length) * 100)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Stage Actions */}
+                <div className="mt-6 pt-6 border-t border-gray-300">
+                  <h4 className="font-semibold text-gray-900 mb-3">Stage Actions</h4>
+                  <div className="flex items-center gap-3">
+                    {modalStage.actions.map((action) => (
+                      <button
+                        key={action.id}
+                        onClick={() => handleStageAction(modalStage, action.id)}
+                        className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${
+                          action.variant === 'primary'
+                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700'
+                            : action.variant === 'secondary'
+                              ? 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 hover:from-gray-200 hover:to-gray-300'
+                              : action.variant === 'success'
+                                ? 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700'
+                                : action.variant === 'warning'
+                                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700'
+                                  : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700'
+                        }`}
+                      >
+                        {action.icon}
+                        {action.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -2095,9 +2732,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
           </div>
         </>
       )}
-
-      {/* Waiver Options Modal */}
-      {showWaiverOptions && <WaiverOptionsModal />}
     </div>
   );
 }
