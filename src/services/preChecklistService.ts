@@ -5,6 +5,7 @@ export interface InspectionItem {
   item: string;
   status: 'ok' | 'fault' | 'n/a';
   remarks?: string;
+  side?: string;
 }
 
 export interface PreChecklist {
@@ -59,6 +60,38 @@ export interface PreChecklist {
   date?: Date | string;
   createdAt: Date | string;
   updatedAt: Date | string;
+  
+  // Add these new properties
+  serviceType?: 'pickup_only' | 'workshop_installation' | 'mobile_service';
+  inspectorName?: string;
+  customerDetails?: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+  };
+  carDetails?: {
+    regNo: string;
+    make: string;
+    year: string;
+    model: string;
+    vin: string;
+  };
+  productServiceNeeded?: string;
+  productPrice?: number;
+  servicePrice?: number;
+  additionalInformation?: string;
+  installationDetails?: {
+    estimatedTime: 'less_1_hour' | '1_2_hours' | '3_hours' | 'more_3_hours';
+    assignedTechnician: string;
+    workStartTime: string;
+  };
+  deliveryPickupMethod?: 'customer_pickup' | 'courier_delivery' | 'mobile_delivery_install';
+  acceptTerms?: boolean;
+  acceptDiagnosticCharges?: boolean;
+  clientSignature?: string;
+  inspectorSignature?: string;
+  uploadedImages?: string[];
 }
 
 export interface CreatePreChecklistDto {
@@ -67,6 +100,37 @@ export interface CreatePreChecklistDto {
   inspectionItems: InspectionItem[];
   remarks?: string;
   approved?: boolean;
+  // Add these new properties
+  serviceType?: 'pickup_only' | 'workshop_installation' | 'mobile_service';
+  inspectorName?: string;
+  customerDetails?: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+  };
+  carDetails?: {
+    regNo: string;
+    make: string;
+    year: string;
+    model: string;
+    vin: string;
+  };
+  productServiceNeeded?: string;
+  productPrice?: number;
+  servicePrice?: number;
+  additionalInformation?: string;
+  installationDetails?: {
+    estimatedTime: 'less_1_hour' | '1_2_hours' | '3_hours' | 'more_3_hours';
+    assignedTechnician: string;
+    workStartTime: string;
+  };
+  deliveryPickupMethod?: 'customer_pickup' | 'courier_delivery' | 'mobile_delivery_install';
+  acceptTerms?: boolean;
+  acceptDiagnosticCharges?: boolean;
+  clientSignature?: string;
+  inspectorSignature?: string;
+  uploadedImages?: string[];
 }
 
 export interface UpdatePreChecklistDto {
@@ -74,6 +138,37 @@ export interface UpdatePreChecklistDto {
   remarks?: string;
   approved?: boolean;
   approvedBy?: string;
+  // Add these new properties
+  serviceType?: 'pickup_only' | 'workshop_installation' | 'mobile_service';
+  inspectorName?: string;
+  customerDetails?: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+  };
+  carDetails?: {
+    regNo: string;
+    make: string;
+    year: string;
+    model: string;
+    vin: string;
+  };
+  productServiceNeeded?: string;
+  productPrice?: number;
+  servicePrice?: number;
+  additionalInformation?: string;
+  installationDetails?: {
+    estimatedTime: 'less_1_hour' | '1_2_hours' | '3_hours' | 'more_3_hours';
+    assignedTechnician: string;
+    workStartTime: string;
+  };
+  deliveryPickupMethod?: 'customer_pickup' | 'courier_delivery' | 'mobile_delivery_install';
+  acceptTerms?: boolean;
+  acceptDiagnosticCharges?: boolean;
+  clientSignature?: string;
+  inspectorSignature?: string;
+  uploadedImages?: string[];
 }
 
 export interface PreChecklistStats {

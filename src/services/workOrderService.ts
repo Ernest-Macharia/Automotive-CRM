@@ -83,6 +83,64 @@ export interface WorkOrder {
   createdAt: string;
   updatedAt: string;
   isActive?: boolean;
+  
+  // Add the missing properties
+  invoicePaid?: boolean;
+  invoicePaymentDate?: string;
+  
+  // Add stage approvals
+  stageApprovals?: {
+    pre_checklist?: {
+      needsApproval?: boolean;
+      approved?: boolean;
+      rejected?: boolean;
+      submittedAt?: string;
+      submittedBy?: string;
+      approvedAt?: string;
+      approvedBy?: string;
+      rejectedAt?: string;
+      rejectedBy?: string;
+    };
+    job_card?: {
+      needsApproval?: boolean;
+      approved?: boolean;
+      rejected?: boolean;
+      submittedAt?: string;
+      submittedBy?: string;
+      approvedAt?: string;
+      approvedBy?: string;
+      rejectedAt?: string;
+      rejectedBy?: string;
+    };
+    post_checklist?: {
+      needsApproval?: boolean;
+      approved?: boolean;
+      rejected?: boolean;
+      submittedAt?: string;
+      submittedBy?: string;
+      approvedAt?: string;
+      approvedBy?: string;
+      rejectedAt?: string;
+      rejectedBy?: string;
+    };
+    invoice?: {
+      needsApproval?: boolean;
+      approved?: boolean;
+      rejected?: boolean;
+      submittedAt?: string;
+      submittedBy?: string;
+      approvedAt?: string;
+      approvedBy?: string;
+      rejectedAt?: string;
+      rejectedBy?: string;
+    };
+  };
+  
+  // Add completion dates for stages
+  preChecklistCompletionDate?: string;
+  jobCardCompletionDate?: string;
+  postChecklistCompletionDate?: string;
+  invoiceCompletionDate?: string;
 }
 
 export interface CreateWorkOrderData {
@@ -103,8 +161,6 @@ export interface CreateWorkOrderData {
   partsCost?: number;
   notes?: string;
 }
-
-// In src/services/workOrderService.ts - Update the UpdateWorkOrderData interface:
 
 export interface UpdateWorkOrderData {
   status?: 'draft' | 'pre_checklist' | 'in_progress' | 'job_card' | 'post_checklist' | 'ready_for_invoice' | 'completed' | 'cancelled' | 'delayed';
@@ -267,6 +323,25 @@ export interface StatusSummary {
   total: number;
 }
 
+export interface NotificationLog {
+  _id: string;
+  eventType: string;
+  recipients: string[];
+  sentAt: string;
+  emailDeliveries: Array<{
+    recipient: string;
+    recipientType: string;
+    sentAt: string;
+    success: boolean;
+    messageId: string;
+  }>;
+  data: {
+    workOrderNumber: string;
+    reason?: string;
+    delayDays?: number;
+  };
+}
+
 class WorkOrderService {
   private basePath = '/workorder';
 
@@ -291,7 +366,7 @@ class WorkOrderService {
 
   // GET /api/v1/workorder - Get all work orders with filtering
   // In workOrderService.ts - Update the getAllWorkOrders method:
-  async getAllWorkOrders(params?: WorkOrderFilterParams): Promise<WorkOrder[]> {
+  async getAllWorkOrders(params?: WorkOrderFilterParams): Promise<WorkOrdersResponse> {
     try {
       const queryParams = new URLSearchParams();
       
@@ -305,7 +380,7 @@ class WorkOrderService {
       
       const queryString = queryParams.toString();
       const endpoint = `${this.basePath}${queryString ? `?${queryString}` : ''}`;
-      return await apiClient.get<WorkOrder[]>(endpoint);
+      return await apiClient.get<WorkOrdersResponse>(endpoint);
     } catch (error) {
       console.error('Error fetching work orders:', error);
       throw error;
@@ -374,6 +449,26 @@ class WorkOrderService {
       );
     } catch (error) {
       console.error(`Error updating work order status ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // GET /api/v1/workorder/opportunity/{opportunityId}
+  async getWorkOrdersByOpportunity(opportunityId: string): Promise<WorkOrder[]> {
+    try {
+      return await apiClient.get<WorkOrder[]>(`${this.basePath}/opportunity/${opportunityId}`);
+    } catch (error) {
+      console.error(`Error fetching work orders for opportunity ${opportunityId}:`, error);
+      throw error;
+    }
+  }
+
+  // GET /api/v1/workorder/{id}/notifications
+  async getWorkOrderNotifications(id: string): Promise<any> {
+    try {
+      return await apiClient.get<any>(`${this.basePath}/${id}/notifications`);
+    } catch (error) {
+      console.error(`Error fetching notifications for work order ${id}:`, error);
       throw error;
     }
   }

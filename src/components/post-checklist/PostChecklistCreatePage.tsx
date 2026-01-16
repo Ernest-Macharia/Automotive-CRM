@@ -28,23 +28,38 @@ import {
   Shield,
   FileSignature,
   Settings,
-  DollarSign,
+  Lightbulb,
+  Car as CarIcon,
   Package,
+  Timer,
   CheckSquare,
   AlertOctagon,
+  MessageSquare,
+  Camera,
+  ShieldAlert,
+  CreditCard,
+  Truck,
+  Home,
+  Mail,
+  Phone,
+  MapPin,
+  FileCheck,
+  ClipboardList,
+  Thermometer,
+  Droplets,
+  Zap,
+  Wrench as WrenchIcon,
   ThumbsUp,
   ThumbsDown,
-  MessageSquare,
-  ClipboardList,
+  Star,
+  Award,
+  Target,
+  Sparkles,
   BarChart3,
   Download,
   Copy,
-  Star,
-  Timer,
   Calculator,
-  Award,
-  Target,
-  Sparkles
+  DollarSign
 } from 'lucide-react';
 import { postChecklistService, ChecklistItem, ChecklistItemStatus } from '@/services/postChecklistService';
 import { workOrderService } from '@/services/workOrderService';
@@ -60,7 +75,7 @@ interface PostChecklistCreatePageProps {
   checklistId?: string;
 }
 
-export default function PostChecklistCreatePage({ 
+export default function HeadlightPostChecklistCreatePage({ 
   mode = 'create', 
   checklistId 
 }: PostChecklistCreatePageProps) {
@@ -92,88 +107,130 @@ export default function PostChecklistCreatePage({
     jobCardId: jobCardId || '',
     preChecklistId: preChecklistId || '',
     inspectedBy: sessionStorage.getItem('userId') || '',
+    
+    // Customer details
+    customerName: '',
+    dateTime: new Date().toISOString(),
+    warrantyDuration: '12 months',
+    
+    // Headlight inspection items
     inspectionItems: [
-      { 
-        item: 'Work Quality Verification', 
-        status: ChecklistItemStatus.INCOMPLETE as ChecklistItemStatus, 
-        remarks: '',
-        required: true,
-        category: 'quality'
-      },
-      { 
-        item: 'Safety Systems Check', 
-        status: ChecklistItemStatus.INCOMPLETE as ChecklistItemStatus, 
-        remarks: '',
-        required: true,
-        category: 'safety'
-      },
-      { 
-        item: 'Vehicle Cleanliness', 
-        status: ChecklistItemStatus.INCOMPLETE as ChecklistItemStatus, 
-        remarks: '',
-        required: true,
-        category: 'cleanliness'
-      },
-      { 
-        item: 'Tools & Equipment Returned', 
-        status: ChecklistItemStatus.INCOMPLETE as ChecklistItemStatus, 
-        remarks: '',
-        required: false,
-        category: 'tools'
-      },
-      { 
-        item: 'Documentation Complete', 
-        status: ChecklistItemStatus.INCOMPLETE as ChecklistItemStatus, 
-        remarks: '',
-        required: true,
-        category: 'documentation'
-      }
+      { item: 'High Beam', status: ChecklistItemStatus.INCOMPLETE, remarks: '', side: 'both', required: true },
+      { item: 'Low Beam', status: ChecklistItemStatus.INCOMPLETE, remarks: '', side: 'both', required: true },
+      { item: 'Daytime Running Light', status: ChecklistItemStatus.INCOMPLETE, remarks: '', side: 'both', required: true },
+      { item: 'Turn Signal', status: ChecklistItemStatus.INCOMPLETE, remarks: '', side: 'both', required: true },
+      { item: 'Fog Lights', status: ChecklistItemStatus.INCOMPLETE, remarks: '', side: 'both', required: false },
+      { item: 'Parking Bulb', status: ChecklistItemStatus.INCOMPLETE, remarks: '', side: 'both', required: false },
+      { item: 'Angel Lights', status: ChecklistItemStatus.INCOMPLETE, remarks: '', side: 'both', required: false },
+      { item: 'Headlight Adjusters', status: ChecklistItemStatus.INCOMPLETE, remarks: '', side: 'both', required: true },
+      { item: 'Adaptive Front Lights (AFS)', status: ChecklistItemStatus.INCOMPLETE, remarks: '', side: 'both', required: false },
+      { item: 'Dimming Functionality', status: ChecklistItemStatus.INCOMPLETE, remarks: '', side: 'both', required: false },
+      { item: 'Headlight Wiring and Connectors', status: ChecklistItemStatus.INCOMPLETE, remarks: '', side: 'both', required: true },
+      { item: 'Beam Alignment', status: ChecklistItemStatus.INCOMPLETE, remarks: '', side: 'both', required: true },
+      { item: 'Headlight Lens (Scratches, Cracks, Haziness)', status: ChecklistItemStatus.INCOMPLETE, remarks: '', side: 'both', required: true },
+      { item: 'Water Proofing', status: ChecklistItemStatus.INCOMPLETE, remarks: '', side: 'both', required: true },
+      { item: 'Dashboard Warning Lights', status: ChecklistItemStatus.INCOMPLETE, remarks: '', side: 'vehicle', required: true },
+      { item: 'Bumper Condition', status: ChecklistItemStatus.INCOMPLETE, remarks: '', side: 'both', required: true }
     ] as ChecklistItem[],
+    
+    // Additional fields
+    beforePhotos: [] as string[],
+    afterPhotos: [] as string[],
     notes: '',
     overallCondition: 'pending' as 'pending' | 'satisfactory' | 'needs_attention' | 'excellent',
     recommendations: '',
+    
+    // Customer satisfaction
+    rating: 0,
+    comments: '',
+    
+    // Approval
     approved: false,
-    approvedBy: '',
-    approvedAt: '',
-    partsUsed: [] as Array<{
-      partId: string;
-      partName: string;
-      quantity: number;
-      unitPrice: number;
-      totalPrice: number;
-    }>,
-    laborHours: 0,
-    laborRate: 85,
-    totalCost: 0,
-    qualityCheck: {
-      passed: false,
-      checkedBy: '',
-      checkedAt: '',
-      notes: ''
-    },
-    customerApproval: {
-      approved: false,
-      approvedBy: '',
-      approvedAt: '',
-      signature: '',
-      notes: ''
-    }
+    acceptTerms: false,
+    customerSignature: '',
+    
+    // Warranty
+    warrantyStartDate: new Date().toISOString(),
+    warrantyEndDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
+    warrantyNotes: '',
+
+    productServiceNeeded: '',
+    acceptDiagnosticCharges: false
   });
 
-  const [selectedTemplate, setSelectedTemplate] = useState('standard');
+  const [selectedTemplate, setSelectedTemplate] = useState('headlight_comprehensive');
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [expandedSections, setExpandedSections] = useState<number[]>([]);
-  const [showPartsModal, setShowPartsModal] = useState(false);
-  const [newPart, setNewPart] = useState({
-    partName: '',
-    quantity: 1,
-    unitPrice: 0
-  });
+  const [activeTab, setActiveTab] = useState<'inspection' | 'photos' | 'warranty' | 'feedback' | 'terms'>('inspection');
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [autoPopulated, setAutoPopulated] = useState(false);
 
   // Load related data
   useEffect(() => {
     loadRelatedData();
   }, [opportunityId, workOrderId, vehicleId, jobCardId, preChecklistId, checklistId, mode]);
+
+  const autoPopulateFromOpportunity = () => {
+    if (!opportunity) return;
+
+    try {
+      // Extract customer name
+      const customerName = opportunity.customer?.name || '';
+      
+      // Get vehicle from opportunity
+      const primaryVehicle = opportunity.vehicles?.[0] || {};
+      
+      // Extract product/service information for warranty
+      let productServiceNeeded = '';
+      
+      if (opportunity.servicesProducts && opportunity.servicesProducts.length > 0) {
+        const headlightServices = opportunity.servicesProducts.filter(
+          item => item.title.toLowerCase().includes('headlight') || 
+                  item.title.toLowerCase().includes('light')
+        );
+        
+        if (headlightServices.length > 0) {
+          productServiceNeeded = headlightServices.map(item => item.title).join(', ');
+        } else {
+          productServiceNeeded = opportunity.servicesProducts.map(item => item.title).join(', ');
+        }
+      }
+
+      // Determine warranty duration based on products
+      let warrantyDuration = '12 months';
+      if (opportunity.servicesProducts && opportunity.servicesProducts.length > 0) {
+        const hasPremiumProducts = opportunity.servicesProducts.some(
+          item => item.title.toLowerCase().includes('led') || 
+                  item.title.toLowerCase().includes('premium') ||
+                  item.title.toLowerCase().includes('pro')
+        );
+        warrantyDuration = hasPremiumProducts ? '24 months' : '12 months';
+      }
+
+      // Update form data
+      setFormData(prev => ({
+        ...prev,
+        customerName: customerName,
+        productServiceNeeded: productServiceNeeded || opportunity.subject || '',
+        warrantyDuration,
+        warrantyNotes: opportunity.notes ? 
+          `Service performed as per opportunity: ${opportunity.subject}` : 
+          `Post-service inspection for ${customerName}`
+      }));
+
+      setAutoPopulated(true);
+      showToast('Customer and warranty details auto-populated from opportunity', 'success');
+    } catch (error) {
+      console.error('Error auto-populating from opportunity:', error);
+    }
+  };
+
+  const handleRefreshFromOpportunity = () => {
+    if (opportunity) {
+      autoPopulateFromOpportunity();
+      showToast('Refreshed data from opportunity', 'info');
+    }
+  };
 
   const loadRelatedData = async () => {
     try {
@@ -184,14 +241,6 @@ export default function PostChecklistCreatePage({
         const checklist = await postChecklistService.getPostChecklistById(checklistId);
         setExistingChecklist(checklist);
         
-        // Safely convert overallCondition to the correct type
-        const overallCondition = (
-          checklist.overallCondition === 'satisfactory' ||
-          checklist.overallCondition === 'needs_attention' ||
-          checklist.overallCondition === 'excellent'
-        ) ? checklist.overallCondition : 'pending' as const;
-        
-        // Set form data from existing checklist
         setFormData(prev => ({
           ...prev,
           opportunityId: typeof checklist.opportunityId === 'object' 
@@ -203,25 +252,32 @@ export default function PostChecklistCreatePage({
           jobCardId: typeof checklist.jobCardId === 'object' 
             ? checklist.jobCardId._id 
             : checklist.jobCardId,
+          preChecklistId: checklist.preChecklistId || '',
           inspectedBy: checklist.inspectedBy 
             ? (typeof checklist.inspectedBy === 'object' 
                 ? checklist.inspectedBy._id 
                 : checklist.inspectedBy)
             : sessionStorage.getItem('userId') || '',
+          customerName: checklist.customerName || '',
+          dateTime: checklist.dateTime || new Date().toISOString(),
+          warrantyDuration: checklist.warrantyDuration || '12 months',
           inspectionItems: checklist.inspectionItems || prev.inspectionItems,
+          beforePhotos: checklist.beforePhotos || [],
+          afterPhotos: checklist.afterPhotos || [],
           notes: checklist.notes || '',
-          overallCondition: overallCondition,
+          overallCondition: checklist.overallCondition || 'pending',
           recommendations: checklist.recommendations || '',
+          rating: checklist.rating || 0,
+          comments: checklist.comments || '',
           approved: checklist.approved || false,
-          approvedBy: checklist.approvedBy 
-            ? (typeof checklist.approvedBy === 'object' 
-                ? checklist.approvedBy._id 
-                : checklist.approvedBy)
-            : '',
-          approvedAt: checklist.approvedAt ? new Date(checklist.approvedAt).toISOString() : '',
+          acceptTerms: checklist.acceptTerms || false,
+          customerSignature: checklist.customerSignature || '',
+          warrantyStartDate: checklist.warrantyStartDate || new Date().toISOString(),
+          warrantyEndDate: checklist.warrantyEndDate || new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
+          warrantyNotes: checklist.warrantyNotes || ''
         }));
 
-        // Set related data from existing checklist
+        // Set related data
         if (typeof checklist.opportunityId === 'object') {
           setOpportunity(checklist.opportunityId);
         }
@@ -237,7 +293,6 @@ export default function PostChecklistCreatePage({
       const getVehicleIdFromOpportunity = (opportunity: any): string | null => {
         if (!opportunity) return null;
         
-        // Try different possible property names
         if (opportunity.vehicleId) {
           return typeof opportunity.vehicleId === 'object' 
             ? opportunity.vehicleId._id 
@@ -264,20 +319,17 @@ export default function PostChecklistCreatePage({
           const wo = await workOrderService.getWorkOrderById(workOrderId);
           setWorkOrder(wo);
           
-          // If work order has opportunityId, load opportunity
           if (wo.opportunityId) {
             const oppId = typeof wo.opportunityId === 'object' ? wo.opportunityId._id : wo.opportunityId;
             const opp = await opportunityService.getOpportunityById(oppId);
             setOpportunity(opp);
             
-            // Get vehicle ID from opportunity
             const vehicleId = getVehicleIdFromOpportunity(opp);
             if (vehicleId) {
               try {
                 const veh = await vehicleService.getVehicleById(vehicleId);
                 setVehicle(veh);
                 
-                // Update form data with loaded IDs
                 setFormData(prev => ({
                   ...prev,
                   opportunityId: oppId,
@@ -285,7 +337,6 @@ export default function PostChecklistCreatePage({
                 }));
               } catch (vehError) {
                 console.error('Error loading vehicle details:', vehError);
-                // Still set the ID even if we can't load full details
                 setFormData(prev => ({
                   ...prev,
                   opportunityId: oppId,
@@ -306,7 +357,6 @@ export default function PostChecklistCreatePage({
           const opp = await opportunityService.getOpportunityById(opportunityId);
           setOpportunity(opp);
           
-          // Get vehicle ID from opportunity
           const vehicleId = getVehicleIdFromOpportunity(opp);
           if (vehicleId) {
             try {
@@ -320,7 +370,6 @@ export default function PostChecklistCreatePage({
               }));
             } catch (vehError) {
               console.error('Error loading vehicle details:', vehError);
-              // Still set the ID
               setFormData(prev => ({
                 ...prev,
                 opportunityId,
@@ -350,71 +399,23 @@ export default function PostChecklistCreatePage({
         }
       }
 
-      // Load job card if ID provided
-      if (jobCardId) {
-        try {
-          // Assuming you have a job card service
-          // const jc = await jobCardService.getJobCardById(jobCardId);
-          // setJobCard(jc);
-          setFormData(prev => ({
-            ...prev,
-            jobCardId
-          }));
-        } catch (error) {
-          console.error('Error loading job card:', error);
-          showToast('Could not load job card details', 'warning');
-        }
-      }
-
       // Load pre-checklist if ID provided
       if (preChecklistId) {
         try {
           const preChecklist = await preChecklistService.getPreChecklistById(preChecklistId);
           setPreChecklist(preChecklist);
           
-          // Populate inspection items from pre-checklist if not already set
-          if (preChecklist.inspectionItems && formData.inspectionItems.length <= 5) {
-            const mappedItems = preChecklist.inspectionItems.map((item: any) => ({
-              item: item.item,
-              status: ChecklistItemStatus.INCOMPLETE,
-              remarks: '',
-              required: true,
-              category: 'service'
-            }));
-            
+          // Use customer details from pre-checklist
+          if (preChecklist.customerDetails) {
             setFormData(prev => ({
               ...prev,
               preChecklistId,
-              inspectionItems: [
-                ...prev.inspectionItems,
-                ...mappedItems.filter((newItem: any) => 
-                  !prev.inspectionItems.some(existing => existing.item === newItem.item)
-                )
-              ]
+              customerName: `${preChecklist.customerDetails.firstName} ${preChecklist.customerDetails.lastName}`.trim()
             }));
           }
         } catch (error) {
           console.error('Error loading pre-checklist:', error);
           showToast('Could not load pre-checklist details', 'warning');
-        }
-      }
-
-      // If we still don't have opportunity or vehicle, but have IDs in formData, try to load them
-      if (!opportunity && formData.opportunityId) {
-        try {
-          const opp = await opportunityService.getOpportunityById(formData.opportunityId);
-          setOpportunity(opp);
-        } catch (error) {
-          console.error('Error loading opportunity by form ID:', error);
-        }
-      }
-      
-      if (!vehicle && formData.vehicleId) {
-        try {
-          const veh = await vehicleService.getVehicleById(formData.vehicleId);
-          setVehicle(veh);
-        } catch (error) {
-          console.error('Error loading vehicle by form ID:', error);
         }
       }
 
@@ -447,28 +448,6 @@ export default function PostChecklistCreatePage({
     });
   };
 
-  const handleAddItem = () => {
-    setFormData(prev => ({
-      ...prev,
-      inspectionItems: [
-        ...prev.inspectionItems,
-        { item: '', status: ChecklistItemStatus.INCOMPLETE, remarks: '', required: true, category: 'general' }
-      ]
-    }));
-  };
-
-  const handleRemoveItem = (index: number) => {
-    if (formData.inspectionItems.length <= 1) {
-      showToast('Checklist must have at least one item', 'warning');
-      return;
-    }
-    
-    setFormData(prev => ({
-      ...prev,
-      inspectionItems: prev.inspectionItems.filter((_, i) => i !== index)
-    }));
-  };
-
   const handleStatusChange = (index: number, status: ChecklistItemStatus) => {
     handleItemChange(index, 'status', status);
   };
@@ -480,47 +459,37 @@ export default function PostChecklistCreatePage({
     let items: ChecklistItem[] = [];
     
     switch (template) {
-      case 'basic':
+      case 'headlight_basic':
         items = [
-          { item: 'Work Quality Verification', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'quality' },
-          { item: 'Safety Check Complete', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'safety' },
-          { item: 'Vehicle Clean', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'cleanliness' },
-          { item: 'Documentation Done', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'documentation' }
+          { item: 'High Beam', status: ChecklistItemStatus.INCOMPLETE, required: true, side: 'both' },
+          { item: 'Low Beam', status: ChecklistItemStatus.INCOMPLETE, required: true, side: 'both' },
+          { item: 'Turn Signal', status: ChecklistItemStatus.INCOMPLETE, required: true, side: 'both' },
+          { item: 'Headlight Adjusters', status: ChecklistItemStatus.INCOMPLETE, required: true, side: 'both' },
+          { item: 'Beam Alignment', status: ChecklistItemStatus.INCOMPLETE, required: true, side: 'both' },
+          { item: 'Water Proofing', status: ChecklistItemStatus.INCOMPLETE, required: true, side: 'both' }
         ];
         break;
-      case 'standard':
+      case 'headlight_comprehensive':
         items = [
-          { item: 'Work Quality Verification', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'quality' },
-          { item: 'Safety Systems Functional', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'safety' },
-          { item: 'Vehicle Interior Clean', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'cleanliness' },
-          { item: 'Vehicle Exterior Clean', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'cleanliness' },
-          { item: 'Tools & Equipment Returned', status: ChecklistItemStatus.INCOMPLETE, required: false, category: 'tools' },
-          { item: 'Service Documentation Complete', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'documentation' },
-          { item: 'Test Drive Completed', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'testing' },
-          { item: 'Customer Items Returned', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'customer' }
-        ];
-        break;
-      case 'comprehensive':
-        items = [
-          { item: 'Work Quality - Mechanical', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'quality' },
-          { item: 'Work Quality - Electrical', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'quality' },
-          { item: 'Work Quality - Body/Interior', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'quality' },
-          { item: 'Safety Systems - Brakes', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'safety' },
-          { item: 'Safety Systems - Lights', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'safety' },
-          { item: 'Safety Systems - Steering', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'safety' },
-          { item: 'Interior Deep Clean', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'cleanliness' },
-          { item: 'Exterior Wash & Polish', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'cleanliness' },
-          { item: 'Engine Bay Clean', status: ChecklistItemStatus.INCOMPLETE, required: false, category: 'cleanliness' },
-          { item: 'Special Tools Returned', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'tools' },
-          { item: 'All Documentation Complete', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'documentation' },
-          { item: 'Test Drive - City', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'testing' },
-          { item: 'Test Drive - Highway', status: ChecklistItemStatus.INCOMPLETE, required: false, category: 'testing' },
-          { item: 'Customer Belongings Returned', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'customer' },
-          { item: 'Final Inspection Sign-off', status: ChecklistItemStatus.INCOMPLETE, required: true, category: 'approval' }
+          { item: 'High Beam', status: ChecklistItemStatus.INCOMPLETE, required: true, side: 'both' },
+          { item: 'Low Beam', status: ChecklistItemStatus.INCOMPLETE, required: true, side: 'both' },
+          { item: 'Daytime Running Light', status: ChecklistItemStatus.INCOMPLETE, required: true, side: 'both' },
+          { item: 'Turn Signal', status: ChecklistItemStatus.INCOMPLETE, required: true, side: 'both' },
+          { item: 'Fog Lights', status: ChecklistItemStatus.INCOMPLETE, required: false, side: 'both' },
+          { item: 'Parking Bulb', status: ChecklistItemStatus.INCOMPLETE, required: false, side: 'both' },
+          { item: 'Angel Lights', status: ChecklistItemStatus.INCOMPLETE, required: false, side: 'both' },
+          { item: 'Headlight Adjusters', status: ChecklistItemStatus.INCOMPLETE, required: true, side: 'both' },
+          { item: 'Adaptive Front Lights (AFS)', status: ChecklistItemStatus.INCOMPLETE, required: false, side: 'both' },
+          { item: 'Dimming Functionality', status: ChecklistItemStatus.INCOMPLETE, required: false, side: 'both' },
+          { item: 'Headlight Wiring and Connectors', status: ChecklistItemStatus.INCOMPLETE, required: true, side: 'both' },
+          { item: 'Beam Alignment', status: ChecklistItemStatus.INCOMPLETE, required: true, side: 'both' },
+          { item: 'Headlight Lens (Scratches, Cracks, Haziness)', status: ChecklistItemStatus.INCOMPLETE, required: true, side: 'both' },
+          { item: 'Water Proofing', status: ChecklistItemStatus.INCOMPLETE, required: true, side: 'both' },
+          { item: 'Dashboard Warning Lights', status: ChecklistItemStatus.INCOMPLETE, required: true, side: 'vehicle' },
+          { item: 'Bumper Condition', status: ChecklistItemStatus.INCOMPLETE, required: true, side: 'both' }
         ];
         break;
       case 'custom':
-        // Keep existing items for custom
         return;
     }
     
@@ -530,52 +499,19 @@ export default function PostChecklistCreatePage({
     }));
   };
 
-  const handleAddPart = () => {
-    if (!newPart.partName.trim() || newPart.quantity <= 0 || newPart.unitPrice < 0) {
-      showToast('Please fill all part details correctly', 'error');
-      return;
-    }
-
-    const partId = `part-${Date.now()}`;
-    const totalPrice = newPart.quantity * newPart.unitPrice;
-
-    setFormData(prev => ({
-      ...prev,
-      partsUsed: [
-        ...prev.partsUsed,
-        {
-          partId,
-          partName: newPart.partName,
-          quantity: newPart.quantity,
-          unitPrice: newPart.unitPrice,
-          totalPrice
-        }
-      ],
-      totalCost: prev.totalCost + totalCost
-    }));
-
-    setNewPart({
-      partName: '',
-      quantity: 1,
-      unitPrice: 0
-    });
-    setShowPartsModal(false);
-    showToast('Part added successfully', 'success');
-  };
-
-  const handleRemovePart = (index: number) => {
-    const partToRemove = formData.partsUsed[index];
-    setFormData(prev => ({
-      ...prev,
-      partsUsed: prev.partsUsed.filter((_, i) => i !== index),
-      totalCost: prev.totalCost - partToRemove.totalPrice
-    }));
-  };
-
-  const calculateTotalCost = () => {
-    const partsCost = formData.partsUsed.reduce((sum, part) => sum + part.totalPrice, 0);
-    const laborCost = formData.laborHours * formData.laborRate;
-    return partsCost + laborCost;
+  const calculateStats = () => {
+    const total = formData.inspectionItems.length;
+    const completed = formData.inspectionItems.filter(item => item.status === ChecklistItemStatus.COMPLETED).length;
+    const incomplete = formData.inspectionItems.filter(item => item.status === ChecklistItemStatus.INCOMPLETE).length;
+    const na = formData.inspectionItems.filter(item => item.status === ChecklistItemStatus.NOT_APPLICABLE).length;
+    
+    const requiredItems = formData.inspectionItems.filter(item => item.required !== false);
+    const requiredCompleted = requiredItems.filter(item => item.status === ChecklistItemStatus.COMPLETED).length;
+    const completionPercentage = requiredItems.length > 0 
+      ? Math.round((requiredCompleted / requiredItems.length) * 100) 
+      : 0;
+    
+    return { total, completed, incomplete, na, completionPercentage };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -584,64 +520,63 @@ export default function PostChecklistCreatePage({
     try {
       setSubmitting(true);
 
-      // Validate form
-      if (!formData.opportunityId) {
-        showToast('Opportunity ID is required', 'error');
+      // Validate required fields
+      if (!formData.customerName.trim()) {
+        showToast('Customer name is required', 'error');
         setSubmitting(false);
         return;
       }
 
-      if (!formData.vehicleId) {
-        showToast('Vehicle ID is required', 'error');
+      if (!formData.acceptTerms) {
+        showToast('You must accept the terms and conditions', 'error');
         setSubmitting(false);
         return;
       }
 
-      if (!formData.jobCardId) {
-        showToast('Job Card ID is required', 'error');
-        setSubmitting(false);
-        return;
-      }
-
-      // Filter out empty items
       const validItems = formData.inspectionItems.filter(item => item.item.trim() !== '');
 
       if (validItems.length === 0) {
-        showToast('Please add at least one inspection item', 'error');
+        showToast('Please complete at least one inspection item', 'error');
         setSubmitting(false);
         return;
       }
-
-      // Calculate final total
-      const finalTotalCost = calculateTotalCost();
 
       const submissionData = {
         opportunityId: formData.opportunityId,
         vehicleId: formData.vehicleId,
         jobCardId: formData.jobCardId,
         preChecklistId: formData.preChecklistId || undefined,
+        inspectedBy: formData.inspectedBy,
+        customerName: formData.customerName,
+        dateTime: formData.dateTime,
+        warrantyDuration: formData.warrantyDuration,
         inspectionItems: validItems,
+        beforePhotos: formData.beforePhotos,
+        afterPhotos: formData.afterPhotos,
         notes: formData.notes,
         overallCondition: formData.overallCondition,
         recommendations: formData.recommendations,
+        rating: formData.rating,
+        comments: formData.comments,
         approved: false,
-        // Add additional calculated fields if needed
+        acceptTerms: formData.acceptTerms,
+        customerSignature: formData.customerSignature,
+        warrantyStartDate: formData.warrantyStartDate,
+        warrantyEndDate: formData.warrantyEndDate,
+        warrantyNotes: formData.warrantyNotes
       };
 
       let result;
       
       if (mode === 'edit' && checklistId) {
-        // Update existing checklist
         result = await postChecklistService.updatePostChecklist(checklistId, submissionData);
-        showToast('Post-checklist updated successfully', 'success');
+        showToast('Headlight post-checklist updated successfully', 'success');
       } else {
-        // Create new checklist
         const userId = sessionStorage.getItem('userId') || undefined;
         result = await postChecklistService.createPostChecklist(submissionData, userId);
-        showToast('Post-checklist created successfully', 'success');
+        showToast('Headlight post-checklist created successfully', 'success');
       }
 
-      // Navigate based on source
       if (source === 'workflow') {
         router.push(`/orders/work-orders/${workOrderId || ''}`);
       } else if (source === 'jobcard') {
@@ -729,37 +664,21 @@ export default function PostChecklistCreatePage({
     return format(new Date(dateString), 'MMM dd, yyyy HH:mm');
   };
 
-  const calculateStats = () => {
-    const total = formData.inspectionItems.length;
-    const completed = formData.inspectionItems.filter(item => item.status === ChecklistItemStatus.COMPLETED).length;
-    const incomplete = formData.inspectionItems.filter(item => item.status === ChecklistItemStatus.INCOMPLETE).length;
-    const na = formData.inspectionItems.filter(item => item.status === ChecklistItemStatus.NOT_APPLICABLE).length;
-    
-    const requiredItems = formData.inspectionItems.filter(item => item.required !== false);
-    const requiredCompleted = requiredItems.filter(item => item.status === ChecklistItemStatus.COMPLETED).length;
-    const completionPercentage = requiredItems.length > 0 
-      ? Math.round((requiredCompleted / requiredItems.length) * 100) 
-      : 0;
-    
-    return { total, completed, incomplete, na, completionPercentage };
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-teal-50/30 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading post-checklist form...</p>
+          <p className="text-gray-600">Loading headlight post-checklist form...</p>
         </div>
       </div>
     );
   }
 
   const stats = calculateStats();
-  const totalCost = calculateTotalCost();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-teal-50/30">
+    <div className="min-h-screen bg-gradient-to-br from-green-50/30 via-white to-teal-50/30">
       {/* Header */}
       <div className="bg-gradient-to-r from-green-600 via-emerald-500 to-teal-600 text-white px-8 py-6 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -771,13 +690,14 @@ export default function PostChecklistCreatePage({
               <ArrowLeft className="h-5 w-5" />
             </button>
             <div>
-              <h1 className="text-2xl font-bold">
-                {mode === 'edit' ? 'Edit Post-Checklist' : 'Create Post-Checklist'}
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                <Lightbulb className="h-6 w-6" />
+                {mode === 'edit' ? 'Edit Headlight Post-Checklist' : 'Headlight Post-Service Inspection'}
               </h1>
               <p className="text-green-100">
                 {mode === 'edit' 
                   ? `Editing: Post-Checklist #${existingChecklist?._id?.slice(-6) || ''}`
-                  : 'Post-service quality inspection checklist'
+                  : 'Automotive Lighting Post-Service Quality Checklist'
                 }
               </p>
             </div>
@@ -819,9 +739,34 @@ export default function PostChecklistCreatePage({
         </div>
       </div>
 
+      {/* Navigation Tabs */}
+      <div className="bg-white border-b shadow-sm">
+        <div className="max-w-7xl mx-auto px-8">
+          <div className="flex overflow-x-auto">
+            {['inspection', 'photos', 'warranty', 'feedback', 'terms'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab as any)}
+                className={`px-6 py-4 font-medium whitespace-nowrap border-b-2 transition-colors ${
+                  activeTab === tab
+                    ? 'border-green-600 text-green-600 bg-green-50'
+                    : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                {tab === 'inspection' && 'Inspection Items'}
+                {tab === 'photos' && 'Photos'}
+                {tab === 'warranty' && 'Warranty'}
+                {tab === 'feedback' && 'Customer Feedback'}
+                {tab === 'terms' && 'Terms & Signatures'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-8 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Left Column - Form */}
+        {/* Left Column - Main Form */}
         <div className="lg:col-span-3 space-y-8">
           {/* Quick Stats Banner */}
           <div className="bg-white rounded-2xl shadow-xl border p-6">
@@ -849,368 +794,388 @@ export default function PostChecklistCreatePage({
             </div>
           </div>
 
+          {/* Customer Details */}
+
           {/* Inspection Items Section */}
-          <div className="bg-white rounded-2xl shadow-xl border overflow-hidden">
-            {/* Section Header */}
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-teal-50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <ClipboardCheck className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">Post-Service Inspection Items</h2>
-                    <p className="text-sm text-gray-600">Mark each item as Completed, Incomplete, or N/A</p>
+          {activeTab === 'inspection' && (
+            <div className="bg-white rounded-2xl shadow-xl border p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <User className="h-5 w-5 text-green-600" />
+                  Customer & Service Details
+                </h2>
+                {opportunity && (
+                  <button
+                    onClick={handleRefreshFromOpportunity}
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Refresh from Opportunity
+                  </button>
+                )}
+              </div>
+              
+              {opportunity && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                  <div className="flex items-start gap-3">
+                    <Info className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-green-700">
+                        Customer details and warranty information are populated from the connected opportunity.
+                      </p>
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="font-medium text-green-800">Opportunity:</span>
+                          <span className="ml-1 text-green-900">{opportunity.subject}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-green-800">Type:</span>
+                          <span className="ml-1 text-green-900 capitalize">{opportunity.opportunityType}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setShowTemplateSelector(!showTemplateSelector)}
-                    className="inline-flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              )}
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Customer Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.customerName}
+                    onChange={(e) => handleInputChange('customerName', e.target.value)}
+                    placeholder="Customer full name"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    required
+                  />
+                  {opportunity?.customer?.name && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      From opportunity: {opportunity.customer.name}
+                    </p>
+                  )}
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Date & Time *
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={formData.dateTime.split('.')[0]}
+                    onChange={(e) => handleInputChange('dateTime', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div className="mt-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Warranty Duration *
+                </label>
+                <div className="flex items-center gap-4">
+                  <select
+                    value={formData.warrantyDuration}
+                    onChange={(e) => handleInputChange('warrantyDuration', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   >
-                    <Settings className="h-4 w-4" />
-                    Templates
-                  </button>
-                  <button
-                    onClick={handleAddItem}
-                    className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Item
-                  </button>
+                    <option value="6 months">6 Months</option>
+                    <option value="12 months">12 Months</option>
+                    <option value="18 months">18 Months</option>
+                    <option value="24 months">24 Months</option>
+                    <option value="36 months">36 Months</option>
+                    <option value="lifetime">Lifetime</option>
+                  </select>
+                  {opportunity?.servicesProducts && (
+                    <div className="text-xs text-gray-600">
+                      <span className="font-medium">Based on:</span> {opportunity.servicesProducts.length} item(s)
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Template Selector */}
-              {showTemplateSelector && (
-                <div className="mt-4 p-4 bg-white border border-gray-200 rounded-lg shadow-lg">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <button
-                      onClick={() => handleTemplateSelect('basic')}
-                      className={`p-4 border rounded-lg text-left transition-all ${
-                        selectedTemplate === 'basic'
-                          ? 'border-green-500 bg-green-50'
-                          : 'border-gray-200 hover:border-green-300 hover:bg-green-50/50'
-                      }`}
-                    >
-                      <div className="font-medium text-gray-900 mb-1">Basic Inspection</div>
-                      <p className="text-sm text-gray-600">4 essential items for quick verification</p>
-                    </button>
-                    <button
-                      onClick={() => handleTemplateSelect('standard')}
-                      className={`p-4 border rounded-lg text-left transition-all ${
-                        selectedTemplate === 'standard'
-                          ? 'border-green-500 bg-green-50'
-                          : 'border-gray-200 hover:border-green-300 hover:bg-green-50/50'
-                      }`}
-                    >
-                      <div className="font-medium text-gray-900 mb-1">Standard Check</div>
-                      <p className="text-sm text-gray-600">8 items for comprehensive service verification</p>
-                    </button>
-                    <button
-                      onClick={() => handleTemplateSelect('comprehensive')}
-                      className={`p-4 border rounded-lg text-left transition-all ${
-                        selectedTemplate === 'comprehensive'
-                          ? 'border-green-500 bg-green-50'
-                          : 'border-gray-200 hover:border-green-300 hover:bg-green-50/50'
-                      }`}
-                    >
-                      <div className="font-medium text-gray-900 mb-1">Comprehensive</div>
-                      <p className="text-sm text-gray-600">15 items for thorough quality assurance</p>
-                    </button>
+              {opportunity?.servicesProducts && opportunity.servicesProducts.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-sm font-medium text-gray-700 mb-2">
+                    Services/Products Covered
+                  </h3>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-32 overflow-y-auto">
+                    <ul className="space-y-1 text-sm">
+                      {opportunity.servicesProducts.map((item, index) => (
+                        <li key={index} className="flex items-center justify-between">
+                          <span className="text-gray-700">{item.title}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            item.type === 'SERVICE' ? 'bg-blue-100 text-blue-800' :
+                            item.type === 'PRODUCT' ? 'bg-green-100 text-green-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {item.type}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
               )}
             </div>
+          )}
 
-            {/* Inspection Items List */}
-            <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
-              {formData.inspectionItems.map((item, index) => {
-                const isExpanded = expandedSections.includes(index);
-                const isRequired = item.required !== false;
-                
-                return (
-                  <div key={index} className="hover:bg-gray-50 transition-colors">
-                    {/* Item Header */}
-                    <div className="px-6 py-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <span className="text-sm font-medium text-gray-500">#{index + 1}</span>
-                            {isRequired && (
-                              <Star className="h-3 w-3 text-red-500" aria-label="Required" />
-                            )}
-                            <input
-                              type="text"
-                              value={item.item}
-                              onChange={(e) => handleItemChange(index, 'item', e.target.value)}
-                              placeholder="Enter inspection item"
-                              className="flex-1 text-lg font-medium text-gray-900 bg-transparent border-0 focus:ring-0 focus:outline-none p-0"
-                            />
-                            {item.category && (
-                              <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
-                                {item.category}
-                              </span>
-                            )}
-                            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}>
-                              {getStatusIcon(item.status)}
-                              <span className="capitalize">{item.status}</span>
-                            </span>
-                          </div>
-                          
-                          <div className="flex items-center gap-2 mt-3">
-                            <button
-                              onClick={() => handleStatusChange(index, ChecklistItemStatus.COMPLETED)}
-                              className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                                item.status === ChecklistItemStatus.COMPLETED
-                                  ? 'bg-green-100 text-green-800 border border-green-300'
-                                  : 'text-gray-600 hover:bg-green-50 hover:text-green-700 hover:border-green-200 border border-transparent'
-                              }`}
-                            >
-                              <CheckCircle className="h-3 w-3" />
-                              Completed
-                            </button>
-                            <button
-                              onClick={() => handleStatusChange(index, ChecklistItemStatus.INCOMPLETE)}
-                              className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                                item.status === ChecklistItemStatus.INCOMPLETE
-                                  ? 'bg-yellow-100 text-yellow-800 border border-yellow-300'
-                                  : 'text-gray-600 hover:bg-yellow-50 hover:text-yellow-700 hover:border-yellow-200 border border-transparent'
-                              }`}
-                            >
-                              <AlertCircle className="h-3 w-3" />
-                              Incomplete
-                            </button>
-                            <button
-                              onClick={() => handleStatusChange(index, ChecklistItemStatus.NOT_APPLICABLE)}
-                              className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                                item.status === ChecklistItemStatus.NOT_APPLICABLE
-                                  ? 'bg-gray-100 text-gray-800 border border-gray-300'
-                                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-700 hover:border-gray-200 border border-transparent'
-                              }`}
-                            >
-                              <FileText className="h-3 w-3" />
-                              N/A
-                            </button>
-                            <select
-                              value={item.category || 'general'}
-                              onChange={(e) => handleItemChange(index, 'category', e.target.value)}
-                              className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 hover:border-gray-400"
-                            >
-                              <option value="quality">Quality</option>
-                              <option value="safety">Safety</option>
-                              <option value="cleanliness">Cleanliness</option>
-                              <option value="tools">Tools</option>
-                              <option value="documentation">Documentation</option>
-                              <option value="testing">Testing</option>
-                              <option value="customer">Customer</option>
-                              <option value="approval">Approval</option>
-                              <option value="general">General</option>
-                            </select>
-                            <label className="flex items-center gap-1 text-sm text-gray-600">
-                              <input
-                                type="checkbox"
-                                checked={isRequired}
-                                onChange={(e) => handleItemChange(index, 'required', e.target.checked)}
-                                className="rounded border-gray-300"
+          {/* Photos Section */}
+          {activeTab === 'photos' && (
+            <div className="bg-white rounded-2xl shadow-xl border p-6 space-y-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                <Camera className="h-5 w-5 text-green-600" />
+                Before & After Photos
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
+                    Before Photos
+                  </h3>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center min-h-[200px]">
+                    {formData.beforePhotos.length > 0 ? (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          {formData.beforePhotos.map((photo, index) => (
+                            <div key={index} className="relative">
+                              <img 
+                                src={photo} 
+                                alt={`Before ${index + 1}`}
+                                className="w-full h-32 object-cover rounded-lg"
                               />
-                              Required
-                            </label>
-                            <button
-                              onClick={() => handleRemoveItem(index)}
-                              className="ml-auto p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Remove item"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => toggleSection(index)}
-                              className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                              title={isExpanded ? 'Collapse' : 'Expand'}
-                            >
-                              {isExpanded ? (
-                                <ChevronUp className="h-4 w-4" />
-                              ) : (
-                                <ChevronDown className="h-4 w-4" />
-                              )}
-                            </button>
-                          </div>
+                              <button
+                                onClick={() => {
+                                  const newPhotos = [...formData.beforePhotos];
+                                  newPhotos.splice(index, 1);
+                                  handleInputChange('beforePhotos', newPhotos);
+                                }}
+                                className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
                         </div>
+                        <button
+                          onClick={() => {/* Implement upload logic */}}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add More Photos
+                        </button>
                       </div>
-
-                      {/* Expanded Content */}
-                      {isExpanded && (
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Remarks & Notes
-                            </label>
-                            <textarea
-                              value={item.remarks || ''}
-                              onChange={(e) => handleItemChange(index, 'remarks', e.target.value)}
-                              placeholder="Add details, observations, or notes about this item..."
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                              rows={3}
-                            />
-                          </div>
-                          
-                          <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
-                            <Info className="h-4 w-4" />
-                            <span>Add specific details, measurements, or quality observations</span>
-                          </div>
+                    ) : (
+                      <div>
+                        <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <p className="text-gray-600 mb-2">Upload photos before service</p>
+                        <p className="text-sm text-gray-500">Document pre-existing condition</p>
+                        <button
+                          onClick={() => {/* Implement upload logic */}}
+                          className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          Upload Photos
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4" />
+                    After Photos
+                  </h3>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center min-h-[200px]">
+                    {formData.afterPhotos.length > 0 ? (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          {formData.afterPhotos.map((photo, index) => (
+                            <div key={index} className="relative">
+                              <img 
+                                src={photo} 
+                                alt={`After ${index + 1}`}
+                                className="w-full h-32 object-cover rounded-lg"
+                              />
+                              <button
+                                onClick={() => {
+                                  const newPhotos = [...formData.afterPhotos];
+                                  newPhotos.splice(index, 1);
+                                  handleInputChange('afterPhotos', newPhotos);
+                                }}
+                                className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
                         </div>
+                        <button
+                          onClick={() => {/* Implement upload logic */}}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add More Photos
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <p className="text-gray-600 mb-2">Upload photos after service</p>
+                        <p className="text-sm text-gray-500">Document completed work</p>
+                        <button
+                          onClick={() => {/* Implement upload logic */}}
+                          className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          Upload Photos
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Warranty Section */}
+          {activeTab === 'warranty' && (
+            <div className="bg-white rounded-2xl shadow-xl border p-6 space-y-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-green-600" />
+                  Warranty Information
+                </h2>
+                {opportunity && (
+                  <button
+                    onClick={handleRefreshFromOpportunity}
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Update from Opportunity
+                  </button>
+                )}
+              </div>
+              
+              {opportunity && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <Building className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-medium text-blue-800 mb-1">Opportunity Reference</h4>
+                      <p className="text-sm text-blue-700">
+                        This warranty is linked to Opportunity: <strong>{opportunity.subject}</strong>
+                      </p>
+                      {opportunity.customer?.companyName && (
+                        <p className="text-sm text-blue-700 mt-1">
+                          Customer: {opportunity.customer.companyName}
+                        </p>
                       )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-
-            {/* Add Item Button (bottom) */}
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
-              <button
-                onClick={handleAddItem}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:text-gray-900 hover:border-gray-400 hover:bg-gray-100 transition-colors"
-              >
-                <Plus className="h-5 w-5" />
-                Add Another Inspection Item
-              </button>
-            </div>
-          </div>
-
-          {/* Parts & Labor Section */}
-          <div className="bg-white rounded-2xl shadow-xl border p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <Package className="h-5 w-5 text-blue-600" />
-              Parts & Labor
-            </h2>
-            <div className="space-y-6">
-              {/* Parts Used */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-medium text-gray-900">Parts Used</h3>
-                  <button
-                    onClick={() => setShowPartsModal(true)}
-                    className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Part
-                  </button>
+                </div>
+              )}
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Warranty Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.warrantyStartDate.split('T')[0]}
+                    onChange={(e) => handleInputChange('warrantyStartDate', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
                 </div>
                 
-                {formData.partsUsed.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-gray-200">
-                          <th className="text-left py-2 font-medium text-gray-700">Part Name</th>
-                          <th className="text-left py-2 font-medium text-gray-700">Quantity</th>
-                          <th className="text-left py-2 font-medium text-gray-700">Unit Price</th>
-                          <th className="text-left py-2 font-medium text-gray-700">Total</th>
-                          <th className="text-left py-2 font-medium text-gray-700">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {formData.partsUsed.map((part, index) => (
-                          <tr key={part.partId} className="border-b border-gray-100 hover:bg-gray-50">
-                            <td className="py-3">{part.partName}</td>
-                            <td className="py-3">{part.quantity}</td>
-                            <td className="py-3">${part.unitPrice.toFixed(2)}</td>
-                            <td className="py-3 font-medium">${part.totalPrice.toFixed(2)}</td>
-                            <td className="py-3">
-                              <button
-                                onClick={() => handleRemovePart(index)}
-                                className="p-1 text-red-600 hover:bg-red-50 rounded"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="bg-gray-50 font-medium">
-                          <td colSpan={3} className="py-3 text-right">Parts Total:</td>
-                          <td className="py-3">${formData.partsUsed.reduce((sum, part) => sum + part.totalPrice, 0).toFixed(2)}</td>
-                          <td></td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Package className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                    <p>No parts added yet</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Labor Hours */}
-              <div className="border-t border-gray-200 pt-6">
-                <h3 className="font-medium text-gray-900 mb-4">Labor</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Labor Hours
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.5"
-                      value={formData.laborHours}
-                      onChange={(e) => handleInputChange('laborHours', parseFloat(e.target.value) || 0)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Rate per Hour
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <span className="text-gray-500">$</span>
-                      </div>
-                      <input
-                        type="number"
-                        min="0"
-                        value={formData.laborRate}
-                        onChange={(e) => handleInputChange('laborRate', parseFloat(e.target.value) || 0)}
-                        className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <div className="text-sm text-gray-600 mb-1">Labor Cost</div>
-                    <div className="text-2xl font-bold text-blue-700">
-                      ${(formData.laborHours * formData.laborRate).toFixed(2)}
-                    </div>
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Warranty End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.warrantyEndDate.split('T')[0]}
+                    onChange={(e) => handleInputChange('warrantyEndDate', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  />
+                  {formData.warrantyDuration && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Duration: {formData.warrantyDuration}
+                    </p>
+                  )}
                 </div>
               </div>
-
-              {/* Total Cost */}
-              <div className="border-t border-gray-200 pt-6">
-                <div className="flex items-center justify-between">
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Product/Service Covered
+                </label>
+                <input
+                  type="text"
+                  value={formData.productServiceNeeded}
+                  onChange={(e) => handleInputChange('productServiceNeeded', e.target.value)}
+                  placeholder="Headlight replacement, LED upgrade, etc."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                />
+                {opportunity?.servicesProducts && opportunity.servicesProducts.length > 0 && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Based on {opportunity.servicesProducts.length} item(s) from opportunity
+                  </p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Warranty Notes
+                </label>
+                <textarea
+                  value={formData.warrantyNotes}
+                  onChange={(e) => handleInputChange('warrantyNotes', e.target.value)}
+                  placeholder="Add any special warranty conditions, limitations, or notes..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  rows={4}
+                />
+                {opportunity?.notes && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Opportunity notes: {opportunity.notes.substring(0, 100)}...
+                  </p>
+                )}
+              </div>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <div className="text-sm text-gray-600">Total Estimated Cost</div>
-                    <div className="text-3xl font-bold text-gray-900">${totalCost.toFixed(2)}</div>
+                    <h4 className="font-medium text-blue-800 mb-1">Warranty Information</h4>
+                    <p className="text-sm text-blue-700">
+                      Eagle Lights provides a limited warranty for workmanship. Manufacturer warranties vary and are not our responsibility. 
+                      Unauthorized modifications may void the warranty. Warranty period: Six Months to One Year depending on the product.
+                    </p>
+                    {opportunity?.total !== undefined && (
+                      <div className="mt-2 text-sm text-blue-800">
+                        <span className="font-medium">Opportunity Value:</span> KES {opportunity.total.toLocaleString()}
+                      </div>
+                    )}
                   </div>
-                  <Calculator className="h-12 w-12 text-gray-300" />
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Remarks & Recommendations Section */}
-          <div className="bg-white rounded-2xl shadow-xl border p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-blue-600" />
-              Remarks & Recommendations
-            </h2>
-            <div className="space-y-6">
-              {/* Overall Condition */}
+          {/* Feedback Section */}
+          {activeTab === 'feedback' && (
+            <div className="bg-white rounded-2xl shadow-xl border p-6 space-y-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                <ThumbsUp className="h-5 w-5 text-green-600" />
+                Customer Feedback
+              </h2>
+              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Overall Condition
                 </label>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -1232,8 +1197,43 @@ export default function PostChecklistCreatePage({
                   ))}
                 </div>
               </div>
-
-              {/* Notes */}
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Rate Our Service
+                </label>
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => handleInputChange('rating', star)}
+                      className="p-1"
+                    >
+                      <Star className={`h-8 w-8 ${
+                        star <= formData.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'
+                      }`} />
+                    </button>
+                  ))}
+                  <span className="ml-2 text-sm text-gray-600">
+                    {formData.rating === 0 ? 'No rating yet' : `${formData.rating} out of 5`}
+                  </span>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Comments About Our Services
+                </label>
+                <textarea
+                  value={formData.comments}
+                  onChange={(e) => handleInputChange('comments', e.target.value)}
+                  placeholder="Please share your feedback about our service..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  rows={4}
+                />
+              </div>
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Service Notes
@@ -1241,27 +1241,189 @@ export default function PostChecklistCreatePage({
                 <textarea
                   value={formData.notes}
                   onChange={(e) => handleInputChange('notes', e.target.value)}
-                  placeholder="Add any notes about the service performed, observations, or special instructions..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Add any service notes or observations..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   rows={4}
                 />
               </div>
-
-              {/* Recommendations */}
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Recommendations for Customer
+                  Recommendations
                 </label>
                 <textarea
                   value={formData.recommendations}
                   onChange={(e) => handleInputChange('recommendations', e.target.value)}
-                  placeholder="Add any recommendations for future maintenance, warnings, or follow-up services..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Add any recommendations for future maintenance..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   rows={4}
                 />
               </div>
             </div>
-          </div>
+          )}
+
+          {/* Terms & Signatures Section */}
+          {activeTab === 'terms' && (
+            <div className="bg-white rounded-2xl shadow-xl border p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <FileSignature className="h-5 w-5 text-green-600" />
+                  Terms & Signatures
+                </h2>
+                <span className="text-sm text-gray-500">Required Fields *</span>
+              </div>
+              
+              {/* Scrollable Terms Container */}
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="h-64 overflow-y-auto p-4">
+                  
+                  {/* Dashboard Warning Notice */}
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="font-medium text-yellow-800 mb-1">NOTICE</h4>
+                        <p className="text-sm text-yellow-700">
+                          If your vehicle has dashboard warning lights/errors, additional diagnostic charges may apply 
+                          for error code reading/clearing.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Personal Items Terms */}
+                  <div className="mb-4">
+                    <h3 className="text-sm font-medium text-gray-900 mb-2">Personal Items & Valuables</h3>
+                    <ol className="space-y-2 text-xs text-gray-700">
+                      <li className="flex gap-2">
+                        <span className="font-medium">1.</span>
+                        <span>Eagle Lights Automotive LTD takes great care in servicing your vehicle, but we strongly recommend that you remove all personal items, valuables, and items of sentimental value from your vehicle before leaving it in our care for service.</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="font-medium">2.</span>
+                        <span>While we make every effort to ensure the safety and security of your personal belongings, we want to make it clear that we cannot accept liability for any loss, damage, or theft of items left in your vehicle during the service process.</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="font-medium">3.</span>
+                        <span>This includes, but is not limited to, electronic devices, jewelry, cash, documents, and any other personal property.</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="font-medium">4.</span>
+                        <span>We advise you to thoroughly inspect your vehicle before handing it over to us for service and ensure that all personal items are removed.</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="font-medium">5.</span>
+                        <span>By choosing to leave personal items in your vehicle during service, you acknowledge and accept that Eagle Lights Automotive LTD is not liable for any loss or damage to these items.</span>
+                      </li>
+                    </ol>
+                  </div>
+                  
+                  {/* Key Headlight Terms Summary */}
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-900 mb-2">Key Headlight Service Terms</h3>
+                    <ul className="text-xs text-gray-700 space-y-1">
+                      <li className="flex items-start gap-2">
+                        <Shield className="h-3 w-3 text-green-600 mt-0.5 flex-shrink-0" />
+                        <span>Limited warranty for workmanship (6-12 months)</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <AlertTriangle className="h-3 w-3 text-yellow-600 mt-0.5 flex-shrink-0" />
+                        <span>Unauthorized modifications void warranty</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <AlertCircle className="h-3 w-3 text-red-600 mt-0.5 flex-shrink-0" />
+                        <span>Customers acknowledge customization risks</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <FileText className="h-3 w-3 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <span>Full terms available in service agreement</span>
+                      </li>
+                    </ul>
+                  </div>
+                  
+                </div>
+              </div>
+              
+              {/* Acceptance Checkboxes */}
+              <div className="mt-6 space-y-4">
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    id="acceptDiagnosticCharges"
+                    checked={formData.acceptDiagnosticCharges || false}
+                    onChange={(e) => handleInputChange('acceptDiagnosticCharges', e.target.checked)}
+                    className="mt-1"
+                    required
+                  />
+                  <label htmlFor="acceptDiagnosticCharges" className="text-sm text-gray-700">
+                    I understand that dashboard error diagnosis/clearing incurs additional charges *
+                  </label>
+                </div>
+                
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    id="acceptTerms"
+                    checked={formData.acceptTerms}
+                    onChange={(e) => handleInputChange('acceptTerms', e.target.checked)}
+                    className="mt-1"
+                    required
+                  />
+                  <label htmlFor="acceptTerms" className="text-sm text-gray-700">
+                    I accept the Terms and Conditions of Eagle Lights Automotive LTD *
+                  </label>
+                </div>
+              </div>
+              
+              {/* Customer Signature & Rating */}
+              <div className="mt-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Customer Signature *
+                  </label>
+                  <div className="h-24 border border-gray-300 rounded-lg flex items-center justify-center bg-gray-50">
+                    <div className="text-center">
+                      <FileSignature className="h-6 w-6 text-gray-400 mx-auto mb-1" />
+                      <p className="text-xs text-gray-500">Sign to accept completed work</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Rate Our Service (Optional)
+                  </label>
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => handleInputChange('rating', star)}
+                        className="p-0.5"
+                      >
+                        <Star className={`h-8 w-8 ${
+                          star <= formData.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'
+                        }`} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Comments (Optional)
+                  </label>
+                  <textarea
+                    value={formData.comments}
+                    onChange={(e) => handleInputChange('comments', e.target.value)}
+                    placeholder="Share your feedback..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    rows={2}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Column - Information & Actions */}
@@ -1269,14 +1431,14 @@ export default function PostChecklistCreatePage({
           {/* Vehicle Information */}
           <div className="bg-white rounded-2xl shadow-xl border p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-              <Car className="h-5 w-5 text-green-600" />
+              <CarIcon className="h-5 w-5 text-green-600" />
               Vehicle Information
             </h2>
             
             {vehicle ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
-                  <Car className="h-8 w-8 text-green-600" />
+                  <CarIcon className="h-8 w-8 text-green-600" />
                   <div>
                     <div className="font-medium text-gray-900">
                       {vehicle.make} {vehicle.model}
@@ -1331,7 +1493,7 @@ export default function PostChecklistCreatePage({
               </div>
             ) : (
               <div className="text-center py-8">
-                <Car className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <CarIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
                 <p className="text-gray-600">No vehicle information available</p>
                 <p className="text-sm text-gray-500 mt-1">
                   Vehicle ID: {formData.vehicleId || 'Not specified'}
@@ -1408,61 +1570,12 @@ export default function PostChecklistCreatePage({
             )}
           </div>
 
-          {/* Job Card Information */}
-          {jobCard && (
-            <div className="bg-white rounded-2xl shadow-xl border p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                <ClipboardList className="h-5 w-5 text-blue-600" />
-                Job Card Information
-              </h2>
-              
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                  <ClipboardList className="h-8 w-8 text-blue-600" />
-                  <div>
-                    <div className="font-medium text-gray-900">
-                      {jobCard.jobTitle || 'Job Card'}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      {jobCard.status || 'Status unknown'}
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">
-                      Job Card ID
-                    </label>
-                    <div className="text-sm font-medium text-gray-900">
-                      {jobCard._id?.slice(-8)}
-                    </div>
-                  </div>
-                  
-                  {jobCard.assignedTo && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">
-                        Assigned To
-                      </label>
-                      <div className="text-sm font-medium text-gray-900">
-                        {typeof jobCard.assignedTo === 'object' 
-                          ? `${jobCard.assignedTo.firstName} ${jobCard.assignedTo.lastName}`
-                          : jobCard.assignedTo
-                        }
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Pre-Checklist Information */}
           {preChecklist && (
             <div className="bg-white rounded-2xl shadow-xl border p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                 <ClipboardCheck className="h-5 w-5 text-purple-600" />
-                Related Pre-Checklist
+                Pre-Service Checklist
               </h2>
               
               <div className="space-y-4">
@@ -1494,74 +1607,13 @@ export default function PostChecklistCreatePage({
                       className="inline-flex items-center gap-2 text-sm text-purple-600 hover:text-purple-800"
                     >
                       <Eye className="h-4 w-4" />
-                      View Pre-Checklist Details
+                      View Pre-Checklist
                     </Link>
                   </div>
                 </div>
               </div>
             </div>
           )}
-
-          {/* Actions Panel */}
-          <div className="bg-white rounded-2xl shadow-xl border p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Actions</h2>
-            
-            <div className="space-y-4">
-              <button
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-5 w-5" />
-                    {mode === 'edit' ? 'Update Checklist' : 'Save & Create Checklist'}
-                  </>
-                )}
-              </button>
-              
-              {stats.completionPercentage === 100 && (
-                <button
-                  onClick={handleSubmitForApproval}
-                  disabled={submitting}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ThumbsUp className="h-5 w-5" />
-                  Submit for Approval
-                </button>
-              )}
-              
-              <button
-                onClick={handleCancel}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-              >
-                <X className="h-5 w-5" />
-                Cancel
-              </button>
-              
-              {mode === 'edit' && existingChecklist && (
-                <button
-                  onClick={() => router.push(`/postchecklists/${existingChecklist._id}`)}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-                >
-                  <Eye className="h-5 w-5" />
-                  View Current Version
-                </button>
-              )}
-              
-              <div className="pt-4 border-t border-gray-200">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Shield className="h-4 w-4" />
-                  <span>All changes are auto-saved as drafts</span>
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* Completion Status */}
           <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border border-green-200 p-6">
@@ -1599,120 +1651,102 @@ export default function PostChecklistCreatePage({
                   <div className="mt-3 p-3 bg-green-100 border border-green-200 rounded-lg">
                     <div className="flex items-center gap-2 text-green-800">
                       <Award className="h-4 w-4" />
-                      <span className="font-medium">Ready for approval!</span>
+                      <span className="font-medium">Ready for customer approval!</span>
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+
+          {/* Actions Panel */}
+          <div className="bg-white rounded-2xl shadow-xl border p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Actions</h2>
+            
+            <div className="space-y-4">
+              <button
+                onClick={handleSubmit}
+                disabled={submitting}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-5 w-5" />
+                    {mode === 'edit' ? 'Update Checklist' : 'Save Checklist'}
+                  </>
+                )}
+              </button>
+              
+              {stats.completionPercentage === 100 && (
+                <button
+                  onClick={handleSubmitForApproval}
+                  disabled={submitting}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ThumbsUp className="h-5 w-5" />
+                  Submit for Customer Approval
+                </button>
+              )}
+              
+              <button
+                onClick={handleCancel}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+              >
+                <X className="h-5 w-5" />
+                Cancel
+              </button>
+              
+              {mode === 'edit' && existingChecklist && (
+                <button
+                  onClick={() => router.push(`/postchecklists/${existingChecklist._id}`)}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                >
+                  <Eye className="h-5 w-5" />
+                  View Current Version
+                </button>
+              )}
+              
+              <div className="pt-4 border-t border-gray-200">
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Shield className="h-4 w-4" />
+                  <span>All changes are auto-saved as drafts</span>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Quick Tips */}
-          <div className="bg-gradient-to-r from-blue-50 to-teal-50 rounded-2xl border border-blue-200 p-6">
+          <div className="bg-gradient-to-r from-green-50 to-teal-50 rounded-2xl border border-green-200 p-6">
             <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-blue-600" />
-              Quality Assurance Tips
+              <Lightbulb className="h-5 w-5 text-green-600" />
+              Post-Service Tips
             </h3>
             <ul className="space-y-2 text-sm text-gray-700">
               <li className="flex items-start gap-2">
                 <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0 mt-0.5" />
-                <span>Mark items as "Completed" only when fully verified</span>
+                <span>Test all lighting functions in daylight and darkness</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0 mt-0.5" />
-                <span>Add detailed remarks for any incomplete items</span>
+                <span>Document work with clear before/after photos</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0 mt-0.5" />
-                <span>Include photos of completed work for documentation</span>
+                <span>Explain warranty terms clearly to customer</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0 mt-0.5" />
-                <span>Submit for approval only when all required items are complete</span>
+                <span>Get customer signature on completed checklist</span>
               </li>
             </ul>
           </div>
         </div>
       </div>
-
-      {/* Parts Modal */}
-      {showPartsModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-6">Add New Part</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Part Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newPart.partName}
-                    onChange={(e) => setNewPart(prev => ({ ...prev, partName: e.target.value }))}
-                    placeholder="Enter part name"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Quantity
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={newPart.quantity}
-                      onChange={(e) => setNewPart(prev => ({ ...prev, quantity: parseInt(e.target.value) || 1 }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Unit Price ($)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={newPart.unitPrice}
-                      onChange={(e) => setNewPart(prev => ({ ...prev, unitPrice: parseFloat(e.target.value) || 0 }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-                
-                {newPart.quantity > 0 && newPart.unitPrice > 0 && (
-                  <div className="p-3 bg-blue-50 rounded-lg">
-                    <div className="text-sm text-gray-600">Total Price:</div>
-                    <div className="text-2xl font-bold text-blue-700">
-                      ${(newPart.quantity * newPart.unitPrice).toFixed(2)}
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex gap-3 mt-8">
-                <button
-                  onClick={() => setShowPartsModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleAddPart}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Add Part
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Bottom Action Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg px-8 py-4">
@@ -1727,10 +1761,10 @@ export default function PostChecklistCreatePage({
                 <span>{stats.incomplete} item(s) pending</span>
               </div>
             )}
-            {totalCost > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                <DollarSign className="h-4 w-4" />
-                <span>Total: ${totalCost.toFixed(2)}</span>
+            {formData.rating > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm">
+                <Star className="h-4 w-4" />
+                <span>Rating: {formData.rating}/5</span>
               </div>
             )}
           </div>

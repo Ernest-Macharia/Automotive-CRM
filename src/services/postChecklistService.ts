@@ -13,6 +13,7 @@ export interface ChecklistItem {
   remarks?: string;
   required?: boolean;
   category?: string;
+  side?: string;
   checkedBy?: string | {
     _id: string;
     firstName?: string;
@@ -54,6 +55,7 @@ export interface PostChecklist {
       lastName?: string;
     };
   };
+  preChecklistId?: string;
   inspectedBy: string | {
     _id: string;
     firstName?: string;
@@ -62,7 +64,7 @@ export interface PostChecklist {
   };
   inspectionItems: ChecklistItem[];
   notes?: string;
-  overallCondition?: string;
+  overallCondition?: 'pending' | 'satisfactory' | 'needs_attention' | 'excellent';
   recommendations?: string;
   approved: boolean;
   approvedBy?: string | {
@@ -75,26 +77,71 @@ export interface PostChecklist {
   isActive: boolean;
   createdAt: Date | string;
   updatedAt: Date | string;
+  
+  customerName?: string;
+  dateTime?: string;
+  warrantyDuration?: string;
+  beforePhotos?: string[];
+  afterPhotos?: string[];
+  rating?: number;
+  comments?: string;
+  acceptTerms?: boolean;
+  customerSignature?: string;
+  warrantyStartDate?: string;
+  warrantyEndDate?: string;
+  warrantyNotes?: string;
+  productServiceNeeded?: string;
+  acceptDiagnosticCharges?: boolean;
 }
 
 export interface CreatePostChecklistDto {
   opportunityId: string;
   vehicleId: string;
   jobCardId: string;
+  preChecklistId?: string; // Add this
   inspectedBy?: string;
   inspectionItems?: ChecklistItem[];
   notes?: string;
-  overallCondition?: string;
+  overallCondition?: 'pending' | 'satisfactory' | 'needs_attention' | 'excellent';
   recommendations?: string;
+  // Add these new properties
+  customerName?: string;
+  dateTime?: string;
+  warrantyDuration?: string;
+  beforePhotos?: string[];
+  afterPhotos?: string[];
+  rating?: number;
+  comments?: string;
+  acceptTerms?: boolean;
+  customerSignature?: string;
+  warrantyStartDate?: string;
+  warrantyEndDate?: string;
+  warrantyNotes?: string;
+  productServiceNeeded?: string;
+  acceptDiagnosticCharges?: boolean;
 }
 
 export interface UpdatePostChecklistDto {
   inspectionItems?: ChecklistItem[];
   notes?: string;
-  overallCondition?: string;
+  overallCondition?: 'pending' | 'satisfactory' | 'needs_attention' | 'excellent';
   recommendations?: string;
   approved?: boolean;
   approvedBy?: string;
+  customerName?: string;
+  dateTime?: string;
+  warrantyDuration?: string;
+  beforePhotos?: string[];
+  afterPhotos?: string[];
+  rating?: number;
+  comments?: string;
+  acceptTerms?: boolean;
+  customerSignature?: string;
+  warrantyStartDate?: string;
+  warrantyEndDate?: string;
+  warrantyNotes?: string;
+  productServiceNeeded?: string;
+  acceptDiagnosticCharges?: boolean;
 }
 
 export interface CheckItemDto {
