@@ -7,9 +7,11 @@ import {
   TrendingUp, DollarSign, Clock, Users, CheckCircle,
   Calendar, FileText, RefreshCw, ChevronRight, Sparkles,
   Eye, Edit, Trash2, MoreVertical, Loader2, Briefcase,
-  Car, Truck, AlertCircle
+  Car, Truck, AlertCircle, FileSignature, ClipboardCheck,
+  ClipboardList, Receipt, AlertTriangle, Shield, CheckCheck,
+  BarChart3, XCircle
 } from 'lucide-react';
-import { workOrderService, WorkOrdersResponse, WorkOrderStats } from '@/services/workOrderService';
+import { workOrderService, WorkOrder, WorkOrderFilterParams, WorkOrderStats, StatusSummary } from '@/services/workOrderService';
 import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -67,29 +69,45 @@ export default function WorkOrdersList() {
   const router = useRouter();
   const { showToast } = useToast();
   
-  const [workOrders, setWorkOrders] = useState<any[]>([]);
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [stats, setStats] = useState<WorkOrderStats | null>(null);
+  const [statusSummary, setStatusSummary] = useState<StatusSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [summaryLoading, setSummaryLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [stageFilter, setStageFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
+  const [assignedToFilter, setAssignedToFilter] = useState<string>('');
   const [refreshing, setRefreshing] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [deletingOrder, setDeletingOrder] = useState<string | null>(null);
-  // ✅ Add expandedRow state for kebab menu
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
+  // Updated status options to match new API
   const statusOptions = [
     { value: 'all', label: 'All Status' },
     { value: 'draft', label: 'Draft' },
+    { value: 'pre_checklist', label: 'Pre-Checklist' },
     { value: 'in_progress', label: 'In Progress' },
-    { value: 'on_hold', label: 'On Hold' },
+    { value: 'job_card', label: 'Job Card' },
+    { value: 'post_checklist', label: 'Post-Checklist' },
+    { value: 'ready_for_invoice', label: 'Ready for Invoice' },
     { value: 'completed', label: 'Completed' },
     { value: 'cancelled', label: 'Cancelled' },
+    { value: 'delayed', label: 'Delayed' },
   ];
 
-  // ✅ Keep all your existing logic functions — no changes needed
+  const stageOptions = [
+    { value: 'all', label: 'All Stages' },
+    { value: 'pre_checklist', label: 'Pre-Checklist' },
+    { value: 'job_card', label: 'Job Card' },
+    { value: 'post_checklist', label: 'Post-Checklist' },
+    { value: 'invoice', label: 'Invoice' },
+  ];
+
   const fetchWorkOrders = useCallback(async () => {
     try {
       setLoading(true);
@@ -115,15 +133,30 @@ export default function WorkOrdersList() {
       setStats(statsData);
     } catch (error) {
       console.error('Error fetching stats:', error);
+      // Don't show toast for stats error as it's not critical
     } finally {
       setStatsLoading(false);
+    }
+  }, []);
+
+  const fetchStatusSummary = useCallback(async () => {
+    try {
+      setSummaryLoading(true);
+      const summaryData = await workOrderService.getStatusSummary();
+      setStatusSummary(summaryData);
+    } catch (error) {
+      console.error('Error fetching status summary:', error);
+      // Don't show toast for summary error as it's not critical
+    } finally {
+      setSummaryLoading(false);
     }
   }, []);
 
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
-      await Promise.all([fetchWorkOrders(), fetchStats()]);
+      setError(null);
+      await Promise.all([fetchWorkOrders(), fetchStats(), fetchStatusSummary()]);
       showToast('Work orders refreshed', 'success');
     } catch (error) {
       console.error('Error refreshing:', error);
@@ -134,8 +167,12 @@ export default function WorkOrdersList() {
 
   useEffect(() => {
     fetchWorkOrders();
+  }, [fetchWorkOrders]);
+
+  useEffect(() => {
     fetchStats();
-  }, [fetchWorkOrders, fetchStats]);
+    fetchStatusSummary();
+  }, [fetchStats, fetchStatusSummary]);
 
   const handleStatusChange = async (orderId: string, newStatus: string) => {
     try {
@@ -143,6 +180,7 @@ export default function WorkOrdersList() {
       await workOrderService.updateWorkOrderStatus(orderId, newStatus);
       showToast('Work order status updated successfully!', 'success');
       fetchWorkOrders();
+      fetchStatusSummary();
     } catch (error) {
       console.error('Error updating work order status:', error);
       showToast('Failed to update work order status', 'error');
@@ -158,6 +196,7 @@ export default function WorkOrdersList() {
         await workOrderService.deleteWorkOrder(orderId);
         showToast('Work order deleted successfully!', 'success');
         fetchWorkOrders();
+        fetchStatusSummary();
         setExpandedRow(null);
       } catch (error) {
         console.error('Error deleting work order:', error);
@@ -168,45 +207,138 @@ export default function WorkOrdersList() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-KE', {
-      style: 'currency',
-      currency: 'KES',
-      minimumFractionDigits: 0
-    }).format(amount);
-  };
-
   const formatDate = (dateString: string) => {
+    if (!dateString) return 'Not scheduled';
     return format(new Date(dateString), 'MMM dd, yyyy');
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'draft': return 'bg-gray-100 text-gray-800';
-      case 'in_progress': return 'bg-blue-100 text-blue-800';
-      case 'on_hold': return 'bg-yellow-100 text-yellow-800';
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+  const getStatusConfig = (status: string) => {
+    return {
+      color: workOrderService.getStatusColor(status),
+      icon: workOrderService.getStatusIcon(status),
+      label: workOrderService.getStatusLabel(status)
+    };
+  };
+
+  const getStageConfig = (stage: string) => {
+    const config = {
+      color: 'bg-gray-100 text-gray-800',
+      icon: <div className="h-2 w-2 rounded-full bg-current" />,
+      label: workOrderService.getStageLabel(stage) || stage
+    };
+
+    switch (stage) {
+      case 'pre_checklist':
+        config.color = 'bg-purple-100 text-purple-800';
+        break;
+      case 'job_card':
+        config.color = 'bg-blue-100 text-blue-800';
+        break;
+      case 'post_checklist':
+        config.color = 'bg-teal-100 text-teal-800';
+        break;
+      case 'invoice':
+        config.color = 'bg-yellow-100 text-yellow-800';
+        break;
     }
+
+    return config;
   };
 
   const getNextStatus = (currentStatus: string) => {
     switch (currentStatus) {
-      case 'draft': return { label: 'Start Work', value: 'in_progress' };
-      case 'in_progress': return { label: 'Put On Hold', value: 'on_hold' };
-      case 'on_hold': return { label: 'Resume Work', value: 'in_progress' };
+      case 'draft': return { label: 'Start Pre-Checklist', value: 'pre_checklist' };
+      case 'pre_checklist': return { label: 'Move to Job Card', value: 'job_card' };
+      case 'job_card': return { label: 'Move to Post-Checklist', value: 'post_checklist' };
+      case 'post_checklist': return { label: 'Ready for Invoice', value: 'ready_for_invoice' };
+      case 'in_progress': return { label: 'Complete', value: 'completed' };
       default: return null;
     }
   };
 
   const canComplete = (status: string) => {
-    return ['in_progress', 'on_hold'].includes(status);
+    return ['in_progress', 'job_card', 'post_checklist', 'ready_for_invoice'].includes(status);
   };
+
+  const getCustomerName = (order: WorkOrder) => {
+    if (typeof order.opportunityId === 'object' && order.opportunityId.customer) {
+      return order.opportunityId.customer.name;
+    }
+    return '—';
+  };
+
+  const getCustomerEmail = (order: WorkOrder) => {
+    if (typeof order.opportunityId === 'object' && order.opportunityId.customer) {
+      return order.opportunityId.customer.email;
+    }
+    return '';
+  };
+
+  const getAssignedToName = (order: WorkOrder) => {
+    if (typeof order.assignedTo === 'object') {
+      return `${order.assignedTo.firstName} ${order.assignedTo.lastName}`;
+    }
+    return 'Unassigned';
+  };
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setStageFilter('all');
+    setDateRange({ from: '', to: '' });
+    setAssignedToFilter('');
+  };
+
+  // If there's an error, show error state
+  if (error && workOrders.length === 0) {
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
+        {/* Header */}
+        <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-md flex items-center px-6 flex-shrink-0">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-xl">
+                <Wrench className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-white">Work Orders</h1>
+                <p className="text-blue-100 text-sm">Manage and track all work orders</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="text-center max-w-md">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 mb-4">
+              <XCircle className="h-8 w-8 text-red-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Failed to Load Work Orders</h3>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={handleRefresh}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <RefreshCw className="h-4 w-4 inline mr-2" />
+                Try Again
+              </button>
+              <button
+                onClick={() => router.push('/')}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Go Home
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
-      {/* 🔵🟣 Header - Preserved */}
+      {/* Header */}
       <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-md flex items-center px-6 flex-shrink-0">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
@@ -245,15 +377,39 @@ export default function WorkOrdersList() {
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {/* Stats */}
-        {statsLoading ? (
+        {!error && statsLoading ? (
           <SkeletonStats />
         ) : stats && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {[
-              { label: 'Total Orders', value: stats.total, icon: Wrench, color: 'text-blue-600', bg: 'bg-blue-50' },
-              { label: 'In Progress', value: stats.byStatus?.find(s => s._id === 'in_progress')?.count || 0, icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50' },
-              { label: 'Total Cost', value: formatCurrency(stats.totalCost || 0), icon: DollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-              { label: 'Avg Hours', value: `${(stats.avgHours || 0).toFixed(1)} hrs`, icon: TrendingUp, color: 'text-teal-600', bg: 'bg-teal-50' },
+              { 
+                label: 'Total Orders', 
+                value: stats.total || 0, 
+                icon: Wrench, 
+                color: 'text-blue-600', 
+                bg: 'bg-blue-50'
+              },
+              { 
+                label: 'In Progress', 
+                value: stats.byStatus?.find(s => s._id === 'in_progress')?.count || 0, 
+                icon: Clock, 
+                color: 'text-blue-600', 
+                bg: 'bg-blue-50' 
+              },
+              { 
+                label: 'Delayed', 
+                value: stats.delayedOrders || 0, 
+                icon: AlertTriangle, 
+                color: 'text-amber-600', 
+                bg: 'bg-amber-50' 
+              },
+              { 
+                label: 'Total Cost', 
+                value: workOrderService.formatCurrency(stats.total || 0), 
+                icon: DollarSign, 
+                color: 'text-emerald-600', 
+                bg: 'bg-emerald-50' 
+              },
             ].map((item, i) => (
               <div key={i} className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
                 <div className="flex justify-between items-start">
@@ -270,12 +426,24 @@ export default function WorkOrdersList() {
           </div>
         )}
 
-        {/* Table Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          {/* Filters */}
-          <div className="p-4 sm:p-6 border-b border-gray-200 bg-gray-50">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1 relative">
+        {/* Filters */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900">Filters</h3>
+            {(searchTerm || statusFilter !== 'all' || stageFilter !== 'all' || dateRange.from || dateRange.to) && (
+              <button
+                onClick={handleClearFilters}
+                className="text-sm text-blue-600 hover:text-blue-700"
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+          
+          <div className="flex flex-col gap-4">
+            {/* Search and Status */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="relative">
                 <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <input
                   type="text"
@@ -286,8 +454,8 @@ export default function WorkOrdersList() {
                 />
               </div>
               
-              <div className="flex gap-3">
-                <div className="relative min-w-[160px]">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="relative">
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
@@ -301,25 +469,50 @@ export default function WorkOrdersList() {
                   </select>
                   <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
                 </div>
-                
-                <button
-                  onClick={() => {
-                    const today = new Date();
-                    const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-                    setDateRange({
-                      from: lastMonth.toISOString().split('T')[0],
-                      to: today.toISOString().split('T')[0]
-                    });
-                  }}
-                  className="px-4 py-2.5 rounded-lg border border-gray-300 hover:bg-gray-50 flex items-center gap-2 text-sm"
-                >
-                  <Calendar className="h-4 w-4 text-gray-600" />
-                  <span>Last Month</span>
-                </button>
+
+                <div className="relative">
+                  <select
+                    value={stageFilter}
+                    onChange={(e) => setStageFilter(e.target.value)}
+                    className="w-full appearance-none pl-4 pr-10 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  >
+                    {stageOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <BarChart3 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+            </div>
+
+            {/* Date Range */}
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-700 mb-1">From Date</label>
+                <input
+                  type="date"
+                  value={dateRange.from}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-700 mb-1">To Date</label>
+                <input
+                  type="date"
+                  value={dateRange.to}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
               </div>
             </div>
           </div>
+        </div>
 
+        {/* Table Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
           {/* Table */}
           <div className="overflow-x-auto">
             {loading ? (
@@ -328,8 +521,9 @@ export default function WorkOrdersList() {
                   <tr className="bg-gray-50">
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Order #</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Start Date</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Stage</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Assigned To</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Cost</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
@@ -347,14 +541,27 @@ export default function WorkOrdersList() {
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No work orders found</h3>
                 <p className="text-gray-600 max-w-md mx-auto mb-6">
-                  Create your first work order to get started.
+                  {searchTerm || statusFilter !== 'all' || stageFilter !== 'all' || dateRange.from || dateRange.to
+                    ? 'Try adjusting your filters to see more results.'
+                    : 'Create your first work order to get started.'
+                  }
                 </p>
-                <Link
-                  href="/orders/work-orders/create"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 shadow-sm"
-                >
-                  <Plus className="h-4 w-4" /> Create Work Order
-                </Link>
+                <div className="flex gap-3 justify-center">
+                  <Link
+                    href="/orders/work-orders/create"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 shadow-sm"
+                  >
+                    <Plus className="h-4 w-4" /> Create Work Order
+                  </Link>
+                  {(searchTerm || statusFilter !== 'all' || stageFilter !== 'all' || dateRange.from || dateRange.to) && (
+                    <button
+                      onClick={handleClearFilters}
+                      className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               <table className="w-full">
@@ -362,168 +569,164 @@ export default function WorkOrdersList() {
                   <tr className="bg-gray-50">
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Order #</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Start Date</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Stage</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Assigned To</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Cost</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {workOrders.map((order) => (
-                    <tr key={order._id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                      <td className="py-4 px-4">
-                        <p className="font-medium text-gray-900">{order.workOrderNumber}</p>
-                        <p className="text-xs text-gray-500">{formatDate(order.createdAt)}</p>
-                      </td>
-                      <td className="py-4 px-4">
-                        <p className="font-medium text-gray-900">
-                          {typeof order.opportunityId === 'object' 
-                            ? order.opportunityId.customer?.name || '—'
-                            : '—'
-                          }
-                        </p>
-                        <p className="text-xs text-gray-500 truncate max-w-[160px]">
-                          {typeof order.opportunityId === 'object' 
-                            ? order.opportunityId.customer?.email || ''
-                            : ''
-                          }
-                        </p>
-                      </td>
-                      <td className="py-4 px-4 text-gray-700">
-                        {order.startDate ? formatDate(order.startDate) : 'Not scheduled'}
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
-                          {order.status.replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 font-semibold text-gray-900">
-                        {formatCurrency((order.laborCost || 0) + (order.partsCost || 0))}
-                      </td>
-                      <td className="py-4 px-4">
-                        {/* ✅ KEBAB MENU WITH TEXT ACTIONS */}
-                        <div className="relative">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setExpandedRow(expandedRow === order._id ? null : order._id);
-                            }}
-                            className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-                            aria-haspopup="true"
-                            aria-expanded={expandedRow === order._id}
-                            aria-label="More actions"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </button>
-
-                          {expandedRow === order._id && (
-                            <>
-                              <div
-                                className="fixed inset-0 z-10"
-                                onClick={() => setExpandedRow(null)}
-                              />
-                              <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
-                                <Link
-                                  href={`/orders/work-orders/${order._id}`}
-                                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
-                                  onClick={() => setExpandedRow(null)}
-                                >
-                                  <Eye className="h-4 w-4" />
-                                  View Details
-                                </Link>
-                                <Link
-                                  href={`/orders/work-orders/${order._id}/edit`}
-                                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
-                                  onClick={() => setExpandedRow(null)}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                  Edit
-                                </Link>
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    setExpandedRow(null);
-                                    handleDelete(order._id);
-                                  }}
-                                  className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  Delete
-                                </button>
-                                
-                                {/* Contextual Status Actions */}
-                                {order.status !== 'completed' && order.status !== 'cancelled' && (
-                                  <>
-                                    {getNextStatus(order.status) && (
-                                      <button
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          setExpandedRow(null);
-                                          handleStatusChange(order._id, getNextStatus(order.status)!.value);
-                                        }}
-                                        disabled={updatingStatus === order._id}
-                                        className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 w-full text-left disabled:opacity-50"
-                                      >
-                                        {updatingStatus === order._id ? (
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                          <Sparkles className="h-4 w-4" />
-                                        )}
-                                        {getNextStatus(order.status)!.label}
-                                      </button>
-                                    )}
-                                    {canComplete(order.status) && (
-                                      <button
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          setExpandedRow(null);
-                                          handleStatusChange(order._id, 'completed');
-                                        }}
-                                        disabled={updatingStatus === order._id}
-                                        className="flex items-center gap-2 px-4 py-2 text-sm text-green-600 hover:bg-green-50 w-full text-left disabled:opacity-50"
-                                      >
-                                        {updatingStatus === order._id ? (
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                          <CheckCircle className="h-4 w-4" />
-                                        )}
-                                        Complete Order
-                                      </button>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                            </>
+                  {workOrders.map((order) => {
+                    const statusConfig = getStatusConfig(order.status);
+                    const stageConfig = getStageConfig(order.currentStage || '');
+                    return (
+                      <tr key={order._id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                        <td className="py-4 px-4">
+                          <p className="font-medium text-gray-900">{order.workOrderNumber}</p>
+                          <p className="text-xs text-gray-500">{formatDate(order.createdAt)}</p>
+                        </td>
+                        <td className="py-4 px-4">
+                          <p className="font-medium text-gray-900">
+                            {getCustomerName(order)}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate max-w-[160px]">
+                            {getCustomerEmail(order) || 'No email'}
+                          </p>
+                        </td>
+                        <td className="py-4 px-4">
+                          {order.currentStage ? (
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${stageConfig.color}`}>
+                              {stageConfig.icon}
+                              {stageConfig.label}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-500">Not started</span>
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="flex flex-col gap-1">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig.color}`}>
+                              {statusConfig.icon}
+                              {statusConfig.label}
+                            </span>
+                            {order.delayDays && order.delayDays > 0 && (
+                              <span className="text-xs text-amber-600">
+                                Delayed by {order.delayDays} day{order.delayDays !== 1 ? 's' : ''}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 text-gray-700 text-sm">
+                          {getAssignedToName(order)}
+                        </td>
+                        <td className="py-4 px-4 font-semibold text-gray-900">
+                          {workOrderService.formatCurrency(order.totalCost || 0)}
+                        </td>
+                        <td className="py-4 px-4">
+                          {/* Kebab Menu */}
+                          <div className="relative">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedRow(expandedRow === order._id ? null : order._id);
+                              }}
+                              className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                              aria-haspopup="true"
+                              aria-expanded={expandedRow === order._id}
+                              aria-label="More actions"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+
+                            {expandedRow === order._id && (
+                              <>
+                                <div
+                                  className="fixed inset-0 z-10"
+                                  onClick={() => setExpandedRow(null)}
+                                />
+                                <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                                  <Link
+                                    href={`/orders/work-orders/${order._id}`}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                                    onClick={() => setExpandedRow(null)}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                    View Details
+                                  </Link>
+                                  <Link
+                                    href={`/orders/work-orders/${order._id}/edit`}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                                    onClick={() => setExpandedRow(null)}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                    Edit
+                                  </Link>
+                                  
+                                  {/* Status Actions */}
+                                  {getNextStatus(order.status) && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        setExpandedRow(null);
+                                        handleStatusChange(order._id, getNextStatus(order.status)!.value);
+                                      }}
+                                      disabled={updatingStatus === order._id}
+                                      className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 w-full text-left disabled:opacity-50"
+                                    >
+                                      {updatingStatus === order._id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Sparkles className="h-4 w-4" />
+                                      )}
+                                      {getNextStatus(order.status)!.label}
+                                    </button>
+                                  )}
+                                  
+                                  {canComplete(order.status) && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        setExpandedRow(null);
+                                        handleStatusChange(order._id, 'completed');
+                                      }}
+                                      disabled={updatingStatus === order._id}
+                                      className="flex items-center gap-2 px-4 py-2 text-sm text-green-600 hover:bg-green-50 w-full text-left disabled:opacity-50"
+                                    >
+                                      {updatingStatus === order._id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <CheckCircle className="h-4 w-4" />
+                                      )}
+                                      Complete Order
+                                    </button>
+                                  )}
+                                  
+                                  <div className="border-t border-gray-200 my-1"></div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setExpandedRow(null);
+                                      handleDelete(order._id);
+                                    }}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Delete
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
           </div>
         </div>
-
-        {/* Status Summary */}
-        {!statsLoading && stats?.byStatus && (
-          <div className="mt-6 bg-white border border-gray-200 rounded-2xl p-4 sm:p-6">
-            <h3 className="font-semibold text-gray-900 text-sm uppercase tracking-wider mb-4">Status Overview</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-              {stats.byStatus.map((status: any) => (
-                <div key={status._id} className="p-3 bg-gray-50 rounded-lg text-center">
-                  <div className="text-xs text-gray-600 capitalize mb-1">
-                    {status._id.replace('_', ' ')}
-                  </div>
-                  <div className="text-lg font-bold text-gray-900">{status.count}</div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {formatCurrency(status.totalCost || 0)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
