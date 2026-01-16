@@ -11,7 +11,7 @@ import {
   ClipboardList, Receipt, AlertTriangle, Shield, CheckCheck,
   BarChart3, XCircle
 } from 'lucide-react';
-import { workOrderService, WorkOrder, WorkOrderFilterParams, WorkOrderStats, StatusSummary } from '@/services/workOrderService';
+import { workOrderService, WorkOrder, WorkOrderFilterParams, WorkOrdersResponse, WorkOrderStats, StatusSummary } from '@/services/workOrderService';
 import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -74,12 +74,10 @@ export default function WorkOrdersList() {
   const [statusSummary, setStatusSummary] = useState<StatusSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
-  const [summaryLoading, setSummaryLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [stageFilter, setStageFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
-  const [assignedToFilter, setAssignedToFilter] = useState<string>('');
   const [refreshing, setRefreshing] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [deletingOrder, setDeletingOrder] = useState<string | null>(null);
@@ -111,16 +109,19 @@ export default function WorkOrdersList() {
   const fetchWorkOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const params: any = {};
+      const params: WorkOrderFilterParams = {};
       if (searchTerm) params.search = searchTerm;
       if (statusFilter !== 'all') params.status = statusFilter;
       if (dateRange.from) params.fromDate = dateRange.from;
       if (dateRange.to) params.toDate = dateRange.to;
+      
       const response = await workOrderService.getAllWorkOrders(params);
-      setWorkOrders(response);
+      // ✅ Correctly handle the WorkOrdersResponse type
+      setWorkOrders(Array.isArray(response) ? response : response.data || []);
     } catch (error) {
       console.error('Error fetching work orders:', error);
       showToast('Failed to load work orders', 'error');
+      setError('Failed to load work orders. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -133,7 +134,6 @@ export default function WorkOrdersList() {
       setStats(statsData);
     } catch (error) {
       console.error('Error fetching stats:', error);
-      // Don't show toast for stats error as it's not critical
     } finally {
       setStatsLoading(false);
     }
@@ -141,14 +141,10 @@ export default function WorkOrdersList() {
 
   const fetchStatusSummary = useCallback(async () => {
     try {
-      setSummaryLoading(true);
       const summaryData = await workOrderService.getStatusSummary();
       setStatusSummary(summaryData);
     } catch (error) {
       console.error('Error fetching status summary:', error);
-      // Don't show toast for summary error as it's not critical
-    } finally {
-      setSummaryLoading(false);
     }
   }, []);
 
@@ -207,7 +203,7 @@ export default function WorkOrdersList() {
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string) => {
     if (!dateString) return 'Not scheduled';
     return format(new Date(dateString), 'MMM dd, yyyy');
   };
@@ -220,7 +216,13 @@ export default function WorkOrdersList() {
     };
   };
 
-  const getStageConfig = (stage: string) => {
+  const getStageConfig = (stage?: string) => {
+    if (!stage) return {
+      color: 'bg-gray-100 text-gray-800',
+      icon: <div className="h-2 w-2 rounded-full bg-current" />,
+      label: 'Not started'
+    };
+
     const config = {
       color: 'bg-gray-100 text-gray-800',
       icon: <div className="h-2 w-2 rounded-full bg-current" />,
@@ -261,24 +263,15 @@ export default function WorkOrdersList() {
   };
 
   const getCustomerName = (order: WorkOrder) => {
-    if (typeof order.opportunityId === 'object' && order.opportunityId.customer) {
-      return order.opportunityId.customer.name;
-    }
-    return '—';
+    return workOrderService.getCustomerName(order);
   };
 
   const getCustomerEmail = (order: WorkOrder) => {
-    if (typeof order.opportunityId === 'object' && order.opportunityId.customer) {
-      return order.opportunityId.customer.email;
-    }
-    return '';
+    return workOrderService.getCustomerEmail(order) || '';
   };
 
   const getAssignedToName = (order: WorkOrder) => {
-    if (typeof order.assignedTo === 'object') {
-      return `${order.assignedTo.firstName} ${order.assignedTo.lastName}`;
-    }
-    return 'Unassigned';
+    return workOrderService.getAssignedToName(order);
   };
 
   const handleClearFilters = () => {
@@ -286,11 +279,10 @@ export default function WorkOrdersList() {
     setStatusFilter('all');
     setStageFilter('all');
     setDateRange({ from: '', to: '' });
-    setAssignedToFilter('');
   };
 
   // If there's an error, show error state
-  if (error && workOrders.length === 0) {
+  if (error && workOrders.length === 0 && !loading) {
     return (
       <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
         {/* Header */}
@@ -384,31 +376,31 @@ export default function WorkOrdersList() {
             {[
               { 
                 label: 'Total Orders', 
-                value: stats.total || 0, 
+                value: stats.total || workOrders.length, 
                 icon: Wrench, 
                 color: 'text-blue-600', 
                 bg: 'bg-blue-50'
               },
               { 
                 label: 'In Progress', 
-                value: stats.byStatus?.find(s => s._id === 'in_progress')?.count || 0, 
+                value: stats.byStatus?.find(s => s._id === 'in_progress')?.count || workOrders.filter(o => o.status === 'in_progress').length, 
                 icon: Clock, 
                 color: 'text-blue-600', 
                 bg: 'bg-blue-50' 
               },
               { 
                 label: 'Delayed', 
-                value: stats.delayedOrders || 0, 
+                value: stats.delayedOrders || workOrders.filter(o => o.status === 'delayed').length, 
                 icon: AlertTriangle, 
                 color: 'text-amber-600', 
                 bg: 'bg-amber-50' 
               },
               { 
-                label: 'Total Cost', 
-                value: workOrderService.formatCurrency(stats.total || 0), 
-                icon: DollarSign, 
-                color: 'text-emerald-600', 
-                bg: 'bg-emerald-50' 
+                label: 'Completed', 
+                value: stats.byStatus?.find(s => s._id === 'completed')?.count || workOrders.filter(o => o.status === 'completed').length, 
+                icon: CheckCircle, 
+                color: 'text-green-600', 
+                bg: 'bg-green-50' 
               },
             ].map((item, i) => (
               <div key={i} className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
@@ -579,7 +571,7 @@ export default function WorkOrdersList() {
                 <tbody>
                   {workOrders.map((order) => {
                     const statusConfig = getStatusConfig(order.status);
-                    const stageConfig = getStageConfig(order.currentStage || '');
+                    const stageConfig = getStageConfig(order.currentStage);
                     return (
                       <tr key={order._id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                         <td className="py-4 px-4">

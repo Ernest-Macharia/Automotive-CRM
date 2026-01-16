@@ -41,26 +41,17 @@ import {
   CheckCircle2,
   PauseCircle,
   PlayCircle,
+  Plus,
+  Sparkles,
 } from 'lucide-react';
-import { workOrderService } from '@/services/workOrderService';
+import { workOrderService, WorkOrder, TechnicianNote } from '@/services/workOrderService';
 import { useToast } from '@/contexts/ToastContext';
 import { format } from 'date-fns';
+import { preChecklistService } from '@/services/preChecklistService';
+import { postChecklistService } from '@/services/postChecklistService';
 
 interface WorkOrderDetailPageProps {
   orderId: string;
-}
-
-interface TechnicianNote {
-  content: string;
-  createdBy: {
-    _id: string;
-    firstName: string;
-    lastName: string;
-    email?: string;
-  };
-  createdAt: string;
-  isInternal: boolean;
-  category: 'customer_communication' | 'observation' | 'issue' | 'other';
 }
 
 // Define stage status types
@@ -210,7 +201,7 @@ const SkeletonLoader = {
       <div className="relative mb-8">
         <div className="absolute left-0 right-0 top-6 h-0.5 bg-gray-200"></div>
         <div className="relative flex justify-between">
-          {[1, 2, 3, 4, 5].map((i) => (
+          {[1, 2, 3, 4].map((i) => (
             <div key={i} className="flex flex-col items-center">
               <div className="w-12 h-12 bg-gray-200 rounded-full mb-3"></div>
               <div className="text-center max-w-[120px] space-y-1">
@@ -221,21 +212,12 @@ const SkeletonLoader = {
           ))}
         </div>
       </div>
-      
-      <div className="grid grid-cols-3 gap-4">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="text-center space-y-2">
-            <div className="w-16 h-7 bg-gray-200 rounded mx-auto"></div>
-            <div className="w-24 h-3 bg-gray-200 rounded mx-auto"></div>
-          </div>
-        ))}
-      </div>
     </div>
   ),
 
   OverviewCards: () => (
     <div className="animate-pulse grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {[1, 2, 3, 4, 5, 6].map((i) => (
+      {[1, 2, 3].map((i) => (
         <div key={i} className="bg-white rounded-xl border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
@@ -249,23 +231,6 @@ const SkeletonLoader = {
       ))}
     </div>
   ),
-
-  QuickActions: () => (
-    <div className="animate-pulse bg-white rounded-xl border border-gray-200 p-6">
-      <div className="w-32 h-5 bg-gray-200 rounded mb-4"></div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="p-4 rounded-xl border-2 flex items-center gap-3">
-            <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
-            <div className="space-y-2 flex-1">
-              <div className="w-24 h-4 bg-gray-200 rounded"></div>
-              <div className="w-32 h-3 bg-gray-200 rounded"></div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  ),
 };
 
 const FullPageSkeleton = () => (
@@ -276,7 +241,6 @@ const FullPageSkeleton = () => (
       <SkeletonLoader.CurrentStage />
       <SkeletonLoader.WorkflowProgress />
       <SkeletonLoader.OverviewCards />
-      <SkeletonLoader.QuickActions />
     </div>
   </div>
 );
@@ -285,7 +249,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   const router = useRouter();
   const { showToast } = useToast();
   
-  const [workOrder, setWorkOrder] = useState<any>(null);
+  const [workOrder, setWorkOrder] = useState<WorkOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [showActionsMenu, setShowActionsMenu] = useState(false);
@@ -294,21 +258,19 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   const [newNote, setNewNote] = useState('');
   const [includeInternal, setIncludeInternal] = useState(false);
   const [workflowStages, setWorkflowStages] = useState<WorkflowStage[]>([]);
-  const [stats, setStats] = useState<any>(null);
-  const [statsLoading, setStatsLoading] = useState(false);
   const [showDelayModal, setShowDelayModal] = useState(false);
   const [delayReason, setDelayReason] = useState('');
   const [delayExpectedDate, setDelayExpectedDate] = useState('');
   const [showGenerateInvoiceModal, setShowGenerateInvoiceModal] = useState(false);
   const [showLinkInvoiceModal, setShowLinkInvoiceModal] = useState(false);
   const [invoiceIdToLink, setInvoiceIdToLink] = useState('');
-  const [showCreateWaiverModal, setShowCreateWaiverModal] = useState(false);
-  const [waiverNotes, setWaiverNotes] = useState('');
-  const [waiverCreating, setWaiverCreating] = useState(false);
+  const [preChecklist, setPreChecklist] = useState<any>(null);
+  const [postChecklist, setPostChecklist] = useState<any>(null);
+  const [loadingPreChecklist, setLoadingPreChecklist] = useState(false);
+  const [loadingPostChecklist, setLoadingPostChecklist] = useState(false);
 
   useEffect(() => {
     fetchWorkOrder();
-    fetchWorkOrderStats();
   }, [orderId]);
 
   useEffect(() => {
@@ -316,6 +278,39 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       fetchTechnicianNotes();
     }
   }, [workOrder, activeTab, includeInternal]);
+
+  useEffect(() => {
+    if (workOrder && activeTab === 'pre-checklist' && workOrder.preChecklistId) {
+      fetchPreChecklist();
+    }
+  }, [workOrder, activeTab]);
+
+  useEffect(() => {
+    if (workOrder && activeTab === 'post-checklist' && workOrder.postChecklistId) {
+      fetchPostChecklist();
+    }
+  }, [workOrder, activeTab]);
+
+  const fetchPreChecklist = async () => {
+    try {
+      setLoadingPreChecklist(true);
+      const data = await preChecklistService.getPreChecklistById(workOrder.preChecklistId);
+      setPreChecklist(data);
+    } catch (error) {
+      console.error('Error fetching pre-checklist:', error);
+    }
+  };
+
+  // Add this function
+  const fetchPostChecklist = async () => {
+    try {
+      setLoadingPostChecklist(true);
+      const data = await postChecklistService.getPostChecklistById(workOrder.postChecklistId);
+      setPostChecklist(data);
+    } catch (error) {
+      console.error('Error fetching post-checklist:', error);
+    }
+  };
 
   const fetchWorkOrder = async () => {
     try {
@@ -341,23 +336,11 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     }
   };
 
-  const fetchWorkOrderStats = async () => {
-    try {
-      setStatsLoading(true);
-      const statsData = await workOrderService.getWorkOrderStats();
-      setStats(statsData);
-    } catch (error) {
-      console.error('Error fetching work order stats:', error);
-    } finally {
-      setStatsLoading(false);
-    }
-  };
-
   // Helper function to determine stage status
-  const determineStageStatus = (order: any, stage: string): StageStatus => {
+  const determineStageStatus = (order: WorkOrder, stage: string): StageStatus => {
     // If work order has approval fields, use them
-    if (order.stageApprovals && order.stageApprovals[stage]) {
-      const stageApproval = order.stageApprovals[stage];
+    if (order.stageApprovals && order.stageApprovals[stage as keyof typeof order.stageApprovals]) {
+      const stageApproval = order.stageApprovals[stage as keyof typeof order.stageApprovals];
       if (stageApproval.approved) return 'approved';
       if (stageApproval.needsApproval) return 'needs_approval';
       if (stageApproval.rejected) return 'rejected';
@@ -460,7 +443,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   };
 
   // Helper function to get stage actions based on status
-  const getStageActions = (order: any, stage: string, status: StageStatus) => {
+  const getStageActions = (order: WorkOrder, stage: string, status: StageStatus) => {
     const baseActions = {
       pre_checklist: {
         not_started: [
@@ -493,14 +476,13 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
             variant: 'info' as const,
             action: async () => {
               try {
-                // Use a more generic approach with stageApprovals
                 const updateData: any = {
                   stageApprovals: {
                     ...order.stageApprovals,
                     pre_checklist: {
                       needsApproval: true,
                       submittedAt: new Date().toISOString(),
-                      submittedBy: 'current-user-id' // This should come from auth context
+                      submittedBy: 'current-user-id'
                     }
                   }
                 };
@@ -549,33 +531,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                 fetchWorkOrder();
               } catch (error) {
                 showToast('Failed to approve checklist', 'error');
-              }
-            }
-          },
-          {
-            id: 'reject-pre-checklist',
-            label: 'Reject',
-            icon: <X className="h-4 w-4" />,
-            variant: 'danger' as const,
-            action: async () => {
-              try {
-                const updateData: any = {
-                  stageApprovals: {
-                    ...order.stageApprovals,
-                    pre_checklist: {
-                      ...order.stageApprovals?.pre_checklist,
-                      needsApproval: false,
-                      rejected: true,
-                      rejectedAt: new Date().toISOString(),
-                      rejectedBy: 'current-user-id'
-                    }
-                  }
-                };
-                await workOrderService.updateWorkOrder(order._id, updateData);
-                showToast('Pre-checklist rejected', 'warning');
-                fetchWorkOrder();
-              } catch (error) {
-                showToast('Failed to reject checklist', 'error');
               }
             }
           }
@@ -711,33 +666,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                 showToast('Failed to approve job cards', 'error');
               }
             }
-          },
-          {
-            id: 'reject-job-cards',
-            label: 'Reject',
-            icon: <X className="h-4 w-4" />,
-            variant: 'danger' as const,
-            action: async () => {
-              try {
-                const updateData: any = {
-                  stageApprovals: {
-                    ...order.stageApprovals,
-                    job_card: {
-                      ...order.stageApprovals?.job_card,
-                      needsApproval: false,
-                      rejected: true,
-                      rejectedAt: new Date().toISOString(),
-                      rejectedBy: 'current-user-id'
-                    }
-                  }
-                };
-                await workOrderService.updateWorkOrder(order._id, updateData);
-                showToast('Job cards rejected', 'warning');
-                fetchWorkOrder();
-              } catch (error) {
-                showToast('Failed to reject job cards', 'error');
-              }
-            }
           }
         ],
         approved: [
@@ -860,33 +788,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                 fetchWorkOrder();
               } catch (error) {
                 showToast('Failed to approve checklist', 'error');
-              }
-            }
-          },
-          {
-            id: 'reject-post-checklist',
-            label: 'Reject',
-            icon: <X className="h-4 w-4" />,
-            variant: 'danger' as const,
-            action: async () => {
-              try {
-                const updateData: any = {
-                  stageApprovals: {
-                    ...order.stageApprovals,
-                    post_checklist: {
-                      ...order.stageApprovals?.post_checklist,
-                      needsApproval: false,
-                      rejected: true,
-                      rejectedAt: new Date().toISOString(),
-                      rejectedBy: 'current-user-id'
-                    }
-                  }
-                };
-                await workOrderService.updateWorkOrder(order._id, updateData);
-                showToast('Post-checklist rejected', 'warning');
-                fetchWorkOrder();
-              } catch (error) {
-                showToast('Failed to reject checklist', 'error');
               }
             }
           }
@@ -1063,7 +964,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     return baseActions[stage as keyof typeof baseActions]?.[status] || [];
   };
 
-  const transformWorkOrderToStages = (order: any) => {
+  const transformWorkOrderToStages = (order: WorkOrder) => {
     // Main 4 stages
     const mainStages = [
       {
@@ -1114,7 +1015,15 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       const actions = getStageActions(order, stageConfig.stage, status);
       
       // Get approval info from stageApprovals if available
-      const stageApproval = order.stageApprovals?.[stageConfig.stage];
+      const stageApproval = order.stageApprovals?.[stageConfig.stage as keyof typeof order.stageApprovals];
+      
+      // Get documentId - fix the type issue
+      let documentId: string | undefined;
+      const key = `${stageConfig.stage}Id` as keyof WorkOrder;
+      const value = order[key];
+      if (typeof value === 'string') {
+        documentId = value;
+      }
       
       return {
         ...stageConfig,
@@ -1124,18 +1033,18 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         statusIcon: statusDisplay.icon,
         completed: status === 'completed' || status === 'approved',
         isCurrent: order.currentStage === stageConfig.stage,
-        documentId: order[`${stageConfig.stage}Id`],
+        documentId: documentId,
         actions: actions as any[],
         // Add approval information if available
         approvalDate: stageApproval?.approvedAt || stageApproval?.submittedAt,
         approvedBy: stageApproval?.approvedBy || stageApproval?.submittedBy,
         // Add completion date
-        completionDate: order[`${stageConfig.stage}CompletionDate`] || 
-                       (status === 'completed' || status === 'approved' ? new Date().toISOString() : undefined)
+        completionDate: order[`${stageConfig.stage}CompletionDate` as keyof WorkOrder] as string || 
+                      (status === 'completed' || status === 'approved' ? new Date().toISOString() : undefined)
       };
     });
 
-    setWorkflowStages(stagesWithStatus);
+    setWorkflowStages(stagesWithStatus as WorkflowStage[]);
   };
 
   const handleAddTechnicianNote = async () => {
@@ -1178,53 +1087,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       fetchWorkOrder();
     } catch (error) {
       showToast('Failed to mark as delayed', 'error');
-    }
-  };
-
-  const handleCreateWaiver = async () => {
-    if (!waiverNotes.trim()) {
-      showToast('Please provide waiver notes', 'warning');
-      return;
-    }
-
-    try {
-      setWaiverCreating(true);
-      
-      // Create waiver
-      const waiverResponse = await fetch('/api/waivers', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          workOrderId: orderId,
-          opportunityId: workOrder.opportunityId,
-          notes: waiverNotes,
-          status: 'pending'
-        }),
-      });
-
-      if (!waiverResponse.ok) {
-        throw new Error('Failed to create waiver');
-      }
-
-      const waiverData = await waiverResponse.json();
-      
-      // Link waiver to work order using generic update
-      const updateData: any = {
-        waiverId: waiverData._id
-      };
-      await workOrderService.updateWorkOrder(orderId, updateData);
-      
-      setShowCreateWaiverModal(false);
-      setWaiverNotes('');
-      showToast('Waiver created successfully', 'success');
-      fetchWorkOrder();
-    } catch (error) {
-      console.error('Error creating waiver:', error);
-      showToast('Failed to create waiver', 'error');
-    } finally {
-      setWaiverCreating(false);
     }
   };
 
@@ -1279,23 +1141,34 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     return workflowStages.find(stage => stage.isCurrent);
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string) => {
     if (!dateString) return '—';
     return format(new Date(dateString), 'MMM dd, yyyy');
   };
 
-  const formatDateTime = (dateString: string) => {
+  const formatDateTime = (dateString?: string) => {
     if (!dateString) return '—';
     return format(new Date(dateString), 'MMM dd, yyyy HH:mm');
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'KES',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
+  const formatCurrency = (amount?: number) => {
+    if (!amount) return 'KES 0';
+    return workOrderService.formatCurrency(amount);
+  };
+
+  const getCustomerName = () => {
+    if (!workOrder) return '—';
+    return workOrderService.getCustomerName(workOrder);
+  };
+
+  const getCustomerEmail = () => {
+    if (!workOrder) return undefined;
+    return workOrderService.getCustomerEmail(workOrder);
+  };
+
+  const getAssignedToName = () => {
+    if (!workOrder) return 'Unassigned';
+    return workOrderService.getAssignedToName(workOrder);
   };
 
   if (loading) {
@@ -1421,13 +1294,13 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
             {[
               { id: 'overview', label: 'Overview', icon: <BarChart3 className="h-4 w-4" /> },
               { id: 'stages', label: 'Stages', icon: <CheckCheck className="h-4 w-4" /> },
+              { id: 'pre-checklist', label: 'Pre Checklist', icon: <ClipboardCheck className="h-4 w-4" /> },
+              { id: 'post-checklist', label: 'Post Checklist', icon: <ClipboardList className="h-4 w-4" /> },
               { id: 'quotations', label: 'Quotations', icon: <DollarSign className="h-4 w-4" /> },
               { id: 'waiver', label: 'Waiver', icon: <FileSignature className="h-4 w-4" /> },
               { id: 'delays', label: 'Delays', icon: <AlertTriangle className="h-4 w-4" /> },
               { id: 'documents', label: 'Documents', icon: <FileText className="h-4 w-4" /> },
               { id: 'technician-notes', label: 'Technician Notes', icon: <MessageSquare className="h-4 w-4" /> },
-              { id: 'activity', label: 'Activity', icon: <History className="h-4 w-4" /> },
-              { id: 'stats', label: 'Statistics', icon: <TrendingUp className="h-4 w-4" /> },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1441,6 +1314,17 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                 {tab.icon}
                 {tab.label}
                 {/* Badge for delays if present */}
+                {tab.id === 'pre-checklist' && workOrder.preChecklistId && (
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-green-100 text-green-800 rounded-full">
+                    1
+                  </span>
+                )}
+                {/* Add badge for post-checklist if exists */}
+                {tab.id === 'post-checklist' && workOrder.postChecklistId && (
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-green-100 text-green-800 rounded-full">
+                    1
+                  </span>
+                )}
                 {tab.id === 'delays' && workOrder.delayInfo && (
                   <span className="ml-1 px-1.5 py-0.5 text-xs bg-red-100 text-red-800 rounded-full">
                     1
@@ -1667,12 +1551,12 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                   </div>
                   <div className="space-y-2">
                     <p className="text-xl font-bold text-gray-900">
-                      {workOrderService.getCustomerName(workOrder)}
+                      {getCustomerName()}
                     </p>
-                    {workOrderService.getCustomerEmail(workOrder) && (
+                    {getCustomerEmail() && (
                       <p className="text-gray-600">
                         <Mail className="h-4 w-4 inline mr-2" />
-                        {workOrderService.getCustomerEmail(workOrder)}
+                        {getCustomerEmail()}
                       </p>
                     )}
                   </div>
@@ -1687,16 +1571,16 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Labor:</span>
-                      <span className="font-semibold">{formatCurrency(workOrder.laborCost || 0)}</span>
+                      <span className="font-semibold">{formatCurrency(workOrder.laborCost)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Parts:</span>
-                      <span className="font-semibold">{formatCurrency(workOrder.partsCost || 0)}</span>
+                      <span className="font-semibold">{formatCurrency(workOrder.partsCost)}</span>
                     </div>
                     <div className="flex justify-between border-t border-gray-200 pt-2">
                       <span className="text-gray-900 font-semibold">Total:</span>
                       <span className="font-bold text-lg text-blue-600">
-                        {formatCurrency(workOrder.totalCost || 0)}
+                        {formatCurrency(workOrder.totalCost)}
                       </span>
                     </div>
                   </div>
@@ -1832,6 +1716,345 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
             </div>
           )}
 
+          {activeTab === 'pre-checklist' && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Pre-Checklist</h3>
+                    <p className="text-sm text-gray-600">Pre-service inspection and validation</p>
+                  </div>
+                  {workOrder.preChecklistId ? (
+                    <span className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                      <CheckCircle className="h-4 w-4" />
+                      Checklist Created
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
+                      <AlertCircle className="h-4 w-4" />
+                      No Checklist
+                    </span>
+                  )}
+                </div>
+
+                {workOrder.preChecklistId ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <ClipboardCheck className="h-5 w-5 text-green-600" />
+                            <h4 className="font-semibold text-gray-900">Linked Pre-Checklist</h4>
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-sm text-gray-600">
+                              A pre-checklist has been created and linked to this work order.
+                            </p>
+                            <div className="flex items-center gap-4 mt-3">
+                              <button
+                                onClick={() => router.push(`/pre-checklist/${workOrder.preChecklistId}`)}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                              >
+                                <Eye className="h-4 w-4" />
+                                View Pre-Checklist
+                              </button>
+                              {workOrder.currentStage === 'pre_checklist' && (
+                                <button
+                                  onClick={async () => {
+                                    router.push(`/pre-checklist/edit/${workOrder.preChecklistId}?workOrderId=${workOrder._id}`);
+                                  }}
+                                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                  Edit Checklist
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* ADD THE LOADING STATE HERE */}
+                    {loadingPreChecklist ? (
+                      <div className="text-center py-8">
+                        <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-3" />
+                        <p className="text-gray-600">Loading pre-checklist details...</p>
+                      </div>
+                    ) : preChecklist ? (
+                      <div className="mt-4">
+                        <h4 className="font-medium text-gray-900 mb-3">Checklist Summary</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="p-3 bg-gray-50 rounded-lg">
+                            <div className="text-sm text-gray-600">Total Items</div>
+                            <div className="text-xl font-bold text-gray-900">
+                              {Array.isArray(preChecklist.inspectionItems) ? preChecklist.inspectionItems.length : 0}
+                            </div>
+                          </div>
+                          <div className="p-3 bg-green-50 rounded-lg">
+                            <div className="text-sm text-green-600">OK Items</div>
+                            <div className="text-xl font-bold text-green-700">
+                              {Array.isArray(preChecklist.inspectionItems) 
+                                ? preChecklist.inspectionItems.filter((item: any) => item.status === 'ok').length 
+                                : 0}
+                            </div>
+                          </div>
+                          <div className="p-3 bg-red-50 rounded-lg">
+                            <div className="text-sm text-red-600">Faults Found</div>
+                            <div className="text-xl font-bold text-red-700">
+                              {Array.isArray(preChecklist.inspectionItems) 
+                                ? preChecklist.inspectionItems.filter((item: any) => item.status === 'fault').length 
+                                : 0}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
+                    <ClipboardCheck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h4 className="text-lg font-semibold text-gray-900 mb-2">No Pre-Checklist Created</h4>
+                    <p className="text-gray-600 mb-6">
+                      A pre-checklist is required before starting work on this order.
+                    </p>
+                    <div className="flex items-center justify-center gap-3">
+                      <button
+                        onClick={() => router.push(`/pre-checklist/create?workOrderId=${workOrder._id}&source=workflow`)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Create Pre-Checklist
+                      </button>
+                      {workOrder.currentStage !== 'pre_checklist' && (
+                        <button
+                          onClick={async () => {
+                            await workOrderService.updateWorkOrderStage(workOrder._id, 'pre_checklist');
+                            showToast('Moved back to Pre-Checklist stage', 'success');
+                            fetchWorkOrder();
+                          }}
+                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
+                        >
+                          <ArrowLeft className="h-4 w-4" />
+                          Return to Stage
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'post-checklist' && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Post-Checklist</h3>
+                    <p className="text-sm text-gray-600">Post-service verification and quality check</p>
+                  </div>
+                  {workOrder.postChecklistId ? (
+                    <span className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                      <CheckCircle className="h-4 w-4" />
+                      Checklist Created
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
+                      <AlertCircle className="h-4 w-4" />
+                      No Checklist
+                    </span>
+                  )}
+                </div>
+
+                {workOrder.postChecklistId ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <ClipboardList className="h-5 w-5 text-green-600" />
+                            <h4 className="font-semibold text-gray-900">Linked Post-Checklist</h4>
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-sm text-gray-600">
+                              A post-checklist has been created for quality verification.
+                            </p>
+                            <div className="flex items-center gap-4 mt-3">
+                              <button
+                                onClick={() => router.push(`/post-checklist/${workOrder.postChecklistId}`)}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                              >
+                                <Eye className="h-4 w-4" />
+                                View Post-Checklist
+                              </button>
+                              {workOrder.currentStage === 'post_checklist' && (
+                                <button
+                                  onClick={() => router.push(`/post-checklist/edit/${workOrder.postChecklistId}?workOrderId=${workOrder._id}`)}
+                                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                  Edit Checklist
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Loading State for Post Checklist Details */}
+                    {loadingPostChecklist ? (
+                      <div className="text-center py-8">
+                        <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-3" />
+                        <p className="text-gray-600">Loading post-checklist details...</p>
+                      </div>
+                    ) : postChecklist ? (
+                      <>
+                        {/* Add completion stats or summary */}
+                        <div className="mt-4">
+                          <h4 className="font-medium text-gray-900 mb-3">Verification Status</h4>
+                          <div className="bg-blue-50 p-4 rounded-lg">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm text-gray-700">Verification Progress</span>
+                              <span className="text-sm font-bold text-blue-700">
+                                {postChecklist.inspectionItems && postChecklist.inspectionItems.length > 0 
+                                  ? `${Math.round((postChecklist.inspectionItems.filter((item: any) => item.status === 'completed').length / postChecklist.inspectionItems.length) * 100)}%`
+                                  : '0%'}
+                              </span>
+                            </div>
+                            <div className="h-2 bg-blue-200 rounded-full">
+                              <div 
+                                className="h-full bg-blue-600 rounded-full" 
+                                style={{ 
+                                  width: postChecklist.inspectionItems && postChecklist.inspectionItems.length > 0 
+                                    ? `${Math.round((postChecklist.inspectionItems.filter((item: any) => item.status === 'completed').length / postChecklist.inspectionItems.length) * 100)}%` 
+                                    : '0%' 
+                                }} 
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Post Checklist Summary */}
+                        <div className="mt-4">
+                          <h4 className="font-medium text-gray-900 mb-3">Checklist Summary</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="p-3 bg-gray-50 rounded-lg">
+                              <div className="text-sm text-gray-600">Total Items</div>
+                              <div className="text-xl font-bold text-gray-900">
+                                {postChecklist.inspectionItems ? postChecklist.inspectionItems.length : 0}
+                              </div>
+                            </div>
+                            <div className="p-3 bg-green-50 rounded-lg">
+                              <div className="text-sm text-green-600">Completed</div>
+                              <div className="text-xl font-bold text-green-700">
+                                {postChecklist.inspectionItems 
+                                  ? postChecklist.inspectionItems.filter((item: any) => item.status === 'completed').length 
+                                  : 0}
+                              </div>
+                            </div>
+                            <div className="p-3 bg-yellow-50 rounded-lg">
+                              <div className="text-sm text-yellow-600">Incomplete</div>
+                              <div className="text-xl font-bold text-yellow-700">
+                                {postChecklist.inspectionItems 
+                                  ? postChecklist.inspectionItems.filter((item: any) => item.status === 'incomplete').length 
+                                  : 0}
+                              </div>
+                            </div>
+                            <div className="p-3 bg-blue-50 rounded-lg">
+                              <div className="text-sm text-blue-600">Approved</div>
+                              <div className="text-xl font-bold text-blue-700">
+                                {postChecklist.approved ? 'Yes' : 'No'}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Overall Condition */}
+                          {postChecklist.overallCondition && (
+                            <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-teal-50 border border-green-200 rounded-lg">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="text-sm text-gray-600 mb-1">Overall Condition</div>
+                                  <div className="font-semibold text-gray-900 capitalize">
+                                    {postChecklist.overallCondition.replace('_', ' ')}
+                                  </div>
+                                </div>
+                                {postChecklist.overallCondition === 'excellent' && (
+                                  <div className="p-2 bg-green-100 rounded-lg">
+                                    <Sparkles className="h-5 w-5 text-green-600" />
+                                  </div>
+                                )}
+                                {postChecklist.overallCondition === 'satisfactory' && (
+                                  <div className="p-2 bg-blue-100 rounded-lg">
+                                    <CheckCircle className="h-5 w-5 text-blue-600" />
+                                  </div>
+                                )}
+                                {postChecklist.overallCondition === 'needs_attention' && (
+                                  <div className="p-2 bg-yellow-100 rounded-lg">
+                                    <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      // This would show if fetch failed or data is null
+                      <div className="text-center py-8">
+                        <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                        <p className="text-gray-600">Unable to load checklist details</p>
+                        <button
+                          onClick={fetchPostChecklist}
+                          className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                        >
+                          Retry Loading
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
+                    <ClipboardList className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h4 className="text-lg font-semibold text-gray-900 mb-2">No Post-Checklist Created</h4>
+                    <p className="text-gray-600 mb-6">
+                      A post-checklist is required to verify work quality before completing this order.
+                    </p>
+                    <div className="flex items-center justify-center gap-3">
+                      <button
+                        onClick={() => {
+                          if (workOrder.preChecklistId) {
+                            router.push(`/post-checklist/create?workOrderId=${workOrder._id}&preChecklistId=${workOrder.preChecklistId}&source=workflow`);
+                          } else {
+                            router.push(`/post-checklist/create?workOrderId=${workOrder._id}&source=workflow`);
+                          }
+                        }}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Create Post-Checklist
+                      </button>
+                      {workOrder.currentStage !== 'post_checklist' && workOrder.preChecklistId && (
+                        <button
+                          onClick={async () => {
+                            await workOrderService.updateWorkOrderStage(workOrder._id, 'post_checklist');
+                            showToast('Moved to Post-Checklist stage', 'success');
+                            fetchWorkOrder();
+                          }}
+                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
+                        >
+                          <ArrowRight className="h-4 w-4" />
+                          Go to Stage
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {activeTab === 'quotations' && (
             <div className="space-y-6">
               <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -1897,31 +2120,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                         </button>
                       </div>
                     </div>
-                    
-                    {workOrder.quoteId && typeof workOrder.quoteId === 'object' && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="p-4 bg-white border border-gray-200 rounded-lg">
-                          <h4 className="font-medium text-gray-900 mb-2">Status</h4>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              workOrder.quoteId.status === 'approved' 
-                                ? 'bg-green-100 text-green-800'
-                                : workOrder.quoteId.status === 'pending'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : workOrder.quoteId.status === 'rejected'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {workOrder.quoteId.status?.charAt(0).toUpperCase() + workOrder.quoteId.status?.slice(1)}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="p-4 bg-white border border-gray-200 rounded-lg">
-                          <h4 className="font-medium text-gray-900 mb-2">Created Date</h4>
-                          <p>{formatDate(workOrder.quoteId.createdAt)}</p>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
@@ -1960,17 +2158,9 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                     <h3 className="text-lg font-semibold text-gray-900">Waiver & Authorization</h3>
                     <p className="text-sm text-gray-600">Manage customer waivers and authorizations</p>
                   </div>
-                  {workOrder.waiverId ? (
+                  {!workOrder.waiverId && (
                     <button
-                      onClick={() => setShowCreateWaiverModal(true)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                    >
-                      <FileSignature className="h-4 w-4" />
-                      Update Waiver
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setShowCreateWaiverModal(true)}
+                      onClick={() => router.push(`/waivers/create?workOrderId=${workOrder._id}`)}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
                     >
                       <FileSignature className="h-4 w-4" />
@@ -1989,7 +2179,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                             <h4 className="font-semibold text-gray-900">Waiver Created</h4>
                           </div>
                           <p className="text-gray-600">
-                            A waiver has been created for this work order. Customer authorization is pending.
+                            A waiver has been created for this work order.
                           </p>
                         </div>
                         <button
@@ -2010,7 +2200,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                       A waiver may be required for this work order to authorize specific services or acknowledge risks.
                     </p>
                     <button
-                      onClick={() => setShowCreateWaiverModal(true)}
+                      onClick={() => router.push(`/waivers/create?workOrderId=${workOrder._id}`)}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
                     >
                       <FileSignature className="h-4 w-4" />
@@ -2053,7 +2243,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                             <div className="flex items-center gap-4 text-sm">
                               <span className="flex items-center gap-1">
                                 <Calendar className="h-3 w-3 text-gray-500" />
-                                Reported: {formatDate(workOrder.delayInfo.reportedAt)}
+                                Reported: {formatDate(workOrder.delayInfo.detectedAt)}
                               </span>
                               {workOrder.delayInfo.expectedCompletionDate && (
                                 <span className="flex items-center gap-1">
@@ -2067,7 +2257,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                         <button
                           onClick={async () => {
                             try {
-                              await workOrderService.updateWorkOrder(orderId, { delayInfo: null });
+                              await workOrderService.resolveDelay(orderId);
                               showToast('Delay resolved successfully', 'success');
                               fetchWorkOrder();
                             } catch (error) {
@@ -2089,41 +2279,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                     <p className="text-gray-600">This work order is currently on schedule.</p>
                   </div>
                 )}
-
-                {/* Delay History */}
-                {workOrder.delayHistory && workOrder.delayHistory.length > 0 && (
-                  <div className="mt-8">
-                    <h4 className="font-semibold text-gray-900 mb-4">Delay History</h4>
-                    <div className="space-y-3">
-                      {workOrder.delayHistory.map((delay: any, index: number) => (
-                        <div key={index} className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900">{delay.reason}</p>
-                              <div className="flex items-center gap-4 text-sm text-gray-500 mt-1">
-                                <span>Reported: {formatDateTime(delay.reportedAt)}</span>
-                                {delay.resolvedAt && (
-                                  <span className="text-green-600">
-                                    Resolved: {formatDateTime(delay.resolvedAt)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            {delay.resolvedAt ? (
-                              <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                                Resolved
-                              </span>
-                            ) : (
-                              <span className="px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-medium">
-                                Active
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -2136,10 +2291,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                     <h3 className="text-lg font-semibold text-gray-900">Documents</h3>
                     <p className="text-sm text-gray-600">All documents related to this work order</p>
                   </div>
-                  <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                    <FilePlus className="h-4 w-4" />
-                    Upload Document
-                  </button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2156,14 +2307,8 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          workOrder.preChecklistApproved 
-                            ? 'bg-green-100 text-green-800'
-                            : workOrder.preChecklistNeedsApproval
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {workOrder.preChecklistApproved ? 'Approved' : workOrder.preChecklistNeedsApproval ? 'Pending Approval' : 'Draft'}
+                        <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                          Created
                         </span>
                         <button
                           onClick={() => router.push(`/pre-checklist/${workOrder.preChecklistId}`)}
@@ -2185,19 +2330,13 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                         <div>
                           <h4 className="font-semibold text-gray-900">Job Cards</h4>
                           <p className="text-sm text-gray-600">
-                            {workOrder.jobCards.length} job{workOrder.jobCards.length !== 1 ? 's' : ''}
+                            {Array.isArray(workOrder.jobCards) ? workOrder.jobCards.length : 0} job{Array.isArray(workOrder.jobCards) && workOrder.jobCards.length !== 1 ? 's' : ''}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          workOrder.jobCardsApproved 
-                            ? 'bg-green-100 text-green-800'
-                            : workOrder.jobCardsNeedApproval
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {workOrder.jobCardsApproved ? 'Approved' : workOrder.jobCardsNeedApproval ? 'Pending Approval' : 'In Progress'}
+                        <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                          Created
                         </span>
                         <button
                           onClick={() => router.push(`/job-cards?workOrderId=${workOrder._id}`)}
@@ -2222,14 +2361,8 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          workOrder.postChecklistApproved 
-                            ? 'bg-green-100 text-green-800'
-                            : workOrder.postChecklistNeedsApproval
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {workOrder.postChecklistApproved ? 'Approved' : workOrder.postChecklistNeedsApproval ? 'Pending Approval' : 'Draft'}
+                        <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                          Created
                         </span>
                         <button
                           onClick={() => router.push(`/post-checklist/${workOrder.postChecklistId}`)}
@@ -2261,7 +2394,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                             ? 'bg-yellow-100 text-yellow-800'
                             : 'bg-gray-100 text-gray-800'
                         }`}>
-                          {workOrder.invoicePaid ? 'Paid' : workOrder.invoiceGenerated ? 'Generated' : 'Draft'}
+                          {workOrder.invoicePaid ? 'Paid' : workOrder.invoiceGenerated ? 'Generated' : 'Created'}
                         </span>
                         <button
                           onClick={() => router.push(`/invoices/${workOrder.invoiceId}`)}
@@ -2269,38 +2402,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                         >
                           View →
                         </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Attachments */}
-                  {workOrder.attachments && workOrder.attachments.length > 0 && (
-                    <div className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
-                          <FileText className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <h4 className="font-semibold text-gray-900">Attachments</h4>
-                          <p className="text-sm text-gray-600">
-                            {workOrder.attachments.length} file{workOrder.attachments.length !== 1 ? 's' : ''}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        {workOrder.attachments.slice(0, 2).map((attachment: any, index: number) => (
-                          <div key={index} className="flex items-center justify-between text-sm">
-                            <span className="truncate">{attachment.name}</span>
-                            <button className="text-blue-600 hover:text-blue-700">
-                              Download
-                            </button>
-                          </div>
-                        ))}
-                        {workOrder.attachments.length > 2 && (
-                          <p className="text-sm text-gray-500">
-                            +{workOrder.attachments.length - 2} more files
-                          </p>
-                        )}
                       </div>
                     </div>
                   )}
@@ -2425,223 +2526,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                     ))
                   )}
                 </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'activity' && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Activity Log</h3>
-                    <p className="text-sm text-gray-600">Complete history of this work order</p>
-                  </div>
-                  <button
-                    onClick={fetchWorkOrder}
-                    className="p-2 hover:bg-gray-100 rounded-lg"
-                  >
-                    <RefreshCw className="h-4 w-4 text-gray-600" />
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  {workOrder.activityLog && workOrder.activityLog.length > 0 ? (
-                    workOrder.activityLog.map((activity: any, index: number) => (
-                      <div key={index} className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg">
-                        <div className="mt-1">
-                          <div className={`p-1.5 rounded-full ${
-                            activity.type === 'status_change' ? 'bg-blue-100 text-blue-600' :
-                            activity.type === 'stage_change' ? 'bg-green-100 text-green-600' :
-                            activity.type === 'note_added' ? 'bg-purple-100 text-purple-600' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>
-                            {activity.type === 'status_change' && <Activity className="h-3 w-3" />}
-                            {activity.type === 'stage_change' && <ArrowRight className="h-3 w-3" />}
-                            {activity.type === 'note_added' && <MessageSquare className="h-3 w-3" />}
-                            {activity.type === 'document_created' && <FileText className="h-3 w-3" />}
-                          </div>
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-900">
-                              {activity.user?.firstName} {activity.user?.lastName}
-                            </span>
-                            <span className="text-sm text-gray-500">
-                              {formatDateTime(activity.timestamp)}
-                            </span>
-                          </div>
-                          <p className="text-gray-700">{activity.description}</p>
-                          {activity.details && (
-                            <div className="mt-1 text-sm text-gray-500">
-                              {Object.entries(activity.details).map(([key, value]: [string, any]) => (
-                                <div key={key}>
-                                  <span className="font-medium">{key}:</span> {value.toString()}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-8">
-                      <History className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <h4 className="text-lg font-semibold text-gray-900 mb-2">No Activity Yet</h4>
-                      <p className="text-gray-600">Activity will appear as the work order progresses.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'stats' && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Work Order Statistics</h3>
-                    <p className="text-sm text-gray-600">Performance metrics and analytics</p>
-                  </div>
-                  {statsLoading && (
-                    <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                  )}
-                </div>
-
-                {statsLoading ? (
-                  <div className="text-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600">Loading statistics...</p>
-                  </div>
-                ) : stats ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {/* Stage Duration Stats */}
-                    <div className="p-4 border border-gray-200 rounded-lg">
-                      <h4 className="font-semibold text-gray-900 mb-3">Stage Durations</h4>
-                      <div className="space-y-3">
-                        {Object.entries(stats.stageDurations || {}).map(([stage, duration]: [string, any]) => (
-                          <div key={stage} className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600 capitalize">
-                              {stage.replace('_', ' ')}:
-                            </span>
-                            <span className="font-medium">
-                              {duration > 60 ? `${Math.round(duration / 60)}h` : `${Math.round(duration)}m`}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Completion Rate */}
-                    <div className="p-4 border border-gray-200 rounded-lg">
-                      <h4 className="font-semibold text-gray-900 mb-3">Completion Rate</h4>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">On Time:</span>
-                          <span className="font-medium text-green-600">
-                            {stats.completionRate?.onTime || 0}%
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Delayed:</span>
-                          <span className="font-medium text-amber-600">
-                            {stats.completionRate?.delayed || 0}%
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Average Delay:</span>
-                          <span className="font-medium">
-                            {stats.completionRate?.averageDelayDays || 0} days
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Cost Efficiency */}
-                    <div className="p-4 border border-gray-200 rounded-lg">
-                      <h4 className="font-semibold text-gray-900 mb-3">Cost Efficiency</h4>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Labor vs Parts:</span>
-                          <span className="font-medium">
-                            {Math.round((workOrder.laborCost / workOrder.totalCost) * 100) || 0}% : 
-                            {Math.round((workOrder.partsCost / workOrder.totalCost) * 100) || 0}%
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Margin:</span>
-                          <span className="font-medium text-green-600">
-                            {stats.costEfficiency?.margin || 0}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Quality Metrics */}
-                    <div className="p-4 border border-gray-200 rounded-lg">
-                      <h4 className="font-semibold text-gray-900 mb-3">Quality Metrics</h4>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Re-work Rate:</span>
-                          <span className="font-medium">
-                            {stats.qualityMetrics?.reworkRate || 0}%
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Customer Satisfaction:</span>
-                          <span className="font-medium text-green-600">
-                            {stats.qualityMetrics?.customerSatisfaction || 0}/5
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Technician Performance */}
-                    <div className="p-4 border border-gray-200 rounded-lg">
-                      <h4 className="font-semibold text-gray-900 mb-3">Technician Performance</h4>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Efficiency:</span>
-                          <span className="font-medium">
-                            {stats.technicianPerformance?.efficiency || 0}%
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Quality Score:</span>
-                          <span className="font-medium">
-                            {stats.technicianPerformance?.qualityScore || 0}/10
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Document Compliance */}
-                    <div className="p-4 border border-gray-200 rounded-lg">
-                      <h4 className="font-semibold text-gray-900 mb-3">Document Compliance</h4>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Completion Rate:</span>
-                          <span className="font-medium">
-                            {stats.documentCompliance?.completionRate || 0}%
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Approval Rate:</span>
-                          <span className="font-medium">
-                            {stats.documentCompliance?.approvalRate || 0}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <TrendingUp className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h4 className="text-lg font-semibold text-gray-900 mb-2">No Statistics Available</h4>
-                    <p className="text-gray-600">Statistics will appear as work progresses.</p>
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -2777,52 +2661,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   Link Invoice
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Create Waiver Modal */}
-      {showCreateWaiverModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Create Waiver</h3>
-              <button
-                onClick={() => setShowCreateWaiverModal(false)}
-                className="p-1 hover:bg-gray-100 rounded-lg"
-              >
-                <X className="h-5 w-5 text-gray-500" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Waiver Notes
-                </label>
-                <textarea
-                  value={waiverNotes}
-                  onChange={(e) => setWaiverNotes(e.target.value)}
-                  placeholder="Describe what the waiver is for..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  rows={4}
-                />
-              </div>
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setShowCreateWaiverModal(false)}
-                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreateWaiver}
-                  disabled={waiverCreating}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {waiverCreating ? 'Creating...' : 'Create Waiver'}
                 </button>
               </div>
             </div>
