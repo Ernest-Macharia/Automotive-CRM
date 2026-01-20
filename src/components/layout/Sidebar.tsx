@@ -1,15 +1,15 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard, Users, Building, FileText, Receipt, Wallet,
-  Truck, ClipboardList, MessageSquare, Settings, LogOut, X, ChevronRight,
-  Target,ShoppingBag, UserPlus, ListFilter,
-  Wrench,
-  BarChart3
+  LayoutDashboard, Users, FileText, Receipt,
+  Truck, ClipboardList, Settings, LogOut, X, ChevronRight,
+  Target, ShoppingBag, Wrench, BarChart3,
+  Building, Wallet, MessageSquare
 } from 'lucide-react';
+import { NavigationService } from '@/services/navigationService';
 
 interface SidebarProps {
   sidebarOpen: boolean;
@@ -19,17 +19,23 @@ interface SidebarProps {
 export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [navItems, setNavItems] = useState<any[]>([]);
+  const [user, setUser] = useState<any>(null);
 
-  const user = useMemo(() => {
-    if (typeof window === 'undefined') return null;
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
     
     try {
       const stored = sessionStorage.getItem('user');
-      if (!stored) return null;
-      return JSON.parse(stored);
+      if (stored) {
+        const parsedUser = JSON.parse(stored);
+        setUser(parsedUser);
+        
+        const filteredItems = NavigationService.getNavItemsForUser(parsedUser);
+        setNavItems(filteredItems);
+      }
     } catch (err) {
       console.error('Failed to parse user:', err);
-      return null;
     }
   }, []);
 
@@ -46,28 +52,54 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     router.push('/auth/login');
   };
 
-  const navItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/opportunities',  label: 'Opportunities', icon: Target },
-    { href: '/customers', label: 'Customers', icon: Users }, 
-    { href: '/orders/sales-orders', label: 'Sales Orders', icon: ShoppingBag},
-    { href: '/orders/work-orders', label: 'Work Orders', icon: Wrench},
-    // { href: '/pre-checklist', label: 'Pre Checklist', icon: ListFilter },
-    // { href: '/post-checklist', label: 'Post Checklist', icon: ClipboardList },
-    { href: '/contacts', label: 'Contacts', icon: Users },
-    { href: '/kpi',           label: 'KPI Reports',   icon: Settings },
-    { href: '/reports',       label: 'Analytics',     icon: BarChart3 },
-    { href: '/quotes',         label: 'Quotes',        icon: FileText },
-    { href: '/invoices',       label: 'Invoices',      icon: Receipt },
-    // { href: '/payments',       label: 'Payments',      icon: Wallet },
-    { href: '/vehicles',       label: 'Vehicles',      icon: Truck },
-    { href: '/job-cards',       label: 'Job Cards',     icon: ClipboardList },
-    { href: '/settings',       label: 'Settings',      icon: Settings },
-  ];
+  const getIconComponent = (iconName: string) => {
+    const iconMap: Record<string, any> = {
+      LayoutDashboard,
+      Target,
+      Users,
+      ShoppingBag,
+      Wrench,
+      FileText,
+      Receipt,
+      Truck,
+      ClipboardList,
+      Settings,
+      BarChart3,
+    };
+    
+    return iconMap[iconName] || LayoutDashboard;
+  };
+
+  const getRoleDisplayName = (role: string) => {
+    const roleNames: Record<string, string> = {
+      admin: 'Administrator',
+      management: 'Management',
+      branch_manager: 'Branch Manager',
+      fleet_manager: 'Fleet Manager',
+      finance: 'Finance',
+      sales_director: 'Sales Director',
+      sales_manager: 'Sales Manager',
+      sales_lead: 'Sales Lead',
+      sales_representative: 'Sales Representative',
+      account_executive: 'Account Executive',
+      business_development: 'Business Development',
+      engineer: 'Engineer',
+      technician: 'Technician',
+      workshop: 'Workshop',
+      support: 'Support Agent',
+      customer_service: 'Customer Service',
+      dealer: 'Dealer',
+      partner: 'Partner',
+      insurer: 'Insurer',
+      customer: 'Customer',
+      developer: 'Developer',
+    };
+    
+    return roleNames[role] || role;
+  };
 
   return (
     <div className="h-full flex flex-col bg-white border-r border-gray-200 shadow-sm">
-      {/* Logo/Header */}
       <div className="flex-shrink-0 flex items-center justify-between h-16 px-4 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-sm">
@@ -86,14 +118,13 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         </button>
       </div>
 
-      {/* Navigation */}
       <div className="flex-1 overflow-y-auto py-4 px-2">
         <div className="mb-4 px-3">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Navigation</h3>
         </div>
         <ul className="space-y-1">
           {navItems.map((item) => {
-            const Icon = item.icon;
+            const Icon = getIconComponent(item.icon);
             const active = item.href === '/dashboard' 
               ? pathname === '/dashboard'
               : pathname.startsWith(item.href);
@@ -125,7 +156,6 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         </ul>
       </div>
 
-      {/* User Profile & Logout */}
       <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-gray-50/50">
         {user && (
           <>
@@ -142,7 +172,10 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                       ? 'bg-red-100 text-red-600' 
                       : 'bg-blue-100 text-blue-600'
                   }`}>
-                    {user.role === 'admin' ? 'Admin' : user.role || 'User'}
+                    {getRoleDisplayName(user.role)}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {navItems.length - 1} modules
                   </span>
                 </div>
               </div>
