@@ -56,10 +56,6 @@ export interface PermissionCheckResponse {
 }
 
 class RoleService {
-  /**
-   * List all roles
-   * GET /api/v1/roles
-   */
   async getAllRoles(): Promise<Role[]> {
     try {
       const response = await apiClient.get<any[]>('/roles');
@@ -70,10 +66,6 @@ class RoleService {
     }
   }
 
-  /**
-   * Seed default roles (Admin only)
-   * POST /api/v1/roles/seed
-   */
   async seedDefaultRoles(): Promise<SeedRolesResponse> {
     try {
       return await apiClient.post<any, SeedRolesResponse>('/roles/seed', {});
@@ -83,10 +75,6 @@ class RoleService {
     }
   }
 
-  /**
-   * Assign role to user (Admin only)
-   * POST /api/v1/roles/assign
-   */
   async assignRoleToUser(data: UserRoleAssignment): Promise<RoleAssignmentResponse> {
     try {
       return await apiClient.post<UserRoleAssignment, RoleAssignmentResponse>('/roles/assign', data);
@@ -96,10 +84,6 @@ class RoleService {
     }
   }
 
-  /**
-   * Get all permissions (Admin only)
-   * GET /api/v1/roles/permissions
-   */
   async getAllPermissions(): Promise<PermissionsListResponse> {
     try {
       return await apiClient.get<PermissionsListResponse>('/roles/permissions');
@@ -109,10 +93,6 @@ class RoleService {
     }
   }
 
-  /**
-   * Get role by name (Admin only)
-   * POST /api/v1/roles/find
-   */
   async getRoleByName(name: string): Promise<Role> {
     try {
       const response = await apiClient.post<RoleFindRequest, any>('/roles/find', { name });
@@ -123,9 +103,6 @@ class RoleService {
     }
   }
 
-  /**
-   * Normalize role data from backend
-   */
   private normalizeRole(data: any): Role {
     return {
       id: data._id || data.id,
@@ -142,9 +119,6 @@ class RoleService {
     };
   }
 
-  /**
-   * Get all available roles for dropdown/select
-   */
   async getRolesForSelect(): Promise<Array<{ value: string; label: string; category: string }>> {
     try {
       const roles = await this.getAllRoles();
@@ -161,9 +135,6 @@ class RoleService {
     }
   }
 
-  /**
-   * Get roles by category
-   */
   async getRolesByCategory(category: string): Promise<Role[]> {
     try {
       const roles = await this.getAllRoles();
@@ -174,9 +145,6 @@ class RoleService {
     }
   }
 
-  /**
-   * Get active roles only
-   */
   async getActiveRoles(): Promise<Role[]> {
     try {
       const roles = await this.getAllRoles();
@@ -187,10 +155,6 @@ class RoleService {
     }
   }
 
-  /**
-   * Check if user has specific permissions
-   * (Helper method for client-side permission checking)
-   */
   checkPermissions(userPermissions: string[], requiredPermissions: string | string[]): boolean {
     if (!userPermissions || userPermissions.length === 0) {
       return false;
@@ -198,25 +162,20 @@ class RoleService {
 
     const permissions = Array.isArray(requiredPermissions) ? requiredPermissions : [requiredPermissions];
     
-    // Check if user has all required permissions
     return permissions.every(permission => {
-      // Exact match
       if (userPermissions.includes(permission)) {
         return true;
       }
       
-      // Wildcard check: users.* should match users.create, users.read, etc.
       const parts = permission.split('.');
       if (parts.length >= 2) {
         const module = parts[0];
         const action = parts[1];
         
-        // Check for module.* permission
         if (userPermissions.includes(`${module}.*`)) {
           return true;
         }
         
-        // Check for wildcard action
         if (action === '*') {
           return userPermissions.some(p => p.startsWith(`${module}.`));
         }
@@ -226,9 +185,6 @@ class RoleService {
     });
   }
 
-  /**
-   * Check if user has any of the required permissions
-   */
   checkAnyPermission(userPermissions: string[], requiredPermissions: string | string[]): boolean {
     if (!userPermissions || userPermissions.length === 0) {
       return false;
@@ -237,17 +193,14 @@ class RoleService {
     const permissions = Array.isArray(requiredPermissions) ? requiredPermissions : [requiredPermissions];
     
     return permissions.some(permission => {
-      // Exact match
       if (userPermissions.includes(permission)) {
         return true;
       }
       
-      // Wildcard check
       const parts = permission.split('.');
       if (parts.length >= 2) {
         const module = parts[0];
         
-        // Check for module.* permission
         if (userPermissions.includes(`${module}.*`)) {
           return true;
         }
@@ -257,9 +210,6 @@ class RoleService {
     });
   }
 
-  /**
-   * Get permission categories from permissions list
-   */
   async getPermissionCategories(): Promise<string[]> {
     try {
       const { permissions } = await this.getAllPermissions();
@@ -279,9 +229,6 @@ class RoleService {
     }
   }
 
-  /**
-   * Get permissions grouped by module/category
-   */
   async getPermissionsGrouped(): Promise<Record<string, string[]>> {
     try {
       const { permissions } = await this.getAllPermissions();
@@ -307,9 +254,6 @@ class RoleService {
     }
   }
 
-  /**
-   * Format permission for display
-   */
   formatPermission(permission: string): string {
     const parts = permission.split('.');
     if (parts.length === 2) {
@@ -323,12 +267,8 @@ class RoleService {
     ).join(' ');
   }
 
-  /**
-   * Get role by ID (if you have this endpoint)
-   */
   async getRoleById(id: string): Promise<Role> {
     try {
-      // This endpoint might be /roles/{id} or similar
       const response = await apiClient.get<any>(`/roles/${id}`);
       return this.normalizeRole(response);
     } catch (error) {
@@ -337,9 +277,6 @@ class RoleService {
     }
   }
 
-  /**
-   * Update role permissions
-   */
   async updateRolePermissions(roleName: string, permissions: string[]): Promise<Role> {
     try {
       const role = await this.getRoleByName(roleName);
@@ -348,7 +285,6 @@ class RoleService {
         permissions
       };
       
-      // This assumes you have a PATCH /roles/{id} endpoint
       return await apiClient.patch<any, any>(`/roles/${role.id}`, { permissions });
     } catch (error) {
       console.error(`Error updating permissions for role ${roleName}:`, error);
@@ -356,9 +292,6 @@ class RoleService {
     }
   }
 
-  /**
-   * Create a new role
-   */
   async createRole(roleData: Omit<Role, 'id' | '_id' | 'createdAt' | 'updatedAt'>): Promise<Role> {
     try {
       const response = await apiClient.post<any, any>('/roles', roleData);
@@ -369,9 +302,6 @@ class RoleService {
     }
   }
 
-  /**
-   * Update an existing role
-   */
   async updateRole(id: string, roleData: Partial<Role>): Promise<Role> {
     try {
       const response = await apiClient.patch<any, any>(`/roles/${id}`, roleData);
@@ -382,9 +312,6 @@ class RoleService {
     }
   }
 
-  /**
-   * Delete a role
-   */
   async deleteRole(id: string): Promise<{ message: string }> {
     try {
       return await apiClient.delete<{ message: string }>(`/roles/${id}`);
@@ -394,9 +321,6 @@ class RoleService {
     }
   }
 
-  /**
-   * Get all role names
-   */
   async getAllRoleNames(): Promise<string[]> {
     try {
       const roles = await this.getAllRoles();
@@ -407,9 +331,6 @@ class RoleService {
     }
   }
 
-  /**
-   * Check if a role exists
-   */
   async roleExists(roleName: string): Promise<boolean> {
     try {
       const roles = await this.getAllRoleNames();
@@ -420,9 +341,6 @@ class RoleService {
     }
   }
 
-  /**
-   * Get default system permissions (from backend permission map)
-   */
   getDefaultPermissions(): Record<string, string[]> {
     return {
       system: [
@@ -508,9 +426,6 @@ class RoleService {
     };
   }
 
-  /**
-   * Get default roles with their permissions
-   */
   getDefaultRolesWithPermissions(): Role[] {
     const permissionMap = this.getDefaultPermissions();
     
@@ -590,28 +505,22 @@ class RoleService {
 
 export const roleService = new RoleService();
 
-// Permission constants for easier reference
 export const PERMISSIONS = {
-  // User Management
   USERS_CREATE: 'users.create',
   USERS_READ: 'users.read',
   USERS_UPDATE: 'users.update',
   USERS_DELETE: 'users.delete',
   
-  // Roles & Permissions
   ROLES_MANAGE: 'roles.manage',
   
-  // System
   SETTINGS_MANAGE: 'settings.manage',
   SUMMARY_VIEW: 'summary.view',
   DASHBOARD_VIEW: 'dashboard.view',
   
-  // Management
   REPORTS_GENERATE: 'reports.generate',
   TEAM_MANAGE: 'team.manage',
   TARGETS_SET: 'targets.set',
   
-  // Sales
   LEADS_CREATE: 'leads.create',
   LEADS_READ: 'leads.read',
   LEADS_UPDATE: 'leads.update',
@@ -628,10 +537,8 @@ export const PERMISSIONS = {
   QUOTES_DELETE: 'quotes.delete',
   SALES_DASHBOARD_VIEW: 'sales.dashboard.view',
   
-  // Quotes
   QUOTES_APPROVE: 'quotes.approve',
   
-  // Invoices
   INVOICES_CREATE: 'invoices.create',
   INVOICES_READ: 'invoices.read',
   INVOICES_UPDATE: 'invoices.update',
@@ -639,7 +546,6 @@ export const PERMISSIONS = {
   INVOICES_APPROVE: 'invoices.approve',
   INVOICES_PAY: 'invoices.pay',
   
-  // Technical
   JOBS_CREATE: 'jobs.create',
   JOBS_READ: 'jobs.read',
   JOBS_UPDATE: 'jobs.update',
@@ -652,51 +558,43 @@ export const PERMISSIONS = {
   MAINTENANCE_SCHEDULE: 'maintenance.schedule',
   MAINTENANCE_UPDATE: 'maintenance.update',
   
-  // Support
   TICKETS_CREATE: 'tickets.create',
   TICKETS_READ: 'tickets.read',
   TICKETS_UPDATE: 'tickets.update',
   TICKETS_CLOSE: 'tickets.close',
   CUSTOMER_FEEDBACK: 'customer.feedback',
   
-  // Contacts
   CONTACTS_CREATE: 'contacts.create',
   CONTACTS_READ: 'contacts.read',
   CONTACTS_UPDATE: 'contacts.update',
   CONTACTS_DELETE: 'contacts.delete',
   
-  // Job Cards
   JOBCARDS_CREATE: 'jobcards.create',
   JOBCARDS_READ: 'jobcards.read',
   JOBCARDS_UPDATE: 'jobcards.update',
   JOBCARDS_DELETE: 'jobcards.delete',
   
-  // Waivers
   WAIVERS_CREATE: 'waivers.create',
   WAIVERS_READ: 'waivers.read',
   WAIVERS_UPDATE: 'waivers.update',
   WAIVERS_DELETE: 'waivers.delete',
   WAIVERS_SIGN: 'waivers.sign',
   
-  // Development
   TASKS_READ: 'tasks.read',
   TASKS_UPDATE: 'tasks.update',
   WORKFLOWS_READ: 'workflows.read',
   LOGS_READ: 'logs.read',
   DEPLOYMENTS_READ: 'deployments.read',
   
-  // Partner
   PARTNER_CLIENTS_READ: 'partner.clients.read',
   PARTNER_CONTRACTS_READ: 'partner.contracts.read',
   PARTNER_CONTRACTS_UPDATE: 'partner.contracts.update',
   
-  // Customer
   CUSTOMER_PROFILE_READ: 'customer.profile.read',
   CUSTOMER_ORDERS_VIEW: 'customer.orders.view',
   CUSTOMER_PAYMENTS_READ: 'customer.payments.read',
 };
 
-// Role constants for easier reference
 export const ROLES = {
   ADMIN: 'admin',
   MANAGEMENT: 'management',
@@ -722,7 +620,6 @@ export const ROLES = {
   DEVELOPER: 'developer',
 };
 
-// Helper function to create a permission checker
 export const createPermissionChecker = (userPermissions: string[]) => {
   return {
     hasPermission: (permission: string) => {
@@ -736,3 +633,5 @@ export const createPermissionChecker = (userPermissions: string[]) => {
     },
   };
 };
+
+
