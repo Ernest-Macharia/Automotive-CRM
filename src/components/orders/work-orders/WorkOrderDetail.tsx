@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -43,6 +43,7 @@ import {
   PlayCircle,
   Plus,
   Sparkles,
+  Info
 } from 'lucide-react';
 import { workOrderService, WorkOrder, TechnicianNote } from '@/services/workOrderService';
 import { useToast } from '@/contexts/ToastContext';
@@ -268,6 +269,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   const [postChecklist, setPostChecklist] = useState<any>(null);
   const [loadingPreChecklist, setLoadingPreChecklist] = useState(false);
   const [loadingPostChecklist, setLoadingPostChecklist] = useState(false);
+  const fetchInProgressRef = useRef(false);
 
   useEffect(() => {
     fetchWorkOrder();
@@ -280,27 +282,58 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   }, [workOrder, activeTab, includeInternal]);
 
   useEffect(() => {
-    if (workOrder && activeTab === 'pre-checklist' && workOrder.preChecklistId) {
-      fetchPreChecklist();
-    }
-  }, [workOrder, activeTab]);
-
-  useEffect(() => {
-    if (workOrder && activeTab === 'post-checklist' && workOrder.postChecklistId) {
+    if (workOrder && activeTab === 'post-checklist' && workOrder?.postChecklistId) {
       fetchPostChecklist();
     }
   }, [workOrder, activeTab]);
 
-  const fetchPreChecklist = async () => {
+  const fetchPreChecklist = useCallback(async () => {
+    // Prevent multiple simultaneous calls
+    if (fetchInProgressRef.current || !workOrder?.preChecklistId) {
+      return;
+    }
+    
+    fetchInProgressRef.current = true;
+    setLoadingPreChecklist(true);
+    
     try {
-      setLoadingPreChecklist(true);
       const data = await preChecklistService.getPreChecklistById(workOrder.preChecklistId);
       setPreChecklist(data);
     } catch (error) {
-      console.error('Error fetching pre-checklist:', error);
+      console.error('Failed to fetch pre-checklist:', error);
+      
+      // Only create fallback if we don't have any data yet
+      if (!preChecklist) {
+        setPreChecklist({
+          _id: workOrder.preChecklistId,
+          id: workOrder.preChecklistId,
+          opportunityId: workOrder.opportunityId || '',
+          vehicleId: workOrder.vehicleId || '',
+          inspectionItems: [],
+          remarks: 'Checklist exists but full details unavailable',
+          approved: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        } as any);
+      }
+    } finally {
+      setLoadingPreChecklist(false);
+      fetchInProgressRef.current = false;
     }
-  };
+  }, [workOrder?.preChecklistId, workOrder?.opportunityId, workOrder?.vehicleId, preChecklist, showToast]);
 
+  useEffect(() => {
+    if (activeTab === 'pre-checklist' && workOrder?.preChecklistId) {
+      // Add a small delay and check if we need to fetch
+      const timer = setTimeout(() => {
+        if (!preChecklist || preChecklist._id !== workOrder.preChecklistId) {
+          fetchPreChecklist();
+        }
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab, workOrder?.preChecklistId, preChecklist, fetchPreChecklist]);
   // Add this function
   const fetchPostChecklist = async () => {
     try {
@@ -338,41 +371,46 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
 
   // Helper function to determine stage status
   const determineStageStatus = (order: WorkOrder, stage: string): StageStatus => {
-    // If work order has approval fields, use them
-    if (order.stageApprovals && order.stageApprovals[stage as keyof typeof order.stageApprovals]) {
-      const stageApproval = order.stageApprovals[stage as keyof typeof order.stageApprovals];
-      if (stageApproval.approved) return 'approved';
-      if (stageApproval.needsApproval) return 'needs_approval';
-      if (stageApproval.rejected) return 'rejected';
+    const lifecycleStage = order.currentStage;
+    const stageOrder = ['prechecklist', 'jobcard', 'postchecklist', 'invoice'];
+    const currentIndex = stageOrder.indexOf(lifecycleStage);
+    const stageIndex = stageOrder.indexOf(stage);
+    
+    if (stageIndex < currentIndex) {
+      return 'completed';
     }
-
-    // Fallback logic based on document IDs and current stage
-    switch (stage) {
-      case 'pre_checklist':
-        if (!order.preChecklistId) return 'not_started';
-        if (order.currentStage === 'pre_checklist') return 'in_progress';
-        return 'completed';
-      
-      case 'job_card':
-        if (!order.jobCards || order.jobCards.length === 0) return 'not_started';
-        if (order.currentStage === 'job_card') return 'in_progress';
-        return 'completed';
-      
-      case 'post_checklist':
-        if (!order.postChecklistId) return 'not_started';
-        if (order.currentStage === 'post_checklist') return 'in_progress';
-        return 'completed';
-      
-      case 'invoice':
-        if (!order.invoiceId) return 'not_started';
-        if (order.invoiceGenerated && !order.invoicePaid) return 'needs_approval';
-        if (order.invoicePaid) return 'approved';
-        if (order.invoiceId) return 'completed';
+    
+    if (stageIndex === currentIndex) {
+      // Check if stage has document
+      const documentId = getStageDocumentId(order, stage);
+      if (documentId) {
+        // Check if document is approved
+        const isApproved = checkStageApproval(order, stage);
+        if (isApproved) {
+          return 'approved';
+        }
         return 'in_progress';
-      
-      default:
-        return 'not_started';
+      }
+      return 'not_started';
     }
+    
+    return 'not_started';
+  };
+
+  const getStageDocumentId = (order: WorkOrder, stage: string): string | undefined => {
+    switch (stage) {
+      case 'prechecklist': return order.preChecklistId;
+      case 'jobcard': return order.jobCards?.[0]?._id;
+      case 'postchecklist': return order.postChecklistId;
+      case 'invoice': return order.invoiceId;
+      default: return undefined;
+    }
+  };
+
+  // Helper function to check stage approval
+  const checkStageApproval = (order: WorkOrder, stage: string): boolean => {
+    const stageApproval = order.stageApprovals?.[stage as keyof typeof order.stageApprovals];
+    return stageApproval?.approved || false;
   };
 
   // Helper function to get status display properties
@@ -964,12 +1002,113 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     return baseActions[stage as keyof typeof baseActions]?.[status] || [];
   };
 
+  const viewStageDocument = (stage: WorkflowStage) => {
+    if (!stage.documentId) return;
+    
+    switch (stage.stage) {
+      case 'prechecklist':
+        router.push(`/pre-checklist/${stage.documentId}?workOrderId=${workOrder._id}`);
+        break;
+      case 'postchecklist':
+        router.push(`/post-checklist/${stage.documentId}?workOrderId=${workOrder._id}`);
+        break;
+      case 'jobcard':
+        router.push(`/job-cards/${stage.documentId}`);
+        break;
+      case 'invoice':
+        router.push(`/invoices/${stage.documentId}`);
+        break;
+    }
+  };
+
+  const createStageDocument = async (stage: string) => {
+    try {
+      switch (stage) {
+        case 'prechecklist':
+          router.push(`/pre-checklist/create?workOrderId=${workOrder._id}&source=workflow`);
+          break;
+        case 'jobcard':
+          router.push(`/job-cards/create?workOrderId=${workOrder._id}`);
+          break;
+        case 'postchecklist':
+          router.push(`/post-checklist/create?workOrderId=${workOrder._id}&preChecklistId=${workOrder.preChecklistId}&source=workflow`);
+          break;
+        case 'invoice':
+          setShowGenerateInvoiceModal(true);
+          break;
+      }
+    } catch (error) {
+      console.error('Error creating document:', error);
+      showToast('Failed to create document', 'error');
+    }
+  };
+
+  const approveStage = async (stage: string, documentId: string) => {
+    try {
+      let result;
+      switch (stage) {
+        case 'prechecklist':
+          result = await preChecklistService.approvePreChecklistWithLifecycle(
+            documentId, 
+            'current-user-id'
+          );
+          break;
+        case 'postchecklist':
+          result = await postChecklistService.approvePostChecklistWithLifecycle(
+            documentId,
+            'current-user-id'
+          );
+          break;
+        // Add other stages as needed
+      }
+      
+      if (result?.lifecycleUpdate?.stageCompleted) {
+        showToast(`Stage approved and auto-transitioned to next stage`, 'success');
+      } else {
+        showToast('Stage approved successfully', 'success');
+      }
+      
+      // Refresh data
+      fetchWorkOrder();
+      if (stage === 'prechecklist') fetchPreChecklist();
+      if (stage === 'postchecklist') fetchPostChecklist();
+      
+    } catch (error) {
+      console.error('Error approving stage:', error);
+      showToast('Failed to approve stage', 'error');
+    }
+  };
+
+  const approvePreChecklist = async (checklistId: string) => {
+    try {
+      const result = await preChecklistService.approvePreChecklistWithLifecycle(
+        checklistId,
+        'current-user-id'
+      );
+      
+      if (result.lifecycleUpdate?.stageCompleted) {
+        if (result.lifecycleUpdate.nextStage) {
+          showToast(`Pre-checklist approved! Auto-advanced to ${result.lifecycleUpdate.nextStage}`, 'success');
+        } else {
+          showToast('Pre-checklist approved! Stage marked as complete.', 'success');
+        }
+      } else {
+        showToast('Pre-checklist approved!', 'success');
+      }
+      
+      fetchWorkOrder();
+      fetchPreChecklist();
+    } catch (error) {
+      console.error('Error approving pre-checklist:', error);
+      showToast('Failed to approve pre-checklist', 'error');
+    }
+  };
+
   const transformWorkOrderToStages = (order: WorkOrder) => {
-    // Main 4 stages
     const mainStages = [
       {
-        id: 'pre-checklist',
-        stage: 'pre_checklist',
+        id: 'prechecklist',
+        stage: 'prechecklist',
         label: 'Pre-Checklist',
         description: 'Pre-service inspection and validation',
         icon: <ClipboardCheck className="h-5 w-5" />,
@@ -978,8 +1117,8 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         canSkip: false,
       },
       {
-        id: 'job-card',
-        stage: 'job_card',
+        id: 'jobcard',
+        stage: 'jobcard',
         label: 'Job Card',
         description: 'Detailed job tasks and technician assignments',
         icon: <Wrench className="h-5 w-5" />,
@@ -988,8 +1127,8 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         canSkip: false,
       },
       {
-        id: 'post-checklist',
-        stage: 'post_checklist',
+        id: 'postchecklist',
+        stage: 'postchecklist',
         label: 'Post-Checklist',
         description: 'Post-service verification and quality check',
         icon: <ClipboardList className="h-5 w-5" />,
@@ -1012,18 +1151,25 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     const stagesWithStatus = mainStages.map(stageConfig => {
       const status = determineStageStatus(order, stageConfig.stage);
       const statusDisplay = getStageStatusDisplay(status);
-      const actions = getStageActions(order, stageConfig.stage, status);
       
-      // Get approval info from stageApprovals if available
-      const stageApproval = order.stageApprovals?.[stageConfig.stage as keyof typeof order.stageApprovals];
-      
-      // Get documentId - fix the type issue
+      // Get documentId
       let documentId: string | undefined;
-      const key = `${stageConfig.stage}Id` as keyof WorkOrder;
-      const value = order[key];
-      if (typeof value === 'string') {
-        documentId = value;
+      switch (stageConfig.stage) {
+        case 'prechecklist':
+          documentId = order.preChecklistId;
+          break;
+        case 'jobcard':
+          documentId = order.jobCards?.[0]?._id;
+          break;
+        case 'postchecklist':
+          documentId = order.postChecklistId;
+          break;
+        case 'invoice':
+          documentId = order.invoiceId;
+          break;
       }
+      
+      const actions = getStageActions(order, stageConfig.stage, status, documentId);
       
       return {
         ...stageConfig,
@@ -1031,16 +1177,13 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         statusLabel: statusDisplay.label,
         statusColor: statusDisplay.color,
         statusIcon: statusDisplay.icon,
-        completed: status === 'completed' || status === 'approved',
+        completed: ['completed', 'approved'].includes(status),
         isCurrent: order.currentStage === stageConfig.stage,
-        documentId: documentId,
+        documentId,
         actions: actions as any[],
-        // Add approval information if available
-        approvalDate: stageApproval?.approvedAt || stageApproval?.submittedAt,
-        approvedBy: stageApproval?.approvedBy || stageApproval?.submittedBy,
-        // Add completion date
-        completionDate: order[`${stageConfig.stage}CompletionDate` as keyof WorkOrder] as string || 
-                      (status === 'completed' || status === 'approved' ? new Date().toISOString() : undefined)
+        approvalDate: order.stageApprovals?.[stageConfig.stage as keyof typeof order.stageApprovals]?.approvedAt,
+        approvedBy: order.stageApprovals?.[stageConfig.stage as keyof typeof order.stageApprovals]?.approvedBy,
+        completionDate: documentId ? new Date().toISOString() : undefined
       };
     });
 
@@ -1423,6 +1566,122 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                   </div>
                 </div>
               )}
+              {currentStage && (
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                        {currentStage.icon}
+                        <span>Current Stage: {currentStage.label}</span>
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {currentStage.description}
+                      </p>
+                    </div>
+                    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
+                      getStageStatusDisplay(currentStage.status).bgColor
+                    } ${currentStage.statusColor}`}>
+                      {currentStage.statusIcon}
+                      {currentStage.statusLabel}
+                    </span>
+                  </div>
+
+                  {/* Stage Actions */}
+                  <div className="space-y-4">
+                    {currentStage.documentId ? (
+                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <FileText className="h-5 w-5 text-blue-600" />
+                            <div>
+                              <h4 className="font-medium text-gray-900">{currentStage.label} Document Created</h4>
+                              <p className="text-sm text-gray-600">
+                                {currentStage.status === 'needs_approval' 
+                                  ? 'Awaiting approval' 
+                                  : currentStage.status === 'approved' 
+                                  ? 'Approved and ready for next stage'
+                                  : 'Ready for review'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                // Navigate to checklist view based on stage
+                                const docId = currentStage.documentId;
+                                if (currentStage.stage === 'prechecklist') {
+                                  router.push(`/pre-checklist/${docId}?workOrderId=${workOrder._id}`);
+                                } else if (currentStage.stage === 'postchecklist') {
+                                  router.push(`/post-checklist/${docId}?workOrderId=${workOrder._id}`);
+                                }
+                              }}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              View {currentStage.label}
+                            </button>
+                            {currentStage.status === 'needs_approval' && (
+                              <button
+                                onClick={async () => {
+                                  await approveStage(currentStage.stage, currentStage.documentId);
+                                }}
+                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                              >
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Approve
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
+                        <FilePlus className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                          No {currentStage.label} Created
+                        </h4>
+                        <p className="text-gray-600 mb-6">
+                          Create a {currentStage.label.toLowerCase()} to start this stage.
+                        </p>
+                        <button
+                          onClick={() => createStageDocument(currentStage.stage)}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Create {currentStage.label}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Stage Progress */}
+                    {currentStage.documentId && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-700">Stage Progress</span>
+                          <span className="text-sm font-medium text-gray-900">
+                            {currentStage.status === 'approved' ? '100%' : 
+                            currentStage.status === 'needs_approval' ? '75%' : '50%'}
+                          </span>
+                        </div>
+                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500"
+                            style={{ 
+                              width: currentStage.status === 'approved' ? '100%' : 
+                                    currentStage.status === 'needs_approval' ? '75%' : '50%'
+                            }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>Created</span>
+                          <span>Submitted</span>
+                          <span>Approved</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* 4-Stage Progress Bar */}
               <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -1615,9 +1874,8 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
 
           {activeTab === 'stages' && (
             <div className="space-y-6">
-              {/* Stages List */}
               <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Detailed Stages</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Workflow Stages</h3>
                 <div className="space-y-4">
                   {workflowStages.map((stage) => {
                     const statusDisplay = getStageStatusDisplay(stage.status);
@@ -1625,14 +1883,10 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                       <div
                         key={stage.id}
                         className={`p-4 rounded-lg border-2 ${
-                          stage.status === 'completed' || stage.status === 'approved'
+                          stage.completed
                             ? 'bg-green-50 border-green-200'
                             : stage.isCurrent
-                            ? 'bg-blue-50 border-blue-300 shadow-sm'
-                            : stage.status === 'needs_approval'
-                            ? 'bg-amber-50 border-amber-200'
-                            : stage.status === 'in_progress'
-                            ? 'bg-blue-50 border-blue-200'
+                            ? 'bg-blue-50 border-blue-300'
                             : 'bg-gray-50 border-gray-200'
                         }`}
                       >
@@ -1644,68 +1898,67 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <h4 className="font-semibold text-gray-900">{stage.label}</h4>
-                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusDisplay.bgColor} ${statusDisplay.color}`}>
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  statusDisplay.bgColor} ${statusDisplay.color}`}>
                                   {statusDisplay.icon}
                                   {statusDisplay.label}
                                 </span>
-                                {stage.approvalDate && (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                    <UserCheck className="h-3 w-3" />
-                                    Approved
+                                {stage.isCurrent && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    <Zap className="h-3 w-3" />
+                                    Current
                                   </span>
                                 )}
                               </div>
                               <p className="text-sm text-gray-600 mb-2">{stage.description}</p>
-                              <div className="flex items-center gap-4 text-sm">
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  {stage.estimatedTime}
-                                </span>
-                                {stage.mandatory && (
-                                  <span className="flex items-center gap-1 text-amber-600">
-                                    <AlertTriangle className="h-3 w-3" />
-                                    Required
-                                  </span>
-                                )}
-                                {stage.completionDate && (
-                                  <span className="text-gray-500">
-                                    Completed: {formatDate(stage.completionDate)}
-                                  </span>
-                                )}
-                                {stage.approvalDate && (
-                                  <span className="text-green-600">
-                                    Approved: {formatDate(stage.approvalDate)}
-                                  </span>
-                                )}
-                              </div>
+                              
+                              {/* Stage-specific information */}
+                              {stage.documentId ? (
+                                <div className="mt-3 p-3 bg-white border border-gray-200 rounded-lg">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <FileText className="h-4 w-4 text-gray-500" />
+                                      <span className="text-sm text-gray-700">
+                                        Document: {stage.documentId.slice(-8)}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() => viewStageDocument(stage)}
+                                        className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
+                                      >
+                                        <Eye className="h-3 w-3" />
+                                        View Document
+                                      </button>
+                                      {stage.status === 'needs_approval' && (
+                                        <button
+                                          onClick={() => approveStage(stage.stage, stage.documentId)}
+                                          className="text-green-600 hover:text-green-700 text-sm font-medium flex items-center gap-1"
+                                        >
+                                          <CheckCircle className="h-3 w-3" />
+                                          Approve
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm text-gray-600">No document created</span>
+                                    {stage.isCurrent && (
+                                      <button
+                                        onClick={() => createStageDocument(stage.stage)}
+                                        className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+                                      >
+                                        <Plus className="h-3 w-3 mr-1 inline" />
+                                        Create
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            {stage.actions.map((action) => (
-                              <button
-                                key={action.id}
-                                onClick={() => handleStageAction(stage, action)}
-                                className={`px-3 py-1.5 rounded text-sm font-medium ${
-                                  action.variant === 'primary'
-                                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                    : action.variant === 'secondary'
-                                    ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                    : action.variant === 'success'
-                                    ? 'bg-green-600 text-white hover:bg-green-700'
-                                    : action.variant === 'danger'
-                                    ? 'bg-red-600 text-white hover:bg-red-700'
-                                    : action.variant === 'warning'
-                                    ? 'bg-amber-500 text-white hover:bg-amber-600'
-                                    : action.variant === 'info'
-                                    ? 'bg-cyan-500 text-white hover:bg-cyan-600'
-                                    : 'bg-gray-200 text-gray-700'
-                                }`}
-                              >
-                                {action.icon}
-                                {action.label}
-                              </button>
-                            ))}
                           </div>
                         </div>
                       </div>
@@ -1721,122 +1974,194 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
               <div className="bg-white rounded-xl border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Pre-Checklist</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <ClipboardCheck className="h-5 w-5 text-blue-600" />
+                      Pre-Checklist
+                    </h3>
                     <p className="text-sm text-gray-600">Pre-service inspection and validation</p>
                   </div>
-                  {workOrder.preChecklistId ? (
-                    <span className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                  {workOrder.preChecklistId && (
+                    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
                       <CheckCircle className="h-4 w-4" />
                       Checklist Created
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
-                      <AlertCircle className="h-4 w-4" />
-                      No Checklist
                     </span>
                   )}
                 </div>
 
                 {workOrder.preChecklistId ? (
-                  <div className="space-y-4">
-                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="space-y-6">
+                    {/* Checklist Details Card */}
+                    <div className="bg-gradient-to-r from-blue-50 to-teal-50 border border-blue-200 rounded-xl p-6">
                       <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <ClipboardCheck className="h-5 w-5 text-green-600" />
-                            <h4 className="font-semibold text-gray-900">Linked Pre-Checklist</h4>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="p-3 bg-white rounded-lg shadow-sm">
+                              <ClipboardCheck className="h-6 w-6 text-blue-600" />
+                            </div>
+                            <div>
+                              <h4 className="text-lg font-semibold text-gray-900">Pre-Checklist Details</h4>
+                              <p className="text-sm text-gray-600">
+                                Created for {getCustomerName()}
+                              </p>
+                            </div>
                           </div>
-                          <div className="space-y-2">
-                            <p className="text-sm text-gray-600">
-                              A pre-checklist has been created and linked to this work order.
-                            </p>
-                            <div className="flex items-center gap-4 mt-3">
-                              <button
-                                onClick={() => router.push(`/pre-checklist/${workOrder.preChecklistId}`)}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                              >
-                                <Eye className="h-4 w-4" />
-                                View Pre-Checklist
-                              </button>
-                              {workOrder.currentStage === 'pre_checklist' && (
-                                <button
-                                  onClick={async () => {
-                                    router.push(`/pre-checklist/edit/${workOrder.preChecklistId}?workOrderId=${workOrder._id}`);
-                                  }}
-                                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                  Edit Checklist
-                                </button>
+                          
+                          {/* Checklist Status */}
+                          <div className="mb-6">
+                            <div className="flex items-center gap-4 mb-3">
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-gray-900">
+                                  {preChecklist?.inspectionItems?.length || 0}
+                                </div>
+                                <div className="text-xs text-gray-600">Items</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-green-600">
+                                  {preChecklist?.inspectionItems?.filter((item: any) => item.status === 'ok').length || 0}
+                                </div>
+                                <div className="text-xs text-green-600">OK</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-red-600">
+                                  {preChecklist?.inspectionItems?.filter((item: any) => item.status === 'fault').length || 0}
+                                </div>
+                                <div className="text-xs text-red-600">Faults</div>
+                              </div>
+                            </div>
+                            
+                            {/* Approval Status */}
+                            <div className="mt-4">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-sm font-medium text-gray-700">Approval Status:</span>
+                                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
+                                  preChecklist?.approved 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : 'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {preChecklist?.approved ? (
+                                    <>
+                                      <CheckCircle className="h-3 w-3" />
+                                      Approved
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Clock className="h-3 w-3" />
+                                      Pending Approval
+                                    </>
+                                  )}
+                                </span>
+                              </div>
+                              
+                              {preChecklist?.approved && preChecklist.approvedAt && (
+                                <p className="text-xs text-gray-600">
+                                  Approved on {formatDate(preChecklist.approvedAt)} by {preChecklist.approvedBy || 'System'}
+                                </p>
                               )}
                             </div>
+                          </div>
+                          
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => router.push(`/pre-checklist/${workOrder.preChecklistId}`)}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                            >
+                              <Eye className="h-4 w-4" />
+                              View Full Checklist
+                            </button>
+                            
+                            {!preChecklist?.approved && (
+                              <button
+                                onClick={async () => {
+                                  await approvePreChecklist(workOrder.preChecklistId);
+                                }}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                                Approve Checklist
+                              </button>
+                            )}
+                            
+                            {workOrder.currentStage === 'prechecklist' && (
+                              <button
+                                onClick={() => router.push(`/pre-checklist/edit/${workOrder.preChecklistId}`)}
+                                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                              >
+                                <Edit className="h-4 w-4" />
+                                Edit Checklist
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
                     </div>
                     
-                    {/* ADD THE LOADING STATE HERE */}
-                    {loadingPreChecklist ? (
-                      <div className="text-center py-8">
-                        <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-3" />
-                        <p className="text-gray-600">Loading pre-checklist details...</p>
-                      </div>
-                    ) : preChecklist ? (
-                      <div className="mt-4">
-                        <h4 className="font-medium text-gray-900 mb-3">Checklist Summary</h4>
+                    {/* Quick Summary */}
+                    {preChecklist && (
+                      <div className="bg-white border border-gray-200 rounded-xl p-6">
+                        <h4 className="font-medium text-gray-900 mb-4">Checklist Summary</h4>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="p-3 bg-gray-50 rounded-lg">
+                          <div className="p-4 bg-gray-50 rounded-lg">
                             <div className="text-sm text-gray-600">Total Items</div>
                             <div className="text-xl font-bold text-gray-900">
-                              {Array.isArray(preChecklist.inspectionItems) ? preChecklist.inspectionItems.length : 0}
+                              {preChecklist.inspectionItems?.length || 0}
                             </div>
                           </div>
-                          <div className="p-3 bg-green-50 rounded-lg">
+                          <div className="p-4 bg-green-50 rounded-lg">
                             <div className="text-sm text-green-600">OK Items</div>
                             <div className="text-xl font-bold text-green-700">
-                              {Array.isArray(preChecklist.inspectionItems) 
-                                ? preChecklist.inspectionItems.filter((item: any) => item.status === 'ok').length 
-                                : 0}
+                              {preChecklist.inspectionItems?.filter((item: any) => item.status === 'ok').length || 0}
                             </div>
                           </div>
-                          <div className="p-3 bg-red-50 rounded-lg">
+                          <div className="p-4 bg-red-50 rounded-lg">
                             <div className="text-sm text-red-600">Faults Found</div>
                             <div className="text-xl font-bold text-red-700">
-                              {Array.isArray(preChecklist.inspectionItems) 
-                                ? preChecklist.inspectionItems.filter((item: any) => item.status === 'fault').length 
-                                : 0}
+                              {preChecklist.inspectionItems?.filter((item: any) => item.status === 'fault').length || 0}
                             </div>
                           </div>
                         </div>
+                        
+                        {/* If there are faults, show them */}
+                        {preChecklist.inspectionItems?.some((item: any) => item.status === 'fault') && (
+                          <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <div className="flex items-center gap-2 mb-2">
+                              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                              <span className="font-medium text-yellow-800">Faults Detected</span>
+                            </div>
+                            <div className="text-sm text-yellow-700">
+                              Review and address faults before proceeding to next stage.
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    ) : null}
+                    )}
                   </div>
                 ) : (
-                  <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-                    <ClipboardCheck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h4 className="text-lg font-semibold text-gray-900 mb-2">No Pre-Checklist Created</h4>
-                    <p className="text-gray-600 mb-6">
-                      A pre-checklist is required before starting work on this order.
+                  <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-xl">
+                    <ClipboardCheck className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                    <h4 className="text-xl font-semibold text-gray-900 mb-2">No Pre-Checklist Created</h4>
+                    <p className="text-gray-600 max-w-md mx-auto mb-8">
+                      A pre-checklist is required before starting work on this order. Create one to document the initial inspection.
                     </p>
-                    <div className="flex items-center justify-center gap-3">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                       <button
                         onClick={() => router.push(`/pre-checklist/create?workOrderId=${workOrder._id}&source=workflow`)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
                       >
                         <Plus className="h-4 w-4" />
                         Create Pre-Checklist
                       </button>
-                      {workOrder.currentStage !== 'pre_checklist' && (
+                      {workOrder.currentStage !== 'prechecklist' && (
                         <button
                           onClick={async () => {
-                            await workOrderService.updateWorkOrderStage(workOrder._id, 'pre_checklist');
-                            showToast('Moved back to Pre-Checklist stage', 'success');
+                            await workOrderService.updateWorkOrderStage(workOrder._id, 'prechecklist');
+                            showToast('Returned to Pre-Checklist stage', 'success');
                             fetchWorkOrder();
                           }}
-                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
+                          className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-2"
                         >
                           <ArrowLeft className="h-4 w-4" />
-                          Return to Stage
+                          Return to Pre-Checklist Stage
                         </button>
                       )}
                     </div>

@@ -138,7 +138,6 @@ export interface UpdatePreChecklistDto {
   remarks?: string;
   approved?: boolean;
   approvedBy?: string;
-  // Add these new properties
   serviceType?: 'pickup_only' | 'workshop_installation' | 'mobile_service';
   inspectorName?: string;
   customerDetails?: {

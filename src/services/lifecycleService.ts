@@ -273,6 +273,17 @@ class LifecycleService {
     }
   }
 
+  async transition(opportunityId: string, metadata?: any): Promise<any> {
+    try {
+      return await this.transitionToNextStage(opportunityId, {
+        metadata: metadata || {}
+      });
+    } catch (error) {
+      console.error('Error transitioning:', error);
+      throw error;
+    }
+  }
+
   // 5. Manually transition to a specific stage
   async transitionToStage(
     opportunityId: string,
@@ -303,13 +314,13 @@ class LifecycleService {
   }
 
   // Utility methods
-  async initializeWorkOrder(opportunityId: string): Promise<InitializeResult> {
+  async initializeWorkOrder(opportunityId: string): Promise<any> {
     try {
       return await this.initializeOpportunity(opportunityId, {
         packageType: 'work_order'
       });
     } catch (error) {
-      console.error(`Error initializing work order for opportunity ${opportunityId}:`, error);
+      console.error('Error initializing work order lifecycle:', error);
       throw error;
     }
   }
@@ -407,6 +418,26 @@ class LifecycleService {
       };
     } catch (error) {
       console.error(`Error getting current stage info for opportunity ${opportunityId}:`, error);
+      throw error;
+    }
+  }
+
+  async getCurrentStage(opportunityId: string): Promise<string> {
+    try {
+      const status = await this.getOpportunityLifecycle(opportunityId);
+      return status.currentStage;
+    } catch (error) {
+      console.error('Error getting current stage:', error);
+      throw error;
+    }
+  }
+
+  async canTransition(opportunityId: string): Promise<boolean> {
+    try {
+      const status = await this.getOpportunityStatus(opportunityId);
+      return status.stages.some(stage => stage.canTransition);
+    } catch (error) {
+      console.error('Error checking transition:', error);
       throw error;
     }
   }
