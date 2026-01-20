@@ -45,6 +45,7 @@ export interface WorkOrder {
       total: number;
     }>;
   };
+  vehicleId?: string;
   waiverId?: string;
   jobCards?: string[] | Array<{
     _id: string;
@@ -236,6 +237,8 @@ export interface UpdateWorkOrderData {
   jobCardCompletionDate?: string;
   postChecklistCompletionDate?: string;
   invoiceCompletionDate?: string;
+  preChecklistId?: string;
+  postChecklistId?: string;
 }
 
 export interface AddNoteData {

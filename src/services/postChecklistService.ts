@@ -73,12 +73,14 @@ export interface PostChecklist {
     lastName?: string;
     email?: string;
   };
+  working?: boolean;
   approvedAt?: Date | string;
   isActive: boolean;
   createdAt: Date | string;
   updatedAt: Date | string;
   
   customerName?: string;
+  customerDetails?: string;
   dateTime?: string;
   warrantyDuration?: string;
   beforePhotos?: string[];
@@ -92,13 +94,17 @@ export interface PostChecklist {
   warrantyNotes?: string;
   productServiceNeeded?: string;
   acceptDiagnosticCharges?: boolean;
+  additionalComments?: string;
+  diagnosticChargesAccepted?: boolean;
+  serviceRating?: number;
+  serviceComments?: string;
 }
 
 export interface CreatePostChecklistDto {
   opportunityId: string;
   vehicleId: string;
-  jobCardId: string;
-  preChecklistId?: string; // Add this
+  jobCardId?: string;
+  preChecklistId?: string;
   inspectedBy?: string;
   inspectionItems?: ChecklistItem[];
   notes?: string;
@@ -119,6 +125,10 @@ export interface CreatePostChecklistDto {
   warrantyNotes?: string;
   productServiceNeeded?: string;
   acceptDiagnosticCharges?: boolean;
+  additionalComments?: string;
+  diagnosticChargesAccepted?: boolean;
+  serviceRating?: number;
+  serviceComments?: string;
 }
 
 export interface UpdatePostChecklistDto {
@@ -142,6 +152,10 @@ export interface UpdatePostChecklistDto {
   warrantyNotes?: string;
   productServiceNeeded?: string;
   acceptDiagnosticCharges?: boolean;
+  dditionalComments?: string;
+  diagnosticChargesAccepted?: boolean;
+  serviceRating?: number;
+  serviceComments?: string;
 }
 
 export interface CheckItemDto {

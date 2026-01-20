@@ -53,10 +53,30 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
       setLoading(true);
       const data = await preChecklistService.getPreChecklistById(id);
       setChecklist(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading pre-checklist:', error);
-      showToast('Failed to load pre-checklist', 'error');
-      router.push('/orders/work-orders');
+      
+      // Check if it's a 500 server error
+      if (error.message && (error.message.includes('500') || error.message.includes('Internal server error'))) {
+        // Create a fallback checklist object
+        const fallbackChecklist: PreChecklist = {
+          _id: id,
+          id: id,
+          opportunityId: 'unknown',
+          vehicleId: 'unknown',
+          inspectionItems: [],
+          remarks: 'Pre-checklist loaded in limited mode due to server error',
+          approved: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        
+        setChecklist(fallbackChecklist);
+        showToast('Pre-checklist loaded with limited data', 'warning');
+      } else {
+        showToast('Failed to load pre-checklist', 'error');
+        router.push('/orders/work-orders');
+      }
     } finally {
       setLoading(false);
     }
@@ -66,19 +86,30 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
 
   const renderVehicle = (vehicle: any) => {
     if (!vehicle) return '-';
-    if (typeof vehicle === 'string') return vehicle;
-    return `${vehicle.make || ''} ${vehicle.model || ''} ${vehicle.registrationNumber ? `(${vehicle.registrationNumber})` : ''}`.trim() || vehicle._id || '—';
+    if (typeof vehicle === 'string') return vehicle.slice(0, 8) || 'Unknown';
+    
+    // Handle object with fallbacks
+    const make = vehicle.make || '';
+    const model = vehicle.model || '';
+    const reg = vehicle.registrationNumber || '';
+    
+    if (make || model || reg) {
+      return `${make} ${model} ${reg ? `(${reg})` : ''}`.trim();
+    }
+    
+    return vehicle._id ? vehicle._id.slice(0, 8) : 'Unknown Vehicle';
   };
 
   const renderCustomer = (opportunity: any) => {
     if (!opportunity) return '-';
-    if (typeof opportunity === 'string') return opportunity;
+    if (typeof opportunity === 'string') return opportunity.slice(0, 8) || 'Unknown';
     
+    // Handle object with fallbacks
     if (opportunity.customer) {
       return opportunity.customer.name || opportunity.customer.companyName || 'Customer';
     }
     
-    return opportunity.subject || opportunity._id || '—';
+    return opportunity.subject || opportunity._id?.slice(0, 8) || '—';
   };
 
   const getStatusColor = (approved: boolean) => {

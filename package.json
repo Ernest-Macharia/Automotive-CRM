@@ -12,6 +12,7 @@
     "@hello-pangea/dnd": "^18.0.1",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-label": "^2.1.8",
+    "@react-pdf/renderer": "^4.3.2",
     "axios": "^1.13.2",
     "date-fns": "^4.1.0",
     "lodash": "^4.17.21",
@@ -21,7 +22,9 @@
     "react-dom": "19.2.0",
     "react-hook-form": "^7.67.0",
     "react-hot-toast": "^2.6.0",
+    "react-signature-canvas": "^1.1.0-alpha.2",
     "react-window": "^2.2.3",
+    "xlsx": "^0.18.5",
     "zod": "^4.1.13"
   },
   "devDependencies": {
