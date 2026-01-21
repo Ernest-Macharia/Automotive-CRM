@@ -115,7 +115,7 @@ function DashboardContent() {
 
   const fetchDashboardData = async (isRefresh = false) => {
     try {
-      if (!isRefresh) {
+      if (!isRefresh) { 
         setLoading(true);
       } else {
         setRefreshing(true);

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/Sidebar';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function ClientLayout({
   children,
@@ -89,11 +90,12 @@ export default function ClientLayout({
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100/30">
         <div className="text-center">
-          <div className="loading-spinner mx-auto mb-4" />
+          <LoadingSpinner />
+          {/* <div className="loading-spinner mx-auto mb-4" />
           <p className="text-gray-600 text-sm">Loading MAG CRM...</p>
           <p className="text-gray-500 text-xs mt-1">
             Please wait while we load your dashboard
-          </p>
+          </p> */}
         </div>
       </div>
     );
