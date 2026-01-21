@@ -7,6 +7,9 @@ import { quoteService } from './quoteService';
 import { invoiceService } from './invoiceService';
 import { jobCardService } from './jobCardService';
 import { opportunityService } from './opportunityService';
+import { preChecklistService, PreChecklist } from './preChecklistService';
+import { postChecklistService } from './postChecklistService';
+import { CheckCircle, AlertCircle, Clock } from 'lucide-react';
 
 // Define the correct workflow patterns
 export const WORKFLOW_PATTERNS = {
@@ -14,7 +17,14 @@ export const WORKFLOW_PATTERNS = {
   WORK_ORDER: ['prechecklist', 'jobcard', 'postchecklist', 'invoice']
 };
 
-// Update this interface with all the properties we need
+export interface WorkflowTransition {
+  fromStage: string;
+  toStage: string;
+  opportunityId: string;
+  documentId?: string;
+  triggeredBy: string;
+  metadata?: Record<string, any>;
+}
 export interface LifecycleStageUI {
   stage: string;
   label: string;
@@ -45,6 +55,25 @@ export interface LifecycleStageUI {
     requiresAttachment?: boolean;
   };
   dependencies?: string[];
+  // New enhanced properties
+  status?: string;
+  statusColor?: string;
+  progress?: number;
+  nextAction?: string;
+  validation?: {
+    isValid: boolean;
+    message?: string;
+    requirements?: string[];
+  };
+}
+
+export interface WorkflowTransition {
+  fromStage: string;
+  toStage: string;
+  opportunityId: string;
+  documentId?: string;
+  triggeredBy: string;
+  metadata?: Record<string, any>;
 }
 
 export class LifecycleIntegrationService {
@@ -129,6 +158,16 @@ export class LifecycleIntegrationService {
   
   // Get lifecycle UI specifically for work orders
   async getWorkOrderLifecycleUI(opportunityId: string): Promise<any> {
+    try {
+      // Use the enhanced version by default
+      return await this.getEnhancedWorkflowUI(opportunityId);
+    } catch (error) {
+      console.error('Error getting work order lifecycle UI:', error);
+      throw error;
+    }
+  }
+
+  async getWorkOrderLifecycleUIBasic(opportunityId: string): Promise<any> {
     try {
       const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
       
@@ -216,33 +255,92 @@ export class LifecycleIntegrationService {
       return false;
     }
     
-    // All stages now require documents in new structure
-    if (!document) {
-      return false;
+    // For prechecklist - check if approved or all items are OK/N/A
+    if (stageName === 'prechecklist') {
+      if (document?.approved) {
+        return true;
+      }
+      return document?.inspectionItems?.every((item: any) => 
+        item.status === 'ok' || item.status === 'n/a'
+      ) || false;
     }
     
-    // Check stage-specific completion criteria
-    switch (stageName) {
-      case 'prechecklist':
-        if (document.approved) {
-          return true;
+    // For jobcard - check if status is completed
+    if (stageName === 'jobcard') {
+      return document?.status === 'completed' || document?.status === 'closed';
+    }
+    
+    // For postchecklist - check if approved or all required items completed
+    if (stageName === 'postchecklist') {
+      if (document?.approved) {
+        return true;
+      }
+      return document?.inspectionItems?.every((item: any) => 
+        !item.required || item.status === 'completed' || item.status === 'n/a'
+      ) || false;
+    }
+    
+    // For invoice - check if sent or paid
+    if (stageName === 'invoice') {
+      return document?.status === 'sent' || document?.status === 'paid';
+    }
+    
+    return !!document;
+  }
+
+  async transitionWithValidation(
+    opportunityId: string, 
+    fromStage: string, 
+    toStage: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    autoCreatedDocument?: any;
+  }> {
+    try {
+      // Use enhanced validation
+      const documents = await this.fetchDocumentsForStages(opportunityId, [fromStage]);
+      const currentDocument = documents[fromStage];
+      
+      // Use enhanced validation
+      const validation = await this.validateStageCompletion(opportunityId, fromStage, currentDocument);
+      
+      if (!validation.isValid) {
+        throw new Error(`Cannot transition from ${fromStage}: ${validation.message}`);
+      }
+      
+      // Continue with original logic
+      const pattern = WORKFLOW_PATTERNS.WORK_ORDER;
+      const fromIndex = pattern.indexOf(fromStage);
+      const toIndex = pattern.indexOf(toStage);
+      
+      if (toIndex <= fromIndex) {
+        throw new Error(`Cannot transition backwards from ${fromStage} to ${toStage}`);
+      }
+      
+      await this.transitionToStage(opportunityId, toStage, {
+        skipValidation: false,
+        metadata: {
+          transitionedAt: new Date().toISOString(),
+          fromStage,
+          toStage
         }
-        return document.inspectionItems?.every((item: any) => 
-          item.status === 'ok' || item.status === 'n/a'
-        ) || false;
-      case 'jobcard':
-        return document.status === 'completed' || document.status === 'closed';
-      case 'postchecklist':
-        if (document.approved) {
-          return true;
-        }
-        return document.inspectionItems?.every((item: any) => 
-          !item.required || item.status === 'completed' || item.status === 'n/a'
-        ) || false;
-      case 'invoice':
-        return document.status === 'sent' || document.status === 'paid';
-      default:
-        return !!document;
+      });
+      
+      let autoCreatedDocument = null;
+      if (toStage === 'jobcard' && !documents.jobcard) {
+        autoCreatedDocument = await this.autoCreateJobCard(opportunityId);
+      }
+      
+      return {
+        success: true,
+        message: `Successfully transitioned from ${fromStage} to ${toStage}`,
+        autoCreatedDocument
+      };
+      
+    } catch (error) {
+      console.error(`Error transitioning from ${fromStage} to ${toStage}:`, error);
+      throw error;
     }
   }
   
@@ -713,106 +811,75 @@ export class LifecycleIntegrationService {
     return requirements;
   }
 
-  // Add to your LifecycleIntegrationService class
-
-// Integration for checklist approval and stage completion
   async handleChecklistApproval(
-    checklistId: string,
-    checklistType: 'prechecklist' | 'postchecklist',
-    approvedBy?: string
-  ): Promise<{
-    checklistApproved: boolean;
-    stageCompleted: boolean;
-    nextStage?: string;
-    workflowProgress: any;
-  }> {
-    try {
-      // 1. Get opportunity from checklist
-      let opportunityId: string;
-      
-      if (checklistType === 'prechecklist') {
-        const preChecklistService = require('./preChecklistService').preChecklistService;
-        const checklist = await preChecklistService.getPreChecklistById(checklistId);
-        opportunityId = typeof checklist.opportunityId === 'object' 
-          ? checklist.opportunityId._id 
-          : checklist.opportunityId;
-      } else {
-        const postChecklistService = require('./postChecklistService').postChecklistService;
-        const checklist = await postChecklistService.getPostChecklistById(checklistId);
-        opportunityId = typeof checklist.opportunityId === 'object' 
-          ? checklist.opportunityId._id 
-          : checklist.opportunityId;
-      }
-      
-      if (!opportunityId) {
-        throw new Error('Could not find opportunity for this checklist');
-      }
-      
-      // 2. Get current lifecycle state
-      const lifecycleUI = await this.getWorkOrderLifecycleUI(opportunityId);
-      
-      // 3. Determine which stage should be completed
-      const currentStage = lifecycleUI.progress.currentStage;
-      const shouldCompleteStage = currentStage === checklistType;
-      
-      if (shouldCompleteStage) {
-        // 4. Mark the stage as completed in lifecycle
-        const stageCompletion = await this.markStageAsCompleted(opportunityId, currentStage, {
-          documentId: checklistId,
-          completedBy: approvedBy,
-          notes: `${checklistType} approved`
-        });
+      checklistId: string,
+      checklistType: 'prechecklist' | 'postchecklist',
+      approvedBy?: string
+    ): Promise<{
+      checklistApproved: boolean;
+      stageCompleted: boolean;
+      nextStage?: string;
+      workflowProgress: any;
+      autoTransitioned: boolean;
+    }> {
+      try {
+        // Use the enhanced auto-transition method
+        const result = await this.autoTransitionOnApproval(checklistId, checklistType, approvedBy);
         
-        // 5. Check if we should auto-transition to next stage
-        const pattern = WORKFLOW_PATTERNS.WORK_ORDER;
-        const currentIndex = pattern.indexOf(currentStage);
-        
-        if (currentIndex < pattern.length - 1) {
-          const nextStage = pattern[currentIndex + 1];
-          
-          // Check if ready to transition
-          const documents = await this.fetchDocumentsForStages(opportunityId, [currentStage]);
-          const canTransition = await this.validateStageCompletion(opportunityId, currentStage, documents[currentStage]);
-          
-          if (canTransition) {
-            // Auto-transition to next stage
-            await this.transitionToStage(opportunityId, nextStage, {
-              skipValidation: true,
-              metadata: {
-                triggeredBy: `${checklistType}-approval`,
-                checklistId,
-                approvedBy
-              }
-            });
-            
-            return {
-              checklistApproved: true,
-              stageCompleted: true,
-              nextStage,
-              workflowProgress: await this.getWorkOrderLifecycleUI(opportunityId)
-            };
-          }
+        if (!result.success) {
+          throw new Error(result.message);
         }
+        
+        // Get updated workflow progress
+        const workflowProgress = await this.getEnhancedWorkflowUI(
+          result.transition?.opportunityId || ''
+        );
         
         return {
           checklistApproved: true,
           stageCompleted: true,
-          nextStage: null, // No next stage (already at last stage)
-          workflowProgress: await this.getWorkOrderLifecycleUI(opportunityId)
+          nextStage: result.transition?.toStage,
+          workflowProgress,
+          autoTransitioned: true
         };
+      } catch (error) {
+        console.error(`Error handling ${checklistType} approval:`, error);
+        throw error;
       }
-      
-      // If checklist isn't for current stage, just approve it
-      return {
-        checklistApproved: true,
-        stageCompleted: false,
-        workflowProgress: lifecycleUI
-      };
-    } catch (error) {
-      console.error(`Error handling ${checklistType} approval:`, error);
-      throw error;
     }
+
+async autoCompletePreChecklist(
+  checklistId: string,
+  userId?: string
+): Promise<{
+  checklist: PreChecklist;
+  autoApproved: boolean;
+  nextStage?: string;
+}> {
+  try {
+    // Get the checklist
+    const checklist = await preChecklistService.getPreChecklistById(checklistId);
+    
+    // Auto-approve the checklist
+    const approvedChecklist = await preChecklistService.updatePreChecklist(checklistId, {
+      approved: true,
+      approvedBy: userId || 'system-auto',
+      approvedAt: new Date().toISOString(),
+      clientSignature: checklist.clientSignature || 'auto-approved-no-signature-required',
+      remarks: checklist.remarks ? `${checklist.remarks} (Auto-approved)` : 'Auto-approved by system'
+    });
+    
+    // Return the auto-approved checklist
+    return {
+      checklist: approvedChecklist,
+      autoApproved: true,
+      nextStage: 'jobcard'
+    };
+  } catch (error) {
+    console.error('Error auto-completing pre-checklist:', error);
+    throw error;
   }
+}
 
   // Method to validate checklist completion before stage transition
   async validateChecklistForStageTransition(
@@ -879,6 +946,66 @@ export class LifecycleIntegrationService {
       throw error;
     }
   }
+
+  // Add this method to LifecycleIntegrationService
+// Update the autoTransitionOnPreChecklistComplete method
+async autoTransitionOnPreChecklistComplete(
+  checklistId: string,
+  userId?: string
+): Promise<{
+  success: boolean;
+  message: string;
+  nextStage: string;
+}> {
+  try {
+    const checklist = await preChecklistService.getPreChecklistById(checklistId);
+    
+    const opportunityId = typeof checklist.opportunityId === 'object' 
+      ? checklist.opportunityId._id 
+      : checklist.opportunityId;
+    
+    if (!opportunityId) {
+      throw new Error('Could not find opportunity for this checklist');
+    }
+    
+    // Auto-approve the checklist
+    await preChecklistService.updatePreChecklist(checklistId, {
+      approved: true,
+      approvedBy: userId || 'system-auto',
+      approvedAt: new Date().toISOString()
+    });
+    
+    // Get current lifecycle
+    const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
+    
+    // If current stage is prechecklist, move to jobcard
+    if (lifecycle.currentStage === 'prechecklist') {
+      await this.transitionToStage(opportunityId, 'jobcard', {
+        skipValidation: true,
+        metadata: {
+          autoTransition: true,
+          checklistId,
+          triggeredBy: 'pre-checklist-completion'
+        }
+      });
+      
+      return {
+        success: true,
+        message: 'Pre-checklist auto-approved and moved to Job Card stage',
+        nextStage: 'jobcard'
+      };
+    }
+    
+    return {
+      success: false,
+      message: 'Not in pre-checklist stage',
+      nextStage: lifecycle.currentStage
+    };
+  } catch (error) {
+    console.error('Error in auto-transition:', error);
+    throw error;
+  }
+}
 
   // Method to auto-create checklist if needed
   async autoCreateChecklistIfNeeded(
@@ -1017,7 +1144,8 @@ export class LifecycleIntegrationService {
   async completeChecklistAndTransition(
     checklistId: string,
     checklistType: 'prechecklist' | 'postchecklist',
-    userId?: string
+    userId?: string,
+    options?: { skipApproval?: boolean }
   ): Promise<{
     checklistCompleted: boolean;
     stageTransitioned: boolean;
@@ -1034,6 +1162,16 @@ export class LifecycleIntegrationService {
         opportunityId = typeof checklist.opportunityId === 'object' 
           ? checklist.opportunityId._id 
           : checklist.opportunityId;
+        
+        // If skipApproval is true, auto-approve without requiring client signature
+        if (options?.skipApproval) {
+          await preChecklistService.updatePreChecklist(checklistId, {
+            approved: true,
+            approvedBy: userId || 'system',
+            approvedAt: new Date().toISOString(),
+            clientSignature: checklist.clientSignature || 'auto-approved-no-signature-required'
+          });
+        }
       } else {
         const postChecklistService = require('./postChecklistService').postChecklistService;
         const checklist = await postChecklistService.getPostChecklistById(checklistId);
@@ -1072,7 +1210,7 @@ export class LifecycleIntegrationService {
       await this.markStageAsCompleted(opportunityId, checklistType, {
         documentId: checklistId,
         completedBy: userId,
-        notes: `${checklistType} completed`
+        notes: `${checklistType} completed${options?.skipApproval ? ' (auto-approved)' : ''}`
       });
       
       // Check if we should auto-transition
@@ -1082,34 +1220,28 @@ export class LifecycleIntegrationService {
       if (currentIndex < pattern.length - 1) {
         const nextStage = pattern[currentIndex + 1];
         
-        // Validate current stage completion
-        const documents = await this.fetchDocumentsForStages(opportunityId, [currentStage]);
-        const isValid = await this.validateStageCompletion(opportunityId, currentStage, documents[currentStage]);
+        // Auto-transition to next stage without validation
+        await this.transitionToStage(opportunityId, nextStage, {
+          skipValidation: true,
+          metadata: {
+            triggeredBy: 'checklist-completion-auto',
+            checklistId,
+            completedBy: userId,
+            autoTransition: true
+          }
+        });
         
-        if (isValid) {
-          // Auto-transition to next stage
-          await this.transitionToStage(opportunityId, nextStage, {
-            skipValidation: true,
-            metadata: {
-              triggeredBy: 'checklist-completion',
-              checklistId,
-              completedBy: userId
-            }
-          });
-          
-          return {
-            checklistCompleted: true,
-            stageTransitioned: true,
-            nextStage,
-            message: `${checklistType} completed and auto-transitioned to ${nextStage}`
-          };
-        } else {
-          return {
-            checklistCompleted: true,
-            stageTransitioned: false,
-            message: `${checklistType} completed but not ready for auto-transition`
-          };
+        // If transitioning to jobcard stage, auto-create job card
+        if (nextStage === 'jobcard') {
+          await this.autoCreateJobCard(opportunityId);
         }
+        
+        return {
+          checklistCompleted: true,
+          stageTransitioned: true,
+          nextStage,
+          message: `${checklistType} completed and auto-transitioned to ${nextStage}${nextStage === 'jobcard' ? ' (job card auto-created)' : ''}`
+        };
       }
       
       return {
@@ -1611,8 +1743,120 @@ export class LifecycleIntegrationService {
     isCurrent: boolean,
     document: any
   ): any[] {
-    // Delegate to the main getStageActions method for consistency
-    return this.getStageActions(stage, completed, isCurrent, document, 'work_order');
+    const actions = [];
+    
+    // Add debug logging
+    console.log(`Stage: ${stage}, Completed: ${completed}, IsCurrent: ${isCurrent}, HasDoc: ${!!document}`);
+    
+    // For completed stages
+    if (completed && document) {
+      actions.push({
+        label: 'View',
+        action: 'view',
+        color: 'blue',
+        icon: 'eye',
+        variant: 'outline'
+      });
+      
+      // Allow updates for certain stages
+      if (['prechecklist', 'postchecklist', 'jobcard'].includes(stage)) {
+        actions.push({
+          label: 'Update',
+          action: 'update',
+          color: 'yellow',
+          icon: 'edit',
+          variant: 'outline'
+        });
+      }
+    }
+    
+    // For current stage (not completed)
+    if (isCurrent) {
+      // Create button if no document exists
+      if (!document) {
+        actions.push({
+          label: this.getCreateButtonLabel(stage),
+          action: 'create',
+          color: 'green',
+          icon: 'plus',
+          variant: 'primary'
+        });
+      } else {
+        // View/Edit for existing document
+        actions.push({
+          label: 'View',
+          action: 'view',
+          color: 'blue',
+          icon: 'eye',
+          variant: 'outline'
+        });
+        
+        // Edit for certain stages
+        if (['prechecklist', 'postchecklist', 'jobcard'].includes(stage)) {
+          actions.push({
+            label: 'Edit',
+            action: 'edit',
+            color: 'yellow',
+            icon: 'edit',
+            variant: 'outline'
+          });
+        }
+        
+        // Complete button if ready
+        if (this.canWorkOrderTransition(stage, stage, document)) {
+          actions.push({
+            label: 'Complete',
+            action: 'complete',
+            color: 'green',
+            icon: 'check-circle',
+            variant: 'success'
+          });
+        }
+        
+        // Transition button for completed stages
+        if (this.isStageReadyForTransition(stage, document)) {
+          const nextStage = this.getNextStage(stage);
+          actions.push({
+            label: `Next: ${this.getStageLabel(nextStage)}`,
+            action: 'transition',
+            color: 'purple',
+            icon: 'arrow-right',
+            variant: 'primary'
+          });
+        }
+      }
+    }
+    
+    // Add approval-specific actions
+    if (isCurrent && document && ['prechecklist', 'postchecklist'].includes(stage)) {
+      if (!document.approved) {
+        actions.push({
+          label: 'Approve',
+          action: 'approve',
+          color: 'green',
+          icon: 'check',
+          variant: 'success'
+        });
+      }
+    }
+    
+    return actions;
+  }
+
+  private getCreateButtonLabel(stage: string): string {
+    const labels = {
+      'prechecklist': 'Create Pre-Checklist',
+      'jobcard': 'Create Job Card',
+      'postchecklist': 'Create Post-Checklist',
+      'invoice': 'Create Invoice'
+    };
+    return labels[stage] || `Create ${this.getStageLabel(stage)}`;
+  }
+
+  private getNextStage(stage: string): string {
+    const pattern = WORKFLOW_PATTERNS.WORK_ORDER;
+    const index = pattern.indexOf(stage);
+    return index < pattern.length - 1 ? pattern[index + 1] : '';
   }
     
   private getSalesOrderStageActions(
@@ -1744,27 +1988,514 @@ export class LifecycleIntegrationService {
     };
   }
   
-  private async validateStageCompletion(opportunityId: string, stage: string, document?: any): Promise<boolean> {
-    // All stages require a document in new structure
-    if (!document) return false;
-    
+  public async validateStageCompletion(
+    opportunityId: string, 
+    stage: string, 
+    document: any
+  ): Promise<{ isValid: boolean; message?: string; requirements?: string[] }> {
     switch (stage) {
       case 'prechecklist':
-        if (document.approved) return true;
-        return document.inspectionItems?.every((item: any) => 
+        if (!document) {
+          return { 
+            isValid: false, 
+            message: 'Pre-checklist document not found',
+            requirements: ['Create pre-checklist document']
+          };
+        }
+        
+        const preChecklist = document;
+        const isApproved = preChecklist.approved === true;
+        const allItemsOk = preChecklist.inspectionItems?.every((item: any) => 
           item.status === 'ok' || item.status === 'n/a'
         ) || false;
+        
+        return {
+          isValid: isApproved || allItemsOk,
+          message: isApproved ? 'Checklist approved' : 
+                   allItemsOk ? 'All items OK/N/A' : 'Items require attention',
+          requirements: isApproved ? [] : ['Need approval or all items OK/N/A']
+        };
+
       case 'jobcard':
-        return document.status === 'completed' || document.status === 'closed';
+        if (!document) {
+          return { 
+            isValid: false, 
+            message: 'Job card not found',
+            requirements: ['Create job card document']
+          };
+        }
+        
+        const jobCard = document;
+        const isCompleted = jobCard.status === 'completed' || jobCard.status === 'closed';
+        
+        return {
+          isValid: isCompleted,
+          message: isCompleted ? 'Job card completed' : 'Job card in progress',
+          requirements: isCompleted ? [] : ['Complete job card tasks']
+        };
+
       case 'postchecklist':
-        if (document.approved) return true;
-        return document.inspectionItems?.every((item: any) => 
+        if (!document) {
+          return { 
+            isValid: false, 
+            message: 'Post-checklist not found',
+            requirements: ['Create post-checklist document']
+          };
+        }
+        
+        const postChecklist = document;
+        const postApproved = postChecklist.approved === true;
+        const allRequiredCompleted = postChecklist.inspectionItems?.every((item: any) => 
           !item.required || item.status === 'completed' || item.status === 'n/a'
         ) || false;
+        
+        return {
+          isValid: postApproved || allRequiredCompleted,
+          message: postApproved ? 'Checklist approved' : 
+                   allRequiredCompleted ? 'Required items completed' : 'Required items pending',
+          requirements: postApproved ? [] : ['Need approval or complete required items']
+        };
+
       case 'invoice':
-        return document.status === 'sent' || document.status === 'paid';
+        if (!document) {
+          return { 
+            isValid: false, 
+            message: 'Invoice not found',
+            requirements: ['Create invoice document']
+          };
+        }
+        
+        const invoice = document;
+        const isSentOrPaid = invoice.status === 'sent' || invoice.status === 'paid';
+        
+        return {
+          isValid: isSentOrPaid,
+          message: isSentOrPaid ? 'Invoice sent/paid' : 'Invoice pending',
+          requirements: isSentOrPaid ? [] : ['Send or mark invoice as paid']
+        };
+
       default:
-        return true;
+        return { 
+          isValid: false, 
+          message: `Unknown stage: ${stage}`,
+          requirements: ['Valid stage required']
+        };
+    }
+  }
+
+  async autoTransitionOnApproval(
+    checklistId: string,
+    checklistType: 'prechecklist' | 'postchecklist',
+    approvedBy?: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    transition?: {
+      fromStage: string;
+      toStage: string;
+      opportunityId: string;
+    };
+    errors?: string[];
+  }> {
+    try {
+      // 1. Get checklist and opportunity
+      const checklist = checklistType === 'prechecklist' 
+        ? await preChecklistService.getPreChecklistById(checklistId)
+        : await postChecklistService.getPostChecklistById(checklistId);
+      
+      const opportunityId = typeof checklist.opportunityId === 'object' 
+        ? checklist.opportunityId._id 
+        : checklist.opportunityId;
+      
+      if (!opportunityId) {
+        return {
+          success: false,
+          message: 'Opportunity not found',
+          errors: ['No opportunity linked to checklist']
+        };
+      }
+
+      // 2. Approve the checklist
+      if (checklistType === 'prechecklist') {
+        await preChecklistService.updatePreChecklist(checklistId, {
+          approved: true,
+          approvedBy: approvedBy || 'system',
+          approvedAt: new Date().toISOString(),
+          clientSignature: checklist.clientSignature || 'auto-approved'
+        });
+      } else {
+        await postChecklistService.approvePostChecklist(checklistId, approvedBy);
+      }
+
+      // 3. Get current lifecycle state
+      const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
+      const currentStage = lifecycle.currentStage;
+      
+      // 4. Validate we're at the right stage
+      if (currentStage !== checklistType) {
+        return {
+          success: false,
+          message: `Not in ${checklistType} stage`,
+          errors: [`Current stage is ${currentStage}`]
+        };
+      }
+
+      // 5. Determine next stage
+      const pattern = WORKFLOW_PATTERNS.WORK_ORDER;
+      const currentIndex = pattern.indexOf(currentStage);
+      
+      if (currentIndex >= pattern.length - 1) {
+        return {
+          success: false,
+          message: 'Already at final stage',
+          errors: ['No next stage available']
+        };
+      }
+
+      const nextStage = pattern[currentIndex + 1];
+
+      // 6. Perform transition
+      await lifecycleService.transitionToStage(opportunityId, nextStage, {
+        metadata: {
+          triggeredBy: 'auto-approval',
+          checklistId,
+          checklistType,
+          approvedBy,
+          transitionedAt: new Date().toISOString()
+        }
+      });
+
+      // 7. Auto-create documents for next stage if needed
+      let autoCreatedDoc = null;
+      if (nextStage === 'jobcard') {
+        try {
+          autoCreatedDoc = await jobCardService.createJobCard({
+            opportunityId,
+            jobTitle: `Job Card from ${checklistType}`,
+            jobDescription: `Auto-generated from ${checklistType} approval`,
+            status: 'pending',
+            priority: 'medium'
+          });
+        } catch (error) {
+          console.warn('Failed to auto-create job card:', error);
+        }
+      }
+
+      // 8. Update work order status
+      const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
+      if (workOrders.length > 0) {
+        const workOrder = workOrders[0];
+        await workOrderService.updateWorkOrder(workOrder._id, {
+          currentStage: nextStage,
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      return {
+        success: true,
+        message: `Successfully approved ${checklistType} and transitioned to ${nextStage}`,
+        transition: {
+          fromStage: currentStage,
+          toStage: nextStage,
+          opportunityId
+        }
+      };
+
+    } catch (error) {
+      console.error(`Error in auto-transition for ${checklistType}:`, error);
+      return {
+        success: false,
+        message: `Failed to process ${checklistType} approval`,
+        errors: [error instanceof Error ? error.message : 'Unknown error']
+      };
+    }
+  }
+
+  async getEnhancedWorkflowUI(opportunityId: string) {
+    try {
+      const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
+      
+      if (lifecycle.packageType !== 'work_order') {
+        throw new Error('Not a work order');
+      }
+
+      const pattern = WORKFLOW_PATTERNS.WORK_ORDER;
+      const documents = await this.fetchDocumentsForStages(opportunityId, pattern);
+      
+      const stages = await Promise.all(pattern.map(async (stageName, index) => {
+        const lifecycleStage = lifecycle.stages?.find((s: any) => s.stage === stageName);
+        const document = documents[stageName];
+        
+        // Get validation status
+        const validation = await this.validateStageCompletion(opportunityId, stageName, document);
+        
+        // Determine if stage is truly completed
+        const isCompleted = this.isStageCompleted(stageName, document, lifecycleStage);
+        
+        // Determine if stage is current
+        const isCurrent = lifecycle.currentStage === stageName;
+        
+        // Get stage-specific configuration
+        const stageConfig = this.getWorkOrderStageConfig(stageName);
+        
+        // Build actions based on status
+        const actions = this.buildStageActions(
+          stageName, 
+          isCompleted, 
+          isCurrent, 
+          document, 
+          validation.isValid
+        );
+
+        return {
+          stage: stageName,
+          label: stageConfig.label,
+          description: stageConfig.description,
+          icon: stageConfig.icon,
+          completed: isCompleted,
+          isCurrent,
+          canTransition: validation.isValid,
+          document,
+          documentId: document?._id || document?.id || '',
+          documentType: this.getDocumentType(stageName),
+          actions,
+          required: stageConfig.required,
+          skippable: stageConfig.skippable,
+          validation,
+          progress: this.calculateStageProgress(stageName, document),
+          status: this.determineStageStatus(isCompleted, isCurrent, validation.isValid),
+          statusColor: this.getStatusColor(stageName, isCompleted, isCurrent, validation.isValid),
+          nextAction: this.getNextAction(stageName, isCompleted, document),
+          dependencies: this.getStageDependencies(stageName, pattern),
+          index: index + 1,
+          totalStages: pattern.length
+        };
+      }));
+
+      // Calculate overall progress
+      const completedStages = stages.filter(s => s.completed).length;
+      const totalStages = stages.length;
+      const progressPercentage = Math.round((completedStages / totalStages) * 100);
+
+      // Find next actionable stage
+      const currentStage = stages.find(s => s.isCurrent);
+      const nextStage = stages.find(s => !s.completed && s.index > (currentStage?.index || 0));
+
+      return {
+        stages,
+        progress: {
+          percentage: progressPercentage,
+          completedStages,
+          totalStages,
+          currentStage: lifecycle.currentStage,
+          nextStage: nextStage?.stage,
+          isComplete: lifecycle.currentStage === 'invoice' && 
+                     stages.every(s => s.completed || s.stage === 'invoice')
+        },
+        currentStageDetails: currentStage,
+        canTransition: stages.some(s => s.isCurrent && s.canTransition),
+        packageType: 'work_order',
+        lastUpdated: new Date().toISOString()
+      };
+
+    } catch (error) {
+      console.error('Error getting enhanced workflow UI:', error);
+      throw error;
+    }
+  }
+
+  private isStageCompleted(stageName: string, document: any, lifecycleStage: any): boolean {
+    const lifecycleCompleted = lifecycleStage?.completed || false;
+    
+    if (!lifecycleCompleted) return false;
+    
+    switch (stageName) {
+      case 'prechecklist':
+        return document?.approved || 
+               document?.inspectionItems?.every((item: any) => 
+                 item.status === 'ok' || item.status === 'n/a'
+               ) || false;
+      case 'jobcard':
+        return document?.status === 'completed' || document?.status === 'closed';
+      case 'postchecklist':
+        return document?.approved || 
+               document?.inspectionItems?.every((item: any) => 
+                 !item.required || item.status === 'completed' || item.status === 'n/a'
+               ) || false;
+      case 'invoice':
+        return document?.status === 'sent' || document?.status === 'paid';
+      default:
+        return !!document;
+    }
+  }
+
+  private determineStageStatus(
+    completed: boolean, 
+    isCurrent: boolean, 
+    canTransition: boolean
+  ): string {
+    if (completed) return 'completed';
+    if (isCurrent && canTransition) return 'ready';
+    if (isCurrent && !canTransition) return 'in_progress';
+    return 'pending';
+  }
+
+  private getStatusColor(
+    stage: string, 
+    completed: boolean, 
+    isCurrent: boolean, 
+    canTransition: boolean
+  ): string {
+    if (completed) return 'green';
+    if (isCurrent && canTransition) return 'blue';
+    if (isCurrent && !canTransition) return 'yellow';
+    return 'gray';
+  }
+
+  private buildStageActions(
+    stage: string,
+    completed: boolean,
+    isCurrent: boolean,
+    document: any,
+    canTransition: boolean
+  ): Array<{
+    label: string;
+    action: string;
+    color: string;
+    description: string;
+    disabled?: boolean;
+    icon?: string;
+  }> {
+    const actions = [];
+
+    // Common actions for all stages
+    if (document) {
+      actions.push({
+        label: 'View',
+        action: 'view',
+        color: 'blue',
+        description: `View ${this.getStageLabel(stage)} document`,
+        icon: 'eye'
+      });
+
+      if (['prechecklist', 'postchecklist', 'jobcard'].includes(stage) && !completed) {
+        actions.push({
+          label: 'Edit',
+          action: 'edit',
+          color: 'yellow',
+          description: `Edit ${this.getStageLabel(stage)}`,
+          icon: 'edit'
+        });
+      }
+    }
+
+    // Current stage specific actions
+    if (isCurrent) {
+      if (!document) {
+        actions.push({
+          label: 'Create',
+          action: 'create',
+          color: 'green',
+          description: `Create ${this.getStageLabel(stage)}`,
+          icon: 'plus'
+        });
+      }
+
+      if (document && canTransition && !completed) {
+        actions.push({
+          label: 'Complete & Next',
+          action: 'complete_and_next',
+          color: 'purple',
+          description: `Complete ${this.getStageLabel(stage)} and move to next stage`,
+          icon: 'arrow-right'
+        });
+      }
+
+      // Approval actions for checklists
+      if ((stage === 'prechecklist' || stage === 'postchecklist') && document && !document.approved) {
+        actions.push({
+          label: 'Approve',
+          action: 'approve',
+          color: 'green',
+          description: `Approve ${this.getStageLabel(stage)}`,
+          icon: 'check-circle'
+        });
+      }
+    }
+
+    // Add transition action if current stage can transition
+    if (isCurrent && canTransition && completed) {
+      actions.push({
+        label: 'Next Stage',
+        action: 'transition',
+        color: 'purple',
+        description: 'Move to next workflow stage',
+        icon: 'arrow-right'
+      });
+    }
+
+    return actions;
+  }
+
+  private calculateStageProgress(stage: string, document: any): number {
+    if (!document) return 0;
+
+    switch (stage) {
+      case 'prechecklist':
+        const preItems = document.inspectionItems || [];
+        const preCompleted = preItems.filter((item: any) => 
+          item.status === 'ok' || item.status === 'n/a'
+        ).length;
+        return preItems.length > 0 ? Math.round((preCompleted / preItems.length) * 100) : 0;
+
+      case 'jobcard':
+        return document.status === 'completed' ? 100 : 
+               document.status === 'in_progress' ? 50 : 0;
+
+      case 'postchecklist':
+        const postItems = document.inspectionItems || [];
+        const postRequired = postItems.filter((item: any) => item.required);
+        const postCompleted = postRequired.filter((item: any) => 
+          item.status === 'completed' || item.status === 'n/a'
+        ).length;
+        return postRequired.length > 0 ? Math.round((postCompleted / postRequired.length) * 100) : 0;
+
+      case 'invoice':
+        return document.status === 'paid' ? 100 : 
+               document.status === 'sent' ? 75 : 0;
+
+      default:
+        return document ? 50 : 0;
+    }
+  }
+
+  private getNextAction(stage: string, completed: boolean, document: any): string {
+    if (completed) {
+      switch (stage) {
+        case 'prechecklist': return 'Create Job Card';
+        case 'jobcard': return 'Create Post-Checklist';
+        case 'postchecklist': return 'Create Invoice';
+        case 'invoice': return 'Complete Work Order';
+        default: return 'Move to Next Stage';
+      }
+    }
+
+    if (!document) {
+      return `Create ${this.getStageLabel(stage)}`;
+    }
+
+    switch (stage) {
+      case 'prechecklist':
+        return document.approved ? 'Ready for Job Card' : 'Approve Checklist';
+      case 'jobcard':
+        return document.status === 'completed' ? 'Ready for Post-Checklist' : 'Complete Job Card';
+      case 'postchecklist':
+        return document.approved ? 'Ready for Invoice' : 'Approve Checklist';
+      case 'invoice':
+        return document.status === 'paid' ? 'Complete Work Order' : 
+               document.status === 'sent' ? 'Mark as Paid' : 'Send Invoice';
+      default:
+        return 'Continue';
     }
   }
 

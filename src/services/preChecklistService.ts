@@ -138,6 +138,7 @@ export interface UpdatePreChecklistDto {
   remarks?: string;
   approved?: boolean;
   approvedBy?: string;
+  approvedAt?: string;
   serviceType?: 'pickup_only' | 'workshop_installation' | 'mobile_service';
   inspectorName?: string;
   customerDetails?: {
@@ -466,18 +467,17 @@ class PreChecklistService {
     }
   }
 
-  async approvePreChecklist(id: string, approvedBy?: string): Promise<PreChecklist> {
+  async approvePreChecklist(id: string, remarks?: string): Promise<PreChecklist> {
     try {
-      const headers: Record<string, string> = {};
-      
-      if (approvedBy) {
-        headers['X-Approved-By'] = approvedBy;
-      }
-      
-      return await extendedApiClient.patch<{ approvedBy?: string }, PreChecklist>(
+      return await extendedApiClient.patch<{
+        approved: boolean;
+        remarks?: string;
+      }, PreChecklist>(
         `/prechecklists/${id}/approve`, 
-        { approvedBy }, 
-        headers
+        { 
+          approved: true,
+          remarks
+        }
       );
     } catch (error) {
       console.error(`Error approving pre-checklist ${id}:`, error);

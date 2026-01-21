@@ -1,5 +1,10 @@
 // src/services/workOrderService.ts
 import { apiClient } from '@/lib/api/client';
+import { lifecycleIntegrationService } from './lifecycleIntegrationService';
+import { invoiceService } from './invoiceService';
+import { postChecklistService } from './postChecklistService';
+import { jobCardService } from './jobCardService';
+import { preChecklistService } from './preChecklistService';
 
 export interface TechnicianNote {
   content: string;
@@ -646,6 +651,27 @@ class WorkOrderService {
     }
   }
 
+  async updateWorkOrderByOpportunity(
+    opportunityId: string, 
+    data: UpdateWorkOrderData
+  ): Promise<WorkOrder> {
+    try {
+      // First get all work orders for the opportunity
+      const workOrders = await this.getWorkOrdersByOpportunity(opportunityId);
+      
+      if (workOrders.length === 0) {
+        throw new Error(`No work order found for opportunity ${opportunityId}`);
+      }
+      
+      // Update the first work order (assuming one work order per opportunity)
+      const workOrder = workOrders[0];
+      return await this.updateWorkOrder(workOrder._id, data);
+    } catch (error) {
+      console.error(`Error updating work order by opportunity ${opportunityId}:`, error);
+      throw error;
+    }
+  }
+
   // GET /api/v1/workorder/summary/status
   async getStatusSummary(): Promise<StatusSummary> {
     try {
@@ -692,7 +718,416 @@ class WorkOrderService {
     }
   }
 
+  async getEnhancedWorkflowUI(workOrderId: string) {
+    try {
+      const workOrder = await this.getWorkOrderById(workOrderId);
+      const opportunityId = typeof workOrder.opportunityId === 'object' 
+        ? workOrder.opportunityId._id 
+        : workOrder.opportunityId;
+      
+      // Use lifecycle integration service
+      return await lifecycleIntegrationService.getEnhancedWorkflowUI(opportunityId);
+    } catch (error) {
+      console.error('Error getting enhanced workflow UI:', error);
+      throw error;
+    }
+  }
+
+  async autoApproveAndTransition(
+    workOrderId: string,
+    checklistType: 'prechecklist' | 'postchecklist',
+    approvedBy?: string
+  ) {
+    try {
+      const workOrder = await this.getWorkOrderById(workOrderId);
+      
+      // Get the checklist ID based on type
+      const checklistId = checklistType === 'prechecklist' 
+        ? workOrder.preChecklistId 
+        : workOrder.postChecklistId;
+      
+      if (!checklistId) {
+        throw new Error(`${checklistType} not found for work order`);
+      }
+      
+      // Use lifecycle integration service
+      const result = await lifecycleIntegrationService.autoTransitionOnApproval(
+        checklistId,
+        checklistType,
+        approvedBy
+      );
+      
+      if (result.success && result.transition) {
+        // Update work order with new stage
+        await this.updateWorkOrder(workOrderId, {
+          currentStage: result.transition.toStage,
+          updatedAt: new Date().toISOString()
+        });
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Error in auto-approve and transition:', error);
+      throw error;
+    }
+  }
+
+  async getStageValidation(workOrderId: string, stage: string) {
+    try {
+      const workOrder = await this.getWorkOrderById(workOrderId);
+      const opportunityId = typeof workOrder.opportunityId === 'object' 
+        ? workOrder.opportunityId._id 
+        : workOrder.opportunityId;
+      
+      // Get document for the stage
+      let document = null;
+      switch (stage) {
+        case 'prechecklist':
+          if (workOrder.preChecklistId) {
+            document = await preChecklistService.getPreChecklistById(workOrder.preChecklistId);
+          }
+          break;
+        case 'jobcard':
+          const jobCards = await jobCardService.getJobCardsByOpportunity(opportunityId);
+          if (jobCards.length > 0) {
+            document = jobCards[0];
+          }
+          break;
+        case 'postchecklist':
+          if (workOrder.postChecklistId) {
+            document = await postChecklistService.getPostChecklistById(workOrder.postChecklistId);
+          }
+          break;
+        case 'invoice':
+          if (workOrder.invoiceId) {
+            document = await invoiceService.getInvoiceById(workOrder.invoiceId);
+          }
+          break;
+      }
+      
+      return await lifecycleIntegrationService.validateStageCompletion(opportunityId, stage, document);
+    } catch (error) {
+      console.error('Error getting stage validation:', error);
+      throw error;
+    }
+  }
+
+  async getWorkflowProgress(workOrderId: string) {
+    try {
+      const workOrder = await this.getWorkOrderById(workOrderId);
+      const opportunityId = typeof workOrder.opportunityId === 'object' 
+        ? workOrder.opportunityId._id 
+        : workOrder.opportunityId;
+      
+      return await lifecycleIntegrationService.getEnhancedWorkflowUI(opportunityId);
+    } catch (error) {
+      console.error('Error getting workflow progress:', error);
+      throw error;
+    }
+  }
+
+  async getNextStageAction(workOrderId: string) {
+    try {
+      const workflow = await this.getWorkflowProgress(workOrderId);
+      const currentStage = workflow.currentStageDetails;
+      
+      if (!currentStage) {
+        return null;
+      }
+      
+      return {
+        stage: currentStage.stage,
+        label: currentStage.label,
+        nextAction: currentStage.nextAction,
+        actions: currentStage.actions,
+        canTransition: currentStage.canTransition,
+        validation: currentStage.validation
+      };
+    } catch (error) {
+      console.error('Error getting next stage action:', error);
+      throw error;
+    }
+  }
+
   // Utility methods for UI
+
+    getStageStatusConfig(stage: any) {
+    if (!stage) return {
+      label: 'Unknown',
+      className: 'bg-gray-100 text-gray-800',
+      icon: '❓'
+    };
+    
+    if (stage.completed) {
+      return {
+        label: 'Completed',
+        className: 'bg-green-100 text-green-800',
+        icon: '✅'
+      };
+    }
+    
+    if (stage.isCurrent) {
+      if (stage.status === 'needs_approval') {
+        return {
+          label: 'Needs Approval',
+          className: 'bg-yellow-100 text-yellow-800',
+          icon: '⚠️'
+        };
+      }
+      if (stage.status === 'ready') {
+        return {
+          label: 'Ready',
+          className: 'bg-blue-100 text-blue-800',
+          icon: '⚡'
+        };
+      }
+      return {
+        label: 'In Progress',
+        className: 'bg-blue-100 text-blue-800',
+        icon: '🔄'
+      };
+    }
+    
+    return {
+      label: 'Pending',
+      className: 'bg-gray-100 text-gray-800',
+      icon: '⏳'
+    };
+  }
+
+  getStageProgressBar(stage: any) {
+    const progress = stage.progress || 0;
+    
+    if (stage.completed) {
+      return {
+        width: '100%',
+        color: 'bg-green-500',
+        label: '100%'
+      };
+    }
+    
+    return {
+      width: `${progress}%`,
+      color: stage.isCurrent ? 'bg-blue-500' : 'bg-gray-300',
+      label: `${progress}%`
+    };
+  }
+
+  getActionButtonConfig(stage: any, action: any) {
+    const colorMap: Record<string, string> = {
+      'create': 'bg-green-600 hover:bg-green-700',
+      'edit': 'bg-yellow-600 hover:bg-yellow-700',
+      'view': 'bg-blue-600 hover:bg-blue-700',
+      'approve': 'bg-green-600 hover:bg-green-700',
+      'transition': 'bg-purple-600 hover:bg-purple-700',
+      'complete': 'bg-green-600 hover:bg-green-700'
+    };
+    
+    const iconMap: Record<string, string> = {
+      'create': '➕',
+      'edit': '✏️',
+      'view': '👁️',
+      'approve': '✅',
+      'transition': '➡️',
+      'complete': '🏁'
+    };
+    
+    return {
+      className: colorMap[action.action] || 'bg-gray-600 hover:bg-gray-700',
+      icon: iconMap[action.action] || '⚡',
+      disabled: action.disabled || false
+    };
+  }
+
+  // ============ ENHANCED HELPER METHODS ============
+  
+  getWorkflowStageDetails(workOrder: WorkOrder, stage: string) {
+    const stages = {
+      'pre_checklist': {
+        label: 'Pre-Checklist',
+        description: 'Pre-service inspection and validation',
+        icon: '📋',
+        nextStage: 'job_card',
+        requiredDocs: ['preChecklistId'],
+        canSkip: false
+      },
+      'job_card': {
+        label: 'Job Card',
+        description: 'Detailed job tasks and technician assignments',
+        icon: '🔧',
+        nextStage: 'post_checklist',
+        requiredDocs: ['jobCards'],
+        canSkip: false
+      },
+      'post_checklist': {
+        label: 'Post-Checklist',
+        description: 'Post-service verification and quality check',
+        icon: '✅',
+        nextStage: 'invoice',
+        requiredDocs: ['postChecklistId'],
+        canSkip: false
+      },
+      'invoice': {
+        label: 'Invoice',
+        description: 'Generate and manage billing',
+        icon: '💰',
+        nextStage: null,
+        requiredDocs: ['invoiceId'],
+        canSkip: false
+      }
+    };
+    
+    return stages[stage as keyof typeof stages] || null;
+  }
+
+  getStageCompletionStatus(workOrder: WorkOrder, stage: string) {
+    switch (stage) {
+      case 'pre_checklist':
+        return {
+          hasDocument: !!workOrder.preChecklistId,
+          isComplete: !!workOrder.preChecklistCompletionDate,
+          completionDate: workOrder.preChecklistCompletionDate,
+          approved: workOrder.stageApprovals?.pre_checklist?.approved || false
+        };
+      case 'job_card':
+        return {
+          hasDocument: !!(workOrder.jobCards && workOrder.jobCards.length > 0),
+          isComplete: !!workOrder.jobCardCompletionDate,
+          completionDate: workOrder.jobCardCompletionDate,
+          approved: workOrder.stageApprovals?.job_card?.approved || false
+        };
+      case 'post_checklist':
+        return {
+          hasDocument: !!workOrder.postChecklistId,
+          isComplete: !!workOrder.postChecklistCompletionDate,
+          completionDate: workOrder.postChecklistCompletionDate,
+          approved: workOrder.stageApprovals?.post_checklist?.approved || false
+        };
+      case 'invoice':
+        return {
+          hasDocument: !!workOrder.invoiceId,
+          isComplete: !!workOrder.invoiceCompletionDate,
+          completionDate: workOrder.invoiceCompletionDate,
+          approved: workOrder.stageApprovals?.invoice?.approved || false
+        };
+      default:
+        return {
+          hasDocument: false,
+          isComplete: false,
+          completionDate: null,
+          approved: false
+        };
+    }
+  }
+
+  getStageActions(workOrder: WorkOrder, stage: string) {
+    const status = this.getStageCompletionStatus(workOrder, stage);
+    const isCurrentStage = workOrder.currentStage === stage;
+    
+    const actions = [];
+    
+    // View action if document exists
+    if (status.hasDocument) {
+      actions.push({
+        label: 'View',
+        action: 'view',
+        color: 'blue',
+        icon: '👁️'
+      });
+    }
+    
+    // Edit action if document exists and stage is current
+    if (status.hasDocument && isCurrentStage && !status.isComplete) {
+      actions.push({
+        label: 'Edit',
+        action: 'edit',
+        color: 'yellow',
+        icon: '✏️'
+      });
+    }
+    
+    // Create action if no document and stage is current
+    if (!status.hasDocument && isCurrentStage) {
+      actions.push({
+        label: 'Create',
+        action: 'create',
+        color: 'green',
+        icon: '➕'
+      });
+    }
+    
+    // Approve action if document exists, not approved, and stage is current
+    if (status.hasDocument && !status.approved && isCurrentStage) {
+      actions.push({
+        label: 'Approve',
+        action: 'approve',
+        color: 'green',
+        icon: '✅'
+      });
+    }
+    
+    // Complete & Next action if stage is complete but not transitioned
+    if (status.isComplete && isCurrentStage && workOrder.currentStage !== 'invoice') {
+      actions.push({
+        label: 'Next Stage →',
+        action: 'transition',
+        color: 'purple',
+        icon: '➡️'
+      });
+    }
+    
+    return actions;
+  }
+
+  calculateWorkflowProgress(workOrder: WorkOrder) {
+    const stages = ['pre_checklist', 'job_card', 'post_checklist', 'invoice'];
+    let completed = 0;
+    
+    stages.forEach(stage => {
+      const status = this.getStageCompletionStatus(workOrder, stage);
+      if (status.isComplete) completed++;
+    });
+    
+    return {
+      completed,
+      total: stages.length,
+      percentage: Math.round((completed / stages.length) * 100)
+    };
+  }
+
+  validateWorkflowTransition(workOrder: WorkOrder, fromStage: string, toStage: string) {
+    const stageOrder = ['pre_checklist', 'job_card', 'post_checklist', 'invoice'];
+    const fromIndex = stageOrder.indexOf(fromStage);
+    const toIndex = stageOrder.indexOf(toStage);
+    
+    if (fromIndex === -1 || toIndex === -1) {
+      return {
+        isValid: false,
+        message: 'Invalid stage'
+      };
+    }
+    
+    if (toIndex <= fromIndex) {
+      return {
+        isValid: false,
+        message: 'Cannot move backwards in workflow'
+      };
+    }
+    
+    // Check if current stage is complete
+    const currentStatus = this.getStageCompletionStatus(workOrder, fromStage);
+    if (!currentStatus.isComplete && fromStage !== 'invoice') {
+      return {
+        isValid: false,
+        message: `Complete ${fromStage.replace('_', ' ')} before moving to next stage`
+      };
+    }
+    
+    return {
+      isValid: true,
+      message: 'Valid transition'
+    };
+  }
   getStatusColor(status: string): string {
     const colors: Record<string, string> = {
       'draft': 'bg-gray-100 text-gray-800',

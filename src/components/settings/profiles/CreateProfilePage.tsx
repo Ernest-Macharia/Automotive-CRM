@@ -197,9 +197,9 @@ export default function CreateProfilePage() {
       if (!formData.dateOfBirth) {
         newErrors.dateOfBirth = 'Date of birth is required';
       }
-      if (!formData.employeeId?.trim()) {
-        newErrors.employeeId = 'Employee ID is required';
-      }
+      // if (!formData.employeeId?.trim()) {
+      //   newErrors.employeeId = 'Employee ID is required';
+      // }
       if (!formData.position?.trim()) {
         newErrors.position = 'Position is required';
       }
@@ -527,7 +527,7 @@ export default function CreateProfilePage() {
               <div className="space-y-4">
                 <h4 className="font-medium text-gray-900">Employment Information</h4>
                 
-                <div>
+                {/* <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Employee ID *
                   </label>
@@ -546,7 +546,7 @@ export default function CreateProfilePage() {
                       {errors.employeeId}
                     </p>
                   )}
-                </div>
+                </div> */}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1142,10 +1142,10 @@ export default function CreateProfilePage() {
                       {formData.firstName} {formData.middleName} {formData.lastName}
                     </p>
                   </div>
-                  <div>
+                  {/* <div>
                     <p className="text-xs text-gray-600">Employee ID</p>
                     <p className="font-medium text-gray-900">{formData.employeeId}</p>
-                  </div>
+                  </div> */}
                   <div>
                     <p className="text-xs text-gray-600">Position</p>
                     <p className="font-medium text-gray-900">{formData.position}</p>

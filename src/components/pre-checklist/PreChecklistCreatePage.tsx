@@ -67,6 +67,7 @@ import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
+import { lifecycleIntegrationService } from '@/services/lifecycleIntegrationService';
 
 interface PreChecklistCreatePageProps {
   mode?: 'create' | 'edit';
@@ -690,6 +691,136 @@ export default function HeadlightPreChecklistCreatePage({
     return { total, ok, fault, na, pending };
   };
 
+  // Add this function to your PreChecklistCreatePage component
+  const handleSubmitWithAutoTransition = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      setSubmitting(true);
+
+      // Validate required fields
+      if (!formData.carDetails.regNo.trim()) {
+        showToast('Vehicle registration number is required', 'error');
+        setCurrentStep(3); // Go to vehicle step
+        setSubmitting(false);
+        return;
+      }
+
+      if (!formData.acceptTerms || !formData.acceptDiagnosticCharges) {
+        showToast('Please accept all terms and conditions', 'error');
+        setCurrentStep(5); // Go to terms step
+        setSubmitting(false);
+        return;
+      }
+
+      // Prepare inspection items - convert pending to n/a
+      const submissionItems = formData.inspectionItems.map(item => ({
+        item: item.item,
+        status: item.status === 'pending' ? 'n/a' : item.status,
+        remarks: item.remarks || '',
+        side: item.side || 'both'
+      }));
+
+      // Create submission data
+      const submissionData = {
+        opportunityId: formData.opportunityId,
+        vehicleId: formData.vehicleId,
+        inspectionItems: submissionItems,
+        remarks: formData.remarks || '',
+        approved: false, // Start as not approved
+        
+        // Include headlight-specific data
+        serviceType: formData.serviceType,
+        inspectorName: formData.inspectorName,
+        customerDetails: formData.customerDetails,
+        carDetails: formData.carDetails,
+        productServiceNeeded: formData.productServiceNeeded,
+        productPrice: formData.productPrice,
+        servicePrice: formData.servicePrice,
+        additionalInformation: formData.additionalInformation,
+        installationDetails: formData.installationDetails,
+        deliveryPickupMethod: formData.deliveryPickupMethod,
+        acceptTerms: formData.acceptTerms,
+        acceptDiagnosticCharges: formData.acceptDiagnosticCharges,
+        clientSignature: formData.clientSignature,
+        inspectorSignature: formData.inspectorSignature,
+        uploadedImages: formData.uploadedImages
+      };
+
+      console.log('Submitting pre-checklist:', submissionData);
+
+      let result;
+      
+      if (mode === 'edit' && checklistId) {
+        result = await preChecklistService.updatePreChecklist(checklistId, submissionData);
+        showToast('Pre-checklist updated successfully', 'success');
+      } else {
+        const userId = sessionStorage.getItem('userId') || undefined;
+        result = await preChecklistService.createPreChecklist(submissionData, userId);
+        showToast('Pre-checklist created successfully', 'success');
+        
+        // Update work order with pre-checklist ID if needed
+        if (workOrderId && result._id) {
+          try {
+            await workOrderService.updateWorkOrder(workOrderId, {
+              preChecklistId: result._id
+            });
+          } catch (updateError) {
+            console.error('Error updating work order:', updateError);
+          }
+        }
+        
+        // AUTO-TRANSITION: Automatically approve and move to job card
+        try {
+          // Auto-approve the checklist
+          // In your handleSubmitWithAutoTransition function, use the service like this:
+          const autoApprovedChecklist = await lifecycleIntegrationService.autoCompletePreChecklist(
+            result._id,
+            userId
+          );
+          
+          // Auto-transition to job card stage
+          if (workOrderId) {
+            // Get the opportunity ID from the work order
+            const workOrderData = await workOrderService.getWorkOrderById(workOrderId);
+            const oppId = typeof workOrderData.opportunityId === 'object' 
+              ? workOrderData.opportunityId._id 
+              : workOrderData.opportunityId;
+            
+            if (oppId) {
+              await lifecycleIntegrationService.handleChecklistApproval(
+                result._id,
+                'prechecklist',
+                userId
+              );
+              
+              showToast('Pre-checklist auto-approved! Moving to Job Card stage...', 'success');
+            }
+          }
+        } catch (autoError) {
+          console.error('Auto-transition failed:', autoError);
+          // Don't fail the whole submission if auto-transition fails
+          showToast('Pre-checklist created, but auto-transition failed. Please manually transition to next stage.', 'warning');
+        }
+      }
+
+      // Navigate based on source
+      if (source === 'workflow' && workOrderId) {
+        router.push(`/orders/work-orders/${workOrderId}`);
+      } else if (result._id) {
+        router.push(`/pre-checklist/${result._id}`);
+      } else {
+        router.push('/prechecklists');
+      }
+
+    } catch (error: any) {
+      console.error('Error submitting pre-checklist:', error);
+      showToast(error.message || 'Failed to save pre-checklist', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -711,19 +842,19 @@ export default function HeadlightPreChecklistCreatePage({
         return;
       }
 
-      if (!formData.clientSignature) {
-        showToast('Client signature is required', 'error');
-        setCurrentStep(5); // Go to terms step
-        setSubmitting(false);
-        return;
-      }
+      // if (!formData.clientSignature) {
+      //   showToast('Client signature is required', 'error');
+      //   setCurrentStep(5); // Go to terms step
+      //   setSubmitting(false);
+      //   return;
+      // }
 
-      if (!formData.inspectorSignature) {
-        showToast('Inspector signature is required', 'error');
-        setCurrentStep(5); // Go to terms step
-        setSubmitting(false);
-        return;
-      }
+      // if (!formData.inspectorSignature) {
+      //   showToast('Inspector signature is required', 'error');
+      //   setCurrentStep(5); // Go to terms step
+      //   setSubmitting(false);
+      //   return;
+      // }
 
       if (formData.serviceType === 'workshop_installation' && !formData.installationDetails.assignedTechnician) {
       showToast('Please assign a technician for workshop installation', 'error');
@@ -2520,7 +2651,7 @@ const PDFDownloadButton = () => (
               </button>
             ) : (
               <button
-                onClick={handleSubmit}
+                onClick={handleSubmitWithAutoTransition}
                 disabled={submitting}
                 className="px-6 py-3 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
               >
