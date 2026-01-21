@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { Car, Shield, Zap, Target, Users, TrendingUp, Globe } from 'lucide-react';
+import Image from 'next/image';
 import LoginForm from '@/components/auth/LoginForm';
 import AuthLayout from '@/components/auth/AuthLayout';
 import PublicRoute from '@/components/auth/PublicRoute';
@@ -53,19 +54,29 @@ export default function LoginPage() {
           </Link>
         </>
       }
-      logo={
-        <div className="flex items-center justify-center lg:justify-start gap-3 mb-4">
-          <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg">
-            <Car className="h-8 w-8 text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              MAG CRM
-            </h1>
-            <p className="text-gray-600 text-sm mt-1">Automotive Excellence Platform</p>
-          </div>
-        </div>
-      }
+     logo={
+  <div className="flex items-center justify-center lg:justify-start gap-3 mb-4">
+    <div className="p-4 bg-transparent rounded-2xl flex items-center justify-center">
+      <Image
+        src="/maglogo.png"
+        alt="MAG CRM Logo"
+        width={48}
+        height={48}
+        className="object-contain"
+        priority
+      />
+    </div>
+    <div>
+      <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+        MAG CRM
+      </h1>
+      <p className="text-gray-600 text-sm mt-1">
+        Automotive Excellence Platform
+      </p>
+    </div>
+  </div>
+}
+
       features={features}
       stats={[
         { value: '95%', label: 'Customer Satisfaction' },

@@ -230,17 +230,6 @@ body {
 .animate-pulse-slow {
    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
-
-.signature-canvas {
-  touch-action: none;
-}
-
-@media (max-width: 640px) {
-  .signature-canvas {
-    width: 100% !important;
-    height: 120px !important;
-  }
-}
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
@@ -353,4 +342,20 @@ body {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+@keyframes spinSlow {
+  from {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.05);
+  }
+  to {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+.animate-spin-pulse {
+  animation: spinSlow 3s ease-in-out infinite;
 }
