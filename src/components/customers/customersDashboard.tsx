@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import CustomersHeader from './CustomersHeader';
 import CustomersStats from './CustomersStats';
 import CustomersFilters from './CustomersFilters';
@@ -8,13 +8,13 @@ import CustomersTable from './CustomersTable';
 import { customerService, Customer, CustomerStats } from '@/services/customersService';
 import { useToast } from '@/contexts/ToastContext';
 import { useRouter } from 'next/navigation';
+import CustomersSkeleton from './CustomersSkeleton';
 
 export default function CustomersDashboard() {
   const { showToast } = useToast();
   const router = useRouter();
   
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
   const [stats, setStats] = useState<CustomerStats | null>(null);
@@ -28,12 +28,77 @@ export default function CustomersDashboard() {
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
-    fetchCustomers();
-    fetchStats();
+    Promise.all([fetchCustomers(), fetchStats()]).finally(() => {
+    setLoading(false);
+  });
   }, []);
 
   useEffect(() => {
     filterAndSortCustomers();
+  }, [customers, searchTerm, selectedType, selectedTier, sortBy, sortOrder]);
+
+  const filteredCustomers = useMemo(() => {
+    let filtered = [...customers];
+
+    // Apply search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(customer =>
+        customer.name?.toLowerCase().includes(term) ||
+        customer.email?.toLowerCase().includes(term) ||
+        customer.phone?.includes(term) ||
+        customer.companyName?.toLowerCase().includes(term)
+      );
+    }
+
+    // Apply type filter
+    if (selectedType !== 'all') {
+      filtered = filtered.filter(customer => customer.type === selectedType);
+    }
+
+    // Apply tier filter
+    if (selectedTier !== 'all') {
+      filtered = filtered.filter(customer => customer.customerTier === selectedTier);
+    }
+
+    // Apply sorting
+    const order = sortOrder === 'desc' ? -1 : 1;
+    
+    filtered.sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (sortBy) {
+        case 'name':
+          aValue = a.name || '';
+          bValue = b.name || '';
+          return order * aValue.localeCompare(bValue);
+        case 'totalSpent':
+          aValue = a.totalSpent || 0;
+          bValue = b.totalSpent || 0;
+          return order * (aValue - bValue);
+        case 'totalOrders':
+          aValue = a.totalOrders || 0;
+          bValue = b.totalOrders || 0;
+          return order * (aValue - bValue);
+        case 'lastOrder':
+          const aDate = a.lastOrderDate || a.createdAt || 0;
+          const bDate = b.lastOrderDate || b.createdAt || 0;
+          aValue = new Date(aDate).getTime();
+          bValue = new Date(bDate).getTime();
+          return order * (aValue - bValue);
+        case 'type':
+          aValue = a.type || '';
+          bValue = b.type || '';
+          return order * aValue.localeCompare(bValue);
+        default:
+          aValue = a.name || '';
+          bValue = b.name || '';
+          return order * aValue.localeCompare(bValue);
+      }
+    });
+
+    return filtered;
   }, [customers, searchTerm, selectedType, selectedTier, sortBy, sortOrder]);
 
   const fetchCustomers = async () => {
@@ -44,6 +109,7 @@ export default function CustomersDashboard() {
     } catch (error) {
       console.error('Error fetching customers:', error);
       showToast('Failed to load customers', 'error');
+      setCustomers([]);
     } finally {
       setLoading(false);
     }
@@ -51,39 +117,26 @@ export default function CustomersDashboard() {
 
   const fetchStats = async () => {
     try {
-        setStatsLoading(true);
-        const data = await customerService.getCustomerStats();
-        setStats(data);
+      setStatsLoading(true);
+      const data = await customerService.getCustomerStats();
+      setStats(data);
     } catch (error) {
-        console.error('Error fetching customer stats:', error);
-        const defaultStats: CustomerStats = {
+      console.error('Error fetching customer stats:', error);
+      setStats({
         totalCustomers: 0,
         activeCustomers: 0,
         totalRevenue: 0,
         averageOrderValue: 0,
         newCustomersThisMonth: 0,
-        byType: [
-            { _id: 'individual', count: 0 },
-            { _id: 'organization', count: 0 }
-        ],
-        byCustomerType: [
-            { _id: 'individual', count: 0 },
-            { _id: 'organization', count: 0 }
-        ],
-        byTier: [
-            { _id: 'standard', count: 0 },
-            { _id: 'bronze', count: 0 },
-            { _id: 'silver', count: 0 },
-            { _id: 'gold', count: 0 },
-            { _id: 'vip', count: 0 }
-        ],
+        byType: [],
+        byCustomerType: [],
+        byTier: [],
         topCustomers: []
-        };
-        setStats(defaultStats);
+      });
     } finally {
-        setStatsLoading(false);
+      setStatsLoading(false);
     }
-    };
+  };
 
   const filterAndSortCustomers = () => {
     let filtered = [...customers];
@@ -147,8 +200,6 @@ export default function CustomersDashboard() {
       }
       return aValue > bValue ? 1 : -1;
     });
-
-    setFilteredCustomers(filtered);
     setCurrentPage(1);
   };
 
@@ -170,8 +221,12 @@ export default function CustomersDashboard() {
 
   const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, filteredCustomers.length);
   const currentCustomers = filteredCustomers.slice(startIndex, endIndex);
+
+  if (loading) {
+    return <CustomersSkeleton />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -199,7 +254,10 @@ export default function CustomersDashboard() {
             setSelectedTier('all');
             setSortBy('name');
             setSortOrder('asc');
+            setCurrentPage(1);
           }}
+          currentCustomers={currentCustomers}
+          allCustomers={filteredCustomers}
         />
 
         <CustomersTable
@@ -207,14 +265,15 @@ export default function CustomersDashboard() {
           totalCustomers={filteredCustomers.length}
           currentPage={currentPage}
           totalPages={totalPages}
-          startIndex={startIndex}
+          startIndex={startIndex + 1} // +1 for human-readable display
           endIndex={endIndex}
           onPageChange={setCurrentPage}
           onViewCustomer={handleViewCustomer}
           onEditCustomer={(customer) => {
-            showToast('Edit feature coming soon', 'info');
+            router.push(`/customers/${customer._id}/edit`);
           }}
           onDeleteCustomer={handleDeleteCustomer}
+          loading={loading}
         />
       </div>
     </div>
