@@ -60,6 +60,8 @@ export interface CreateJobCardData {
   jobTitle: string;
   jobDescription?: string;
   assignedTo?: string;
+  status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
 }
 
 export interface UpdateJobCardData {
@@ -70,6 +72,7 @@ export interface UpdateJobCardData {
   endDate?: string;
   assignedTo?: string;
   active?: boolean;
+  completedAt?: string;
 }
 
 export interface JobCardFilterParams {

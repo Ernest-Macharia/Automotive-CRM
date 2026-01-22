@@ -140,6 +140,7 @@ export interface UpdatePostChecklistDto {
   approvedBy?: string;
   customerName?: string;
   dateTime?: string;
+  approvedAt: string;
   warrantyDuration?: string;
   beforePhotos?: string[];
   afterPhotos?: string[];

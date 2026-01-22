@@ -104,6 +104,7 @@ export interface UpdateInvoiceData {
   paymentStatus?: 'unpaid' | 'paid' | 'partially_paid';
   notes?: string;
   active?: boolean;
+  paidAt?: string;
 }
 
 export interface InvoiceFilterParams {
