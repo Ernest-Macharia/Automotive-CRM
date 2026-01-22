@@ -23,7 +23,7 @@ export default function LoginPage() {
           </div>
 
           <div className="flex flex-col">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent ml-6">
               MAG CRM
             </h1>
             <p className="text-gray-600 text-sm mt-1">
