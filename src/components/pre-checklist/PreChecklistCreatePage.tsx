@@ -750,7 +750,7 @@ export default function HeadlightPreChecklistCreatePage({
       console.log('Submitting pre-checklist:', submissionData);
 
       let result;
-      
+    
       if (mode === 'edit' && checklistId) {
         result = await preChecklistService.updatePreChecklist(checklistId, submissionData);
         showToast('Pre-checklist updated successfully', 'success');
@@ -759,11 +759,12 @@ export default function HeadlightPreChecklistCreatePage({
         result = await preChecklistService.createPreChecklist(submissionData, userId);
         showToast('Pre-checklist created successfully', 'success');
         
-        // Update work order with pre-checklist ID if needed
+        // Update work order with pre-checklist ID
         if (workOrderId && result._id) {
           try {
             await workOrderService.updateWorkOrder(workOrderId, {
-              preChecklistId: result._id
+              preChecklistId: result._id,
+              currentStage: 'job_card' // Explicitly set current stage to job card
             });
           } catch (updateError) {
             console.error('Error updating work order:', updateError);
@@ -772,30 +773,27 @@ export default function HeadlightPreChecklistCreatePage({
         
         // AUTO-TRANSITION: Automatically approve and move to job card
         try {
-          // Auto-approve the checklist
-          // In your handleSubmitWithAutoTransition function, use the service like this:
-          const autoApprovedChecklist = await lifecycleIntegrationService.autoCompletePreChecklist(
-            result._id,
-            userId
-          );
-          
-          // Auto-transition to job card stage
-          if (workOrderId) {
-            // Get the opportunity ID from the work order
-            const workOrderData = await workOrderService.getWorkOrderById(workOrderId);
-            const oppId = typeof workOrderData.opportunityId === 'object' 
-              ? workOrderData.opportunityId._id 
-              : workOrderData.opportunityId;
+        // Auto-approve the checklist
+        await preChecklistService.approvePreChecklist(result._id, userId);
+        
+        // Update the lifecycle stage
+        const opportunityId = result.opportunityId || formData.opportunityId;
+          if (opportunityId) {
+            // Use lifecycle integration service to transition
+            await lifecycleIntegrationService.transitionToStage(
+              opportunityId,
+              'jobcard',
+              {
+                skipValidation: true,
+                metadata: {
+                  autoTransition: true,
+                  checklistId: result._id,
+                  triggeredBy: 'pre-checklist-auto-approval'
+                }
+              }
+            );
             
-            if (oppId) {
-              await lifecycleIntegrationService.handleChecklistApproval(
-                result._id,
-                'prechecklist',
-                userId
-              );
-              
-              showToast('Pre-checklist auto-approved! Moving to Job Card stage...', 'success');
-            }
+            showToast('Pre-checklist auto-approved! Moved to Job Card stage.', 'success');
           }
         } catch (autoError) {
           console.error('Auto-transition failed:', autoError);
@@ -806,6 +804,8 @@ export default function HeadlightPreChecklistCreatePage({
 
       // Navigate based on source
       if (source === 'workflow' && workOrderId) {
+        // Refresh the work order page to show updated stage
+        router.refresh();
         router.push(`/orders/work-orders/${workOrderId}`);
       } else if (result._id) {
         router.push(`/pre-checklist/${result._id}`);

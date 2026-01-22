@@ -5,6 +5,7 @@ import { invoiceService } from './invoiceService';
 import { postChecklistService } from './postChecklistService';
 import { jobCardService } from './jobCardService';
 import { preChecklistService } from './preChecklistService';
+import { Opportunity, opportunityService } from './opportunityService';
 
 export interface TechnicianNote {
   content: string;
@@ -25,6 +26,10 @@ export interface DelayInfo {
   expectedCompletionDate?: string;
   notes?: string;
   resolvedAt?: string;
+  daysDelayed?: number;
+  hoursDelayed?: number;
+  category?: string;
+  expectedCompletionDateTime?: string;
 }
 
 export interface WorkOrder {
@@ -37,7 +42,9 @@ export interface WorkOrder {
       name: string;
       email?: string;
       phone?: string;
+      companyName: string;
     };
+    assignedTo: string;
   };
   quoteId: string | {
     _id: string;
@@ -89,6 +96,13 @@ export interface WorkOrder {
   createdAt: string;
   updatedAt: string;
   isActive?: boolean;
+
+  totalHours?: number;
+  delayDuration?: {
+    days?: number;
+    hours?: number;
+    minutes?: number;
+  };
   
   // Add the missing properties
   invoicePaid?: boolean;
@@ -173,6 +187,7 @@ export interface UpdateWorkOrderData {
   currentStage?: 'pre_checklist' | 'job_card' | 'post_checklist' | 'invoice';
   assignedTo?: string;
   startDate?: string;
+  updatedAt?: string;
   estimatedCompletionDate?: string;
   actualCompletionDate?: string;
   estimatedHours?: number;
@@ -381,17 +396,75 @@ class WorkOrderService {
       if (params) {
         Object.entries(params).forEach(([key, value]) => {
           if (value !== undefined && value !== null && value !== '') {
-            queryParams.append(key, value.toString());
+            if (key === 'page' || key === 'limit' || key === 'search' || key === 'status' || 
+                key === 'fromDate' || key === 'toDate' || key === 'sort') {
+              queryParams.append(key, value.toString());
+            }
           }
         });
       }
       
+      // Default pagination
+      if (!params?.page) queryParams.append('page', '1');
+      if (!params?.limit) queryParams.append('limit', '20');
+      
+      
       const queryString = queryParams.toString();
       const endpoint = `${this.basePath}${queryString ? `?${queryString}` : ''}`;
-      return await apiClient.get<WorkOrdersResponse>(endpoint);
+
+      console.log('Fetching from:', endpoint);
+      
+      const response = await apiClient.get<WorkOrdersResponse>(endpoint);
+      
+      // Ensure response has proper structure
+      if (!response) {
+        return {
+          data: [],
+          pagination: {
+            total: 0,
+            page: 1,
+            limit: 20,
+            totalPages: 0
+          }
+        };
+      }
+      
+      // If response is an array, wrap it in WorkOrdersResponse
+      if (Array.isArray(response)) {
+        return {
+          data: response,
+          pagination: {
+            total: response.length,
+            page: 1,
+            limit: response.length,
+            totalPages: 1
+          }
+        };
+      }
+      
+      // Ensure pagination exists
+      if (!response.pagination && 'data' in response) {
+        response.pagination = {
+          total: response.data?.length || 0,
+          page: params?.page || 1,
+          limit: params?.limit || 20,
+          totalPages: Math.ceil((response.data?.length || 0) / (params?.limit || 20))
+        };
+      }
+      
+      return response as WorkOrdersResponse;
     } catch (error) {
       console.error('Error fetching work orders:', error);
-      throw error;
+      // Return empty response structure instead of throwing
+      return {
+        data: [],
+        pagination: {
+          total: 0,
+          page: 1,
+          limit: 20,
+          totalPages: 0
+        }
+      };
     }
   }
 
@@ -1143,21 +1216,6 @@ class WorkOrderService {
     return colors[status] || 'bg-gray-100 text-gray-800';
   }
 
-  getStatusIcon(status: string): string {
-    const icons: Record<string, string> = {
-      'draft': '📝',
-      'pre_checklist': '📋',
-      'in_progress': '⚙️',
-      'job_card': '🔧',
-      'post_checklist': '✅',
-      'ready_for_invoice': '🧾',
-      'completed': '🏁',
-      'cancelled': '❌',
-      'delayed': '⏸️'
-    };
-    return icons[status] || '📝';
-  }
-
   getStageLabel(stage: string): string {
     const labels: Record<string, string> = {
       'pre_checklist': 'Pre-Checklist',
@@ -1184,11 +1242,12 @@ class WorkOrderService {
   }
 
   formatCurrency(amount?: number): string {
-    if (amount === undefined || amount === null) return 'KES 0.00';
+    if (amount === undefined || amount === null || isNaN(amount)) return 'KES 0.00';
     return new Intl.NumberFormat('en-KE', {
       style: 'currency',
       currency: 'KES',
-      minimumFractionDigits: 2
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(amount);
   }
 
@@ -1272,6 +1331,228 @@ class WorkOrderService {
     const index = stages.indexOf(stage);
     return index >= 0 ? Math.round(((index + 1) / stages.length) * 100) : 0;
   }
+
+  // Add this method to workOrderService to fetch opportunity with proper typing
+async getFullOpportunityDetails(opportunityId: string): Promise<Opportunity> {
+  try {
+    return await opportunityService.getOpportunityById(opportunityId, false);
+  } catch (error) {
+    console.error(`Error fetching opportunity ${opportunityId}:`, error);
+    throw error;
+  }
+}
+
+// Enhanced createWorkOrder that pulls data from opportunity
+async createWorkOrderFromOpportunity(
+  opportunityId: string, 
+  additionalData?: Omit<CreateWorkOrderData, 'opportunityId'>
+): Promise<WorkOrder> {
+  try {
+    // Fetch opportunity details
+    const opportunity = await this.getFullOpportunityDetails(opportunityId);
+    
+    // Get the latest quote from opportunity
+    const latestQuote = opportunity.quotes && opportunity.quotes.length > 0 
+      ? opportunity.quotes[opportunity.quotes.length - 1] 
+      : null;
+    
+    if (!latestQuote) {
+      throw new Error('No quote found for this opportunity');
+    }
+    
+    // Build work order data from opportunity
+    const workOrderData: CreateWorkOrderData = {
+      opportunityId,
+      quoteId: latestQuote._id || latestQuote.id,
+      // Get assignedTo from opportunity if available
+      assignedTo: opportunity.assignedTo?._id || opportunity.assignedTo?.id,
+      status: 'draft',
+      currentStage: 'pre_checklist',
+      startDate: new Date().toISOString(),
+      laborCost: 0,
+      partsCost: 0,
+      notes: `Created from opportunity: ${opportunity.subject}`,
+      ...additionalData
+    };
+    
+    // Calculate estimated hours based on opportunity services
+    if (opportunity.servicesProducts && opportunity.servicesProducts.length > 0) {
+      const totalHours = opportunity.servicesProducts
+        .filter(item => item.type === 'SERVICE' || item.type === 'LABOR')
+        .reduce((sum, item) => sum + (item.quantity || 1), 0);
+      
+      workOrderData.estimatedHours = Math.max(totalHours, 2); // Minimum 2 hours
+    }
+    
+    return await this.createWorkOrder(workOrderData);
+  } catch (error) {
+    console.error('Error creating work order from opportunity:', error);
+    throw error;
+  }
+}
+
+// Enhanced getCustomerDetails method
+async getCustomerDetails(workOrder: WorkOrder): Promise<{
+  name: string;
+  email: string;
+  phone: string;
+  companyName: string;
+  address?: string;
+  taxId?: string;
+}> {
+  try {
+    let opportunity: Opportunity | null = null;
+    
+    // Get opportunity data
+    if (typeof workOrder.opportunityId === 'object' && workOrder.opportunityId) {
+      // Opportunity is already populated
+      const oppData = workOrder.opportunityId as any;
+      return {
+        name: oppData.customer?.name || oppData.subject || 'Unknown Customer',
+        email: oppData.customer?.email || '',
+        phone: oppData.customer?.phone || '',
+        companyName: oppData.customer?.companyName || '',
+        address: oppData.customer?.companyAddress || '',
+        taxId: oppData.customer?.companyTaxId || ''
+      };
+    } else if (typeof workOrder.opportunityId === 'string') {
+      // Fetch opportunity
+      opportunity = await this.getFullOpportunityDetails(workOrder.opportunityId);
+      if (opportunity && opportunity.customer) {
+        return {
+          name: opportunity.customer.name || 'Customer',
+          email: opportunity.customer.email || '',
+          phone: opportunity.customer.phone || '',
+          companyName: opportunity.customer.companyName || '',
+          address: opportunity.customer.companyAddress || '',
+          taxId: opportunity.customer.companyTaxId || ''
+        };
+      }
+    }
+    
+    // Fallback
+    return {
+      name: 'Unknown Customer',
+      email: '',
+      phone: '',
+      companyName: ''
+    };
+  } catch (error) {
+    console.error('Error in getCustomerDetails:', error);
+    return {
+      name: 'Error loading customer',
+      email: '',
+      phone: '',
+      companyName: ''
+    };
+  }
+}
+
+// Enhanced getAssignedToDetails method
+async getAssignedToDetails(workOrder: WorkOrder): Promise<{
+  name: string;
+  email: string;
+  id: string;
+  phone?: string;
+  role?: string;
+}> {
+  try {
+    // First, check if assignedTo is directly populated on work order
+    if (workOrder.assignedTo) {
+      if (typeof workOrder.assignedTo === 'object') {
+        return {
+          name: `${workOrder.assignedTo.firstName || ''} ${workOrder.assignedTo.lastName || ''}`.trim() || 'Unassigned',
+          email: workOrder.assignedTo.email || '',
+          id: workOrder.assignedTo._id || '',
+          phone: '', // Add phone if available in your user model
+          role: '' // Add role if available
+        };
+      }
+    }
+    
+    // If not assigned on work order, check opportunity's assignedTo
+    let opportunity: Opportunity | null = null;
+    
+    if (typeof workOrder.opportunityId === 'object' && workOrder.opportunityId) {
+      // Check if opportunity has assignedTo
+      const oppData = workOrder.opportunityId as any;
+      if (oppData.assignedTo) {
+        return {
+          name: `${oppData.assignedTo.firstName || ''} ${oppData.assignedTo.lastName || ''}`.trim() || 'Unassigned',
+          email: oppData.assignedTo.email || '',
+          id: oppData.assignedTo._id || '',
+          phone: oppData.assignedTo.phone || '',
+          role: oppData.assignedTo.role || ''
+        };
+      }
+    } else if (typeof workOrder.opportunityId === 'string') {
+      // Fetch opportunity to check assignedTo
+      opportunity = await this.getFullOpportunityDetails(workOrder.opportunityId);
+      if (opportunity && opportunity.assignedTo) {
+        return {
+          name: `${opportunity.assignedTo.firstName || ''} ${opportunity.assignedTo.lastName || ''}`.trim() || 'Unassigned',
+          email: opportunity.assignedTo.email || '',
+          id: opportunity.assignedTo._id || opportunity.assignedTo.id || '',
+          phone: opportunity.assignedTo.phone || '',
+          role: opportunity.assignedTo.role || ''
+        };
+      }
+    }
+    
+    return {
+      name: 'Unassigned',
+      email: '',
+      id: ''
+    };
+  } catch (error) {
+    console.error('Error extracting assigned to details:', error);
+    return {
+      name: 'Error loading assignee',
+      email: '',
+      id: ''
+    };
+  }
+}
+
+// Method to sync opportunity data to work order
+async syncOpportunityDataToWorkOrder(workOrderId: string): Promise<WorkOrder> {
+  try {
+    const workOrder = await this.getWorkOrderById(workOrderId);
+    const opportunityId = typeof workOrder.opportunityId === 'object' 
+      ? workOrder.opportunityId._id 
+      : workOrder.opportunityId;
+    
+    if (!opportunityId) {
+      throw new Error('No opportunity ID found for work order');
+    }
+    
+    // Fetch latest opportunity data
+    const opportunity = await this.getFullOpportunityDetails(opportunityId);
+    
+    // Update work order with latest opportunity data
+    const updateData: UpdateWorkOrderData = {};
+    
+    // Update assignedTo if not already set on work order
+    if (!workOrder.assignedTo && opportunity.assignedTo) {
+      updateData.assignedTo = opportunity.assignedTo._id || opportunity.assignedTo.id;
+    }
+    
+    // Update notes with opportunity reference
+    if (opportunity.subject) {
+      updateData.notes = `${workOrder.notes || ''}\n\nLinked to Opportunity: ${opportunity.subject}`.trim();
+    }
+    
+    // If there are updates, apply them
+    if (Object.keys(updateData).length > 0) {
+      return await this.updateWorkOrder(workOrderId, updateData);
+    }
+    
+    return workOrder;
+  } catch (error) {
+    console.error(`Error syncing opportunity data to work order ${workOrderId}:`, error);
+    throw error;
+  }
+}
 
   getCustomerName(workOrder: WorkOrder): string {
     if (typeof workOrder.opportunityId === 'object' && workOrder.opportunityId.customer) {

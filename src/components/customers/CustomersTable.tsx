@@ -16,7 +16,7 @@ interface CustomersTableProps {
   startIndex: number;
   endIndex: number; 
   onPageChange: (page: number) => void;
-  onViewCustomer: (customer: Customer) => void;
+  // onViewCustomer: (customer: Customer) => void;
   onEditCustomer: (customer: Customer) => void;
   onDeleteCustomer: (customer: Customer) => void;
   loading?: boolean;
@@ -30,7 +30,7 @@ export default function CustomersTable({
   startIndex,
   endIndex,
   onPageChange,
-  onViewCustomer,
+  // onViewCustomer,
   onEditCustomer,
   onDeleteCustomer,
   loading = false
@@ -131,9 +131,9 @@ export default function CustomersTable({
     );
   };
 
-  const handleRowClick = (customer: Customer) => {
-    router.push(`/customers/${customer._id}`);
-  };
+  // const handleRowClick = (customer: Customer) => {
+  //   router.push(`/customers/${customer._id}`);
+  // };
 
   if (loading) {
     return (
@@ -201,7 +201,7 @@ export default function CustomersTable({
                 <tr 
                   key={customer._id} 
                   className="hover:bg-gray-50 transition-colors cursor-pointer"
-                  onClick={() => handleRowClick(customer)}
+                  // onClick={() => handleRowClick(customer)}
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">

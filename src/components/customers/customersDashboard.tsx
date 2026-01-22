@@ -215,9 +215,9 @@ export default function CustomersDashboard() {
     }
   };
 
-  const handleViewCustomer = (customer: Customer) => {
-    router.push(`/customers/${customer._id}`);
-  };
+  // const handleViewCustomer = (customer: Customer) => {
+  //   router.push(`/customers/${customer._id}`);
+  // };
 
   const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -268,7 +268,7 @@ export default function CustomersDashboard() {
           startIndex={startIndex + 1} // +1 for human-readable display
           endIndex={endIndex}
           onPageChange={setCurrentPage}
-          onViewCustomer={handleViewCustomer}
+          // onViewCustomer={handleViewCustomer}
           onEditCustomer={(customer) => {
             router.push(`/customers/${customer._id}/edit`);
           }}

@@ -71,7 +71,7 @@ import {
   Users as UsersIcon,
   Package as PackageIcon
 } from 'lucide-react';
-import { workOrderService, WorkOrder, TechnicianNote } from '@/services/workOrderService';
+import { workOrderService, WorkOrder, TechnicianNote, DelayInfo } from '@/services/workOrderService';
 import { useToast } from '@/contexts/ToastContext';
 import { format } from 'date-fns';
 import { preChecklistService } from '@/services/preChecklistService';
@@ -299,6 +299,12 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   const [showDelayModal, setShowDelayModal] = useState(false);
   const [delayReason, setDelayReason] = useState('');
   const [delayExpectedDate, setDelayExpectedDate] = useState('');
+  const [showResolveDelayModal, setShowResolveDelayModal] = useState(false);
+  const [showDelayHistoryModal, setShowDelayHistoryModal] = useState(false);
+  const [delayHistory, setDelayHistory] = useState<any[]>([]);
+  const [delayExpectedTime, setDelayExpectedTime] = useState('');
+  const [delayDays, setDelayDays] = useState(0);
+  const [delayHours, setDelayHours] = useState(0);
   const [showGenerateInvoiceModal, setShowGenerateInvoiceModal] = useState(false);
   const [showLinkInvoiceModal, setShowLinkInvoiceModal] = useState(false);
   const [invoiceIdToLink, setInvoiceIdToLink] = useState('');
@@ -310,6 +316,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   const [invoice, setInvoice] = useState<any>(null);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [stageToApprove, setStageToApprove] = useState<{stage: string; documentId?: string}>({stage: '', documentId: ''});
+
   const [currentStageSummary, setCurrentStageSummary] = useState<{
     title: string;
     description: string;
@@ -748,16 +755,28 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   };
 
   const determineStageStatus = (order: WorkOrder, stage: string): StageStatus => {
-    if (!order || !order.currentStage) return 'not_started';
+    if (!order) return 'not_started';
     
     const stageOrder = ['pre_checklist', 'job_card', 'post_checklist', 'invoice'];
-    const currentIndex = stageOrder.indexOf(order.currentStage);
+    const currentStage = order.currentStage || 'pre_checklist';
+    const currentIndex = stageOrder.indexOf(currentStage);
     const stageIndex = stageOrder.indexOf(stage);
     
     if (currentIndex === -1 || stageIndex === -1) return 'not_started';
     
-    if (stageIndex < currentIndex) return 'completed';
+    // If this stage is before the current stage, it should be completed
+    if (stageIndex < currentIndex) {
+      // But we need to verify it actually has a completed document
+      const documentId = getStageDocumentId(order, stage);
+      const isApproved = checkStageApproval(order, stage);
+      
+      if (documentId && isApproved) {
+        return 'completed';
+      }
+      return 'approved'; // Fallback if we have the document
+    }
     
+    // If this is the current stage
     if (stageIndex === currentIndex) {
       const documentId = getStageDocumentId(order, stage);
       
@@ -768,20 +787,19 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
           return 'approved';
         }
         
+        // For pre-checklist, check if it's approved in the document
         if (stage === 'pre_checklist' && preChecklist) {
           return preChecklist.approved ? 'approved' : 'needs_approval';
-        }
-        
-        if (stage === 'post_checklist' && postChecklist) {
-          return postChecklist.approved ? 'approved' : 'needs_approval';
         }
         
         return 'needs_approval';
       }
       
-      return documentId ? 'in_progress' : 'not_started';
+      // No document but this is current stage
+      return 'in_progress';
     }
     
+    // Future stage
     return 'not_started';
   };
 
@@ -803,6 +821,12 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   const checkStageApproval = (order: WorkOrder, stage: string): boolean => {
     const normalizedStage = stage.replace('_', '');
     const stageApproval = order.stageApprovals?.[normalizedStage as keyof typeof order.stageApprovals];
+    
+    // Also check if we have document-specific approval
+    if (stage === 'pre_checklist' && preChecklist) {
+      return preChecklist.approved || stageApproval?.approved || false;
+    }
+    
     return stageApproval?.approved || false;
   };
 
@@ -904,7 +928,51 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
             icon: <Eye className="h-4 w-4" />,
             variant: 'primary' as const,
             action: async () => {
-              router.push(`/job-cards?workOrderId=${order._id}`);
+              // Check if we have job cards
+              const jobCards = await jobCardService.getJobCardsByOpportunity(
+                typeof order.opportunityId === 'object' 
+                  ? order.opportunityId._id 
+                  : order.opportunityId
+              );
+              
+              if (jobCards.length > 0) {
+                router.push(`/job-cards/${jobCards[0]._id}`);
+              } else {
+                router.push(`/job-cards/create?workOrderId=${order._id}`);
+              }
+            }
+          }
+        ],
+        needs_approval: [
+          {
+            id: 'approve-job-card',
+            label: 'Approve Job Card',
+            icon: <CheckCircle className="h-4 w-4" />,
+            variant: 'success' as const,
+            action: async () => {
+              handleApproveStage(stageKey, documentId);
+            }
+          },
+          {
+            id: 'view-job-card',
+            label: 'View Job Card',
+            icon: <Eye className="h-4 w-4" />,
+            variant: 'secondary' as const,
+            action: async () => {
+              router.push(`/${stageKey}/${documentId}`);
+            }
+          }
+        ],
+        approved: [
+          {
+            id: 'view-approved-job-card',
+            label: 'View Approved Job Card',
+            icon: <Eye className="h-4 w-4" />,
+            variant: 'secondary' as const,
+            action: async () => {
+              if (documentId) {
+                router.push(`/job-cards/${documentId}`);
+              }
             }
           }
         ],
@@ -1226,6 +1294,24 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     }
   };
 
+  const mapStageToWorkOrderStage = (stage: string): 'pre_checklist' | 'job_card' | 'post_checklist' | 'invoice' => {
+    switch (stage) {
+      case 'prechecklist':
+      case 'pre_checklist':
+        return 'pre_checklist';
+      case 'jobcard':
+      case 'job_card':
+        return 'job_card';
+      case 'postchecklist':
+      case 'post_checklist':
+        return 'post_checklist';
+      case 'invoice':
+        return 'invoice';
+      default:
+        return 'pre_checklist';
+    }
+  };
+
   const handleTransitionToNextStage = async (stage: WorkflowStage) => {
     if (!workOrder) return;
     
@@ -1254,9 +1340,11 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
           }
         );
         
-        // Update work order
+        // Use the mapping function
+        const mappedStage = mapStageToWorkOrderStage(nextStage);
+        
         await workOrderService.updateWorkOrder(workOrder._id, {
-          currentStage: nextStage,
+          currentStage: mappedStage,  // Now this is the correct type
           updatedAt: new Date().toISOString()
         });
         
@@ -1291,6 +1379,254 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       setIsTransitioning(false);
     }
   };
+
+  // Update your handleMarkAsDelayed function:
+  const handleMarkAsDelayed = async () => {
+    if (!delayReason.trim()) {
+      showToast('Please provide a delay reason', 'warning');
+      return;
+    }
+
+    try {
+      // Create delay data with time information
+      const delayData = {
+        reason: delayReason,
+        expectedCompletionDate: delayExpectedDate || undefined,
+        // Add time tracking data
+        daysDelayed: delayDays,
+        hoursDelayed: delayHours,
+        notes: `Delay recorded: ${delayDays} days, ${delayHours} hours. ${delayExpectedTime ? `Expected completion time: ${delayExpectedTime}` : ''}`
+      };
+      
+      await workOrderService.markAsDelayed(orderId, delayData);
+      
+      setShowDelayModal(false);
+      setDelayReason('');
+      setDelayExpectedDate('');
+      setDelayExpectedTime('');
+      setDelayDays(0);
+      setDelayHours(0);
+      showToast('Work order marked as delayed', 'success');
+      fetchWorkOrder();
+    } catch (error) {
+      console.error('Error marking as delayed:', error);
+      showToast('Failed to mark as delayed', 'error');
+    }
+  };
+
+  const handleResolveDelay = async () => {
+    try {
+      await workOrderService.resolveDelay(orderId);
+      
+      // Update local state immediately
+      if (workOrder) {
+        const updatedWorkOrder = {
+          ...workOrder,
+          delayInfo: {
+            ...workOrder.delayInfo,
+            resolvedAt: new Date().toISOString()
+          }
+        };
+        setWorkOrder(updatedWorkOrder);
+      }
+      
+      setShowResolveDelayModal(false);
+      showToast('Delay resolved successfully', 'success');
+      
+      // Also refresh from server
+      fetchWorkOrder();
+    } catch (error) {
+      console.error('Error resolving delay:', error);
+      showToast('Failed to resolve delay', 'error');
+    }
+  };
+
+  const handleLoadDelayHistory = async () => {
+    try {
+      // This would typically come from your API
+      // For now, we'll simulate with workOrder.delayInfo
+      if (workOrder?.delayInfo) {
+        setDelayHistory([workOrder.delayInfo]);
+      }
+      setShowDelayHistoryModal(true);
+    } catch (error) {
+      console.error('Error loading delay history:', error);
+      showToast('Failed to load delay history', 'error');
+    }
+  };
+
+  // Add this helper function to get delay status
+  const getDelayStatus = () => {
+    if (!workOrder?.delayInfo) return null;
+    
+    const delayInfo = workOrder.delayInfo;
+    const severity = workOrderService.getDelaySeverity(workOrder.delayDays || 0);
+    const color = workOrderService.getDelayColor(workOrder.delayDays || 0);
+    const isResolved = delayInfo.resolvedAt;
+    
+    return {
+      isDelayed: !isResolved,
+      severity,
+      color,
+      delayDays: workOrder.delayDays || 0,
+      reason: delayInfo.reason,
+      detectedAt: delayInfo.detectedAt,
+      expectedCompletionDate: delayInfo.expectedCompletionDate,
+      resolvedAt: delayInfo.resolvedAt,
+      notes: delayInfo.notes
+    };
+  };
+
+  // Add this helper function near your other utility functions
+  const calculateDelayCost = (): number => {
+    if (!workOrder || !workOrder.delayDays) return 0;
+    
+    // Simple calculation: daily cost impact
+    // You can adjust this formula based on your business logic
+    const dailyLaborCost = (workOrder.laborCost || 0) / (workOrder.totalHours || 1);
+    const dailyOverhead = 500; // Example daily overhead cost
+    
+    return Math.round((dailyLaborCost + dailyOverhead) * (workOrder.delayDays || 0));
+  };
+
+  const getFormattedDelayDuration = (delayInfo?: DelayInfo | { days?: number; hours?: number; minutes?: number }): string => {
+    if (!delayInfo) return '0h';
+    
+    let days = 0;
+    let hours = 0;
+    
+    // Handle both delayInfo and delayDuration structures
+    if ('daysDelayed' in delayInfo) {
+      // It's a DelayInfo object
+      days = delayInfo.daysDelayed || 0;
+      hours = delayInfo.hoursDelayed || 0;
+    } else if ('days' in delayInfo) {
+      // It's a delayDuration object
+      days = delayInfo.days || 0;
+      hours = delayInfo.hours || 0;
+    }
+    
+    const totalHours = days * 24 + hours;
+    const formattedDays = Math.floor(totalHours / 24);
+    const formattedHours = totalHours % 24;
+    
+    if (formattedDays > 0 && formattedHours > 0) {
+      return `${formattedDays}d ${formattedHours}h`;
+    } else if (formattedDays > 0) {
+      return `${formattedDays}d`;
+    } else {
+      return `${formattedHours}h`;
+    }
+  };
+
+  // Schedule impact helper
+  const getScheduleImpact = (daysDelayed?: number): string => {
+    if (!daysDelayed || daysDelayed === 0) return 'None';
+    if (daysDelayed <= 1) return 'Minor';
+    if (daysDelayed <= 3) return 'Moderate';
+    if (daysDelayed <= 7) return 'Major';
+    return 'Critical';
+  };
+
+  // Average delay calculation
+  const calculateAverageDelayHours = (): number => {
+    if (delayHistory.length === 0) return 0;
+    
+    const totalHours = delayHistory.reduce((sum, delay) => {
+      const days = delay.daysDelayed || 0;
+      const hours = delay.hoursDelayed || 0;
+      return sum + (days * 24 + hours);
+    }, 0);
+    
+    return Math.round(totalHours / delayHistory.length);
+  };
+
+  // Longest delay helper
+  const getLongestDelay = (): string => {
+    if (delayHistory.length === 0) return '0h';
+    
+    let maxHours = 0;
+    delayHistory.forEach(delay => {
+      const totalHours = (delay.daysDelayed || 0) * 24 + (delay.hoursDelayed || 0);
+      maxHours = Math.max(maxHours, totalHours);
+    });
+    
+    const days = Math.floor(maxHours / 24);
+    const hours = maxHours % 24;
+    
+    if (days > 0) {
+      return `${days}d ${hours}h`;
+    }
+    return `${hours}h`;
+  };
+
+  // Delay duration calculation
+  const getDelayDuration = (delay: any): string => {
+    const days = delay.daysDelayed || 0;
+    const hours = delay.hoursDelayed || 0;
+    
+    if (days > 0 && hours > 0) {
+      return `${days}d ${hours}h`;
+    } else if (days > 0) {
+      return `${days}d`;
+    } else {
+      return `${hours}h`;
+    }
+  };
+
+  // Current delay duration calculation
+  const calculateCurrentDelayDuration = (): string => {
+    if (!workOrder?.delayInfo) return '0h';
+    
+    const delayStart = new Date(workOrder.delayInfo.detectedAt);
+    const now = new Date();
+    const diffMs = now.getTime() - delayStart.getTime();
+    
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (days > 0) {
+      return `${days}d ${hours}h`;
+    }
+    return `${hours}h`;
+  };
+
+  // Time remaining helper
+  const getTimeRemaining = (targetDate: string): string => {
+    const now = new Date();
+    const target = new Date(targetDate);
+    const diffMs = target.getTime() - now.getTime();
+    
+    if (diffMs <= 0) return 'Overdue';
+    
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (days > 0) {
+      return `${days}d ${hours}h`;
+    }
+    return `${hours}h`;
+  };
+
+  // Action handlers for delay operations
+  const viewDelayDetails = async (delay: any) => {
+    setShowDelayHistoryModal(true);
+    // You could set a specific delay to view details here
+  };
+
+  const resolveDelay = async (delay: any) => {
+    setStageToApprove({ stage: 'delay', documentId: delay._id });
+    setShowResolveDelayModal(true);
+  };
+
+  const editDelay = async (delay: any) => {
+    // Set up edit modal state
+    setDelayReason(delay.reason || '');
+    setDelayExpectedDate(delay.expectedCompletionDate || '');
+    setDelayDays(delay.daysDelayed || 0);
+    setDelayHours(delay.hoursDelayed || 0);
+    setShowDelayModal(true);
+};
 
   // Update current stage summary
   const updateCurrentStageSummary = () => {
@@ -1375,6 +1711,92 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     });
   };
 
+  // Calculate time remaining
+  const calculateTimeRemaining = (targetDate: string): string => {
+    const now = new Date();
+    const target = new Date(targetDate);
+    const diffMs = target.getTime() - now.getTime();
+    
+    if (diffMs <= 0) return 'Overdue';
+    
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (diffDays > 0) {
+      return `${diffDays}d ${diffHours}h remaining`;
+    } else {
+      return `${diffHours}h remaining`;
+    }
+  };
+
+  // Get impact level based on duration
+  const getImpactLevel = (days: number, hours: number = 0): string => {
+    const totalHours = days * 24 + hours;
+    
+    if (totalHours > 72) return 'Critical';
+    if (totalHours > 48) return 'High';
+    if (totalHours > 24) return 'Medium';
+    if (totalHours > 8) return 'Low';
+    return 'Minor';
+  };
+
+  const getImpactLevelClass = (days: number, hours: number = 0): string => {
+    const totalHours = days * 24 + hours;
+    
+    if (totalHours > 72) return 'bg-red-100 text-red-800';
+    if (totalHours > 48) return 'bg-orange-100 text-orange-800';
+    if (totalHours > 24) return 'bg-yellow-100 text-yellow-800';
+    if (totalHours > 8) return 'bg-blue-100 text-blue-800';
+    return 'bg-gray-100 text-gray-800';
+  };
+
+  // Calculate downtime cost
+  const calculateDowntimeCost = (delay: any): number => {
+    const totalHours = (delay.daysDelayed || 0) * 24 + (delay.hoursDelayed || 0);
+    const hourlyRate = 150; // Example hourly rate
+    return totalHours * hourlyRate;
+  };
+
+  // Get elapsed time since delay started
+  const getElapsedTime = (startTime: string): string => {
+    const start = new Date(startTime);
+    const now = new Date();
+    const diffMs = now.getTime() - start.getTime();
+    
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (days > 0) {
+      return `${days}d ${hours}h ${minutes}m`;
+    } else if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    } else {
+      return `${minutes}m`;
+    }
+  };
+
+  // Get time ago format
+  const getTimeAgo = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    
+    if (diffHours < 1) return 'Just now';
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} days ago`;
+  };
+
+  // Format duration to hours
+  const formatDurationToHours = (duration: any): string => {
+    if (!duration) return '0';
+    const totalHours = (duration.days || 0) * 24 + (duration.hours || 0);
+    return totalHours.toString();
+  };
+
   const handleAddTechnicianNote = async () => {
     if (!newNote.trim()) return;
 
@@ -1393,28 +1815,6 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       showToast('Failed to add note', 'error');
     } finally {
       setAddingNote(false);
-    }
-  };
-
-  const handleMarkAsDelayed = async () => {
-    if (!delayReason.trim()) {
-      showToast('Please provide a delay reason', 'warning');
-      return;
-    }
-
-    try {
-      await workOrderService.markAsDelayed(orderId, {
-        reason: delayReason,
-        expectedCompletionDate: delayExpectedDate || undefined
-      });
-      
-      setShowDelayModal(false);
-      setDelayReason('');
-      setDelayExpectedDate('');
-      showToast('Work order marked as delayed', 'success');
-      fetchWorkOrder();
-    } catch (error) {
-      showToast('Failed to mark as delayed', 'error');
     }
   };
 
@@ -1538,7 +1938,10 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
 
   // Enhanced workflow progress component
   const WorkflowProgress = ({ stages }: { stages: WorkflowStage[] }) => {
-    const completedStages = stages.filter(s => s.completed).length;
+    const completedStages = stages.filter(s => 
+      s.status === 'completed' || s.status === 'approved'
+    ).length;
+    
     const totalStages = stages.length;
     const progressPercentage = Math.round((completedStages / totalStages) * 100);
     
@@ -1582,32 +1985,41 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
               return (
                 <div key={stage.id} className="flex flex-col items-center">
                   <div className={`
-                    w-8 h-8 rounded-full flex items-center justify-center z-10 mb-3
-                    ${isCompleted ? 'bg-green-500' : 
-                      isCurrent ? 'bg-blue-500' : 
-                      isFuture ? 'bg-gray-300' : 'bg-gray-200'}
+                    w-10 h-10 rounded-full flex items-center justify-center z-10 mb-3 border-2
+                    ${isCompleted ? 'bg-green-500 border-green-500' : 
+                      isCurrent ? 'bg-blue-500 border-blue-500 animate-pulse' : 
+                      isFuture ? 'bg-gray-300 border-gray-300' : 'bg-gray-200 border-gray-200'}
                   `}>
                     {isCompleted ? (
-                      <CheckCircle className="h-5 w-5 text-white" />
+                      <CheckCircle className="h-6 w-6 text-white" />
                     ) : isCurrent ? (
                       isTransitioning ? (
-                        <Loader2 className="h-5 w-5 text-white animate-spin" />
+                        <Loader2 className="h-6 w-6 text-white animate-spin" />
                       ) : (
-                        <PlayCircle className="h-5 w-5 text-white" />
+                        <PlayCircle className="h-6 w-6 text-white" />
                       )
                     ) : (
-                      <span className="text-xs font-medium text-white">{index + 1}</span>
+                      <span className="text-sm font-medium text-white">{index + 1}</span>
                     )}
                   </div>
                   
                   <div className="text-center max-w-[120px]">
-                    <div className={`font-medium text-sm ${isCurrent ? 'text-blue-600' : 'text-gray-900'}`}>
+                    <div className={`font-medium text-sm mb-1 ${
+                      isCurrent ? 'text-blue-600 font-bold' : 
+                      isCompleted ? 'text-green-600' : 
+                      'text-gray-900'
+                    }`}>
                       {stage.label}
+                      {isCurrent && <span className="ml-1 text-xs">(Current)</span>}
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">
+                    <div className={`text-xs ${
+                      isCurrent ? 'text-blue-500' : 
+                      isCompleted ? 'text-green-500' : 
+                      'text-gray-500'
+                    }`}>
                       {stage.completed ? '✓ Complete' : 
-                       stage.isCurrent ? 'In Progress' : 
-                       'Pending'}
+                      stage.isCurrent ? 'In Progress' : 
+                      'Pending'}
                     </div>
                     {stage.isCurrent && stage.validation && !stage.validation.isValid && (
                       <div className="text-xs text-amber-600 mt-1">
@@ -1627,17 +2039,27 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   // Enhanced stage card component
   const StageCard = ({ stage }: { stage: WorkflowStage }) => {
     const statusDisplay = getStageStatusDisplay(stage.status);
-    const isCompleted = stage.completed;
+    const isCompleted = stage.status === 'completed' || stage.status === 'approved';
     const isCurrent = stage.isCurrent;
+
+    const getActualProgress = () => {
+      if (isCompleted) return 100;
+      if (stage.status === 'needs_approval') return 75;
+      if (stage.status === 'in_progress') return 50;
+      if (stage.documentId) return 25;
+      return 0;
+    };
     
+    const actualProgress = getActualProgress();
     return (
       <div
-        key={stage.id}
         className={`p-4 rounded-xl border-2 transition-all duration-300 ${
           isCurrent
             ? 'border-blue-500 bg-blue-50 transform scale-105 shadow-lg'
             : isCompleted
             ? 'border-green-500 bg-green-50'
+            : stage.documentId
+            ? 'border-yellow-500 bg-yellow-50'
             : 'border-gray-200 bg-gray-50'
         }`}
       >
@@ -1650,7 +2072,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
               <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
             )}
             <span className={`text-xs font-medium px-2 py-1 rounded-full ${statusDisplay.bgColor} ${statusDisplay.color}`}>
-              {stage.statusLabel}
+              {statusDisplay.label}
             </span>
           </div>
         </div>
@@ -1661,16 +2083,17 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs">
             <span className="text-gray-500">Progress</span>
-            <span className="font-medium">{stage.progress?.percentage || 0}%</span>
+            <span className="font-medium">{actualProgress}%</span>
           </div>
           <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
             <div 
               className={`h-full rounded-full ${
                 isCompleted ? 'bg-green-500' : 
                 isCurrent ? 'bg-blue-500' : 
+                stage.documentId ? 'bg-yellow-500' :
                 'bg-gray-400'
               }`}
-              style={{ width: `${stage.progress?.percentage || 0}%` }}
+              style={{ width: `${actualProgress}%` }}
             />
           </div>
           
@@ -1755,9 +2178,15 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
                       workOrderService.getStatusColor(workOrder.status)
                     }`}>
-                      {workOrderService.getStatusIcon(workOrder.status)}
+                      {/* {workOrderService.getStatusIcon(workOrder.status)} */}
                       {workOrderService.getStatusLabel(workOrder.status)}
                     </span>
+                     {workOrder.status === 'delayed' && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                          <Clock className="h-3 w-3" />
+                          Delayed ({workOrder.delayDays || 0} days)
+                        </span>
+                      )}
                   </div>
                   <p className="text-sm text-white/90">Created {formatDate(workOrder.createdAt)}</p>
                 </div>
@@ -1815,6 +2244,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                       <AlertCircle className="h-4 w-4 text-red-600" />
                       Cancel Work Order
                     </button>
+                    
                   </div>
                 )}
               </button>
@@ -1832,11 +2262,12 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
               { id: 'overview', label: 'Overview', icon: <BarChart3 className="h-4 w-4" /> },
               { id: 'stages', label: 'Stages', icon: <CheckCheck className="h-4 w-4" /> },
               { id: 'pre-checklist', label: 'Pre Checklist', icon: <ClipboardCheck className="h-4 w-4" /> },
+              { id: 'delays', label: 'Delays', icon: <Clock className="h-4 w-4" /> },
               { id: 'job-cards', label: 'Job Cards', icon: <Wrench className="h-4 w-4" /> },
               { id: 'post-checklist', label: 'Post Checklist', icon: <ClipboardList className="h-4 w-4" /> },
               { id: 'invoice', label: 'Invoice', icon: <ReceiptIcon className="h-4 w-4" /> },
               { id: 'documents', label: 'Documents', icon: <FileText className="h-4 w-4" /> },
-              { id: 'technician-notes', label: 'Notes', icon: <MessageSquare className="h-4 w-4" /> },
+              { id: 'technician-notes', label: 'Technician Notes', icon: <MessageSquare className="h-4 w-4" /> },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1858,6 +2289,11 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                 {tab.id === 'job-cards' && jobCards.length > 0 && (
                   <span className="ml-1 px-1.5 py-0.5 text-xs bg-green-100 text-green-800 rounded-full">
                     {jobCards.length}
+                  </span>
+                )}
+                {tab.id === 'delays' && workOrder.status === 'delayed' && (
+                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-orange-100 text-orange-800 rounded-full">
+                    {workOrder.delayDays || 1}
                   </span>
                 )}
                 {tab.id === 'post-checklist' && workOrder.postChecklistId && (
@@ -1981,6 +2417,42 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                     </div>
                   </div>
                 </div>
+                {workOrder.status === 'delayed' && (
+                  <div className="bg-white rounded-xl border border-orange-200 p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <AlertTriangle className="h-6 w-6 text-orange-600" />
+                      <span className="text-sm font-medium text-orange-600">Delay Information</span>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">Delay Reason:</span>
+                        <span className="font-semibold text-gray-900 text-right">
+                          {workOrder.delayInfo?.reason || 'Not specified'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">Days Delayed:</span>
+                        <span className="font-bold text-orange-600">{workOrder.delayDays || 0} days</span>
+                      </div>
+                      {workOrder.delayInfo?.expectedCompletionDate && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">New Completion:</span>
+                          <span className="font-semibold text-gray-900">
+                            {formatDate(workOrder.delayInfo.expectedCompletionDate)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="pt-3 border-t border-orange-200">
+                        <button
+                          onClick={() => setShowResolveDelayModal(true)}
+                          className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm font-medium"
+                        >
+                          Resolve Delay
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Financial Card */}
                 <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -2025,6 +2497,22 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                       <div className="flex justify-between items-center">
                         <span className="text-gray-600">Completed:</span>
                         <span className="font-semibold text-green-600">{formatDate(workOrder.actualCompletionDate)}</span>
+                      </div>
+                    )}
+
+                    {workOrder.status !== 'completed' && workOrder.status !== 'cancelled' && (
+                      <div className="pt-3 border-t border-gray-200">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Hours Remaining:</span>
+                          <span className={`font-semibold ${
+                            workOrderService.isOverdue(workOrder.estimatedCompletionDate) 
+                              ? 'text-red-600' 
+                              : 'text-blue-600'
+                          }`}>
+                            {workOrderService.getHoursRemaining(workOrder.estimatedCompletionDate)} hours
+                            {workOrderService.isOverdue(workOrder.estimatedCompletionDate) && ' (Overdue)'}
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2072,6 +2560,13 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                       user: preChecklist?.inspectorName || 'Inspector',
                       icon: <ClipboardCheck className="h-4 w-4 text-green-500" />
                     }] : []),
+                    ...(workOrder.status === 'delayed' && workOrder.delayInfo ? [{
+                        action: 'Work Order Delayed',
+                        date: workOrder.delayInfo.detectedAt,
+                        user: 'System',
+                        icon: <AlertTriangle className="h-4 w-4 text-orange-500" />,
+                        details: `Reason: ${workOrder.delayInfo.reason}`
+                      }] : []),
                     ...(jobCards.length > 0 ? [{
                       action: `${jobCards.length} Job Card${jobCards.length !== 1 ? 's' : ''} Created`,
                       date: jobCards[0]?.createdAt || new Date().toISOString(),
@@ -2261,10 +2756,18 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                     <p className="text-sm text-gray-600">Pre-service inspection and validation</p>
                   </div>
                   {workOrder.preChecklistId ? (
-                    <span className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                      <CheckCircle className="h-4 w-4" />
-                      {preChecklist?.approved ? 'Approved' : 'Pending Approval'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                        <CheckCircle className="h-4 w-4" />
+                        Approved
+                      </span>
+                      {workOrder.currentStage === 'pre_checklist' && (
+                        <span className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                          <Activity className="h-4 w-4" />
+                          Current Stage
+                        </span>
+                      )}
+                    </div>
                   ) : (
                     <span className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
                       <Clock className="h-4 w-4" />
@@ -2321,21 +2824,29 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                             </div>
                           </div>
                           
-                          {/* Auto-Approval Notice */}
-                          {preChecklist?.approved && (
-                            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-                              <div className="flex items-start gap-3">
-                                <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                                <div>
-                                  <p className="text-sm text-green-700">
-                                    ✓ This checklist has been approved.
-                                    {workOrder.currentStage === 'pre_checklist' && 
-                                    ' You can now proceed to the Job Card stage.'}
-                                  </p>
+                          {/* Workflow Status */}
+                          <div className="mb-6 p-4 bg-white border border-gray-200 rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h5 className="font-medium text-gray-900 mb-1">Workflow Status</h5>
+                                <p className="text-sm text-gray-600">
+                                  {workOrder.currentStage === 'pre_checklist' 
+                                    ? 'Currently at Pre-Checklist stage'
+                                    : workOrder.currentStage === 'job_card'
+                                    ? '✓ Moved to Job Card stage'
+                                    : workOrder.currentStage === 'post_checklist'
+                                    ? '✓ Moved to Post-Checklist stage'
+                                    : '✓ Workflow complete'}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm font-medium text-gray-700">Current Stage</div>
+                                <div className="text-lg font-bold text-blue-600">
+                                  {workOrderService.getStageLabel(workOrder.currentStage)}
                                 </div>
                               </div>
                             </div>
-                          )}
+                          </div>
                           
                           {/* Actions */}
                           <div className="flex items-center gap-3">
@@ -2347,64 +2858,55 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                               View Checklist
                             </button>
                             
-                            {/* Edit button only if still in pre_checklist stage */}
-                            {workOrder.currentStage === 'pre_checklist' && !preChecklist?.approved && (
+                            {/* Show transition button if pre-checklist is approved and we're still at this stage */}
+                            {workOrder.currentStage === 'pre_checklist' && preChecklist?.approved && (
                               <button
-                                onClick={() => handleEditStageDocument('pre_checklist', workOrder.preChecklistId)}
-                                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
-                              >
-                                <Edit className="h-4 w-4" />
-                                Edit Checklist
-                              </button>
-                            )}
-
-                            {workOrder.preChecklistId && !preChecklist?.approved && (
-                              <button
-                                onClick={() => handleApproveStage('prechecklist', workOrder.preChecklistId)}
+                                onClick={() => {
+                                  const stage: WorkflowStage = {
+                                    id: 'prechecklist',
+                                    stage: 'prechecklist',
+                                    label: 'Pre-Checklist',
+                                    status: 'approved',
+                                    completed: true,
+                                    isCurrent: true,
+                                    documentId: workOrder.preChecklistId,
+                                    actions: [],
+                                    statusLabel: 'Approved',
+                                    statusColor: 'text-green-600',
+                                    bgColor: 'bg-green-100',
+                                    statusIcon: <CheckCircle2 className="h-4 w-4" />,
+                                    icon: <ClipboardCheck className="h-5 w-5" />,
+                                    mandatory: true,
+                                    estimatedTime: '30-60 min',
+                                    canSkip: false,
+                                    progress: { percentage: 100, completedSteps: 3, totalSteps: 3 }
+                                  };
+                                  handleTransitionToNextStage(stage);
+                                }}
                                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
                               >
-                                <CheckCircle className="h-4 w-4" />
-                                Approve Pre-Checklist
+                                <ArrowRight className="h-4 w-4" />
+                                Move to Job Card
                               </button>
                             )}
                             
-                            {/* Show current stage info */}
-                            {workOrder.currentStage !== 'pre_checklist' && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <CheckCircle className="h-4 w-4 text-green-500" />
-                                <span className="text-gray-600">
-                                  Moved to: <span className="font-medium">{workOrderService.getStageLabel(workOrder.currentStage)}</span>
-                                </span>
+                            {/* If already at job card stage, show job card actions */}
+                            {workOrder.currentStage === 'job_card' && (
+                              <div className="flex items-center gap-3">
+                                <span className="text-green-600 font-medium">✓ Ready for Job Card</span>
+                                <button
+                                  onClick={() => handleCreateStageDocument('job_card')}
+                                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                  Create Job Card
+                                </button>
                               </div>
                             )}
                           </div>
                         </div>
                       </div>
                     </div>
-                    
-                    {/* Next Stage Information */}
-                    {workOrder.currentStage === 'job_card' && (
-                      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-6">
-                        <div className="flex items-center gap-4">
-                          <div className="p-3 bg-white rounded-lg shadow-sm">
-                            <Wrench className="h-6 w-6 text-emerald-600" />
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="text-lg font-bold text-gray-900 mb-2">✓ Ready for Job Card Creation</h4>
-                            <p className="text-gray-600 mb-4">
-                              Pre-checklist completed and approved. Now you can create job cards for technicians.
-                            </p>
-                            <button
-                              onClick={() => handleCreateStageDocument('job_card')}
-                              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2"
-                            >
-                              <Plus className="h-4 w-4" />
-                              Create Job Card
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-xl">
@@ -2517,6 +3019,372 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                         <Plus className="h-4 w-4" />
                         Create Job Card
                       </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'delays' && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <Clock className="h-5 w-5 text-orange-600" />
+                      Delay Management
+                    </h3>
+                    <p className="text-sm text-gray-600">Track and manage work order delays with time precision</p>
+                  </div>
+                  {workOrder.status === 'delayed' ? (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-2 px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm font-medium">
+                          <AlertTriangle className="h-4 w-4" />
+                          Delayed
+                        </span>
+                        <div className="text-right">
+                          <div className="text-sm font-medium text-gray-900">
+                            {getFormattedDelayDuration(workOrder.delayDuration)}
+                          </div>
+                          <div className="text-xs text-gray-500">Total delay</div>
+                        </div>
+                      </div>
+                      {workOrder.delayInfo && !workOrder.delayInfo.resolvedAt && (
+                        <button
+                          onClick={() => setShowResolveDelayModal(true)}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          Resolve Delay
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <span className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                      <CheckCircle className="h-4 w-4" />
+                      On Schedule
+                    </span>
+                  )}
+                </div>
+
+                {/* Current Delay Status with Time */}
+                {workOrder.status === 'delayed' && workOrder.delayInfo && (
+                <div className="mb-6">
+                  <div className={`bg-gradient-to-r rounded-xl border-2 p-6 ${
+                    workOrder.delayInfo.resolvedAt 
+                      ? 'from-green-50 to-emerald-50 border-green-200'
+                      : 'from-orange-50 to-amber-50 border-orange-200'
+                  }`}>
+                    <div className="flex items-start justify-between mb-6">
+                      <div className="flex items-start gap-4">
+                        <div className={`p-3 bg-white rounded-lg shadow-sm ${
+                          workOrder.delayInfo.resolvedAt ? 'text-green-600' : 'text-orange-600'
+                        }`}>
+                          {workOrder.delayInfo.resolvedAt ? (
+                            <CheckCircle className="h-6 w-6" />
+                          ) : (
+                            <AlertTriangle className="h-6 w-6" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-xl font-bold text-gray-900 mb-2">
+                            {workOrder.delayInfo.resolvedAt ? 'Resolved Delay' : 'Active Delay'}
+                          </h4>
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                              <Clock className={`h-4 w-4 ${
+                                workOrder.delayInfo.resolvedAt ? 'text-green-500' : 'text-orange-500'
+                              }`} />
+                              <span className="text-sm text-gray-600">
+                                Detected {formatDateTime(workOrder.delayInfo.detectedAt)}
+                              </span>
+                            </div>
+                            {workOrder.delayInfo.resolvedAt && (
+                              <div className="flex items-center gap-2">
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                                <span className="text-sm text-gray-600">
+                                  Resolved {formatDateTime(workOrder.delayInfo.resolvedAt)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-3xl font-bold text-orange-600 mb-1">
+                          {getFormattedDelayDuration(workOrder.delayInfo)}
+                        </div>
+                        <div className="text-sm text-gray-600">total delay</div>
+                        {workOrder.delayInfo.resolvedAt && (
+                          <div className="text-xs text-green-600 font-medium mt-1">
+                            ✓ Resolved
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Conditionally show resolve button only for unresolved delays */}
+                    {!workOrder.delayInfo.resolvedAt && (
+                      <div className="pt-6 border-t border-orange-200">
+                        <div className="flex flex-wrap gap-3">
+                          <button
+                            onClick={() => setShowResolveDelayModal(true)}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                            Resolve Delay
+                          </button>
+                          <button
+                            onClick={() => setShowDelayModal(true)}
+                            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
+                          >
+                            <Edit className="h-4 w-4" />
+                            Update Delay Information
+                          </button>
+                          <button
+                            onClick={handleLoadDelayHistory}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                          >
+                            <History className="h-4 w-4" />
+                            View Delay History
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+                {/* Enhanced Delay Statistics with Time Metrics */}
+                <div className="mb-6">
+                  <h4 className="font-semibold text-gray-900 mb-4">Delay Time Metrics</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="bg-gradient-to-br from-orange-50 to-amber-50 p-4 rounded-lg border border-orange-200">
+                      <div className="text-2xl font-bold text-gray-900 mb-1">
+                        {workOrder.status === 'delayed' 
+                          ? formatDurationToHours(workOrder.delayDuration) 
+                          : '0'}
+                      </div>
+                      <div className="text-sm text-gray-600">Total Hours Delayed</div>
+                    </div>
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <div className="text-2xl font-bold text-gray-900 mb-1">
+                        {calculateAverageDelayHours()}
+                      </div>
+                      <div className="text-sm text-gray-600">Avg Delay per Incident</div>
+                    </div>
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <div className="text-2xl font-bold text-gray-900 mb-1">
+                        {getLongestDelay()}
+                      </div>
+                      <div className="text-sm text-gray-600">Longest Delay</div>
+                    </div>
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <div className="text-2xl font-bold text-gray-900 mb-1">
+                        {delayHistory.filter(d => !d.resolvedAt).length}
+                      </div>
+                      <div className="text-sm text-gray-600">Active Delays</div>
+                    </div>
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <div className="text-2xl font-bold text-gray-900 mb-1">
+                        {formatCurrency(calculateDelayCost())}
+                      </div>
+                      <div className="text-sm text-gray-600">Cost Impact</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Enhanced Delay History Table with Time Columns */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="font-semibold text-gray-900">Delay History Timeline</h4>
+                    <button
+                      onClick={() => setShowDelayModal(true)}
+                      className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Delay Record
+                    </button>
+                  </div>
+                  
+                  {delayHistory.length === 0 ? (
+                    <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
+                      <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-600">No delay history recorded for this work order.</p>
+                      <button
+                        onClick={() => setShowDelayModal(true)}
+                        className="mt-4 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
+                      >
+                        Record First Delay
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Start Time
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Duration
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Reason
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Impact Level
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Resolved At
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Downtime
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {delayHistory.map((delay, index) => {
+                            const duration = getDelayDuration(delay);
+                            const downtime = calculateDowntimeCost(delay);
+                            
+                            return (
+                              <tr key={index} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {formatDateTime(delay.detectedAt)}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {getTimeAgo(delay.detectedAt)}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {duration}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {delay.daysDelayed} days, {delay.hoursDelayed || 0} hours
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="max-w-xs">
+                                    <div className="text-sm text-gray-900 truncate">
+                                      {delay.reason}
+                                    </div>
+                                    {delay.category && (
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        Category: {delay.category}
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                    getImpactLevelClass(delay.daysDelayed, delay.hoursDelayed)
+                                  }`}>
+                                    {getImpactLevel(delay.daysDelayed, delay.hoursDelayed)}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  {delay.resolvedAt ? (
+                                    <>
+                                      <div className="text-sm text-gray-900">
+                                        {formatDateTime(delay.resolvedAt)}
+                                      </div>
+                                      <div className="text-xs text-green-600">
+                                        Resolved
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <span className="text-sm text-orange-600">Active</span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {formatCurrency(downtime)}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    Cost impact
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => viewDelayDetails(delay)}
+                                      className="text-blue-600 hover:text-blue-900"
+                                      title="View details"
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </button>
+                                    {!delay.resolvedAt && (
+                                      <button
+                                        onClick={() => resolveDelay(delay)}
+                                        className="text-green-600 hover:text-green-900"
+                                        title="Resolve delay"
+                                      >
+                                        <CheckCircle className="h-4 w-4" />
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => editDelay(delay)}
+                                      className="text-gray-600 hover:text-gray-900"
+                                      title="Edit delay"
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Real-time Delay Tracker */}
+                {workOrder.status === 'delayed' && workOrder.delayInfo && !workOrder.delayInfo.resolvedAt && (
+                  <div className="mt-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <Activity className="h-5 w-5 text-blue-600" />
+                        <h4 className="font-semibold text-gray-900">Real-time Delay Tracker</h4>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-blue-600">
+                          {calculateCurrentDelayDuration()}
+                        </div>
+                        <div className="text-xs text-gray-500">Current delay duration</div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-white p-3 rounded-lg border border-blue-100">
+                        <div className="text-xs text-gray-600">Started</div>
+                        <div className="font-medium">
+                          {formatDateTime(workOrder.delayInfo.detectedAt)}
+                        </div>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-blue-100">
+                        <div className="text-xs text-gray-600">Elapsed Time</div>
+                        <div className="font-medium text-orange-600">
+                          {getElapsedTime(workOrder.delayInfo.detectedAt)}
+                        </div>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-blue-100">
+                        <div className="text-xs text-gray-600">Remaining (Est.)</div>
+                        <div className="font-medium text-green-600">
+                          {workOrder.delayInfo.expectedCompletionDate
+                            ? getTimeRemaining(workOrder.delayInfo.expectedCompletionDate)
+                            : 'TBD'}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -3109,55 +3977,282 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       </div>
 
       {/* Modals */}
+      {/* Mark as Delayed Modal */}
       {showDelayModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Report Delay</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <AlertTriangle className="h-5 w-5 text-orange-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Report Delay</h3>
+              </div>
               <button
                 onClick={() => setShowDelayModal(false)}
-                className="p-1 hover:bg-gray-100 rounded-lg"
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
+            
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Delay Reason
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Delay Duration *
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Days</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={delayDays}
+                      onChange={(e) => setDelayDays(parseInt(e.target.value) || 0)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Hours</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="23"
+                      value={delayHours}
+                      onChange={(e) => setDelayHours(parseInt(e.target.value) || 0)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Delay Reason *
                 </label>
                 <textarea
                   value={delayReason}
                   onChange={(e) => setDelayReason(e.target.value)}
-                  placeholder="Describe the reason for the delay..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  rows={3}
+                  placeholder="Describe the reason for the delay (e.g., awaiting parts, technician unavailable, additional work required)..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 min-h-[100px]"
+                  rows={4}
                 />
               </div>
+              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Expected Completion Date
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Expected Completion Date & Time
                 </label>
-                <input
-                  type="date"
-                  value={delayExpectedDate}
-                  onChange={(e) => setDelayExpectedDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    type="date"
+                    value={delayExpectedDate}
+                    onChange={(e) => setDelayExpectedDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                  <input
+                    type="time"
+                    value={delayExpectedTime}
+                    onChange={(e) => setDelayExpectedTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  />
+                </div>
+              </div>       
+              <div className="pt-4 border-t border-gray-200">
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowDelayModal(false)}
+                    className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleMarkAsDelayed}
+                    disabled={!delayReason.trim()}
+                    className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Mark as Delayed
+                  </button>
+                </div>
               </div>
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setShowDelayModal(false)}
-                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleMarkAsDelayed}
-                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
-                >
-                  Mark as Delayed
-                </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resolve Delay Modal */}
+      {showResolveDelayModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Resolve Delay</h3>
+              </div>
+              <button
+                onClick={() => setShowResolveDelayModal(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <Info className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-green-700">
+                      This will mark the delay as resolved and update the work order status. 
+                      The delay will be recorded in the work order history.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              {workOrder?.delayInfo && (
+                <div className="border border-gray-200 rounded-lg p-4">
+                  <h4 className="font-medium text-gray-900 mb-2">Current Delay Information</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Reason:</span>
+                      <span className="font-medium">{workOrder.delayInfo.reason}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Days Delayed:</span>
+                      <span className="font-medium text-orange-600">{workOrder.delayDays || 0} days</span>
+                    </div>
+                    {workOrder.delayInfo.expectedCompletionDate && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Expected Completion:</span>
+                        <span className="font-medium">{formatDate(workOrder.delayInfo.expectedCompletionDate)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              <div className="pt-4 border-t border-gray-200">
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowResolveDelayModal(false)}
+                    className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleResolveDelay}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    Resolve Delay
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delay History Modal */}
+      {showDelayHistoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <History className="h-5 w-5 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Delay History</h3>
+              </div>
+              <button
+                onClick={() => setShowDelayHistoryModal(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {delayHistory.length === 0 ? (
+                <div className="text-center py-8">
+                  <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No delay history found for this work order.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {delayHistory.map((delay, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${
+                            delay.resolvedAt ? 'bg-green-500' : 'bg-orange-500'
+                          }`} />
+                          <span className="font-medium text-gray-900">
+                            {delay.resolvedAt ? 'Resolved Delay' : 'Active Delay'}
+                          </span>
+                        </div>
+                        <span className="text-sm text-gray-500">
+                          {formatDateTime(delay.detectedAt)}
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="text-gray-600">Reason:</span>
+                          <p className="font-medium mt-1">{delay.reason}</p>
+                        </div>
+                        
+                        {delay.expectedCompletionDate && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Expected Completion:</span>
+                            <span className="font-medium">{formatDate(delay.expectedCompletionDate)}</span>
+                          </div>
+                        )}
+                        
+                        {delay.notes && (
+                          <div>
+                            <span className="text-gray-600">Notes:</span>
+                            <p className="font-medium mt-1">{delay.notes}</p>
+                          </div>
+                        )}
+                        
+                        {delay.resolvedAt ? (
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            <div>
+                              <div className="text-sm text-gray-900">
+                                {formatDateTime(delay.resolvedAt)}
+                              </div>
+                              <div className="text-xs text-green-600 font-medium">
+                                Resolved
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-orange-600" />
+                            <span className="text-sm text-orange-600">Active</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <div className="pt-4 border-t border-gray-200">
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setShowDelayHistoryModal(false)}
+                    className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
           </div>
