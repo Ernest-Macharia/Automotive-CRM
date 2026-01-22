@@ -25,15 +25,6 @@ export default function CustomersHeader({
               <p className="text-blue-100">{description}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => router.push('/customers/new')}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 font-medium transition-colors"
-            >
-              <UserPlus className="h-4 w-4" />
-              Add Customer
-            </button>
-          </div>
         </div>
       </div>
     </div>

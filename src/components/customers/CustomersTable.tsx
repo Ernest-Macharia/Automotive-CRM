@@ -14,11 +14,12 @@ interface CustomersTableProps {
   currentPage: number;
   totalPages: number;
   startIndex: number;
-  endIndex: number;
+  endIndex: number; 
   onPageChange: (page: number) => void;
   onViewCustomer: (customer: Customer) => void;
   onEditCustomer: (customer: Customer) => void;
   onDeleteCustomer: (customer: Customer) => void;
+  loading?: boolean;
 }
 
 export default function CustomersTable({
@@ -31,7 +32,8 @@ export default function CustomersTable({
   onPageChange,
   onViewCustomer,
   onEditCustomer,
-  onDeleteCustomer
+  onDeleteCustomer,
+  loading = false
 }: CustomersTableProps) {
   const router = useRouter();
 
@@ -133,6 +135,17 @@ export default function CustomersTable({
     router.push(`/customers/${customer._id}`);
   };
 
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex flex-col items-center justify-center py-12">
+          <div className="h-8 w-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-gray-600">Loading customers...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
@@ -169,9 +182,6 @@ export default function CustomersTable({
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Last Order
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
               </th>
             </tr>
           </thead>
@@ -266,7 +276,7 @@ export default function CustomersTable({
                         </div>
                     )}
                   </td>
-                  <td className="px-6 py-4">
+                  {/* <td className="px-6 py-4">
                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => onViewCustomer(customer)}
@@ -290,7 +300,7 @@ export default function CustomersTable({
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-                  </td>
+                  </td> */}
                 </tr>
               ))
             )}
