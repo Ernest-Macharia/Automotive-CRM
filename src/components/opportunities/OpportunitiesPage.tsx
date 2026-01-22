@@ -83,6 +83,62 @@ const sortOptions = [
   { id: 'updatedAt:desc', label: 'Recently Updated' },
 ];
 
+const useColumnInfiniteScroll = (
+  containerRef: React.RefObject<HTMLDivElement>,
+  fetchMore: () => Promise<void>
+) => {
+  const [loading, setLoading] = useState(false);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isFetchingRef = useRef(false); // Prevent duplicate fetches
+  const [showLoading, setShowLoading] = useState(false); 
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      // Clear any existing timeout
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+
+      // Debounce the scroll handler
+      scrollTimeoutRef.current = setTimeout(() => {
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        
+        // Load more when user is near the bottom (100px from bottom)
+        if (scrollTop + clientHeight >= scrollHeight - 100 && !loading && !isFetchingRef.current) {
+          isFetchingRef.current = true;
+          setLoading(true);
+          setTimeout(() => setShowLoading(true), 300);
+          fetchMore()
+            .catch(error => {
+              console.error('Error loading more opportunities:', error);
+            })
+            .finally(() => {
+              setLoading(false);
+              setShowLoading(false);
+              isFetchingRef.current = false;
+            });
+        }
+      }, 150);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    
+    // Cleanup
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+      container.removeEventListener('scroll', handleScroll);
+      isFetchingRef.current = false; // Reset on unmount
+    };
+  }, [containerRef, fetchMore, loading]);
+
+  return { loading: showLoading, setLoading };
+};
+
 interface ExtendedOpportunity extends Opportunity {
   invoices?: any[];
   payments?: any[];
@@ -209,6 +265,8 @@ interface KanbanColumnProps {
   showToast: (message: string, type: 'success' | 'error' | 'info' | 'warning', duration?: number) => void;
   refreshOpportunities: () => Promise<void>;
   onStatusUpdate: (opportunity: ExtendedOpportunity, newStatus: string) => Promise<{ success: boolean; needsLead?: boolean }>;
+  columnLoading: boolean;
+  loadMore: (stageId: StageId) => Promise<void>;
 }
 
 function KanbanColumn({
@@ -226,9 +284,21 @@ function KanbanColumn({
   showToast,
   refreshOpportunities,
   onStatusUpdate,
+  columnLoading,
+  loadMore,
 }: KanbanColumnProps) {
   const router = useRouter();
   const [dropping, setDropping] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const { loading: scrollLoading } = useColumnInfiniteScroll(
+    containerRef,
+    async () => {
+      await loadMore(stage.id);
+    }
+  );
+
+  const isLoading = columnLoading || scrollLoading;
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -300,7 +370,6 @@ function KanbanColumn({
 
   // Virtualized list for opportunities
   const VirtualizedOpportunityList = memo(({ opportunities: opps }: { opportunities: ExtendedOpportunity[] }) => {
-    const containerRef = useRef<HTMLDivElement>(null);
     const [visibleRange, setVisibleRange] = useState({ start: 0, end: 10 });
     
     useEffect(() => {
@@ -373,10 +442,27 @@ function KanbanColumn({
               </div>
             );
           })}
+          {/* Loading spinner at the bottom */}
+          {isLoading && opps.length > 0 && (
+            <div 
+              style={{
+                position: 'absolute',
+                top: `${opps.length * 220}px`,
+                width: '100%',
+              }}
+              className="py-4 flex justify-center"
+            >
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Loading more...</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
   });
+  
   VirtualizedOpportunityList.displayName = 'VirtualizedOpportunityList';
 
   return (
@@ -395,26 +481,25 @@ function KanbanColumn({
           <div className={`h-3 w-3 rounded-full ${getStageColor(stage.id)}`} />
           <h3 className="font-semibold text-gray-800">{stage.label}</h3>
           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-medium text-gray-600 transition-all hover:scale-110">
-            {loading ? (
+            {isLoading ? (
               <Loader2 className="h-3 w-3 animate-spin" />
             ) : (
               opportunities.length
             )}
           </span>
         </div>
-        <button className="p-1 hover:bg-white/50 rounded-lg transition-colors" disabled={loading}>
+        <button className="p-1 hover:bg-white/50 rounded-lg transition-colors" disabled={isLoading}>
           <MoreVertical className="h-4 w-4 text-gray-400" />
         </button>
       </div>
 
       <div className="flex-1 min-h-0">
-        {loading && opportunities.length === 0 ? (
-          <div className="space-y-3 h-full">
-            {[1, 2].map((i) => (
-              <div key={i} className="opacity-70">
-                <SkeletonCard />
-              </div>
-            ))}
+        {isLoading && opportunities.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="flex flex-col items-center gap-2">
+              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              <p className="text-sm text-gray-500">Loading opportunities...</p>
+            </div>
           </div>
         ) : (
           <VirtualizedOpportunityList opportunities={opportunities} />
@@ -734,6 +819,7 @@ export default function OpportunitiesContent() {
     hasJobCards: undefined as boolean | undefined,
     isNurturing: undefined as boolean | undefined,
   });
+  
 
   // Create cache instance
   const cacheRef = useRef(createCache());
@@ -906,6 +992,90 @@ export default function OpportunitiesContent() {
   useEffect(() => {
     debouncedSetSearch(searchQuery);
   }, [searchQuery, debouncedSetSearch]);
+
+  const [columnLoading, setColumnLoading] = useState<Record<StageId, boolean>>({
+    new: false,
+    attempted_to_contact: false,
+    prospecting: false,
+    appointment_scheduled: false,
+    non_progressive: false,
+    lost: false,
+  });
+
+  const [stagePagination, setStagePagination] = useState<Record<StageId, { page: number; hasMore: boolean }>>({
+    new: { page: 1, hasMore: true },
+    attempted_to_contact: { page: 1, hasMore: true },
+    prospecting: { page: 1, hasMore: true },
+    appointment_scheduled: { page: 1, hasMore: true },
+    non_progressive: { page: 1, hasMore: true },
+    lost: { page: 1, hasMore: true },
+  });
+
+  useEffect(() => {
+  // Reset all stage pagination to page 1
+    setStagePagination({
+      new: { page: 1, hasMore: true },
+      attempted_to_contact: { page: 1, hasMore: true },
+      prospecting: { page: 1, hasMore: true },
+      appointment_scheduled: { page: 1, hasMore: true },
+      non_progressive: { page: 1, hasMore: true },
+      lost: { page: 1, hasMore: true },
+    });
+  }, [memoizedFilters, memoizedAdvancedFilters]);
+
+  // Add this function to load more opportunities for a specific stage
+  const loadMoreForStage = useCallback(async (stageId: StageId) => {
+    if (columnLoading[stageId] || !stagePagination[stageId].hasMore) return;
+
+    try {
+      setColumnLoading(prev => ({ ...prev, [stageId]: true }));
+      
+      const nextPage = stagePagination[stageId].page + 1;
+      
+      const params: FilterParams = {
+        ...filters,
+        status: stageId,
+        page: nextPage,
+        limit: 20, // Load 20 at a time
+      };
+
+      const response = await opportunityService.getAllOpportunities(params);
+      
+      if (response.data.length > 0) {
+        // Process new opportunities
+        const processedOpportunities = response.data.map((opp: ExtendedOpportunity) => ({
+          ...opp,
+          computedStageColor: getStageColor(opp.status as StageId),
+          computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
+          computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
+          computedChildCounts: getChildCounts(opp)
+        }));
+
+        // Append to existing opportunities
+        setOpportunities(prev => [...prev, ...processedOpportunities]);
+        
+        // Update pagination
+        setStagePagination(prev => ({
+          ...prev,
+          [stageId]: {
+            page: nextPage,
+            hasMore: response.data.length >= 20 // Assuming limit is 20
+          }
+        }));
+      } else {
+        // No more data
+        setStagePagination(prev => ({
+          ...prev,
+          [stageId]: { ...prev[stageId], hasMore: false }
+        }));
+      }
+    } catch (error) {
+      console.error(`Error loading more for stage ${stageId}:`, error);
+      showToast(`Failed to load more opportunities for ${stageId}`, 'error', 3000);
+    } finally {
+      setColumnLoading(prev => ({ ...prev, [stageId]: false }));
+    }
+  }, [columnLoading, stagePagination, filters, getStageColor, getAvatarColor, getLeadScoreTier, getChildCounts, showToast]);
 
   // Optimized fetch opportunities WITHOUT lead checking
   const fetchOpportunities = useCallback(async (isRefresh = false, forceRefresh = false) => {
@@ -1194,19 +1364,42 @@ export default function OpportunitiesContent() {
 
   const scrollKanban = (direction: 'left' | 'right') => {
     if (kanbanRef.current) {
-      const scrollAmount = 300;
-      const newScrollLeft = kanbanRef.current.scrollLeft + 
-        (direction === 'left' ? -scrollAmount : scrollAmount);
+      setScrolling(true);
+      const container = kanbanRef.current;
+      const scrollAmount = 400; // Fixed amount to scroll
       
-      kanbanRef.current.scrollTo({
-        left: newScrollLeft,
+      container.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
         behavior: 'smooth'
       });
       
-      setScrolling(true);
-      setTimeout(() => setScrolling(false), 300);
+      // Reset scrolling state after animation
+      setTimeout(() => setScrolling(false), 500);
     }
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle arrow keys if the kanban board is visible and user isn't in an input field
+      const isInputActive = 
+        e.target instanceof HTMLInputElement || 
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement;
+      
+      if (isInputActive) return;
+      
+      if (e.key === 'ArrowLeft' && !scrolling && !loading && !creating) {
+        e.preventDefault();
+        scrollKanban('left');
+      } else if (e.key === 'ArrowRight' && !scrolling && !loading && !creating) {
+        e.preventDefault();
+        scrollKanban('right');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [scrolling, loading, creating]);
 
   const hasActiveFilters = filters.status || filters.tier || filters.source || filters.type || 
     filters.minScore || filters.maxScore || filters.fromDate || filters.toDate || 
@@ -1748,21 +1941,24 @@ export default function OpportunitiesContent() {
               </div>
             )}
 
+            {/* Update the arrow buttons section */}
             {showScrollButtons && (
               <>
                 <button
                   onClick={() => scrollKanban('left')}
                   disabled={scrolling || loading || creating}
-                  className="hidden md:block absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-2 z-10 h-10 w-10 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-full shadow-lg flex items-center justify-center hover:bg-white disabled:opacity-50 transition-all"
+                  className="hidden md:block absolute left-2 top-1/2 transform -translate-y-1/2 z-20 h-10 w-10 bg-white/95 backdrop-blur-sm border border-gray-300 rounded-full shadow-lg flex items-center justify-center hover:bg-white hover:scale-110 disabled:opacity-50 transition-all duration-200 group"
                 >
-                  <ChevronLeft className="h-5 w-5 text-gray-600" />
+                  <ChevronLeft className="h-5 w-5 text-gray-700 group-hover:text-blue-600 transition-colors" />
+                  <span className="sr-only">Scroll left</span>
                 </button>
                 <button
                   onClick={() => scrollKanban('right')}
                   disabled={scrolling || loading || creating}
-                  className="hidden md:block absolute right-0 top-1/2 transform -translate-y-1/2 translate-x-2 z-10 h-10 w-10 bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-full shadow-lg flex items-center justify-center hover:bg-white disabled:opacity-50 transition-all"
+                  className="hidden md:block absolute right-2 top-1/2 transform -translate-y-1/2 z-20 h-10 w-10 bg-white/95 backdrop-blur-sm border border-gray-300 rounded-full shadow-lg flex items-center justify-center hover:bg-white hover:scale-110 disabled:opacity-50 transition-all duration-200 group"
                 >
-                  <ChevronRight className="h-5 w-5 text-gray-600" />
+                  <ChevronRight className="h-5 w-5 text-gray-700 group-hover:text-blue-600 transition-colors" />
+                  <span className="sr-only">Scroll right</span>
                 </button>
               </>
             )}
@@ -1813,6 +2009,8 @@ export default function OpportunitiesContent() {
                       showToast={showToast}
                       refreshOpportunities={fetchOpportunities}
                       onStatusUpdate={handleStatusUpdateWrapper}
+                      columnLoading={columnLoading[stage.id]}
+                      loadMore={loadMoreForStage}
                     />
                   </div>
                 ))}

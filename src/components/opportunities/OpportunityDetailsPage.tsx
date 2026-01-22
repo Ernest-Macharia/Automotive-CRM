@@ -428,18 +428,12 @@ function VehicleDetailsModal({
             {/* Footer */}
             <div className="sticky bottom-0 border-t border-gray-100 bg-white/95 backdrop-blur-sm p-4">
               <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-600">
-                  Last updated: {vehicle.updatedAt ? new Date(vehicle.updatedAt).toLocaleDateString() : 'Unknown'}
-                </div>
                 <div className="flex items-center gap-3">
                   <button 
                     onClick={onClose}
                     className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                   >
                     Close
-                  </button>
-                  <button className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-blue-700 transition-all">
-                    Schedule Service
                   </button>
                 </div>
               </div>
@@ -720,7 +714,11 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
               <ArrowLeft className="h-5 w-5 text-white" />
             </button>
             <div>
-              <h1 className="text-xl font-bold text-white">{opportunity.subject || 'Unnamed Opportunity'}</h1>
+              <h1 className="text-xl font-bold text-white">
+                {typeof opportunity.subject === 'string' 
+                  ? opportunity.subject 
+                  : 'Unnamed Opportunity'}
+              </h1>
               <p className="text-blue-100 text-sm mt-1">
                 ID: {opportunity._id?.slice(-8) || 'N/A'} • Created {formatDate(opportunity.createdAt)}
               </p>
@@ -830,7 +828,11 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                           <div className="flex-1">
                             <div className="flex items-start justify-between mb-4">
                               <div>
-                                <h3 className="text-lg font-semibold text-gray-800 mb-1">{opportunity.customer?.name || 'No Name'}</h3>
+                                <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                                  {typeof opportunity.customer?.name === 'string' 
+                                    ? opportunity.customer.name 
+                                    : 'No Name'}
+                                </h3>
                                 <div className="flex items-center gap-2">
                                   <span className="text-sm text-gray-600">
                                     {opportunity.type === 'organization' ? 'Organization' : 'Individual'}
@@ -920,21 +922,17 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                         <div className="text-sm text-gray-800">{formatDate(opportunity.createdAt)}</div>
                       </div>
                       
-                      <div className="bg-gradient-to-br from-amber-50 to-amber-100/30 rounded-xl border border-amber-200 p-4">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Clock className="h-4 w-4 text-amber-500" />
-                          <div className="text-sm font-semibold text-gray-700">Last Updated</div>
-                        </div>
-                        <div className="text-sm text-gray-800">{formatDate(opportunity.updatedAt)}</div>
-                      </div>
-                      
                       {opportunity.assignedTo && (
                         <div className="bg-gradient-to-br from-purple-50 to-purple-100/30 rounded-xl border border-purple-200 p-4">
                           <div className="flex items-center gap-2 mb-3">
                             <Users className="h-4 w-4 text-purple-500" />
                             <div className="text-sm font-semibold text-gray-700">Assigned To</div>
                           </div>
-                          <div className="text-sm font-medium text-purple-600">{opportunity.assignedTo}</div>
+                          <div className="text-sm font-medium text-purple-600">
+                            {typeof opportunity.assignedTo === 'string' 
+                              ? opportunity.assignedTo 
+                              : opportunity.assignedTo?.name || opportunity.assignedTo?.email || 'Unassigned'}
+                          </div>
                         </div>
                       )}
                     </div>
