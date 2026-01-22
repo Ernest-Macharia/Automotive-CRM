@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Users, FileText, Receipt,
@@ -102,8 +103,15 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     <div className="h-full flex flex-col bg-white border-r border-gray-200 shadow-sm">
       <div className="flex-shrink-0 flex items-center justify-between h-16 px-4 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-sm">
-            <span className="text-white font-bold text-sm">M</span>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm">
+            <Image
+                          src="/maglogo.png"
+                          alt="MAG CRM Logo"
+                          width={64}
+                          height={64}
+                          className="object-contain"
+                          priority
+                        />
           </div>
           <div>
             <h1 className="text-lg font-bold text-gray-800">MAG CRM</h1>
