@@ -143,7 +143,7 @@ export interface UpdateOpportunityData {
   subject?: string;
   type?: 'individual' | 'organization';
   status?: 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost' | 'won';
-  source: 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner';
+  source?: 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner';
   assignedTo?: string;
   isNurturing?: boolean;
   notes?: string;
@@ -896,16 +896,19 @@ class OpportunityService {
       
       // Get current opportunity
       const opportunity = await this.getOpportunityById(opportunityId);
+
+      const source = opportunity.source as 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner' || 'walk_in';
+      
+      // Update opportunity with package type and source
+      const updatedOpportunity = await this.updateOpportunity(opportunityId, {
+        packageType,
+        opportunityType: packageType === 'work_order' ? 'SERVICE' : 'SALE',
+        source: source
+      });
       
       // Initialize lifecycle
       const lifecycleService = require('./lifecycleService');
       const result = await lifecycleService.initializeOpportunity(opportunityId, { packageType });
-      
-      // Update opportunity with package type
-      const updatedOpportunity = await this.updateOpportunity(opportunityId, {
-        packageType,
-        opportunityType: packageType === 'work_order' ? 'SERVICE' : 'SALE'
-      });
       
       return {
         opportunity: updatedOpportunity,

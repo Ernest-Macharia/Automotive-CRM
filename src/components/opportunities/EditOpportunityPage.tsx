@@ -57,9 +57,9 @@ interface UserPreferences {
   useDropdowns: boolean;
 }
 
-// Helper function to safely get nested properties
+// FIX 1: Updated getSafeCustomerField function
 const getSafeCustomerField = (customer: any, field: string): string => {
-  if (!customer) return '';
+  if (!customer || typeof customer !== 'object') return '';
   return customer[field as keyof typeof customer] || '';
 };
 
@@ -297,22 +297,37 @@ export default function EditOpportunityPage() {
         bodyType: v.bodyType || ''
       }));
       
-      // Prepare services/products data - safely handle the API response
-      const servicesProducts: ServiceProductForm[] = (data.servicesProducts || []).map((sp: any) => ({
-        _id: sp._id || sp.id,
-        id: sp.id,
-        title: sp.title || '',
-        description: sp.description || '',
-        type: sp.type || 'SERVICE',
-        quantity: sp.quantity || 1,
-        unitPrice: sp.unitPrice || 0,
-        discount: sp.discount || 0,
-        subtotal: sp.subtotal || 0,
-        total: sp.total || 0
-      }));
+      // FIX: Prepare services/products data - handle API type mapping
+      const servicesProducts: ServiceProductForm[] = (data.servicesProducts || []).map((sp: any) => {
+        // Map API types to form types
+        let formType: 'SERVICE' | 'SALE';
+        if (sp.type === 'PRODUCT' || sp.type === 'SALE') {
+          formType = 'SALE';
+        } else {
+          formType = 'SERVICE'; // Default to SERVICE for 'SERVICE', 'REPAIR', 'MAINTENANCE', 'INSPECTION', etc.
+        }
+        
+        // Calculate totals if they're missing
+        const subtotal = sp.subtotal || (sp.quantity || 0) * (sp.unitPrice || 0);
+        const discountAmount = subtotal * ((sp.discount || 0) / 100);
+        const total = sp.total || subtotal - discountAmount;
+        
+        return {
+          _id: sp._id || sp.id,
+          id: sp.id || sp._id,
+          title: sp.title || '',
+          description: sp.description || '',
+          type: formType,
+          quantity: sp.quantity || 1,
+          unitPrice: sp.unitPrice || 0,
+          discount: sp.discount || 0,
+          subtotal: subtotal,
+          total: total
+        };
+      });
       
       // Get customer fields safely
-      const customer = data.customer || {};
+      const customer = data.customer;
 
       const opportunityType = data.opportunityType || 'SERVICE';
       const mappedOpportunityType: 'SERVICE' | 'SALE' = 
@@ -336,9 +351,9 @@ export default function EditOpportunityPage() {
         vehicles,
         servicesProducts,
         notes: data.notes || '',
-        subtotal: data.subtotal || 0,
-        totalDiscount: data.totalDiscount || 0,
-        total: data.total || 0
+        subtotal: data.subtotal || calculateSubtotal(servicesProducts),
+        totalDiscount: data.totalDiscount || calculateTotalDiscount(servicesProducts),
+        total: data.total || calculateTotal(servicesProducts)
       });
       
     } catch (err: any) {
@@ -382,12 +397,23 @@ export default function EditOpportunityPage() {
 
   const handleServiceProductChange = (index: number, field: keyof ServiceProductForm, value: any) => {
     const updatedServicesProducts = [...formData.servicesProducts];
-    const item = { ...updatedServicesProducts[index], [field]: value };
+    const item = { ...updatedServicesProducts[index] };
+    
+    // Handle type field specially
+    if (field === 'type') {
+      item[field] = value as 'SERVICE' | 'SALE';
+    } else {
+      (item as any)[field] = value;
+    }
     
     // Recalculate totals if quantity, unitPrice, or discount changes
     if (field === 'quantity' || field === 'unitPrice' || field === 'discount') {
-      const subtotal = (item.quantity || 0) * (item.unitPrice || 0);
-      const discountAmount = subtotal * ((item.discount || 0) / 100);
+      const quantity = Number(item.quantity) || 0;
+      const unitPrice = Number(item.unitPrice) || 0;
+      const discount = Number(item.discount) || 0;
+      
+      const subtotal = quantity * unitPrice;
+      const discountAmount = subtotal * (discount / 100);
       item.subtotal = subtotal;
       item.total = subtotal - discountAmount;
     }
@@ -428,9 +454,11 @@ export default function EditOpportunityPage() {
     setFormData(prev => ({
       ...prev,
       servicesProducts: [...prev.servicesProducts, {
+        _id: undefined,
+        id: undefined,
         title: '',
         description: '',
-        type: formData.opportunityType,
+        type: formData.opportunityType, // Use the current opportunity type
         quantity: 1,
         unitPrice: 0,
         discount: 0,
@@ -447,20 +475,21 @@ export default function EditOpportunityPage() {
     }
   };
 
-  const calculateSubtotal = () => {
-    return formData.servicesProducts.reduce((total, item) => {
+  // Helper functions for calculations
+  const calculateSubtotal = (items: ServiceProductForm[]) => {
+    return items.reduce((total, item) => {
       return total + (item.subtotal || 0);
     }, 0);
   };
 
-  const calculateTotalDiscount = () => {
-    return formData.servicesProducts.reduce((total, item) => {
+  const calculateTotalDiscount = (items: ServiceProductForm[]) => {
+    return items.reduce((total, item) => {
       return total + (item.subtotal * (item.discount / 100) || 0);
     }, 0);
   };
 
-  const calculateTotal = () => {
-    return formData.servicesProducts.reduce((total, item) => {
+  const calculateTotal = (items: ServiceProductForm[]) => {
+    return items.reduce((total, item) => {
       return total + (item.total || 0);
     }, 0);
   };
@@ -509,7 +538,9 @@ export default function EditOpportunityPage() {
         customerName = formData.customer.companyName || '';
       }
 
+      // FIX: Map form types to API types
       const mappedServicesProducts = formData.servicesProducts.map(item => {
+        // Map form types to API types
         const mappedType: 'SERVICE' | 'PRODUCT' | 'PART' | 'LABOR' = 
           item.type === 'SALE' ? 'PRODUCT' : 'SERVICE';
         
@@ -528,7 +559,7 @@ export default function EditOpportunityPage() {
       // Prepare update data according to UpdateOpportunityData interface
       const updateData = {
         type: formData.type,
-        source: formData.source,
+        source: formData.source as 'walk_in' | 'web' | 'email' | 'call' | 'referral' | 'partner',
         subject: formData.subject,
         opportunityType: formData.opportunityType,
         customer: {
@@ -560,14 +591,15 @@ export default function EditOpportunityPage() {
         })),
         servicesProducts: mappedServicesProducts,
         notes: formData.notes,
-        subtotal: calculateSubtotal(),
-        totalDiscount: calculateTotalDiscount(),
-        total: calculateTotal(),
+        subtotal: calculateSubtotal(formData.servicesProducts),
+        totalDiscount: calculateTotalDiscount(formData.servicesProducts),
+        total: calculateTotal(formData.servicesProducts),
         status: opportunity?.status as 'new' | 'attempted_to_contact' | 'prospecting'
           | 'appointment_scheduled' | 'non_progressive' | 'lost' | 'won' | undefined
       };
 
       console.log('Updating opportunity with data:', updateData);
+      console.log('Services/Products data:', mappedServicesProducts);
 
       const result = await opportunityService.updateOpportunity(opportunityId!, updateData);
       
@@ -1729,7 +1761,7 @@ export default function EditOpportunityPage() {
                     <div className="flex justify-between items-center py-2 border-b border-gray-200">
                       <span className="text-gray-600">Subtotal</span>
                       <span className="font-medium text-gray-800">
-                        KES {calculateSubtotal().toLocaleString(undefined, {
+                        KES {calculateSubtotal(formData.servicesProducts).toLocaleString(undefined, {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2
                         })}
@@ -1739,7 +1771,7 @@ export default function EditOpportunityPage() {
                     <div className="flex justify-between items-center py-2 border-b border-gray-200">
                       <span className="text-gray-600">Total Discount</span>
                       <span className="font-medium text-red-600">
-                        - KES {calculateTotalDiscount().toLocaleString(undefined, {
+                        - KES {calculateTotalDiscount(formData.servicesProducts).toLocaleString(undefined, {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2
                         })}
@@ -1749,7 +1781,7 @@ export default function EditOpportunityPage() {
                     <div className="flex justify-between items-center py-2 border-t border-gray-300">
                       <span className="text-lg font-semibold text-gray-800">Grand Total</span>
                       <span className="text-2xl font-bold text-green-600">
-                        KES {calculateTotal().toLocaleString(undefined, {
+                        KES {calculateTotal(formData.servicesProducts).toLocaleString(undefined, {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2
                         })}
@@ -1840,13 +1872,13 @@ export default function EditOpportunityPage() {
                       <span className="font-medium">Items:</span> {formData.servicesProducts.length}
                     </p>
                     <p className="text-sm">
-                      <span className="font-medium">Subtotal:</span> KES {calculateSubtotal().toLocaleString()}
+                      <span className="font-medium">Subtotal:</span> KES {calculateSubtotal(formData.servicesProducts).toLocaleString()}
                     </p>
                     <p className="text-sm">
-                      <span className="font-medium">Total Discount:</span> KES {calculateTotalDiscount().toLocaleString()}
+                      <span className="font-medium">Total Discount:</span> KES {calculateTotalDiscount(formData.servicesProducts).toLocaleString()}
                     </p>
                     <p className="text-sm font-semibold">
-                      <span className="font-medium">Grand Total:</span> KES {calculateTotal().toLocaleString()}
+                      <span className="font-medium">Grand Total:</span> KES {calculateTotal(formData.servicesProducts).toLocaleString()}
                     </p>
                   </div>
                 </div>

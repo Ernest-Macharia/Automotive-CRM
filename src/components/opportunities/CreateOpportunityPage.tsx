@@ -374,7 +374,6 @@ export default function CreateOpportunityPage() {
   // Dropdown states
   const [showMakeDropdown, setShowMakeDropdown] = useState<number | null>(null);
   const [showModelDropdown, setShowModelDropdown] = useState<number | null>(null);
-  const [showColorCodeDropdown, setShowColorCodeDropdown] = useState<number | null>(null);
   const [showFuelDropdown, setShowFuelDropdown] = useState<number | null>(null);
   const [showTransmissionDropdown, setShowTransmissionDropdown] = useState<number | null>(null);
   const [showBodyTypeDropdown, setShowBodyTypeDropdown] = useState<number | null>(null);
@@ -382,7 +381,6 @@ export default function CreateOpportunityPage() {
   
   const [makeSearch, setMakeSearch] = useState('');
   const [modelSearch, setModelSearch] = useState('');
-  const [colorCodeSearch, setColorCodeSearch] = useState('');
   const [fuelSearch, setFuelSearch] = useState('');
   const [transmissionSearch, setTransmissionSearch] = useState('');
   const [bodyTypeSearch, setBodyTypeSearch] = useState('');
@@ -419,13 +417,23 @@ export default function CreateOpportunityPage() {
   // Refs for dropdown click outside detection
   const makeDropdownRef = useRef<HTMLDivElement | null>(null);
   const modelDropdownRef = useRef<HTMLDivElement | null>(null);
-  const colorCodeDropdownRef = useRef<HTMLDivElement | null>(null);
   const fuelDropdownRef = useRef<HTMLDivElement | null>(null);
   const transmissionDropdownRef = useRef<HTMLDivElement | null>(null);
   const bodyTypeDropdownRef = useRef<HTMLDivElement | null>(null);
   const serviceProductDropdownRef = useRef<HTMLDivElement | null>(null);
   const preferencesRef = useRef<HTMLDivElement | null>(null);
   const usersDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  const isSalesPerson = (user: User): boolean => {
+    if (typeof user.role === 'string') {
+      const lowerRole = user.role.toLowerCase();
+      return lowerRole.includes('sales') || lowerRole.includes('representative');
+    } else if (user.role && typeof user.role === 'object') {
+      const roleName = user.role.name?.toLowerCase() || user.role.display_name?.toLowerCase() || '';
+      return roleName.includes('sales') || roleName.includes('representative');
+    }
+    return false;
+  };
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -437,10 +445,6 @@ export default function CreateOpportunityPage() {
       if (modelDropdownRef.current && !modelDropdownRef.current.contains(event.target as Node)) {
         setShowModelDropdown(null);
         setModelSearch('');
-      }
-      if (colorCodeDropdownRef.current && !colorCodeDropdownRef.current.contains(event.target as Node)) {
-        setShowColorCodeDropdown(null);
-        setColorCodeSearch('');
       }
       if (fuelDropdownRef.current && !fuelDropdownRef.current.contains(event.target as Node)) {
         setShowFuelDropdown(null);
@@ -529,7 +533,8 @@ export default function CreateOpportunityPage() {
         setLoadingUsers(true);
         // userService.getAllUsers() returns User[] directly
         const usersData = await userService.getAllUsers();
-        setUsers(usersData || []);
+        const salesPeople = usersData.filter(user => isSalesPerson(user));
+        setUsers(salesPeople || []);
       } catch (error) {
         console.error('Error fetching users:', error);
         showToast('Failed to load users list', 'error', 3000);
@@ -552,14 +557,15 @@ export default function CreateOpportunityPage() {
 
 // Helper function to get user display info
   const getUserDisplayInfo = (user: User) => {
+    const roleInfo = getUserRoleName(user);
     return {
       name: user.name || user.email?.split('@')[0] || 'Unknown User',
-      roleName: getUserRoleName(user),
+      roleName: roleInfo,
+      isSales: isSalesPerson(user),
       email: user.email || '',
       department: user.department || '',
     };
   };
-
 
   // Save preferences to localStorage
   const savePreferences = (prefs: UserPreferences) => {
@@ -729,10 +735,6 @@ export default function CreateOpportunityPage() {
       model.toLowerCase().includes(modelSearch.toLowerCase())
     );
   };
-
-  const filteredColorCodes = vehicleColorCodes.filter((colorCode, index) =>
-    vehicleColorNames[index].toLowerCase().includes(colorCodeSearch.toLowerCase())
-  );
 
   const filteredFuelTypes = vehicleFuelTypes.filter(fuel =>
     fuel.toLowerCase().includes(fuelSearch.toLowerCase())
@@ -1617,7 +1619,7 @@ export default function CreateOpportunityPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Assign To (Optional)
+                        Assign To Sales Representative (Optional)
                       </label>
                       <div className="relative" ref={usersDropdownRef}>
                         <div className="relative">
@@ -1629,7 +1631,7 @@ export default function CreateOpportunityPage() {
                               setUserSearch(e.target.value);
                             }}
                             onFocus={() => setShowUsersDropdown(true)}
-                            placeholder="Search for user to assign..."
+                            placeholder="Search for sales representative to assign..."
                             className="pl-10 pr-8 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                           />
                           <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -1665,12 +1667,14 @@ export default function CreateOpportunityPage() {
                                 <div className="p-4 text-center text-gray-500">
                                   <div className="flex items-center justify-center gap-2">
                                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-                                    Loading users...
+                                    Loading sales team...
                                   </div>
                                 </div>
                               ) : users.length === 0 ? (
                                 <div className="p-4 text-center text-gray-500">
-                                  No users found
+                                  <AlertCircle className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                                  <p className="text-sm">No sales representatives found</p>
+                                  <p className="text-xs mt-1">Add sales team members in user management</p>
                                 </div>
                               ) : (
                                 users
@@ -1709,10 +1713,8 @@ export default function CreateOpportunityPage() {
                                               {displayInfo.name}
                                             </p>
                                             <span className={`text-xs px-2 py-1 rounded-full ${
-                                              displayInfo.roleName === 'admin' ? 'bg-purple-100 text-purple-800' :
-                                              displayInfo.roleName === 'management' ? 'bg-blue-100 text-blue-800' :
-                                              displayInfo.roleName === 'technician' ? 'bg-green-100 text-green-800' :
-                                              displayInfo.roleName === 'sales_representative' ? 'bg-orange-100 text-orange-800' :
+                                              displayInfo.roleName.toLowerCase().includes('sales') ? 
+                                              'bg-orange-100 text-orange-800' : 
                                               'bg-gray-100 text-gray-800'
                                             }`}>
                                               {displayInfo.roleName}
@@ -1936,106 +1938,21 @@ export default function CreateOpportunityPage() {
                           </div>
                           
                           {/* Color Code with dropdown/regular input */}
-                          {userPreferences.useDropdowns ? (
-                            <div className="relative" ref={colorCodeDropdownRef}>
-                              <label className="block text-xs font-medium text-gray-600 mb-1">
-                                Color Code
-                              </label>
-                              <div className="relative">
-                                <input
-                                  type="text"
-                                  value={vehicle.colorCode}
-                                  onChange={(e) => {
-                                    handleVehicleChange(index, 'colorCode', e.target.value);
-                                    setColorCodeSearch(e.target.value);
-                                  }}
-                                  onFocus={() => setShowColorCodeDropdown(index)}
-                                  placeholder="Type or select color code"
-                                  className="pl-8 pr-8 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
-                                />
-                                {vehicle.colorCode && (
-                                  <div 
-                                    className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 rounded border border-gray-300"
-                                    style={{ backgroundColor: vehicle.colorCode }}
-                                  />
-                                )}
-                                <Palette className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                <button
-                                  type="button"
-                                  onClick={() => setShowColorCodeDropdown(showColorCodeDropdown === index ? null : index)}
-                                  className="absolute right-8 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                                >
-                                  {showColorCodeDropdown === index ? (
-                                    <ChevronUp className="h-4 w-4" />
-                                  ) : (
-                                    <ChevronDown className="h-4 w-4" />
-                                  )}
-                                </button>
-                              </div>
-                              
-                              {showColorCodeDropdown === index && (
-                                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                                  <div className="sticky top-0 bg-white p-2 border-b">
-                                    <div className="relative">
-                                      <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
-                                      <input
-                                        type="text"
-                                        value={colorCodeSearch}
-                                        onChange={(e) => setColorCodeSearch(e.target.value)}
-                                        placeholder="Search colors..."
-                                        className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="max-h-48 overflow-y-auto">
-                                    {filteredColorCodes.map((colorCode, colorIndex) => (
-                                      <button
-                                        key={colorCode}
-                                        type="button"
-                                        onClick={() => {
-                                          handleVehicleChange(index, 'colorCode', colorCode);
-                                          setShowColorCodeDropdown(null);
-                                          setColorCodeSearch('');
-                                        }}
-                                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          <div 
-                                            className="h-4 w-4 rounded border border-gray-300"
-                                            style={{ backgroundColor: colorCode }}
-                                          />
-                                          <span>{vehicleColorNames[colorIndex]}</span>
-                                        </div>
-                                        <span className="text-xs text-gray-500">{colorCode}</span>
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
+                          
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              Color Code
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={vehicle.colorCode}
+                                onChange={(e) => handleVehicleChange(index, 'colorCode', e.target.value)}
+                                placeholder="e.g., White, Black, Red, Blue"
+                                className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
+                              />
                             </div>
-                          ) : (
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600 mb-1">
-                                Color Code
-                              </label>
-                              <div className="relative">
-                                <input
-                                  type="text"
-                                  value={vehicle.colorCode}
-                                  onChange={(e) => handleVehicleChange(index, 'colorCode', e.target.value)}
-                                  placeholder="e.g., #FFFFFF"
-                                  className="pl-8 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
-                                />
-                                {vehicle.colorCode && (
-                                  <div 
-                                    className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 rounded border border-gray-300"
-                                    style={{ backgroundColor: vehicle.colorCode }}
-                                  />
-                                )}
-                              </div>
-                            </div>
-                          )}
-
+                          </div>
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">
                               Engine Size (CC)
