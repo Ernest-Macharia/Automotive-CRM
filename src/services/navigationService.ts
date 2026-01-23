@@ -1,3 +1,4 @@
+// services/navigationService.ts
 import { authService } from './authService';
 
 export interface NavItem {
@@ -10,34 +11,21 @@ export interface NavItem {
 
 export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
-  
   { href: '/opportunities', label: 'Opportunities', icon: 'Target', permission: 'opportunities.read' },
-  
   { href: '/customers', label: 'Customers', icon: 'Users', permission: 'clients.read' },
-  
   { href: '/orders/sales-orders', label: 'Sales Orders', icon: 'ShoppingBag', permission: 'orders.read' },
-  
   { href: '/orders/work-orders', label: 'Work Orders', icon: 'Wrench', permission: 'jobs.read' },
-  
   { href: '/contacts', label: 'Contacts', icon: 'Users', permission: 'contacts.read' },
-  
   { href: '/kpi', label: 'KPI Reports', icon: 'Settings', permission: 'reports.generate' },
-  
   { href: '/reports', label: 'Analytics', icon: 'BarChart3', permission: 'dashboard.view' },
-  
   { href: '/quotes', label: 'Quotes', icon: 'FileText', permission: 'quotes.read' },
-  
   { href: '/invoices', label: 'Invoices', icon: 'Receipt', permission: 'invoices.read' },
-  
   { href: '/vehicles', label: 'Vehicles', icon: 'Truck', permission: 'vehicles.read' },
-  
   { href: '/job-cards', label: 'Job Cards', icon: 'ClipboardList', permission: 'jobcards.read' },
-  
   { href: '/settings', label: 'Settings', icon: 'Settings', permission: 'settings.manage' },
 ];
 
 export class NavigationService {
- 
   static getNavItemsForUser(user: any): NavItem[] {
     if (!user) {
       return ALL_NAV_ITEMS.filter(item => item.href === '/dashboard');
