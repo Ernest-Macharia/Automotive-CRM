@@ -1,15 +1,10 @@
 'use client';
 
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import {
-  LayoutDashboard, Users, FileText, Receipt,
-  Truck, ClipboardList, Settings, LogOut, X, ChevronRight,
-  Target, ShoppingBag, Wrench, BarChart3,
-  Building, Wallet, MessageSquare
-} from 'lucide-react';
+import * as Icons from 'lucide-react';
 import { NavigationService } from '@/services/navigationService';
 
 interface SidebarProps {
@@ -54,21 +49,8 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   };
 
   const getIconComponent = (iconName: string) => {
-    const iconMap: Record<string, any> = {
-      LayoutDashboard,
-      Target,
-      Users,
-      ShoppingBag,
-      Wrench,
-      FileText,
-      Receipt,
-      Truck,
-      ClipboardList,
-      Settings,
-      BarChart3,
-    };
-    
-    return iconMap[iconName] || LayoutDashboard;
+    const IconComponent = (Icons as any)[iconName];
+    return IconComponent || Icons.LayoutDashboard;
   };
 
   const getRoleDisplayName = (role: string) => {
@@ -105,13 +87,13 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm">
             <Image
-                          src="/maglogo.png"
-                          alt="MAG CRM Logo"
-                          width={64}
-                          height={64}
-                          className="object-contain"
-                          priority
-                        />
+              src="/maglogo.png"
+              alt="MAG CRM Logo"
+              width={64}
+              height={64}
+              className="object-contain"
+              priority
+            />
           </div>
           <div>
             <h1 className="text-lg font-bold text-gray-800">MAG CRM</h1>
@@ -122,7 +104,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
           onClick={() => setSidebarOpen(false)} 
           className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
         >
-          <X className="w-4 h-4" />
+          <Icons.X className="w-4 h-4" />
         </button>
       </div>
 
@@ -154,7 +136,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                     <Icon className={`w-4 h-4 flex-shrink-0 ${active ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-600'}`} />
                     <span>{item.label}</span>
                   </div>
-                  <ChevronRight className={`w-3 h-3 flex-shrink-0 transition-transform ${
+                  <Icons.ChevronRight className={`w-3 h-3 flex-shrink-0 transition-transform ${
                     active ? 'translate-x-0 opacity-100 text-blue-500' : '-translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-60 text-gray-400'
                   }`} />
                 </Link>
@@ -193,7 +175,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
               onClick={handleLogout}
               className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-white hover:text-gray-800 transition-colors duration-200 border border-gray-200 hover:border-gray-300 hover:shadow-sm"
             >
-              <LogOut className="w-4 h-4" />
+              <Icons.LogOut className="w-4 h-4" />
               <span>Logout</span>
             </button>
           </>

@@ -553,10 +553,36 @@ class AuthService {
     }
   }
 
+  private getErrorStatus(error: any): number | undefined {
+    return error?.status ?? error?.response?.status;
+  }
+
+  private getBackendMessage(error: any): string | undefined {
+    // common shapes: error.message, error.response.data.message, etc
+    return (
+      error?.response?.data?.message ??
+      error?.data?.message ??
+      error?.message
+    );
+  }
+
+  private isNetworkIssue(error: any): boolean {
+    const msg = String(error?.message ?? '');
+    return (
+      msg.includes('Network') ||
+      msg.includes('CORS') ||
+      msg.includes('fetch') ||
+      msg.includes('Failed to fetch') ||
+      msg.includes('ECONNREFUSED') ||
+      msg.includes('ETIMEDOUT')
+    );
+  }
+
+
   async demoLogin(): Promise<AuthResponse> {
     const demoData: LoginData = {
       email: 'superadmin@crm.local',
-      password: 'ChangeMe123!',
+      password: 'Testme123!',
       rememberMe: false
     };
     return this.login(demoData);
