@@ -44,7 +44,14 @@ export interface WorkOrder {
       phone?: string;
       companyName: string;
     };
-    assignedTo: string;
+    assignedTo: string | {
+      _id: string;
+      firstName: string;
+      lastName: string;
+      email?: string;
+      phone?: string;
+      role?: string;
+    };
   };
   quoteId: string | {
     _id: string;
@@ -1458,14 +1465,24 @@ async getAssignedToDetails(workOrder: WorkOrder): Promise<{
 }> {
   try {
     // First, check if assignedTo is directly populated on work order
+
+    const displayName = (u: any) => {
+      const full = `${u?.firstName || ''} ${u?.lastName || ''}`.trim();
+      if (full) return full;
+
+      const email = (u?.email || '').trim();
+      if (email) return email.split('@')[0]; // or return email to be explicit
+
+      return 'Assigned';
+    };
     if (workOrder.assignedTo) {
       if (typeof workOrder.assignedTo === 'object') {
         return {
-          name: `${workOrder.assignedTo.firstName || ''} ${workOrder.assignedTo.lastName || ''}`.trim() || 'Unassigned',
+          name: displayName(workOrder.assignedTo),
           email: workOrder.assignedTo.email || '',
           id: workOrder.assignedTo._id || '',
-          phone: '', // Add phone if available in your user model
-          role: '' // Add role if available
+          phone: '',
+          role: ''
         };
       }
     }
@@ -1478,7 +1495,7 @@ async getAssignedToDetails(workOrder: WorkOrder): Promise<{
       const oppData = workOrder.opportunityId as any;
       if (oppData.assignedTo) {
         return {
-          name: `${oppData.assignedTo.firstName || ''} ${oppData.assignedTo.lastName || ''}`.trim() || 'Unassigned',
+          name: displayName(oppData.assignedTo),
           email: oppData.assignedTo.email || '',
           id: oppData.assignedTo._id || '',
           phone: oppData.assignedTo.phone || '',
@@ -1490,7 +1507,7 @@ async getAssignedToDetails(workOrder: WorkOrder): Promise<{
       opportunity = await this.getFullOpportunityDetails(workOrder.opportunityId);
       if (opportunity && opportunity.assignedTo) {
         return {
-          name: `${opportunity.assignedTo.firstName || ''} ${opportunity.assignedTo.lastName || ''}`.trim() || 'Unassigned',
+          name: displayName(opportunity.assignedTo),
           email: opportunity.assignedTo.email || '',
           id: opportunity.assignedTo._id || opportunity.assignedTo.id || '',
           phone: opportunity.assignedTo.phone || '',

@@ -67,6 +67,9 @@ export default function WorkOrdersList() {
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [customerByWO, setCustomerByWO] = useState<Record<string, any>>({});
+  const [assigneeByWO, setAssigneeByWO] = useState<Record<string, any>>({});
+
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -150,6 +153,44 @@ export default function WorkOrdersList() {
       setStatsLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    const hydrate = async () => {
+      if (!workOrders.length) return;
+
+      const missing = workOrders.filter((wo) => !customerByWO[wo._id] || !assigneeByWO[wo._id]);
+      if (!missing.length) return;
+
+      try {
+        const results = await Promise.all(
+          missing.map(async (wo) => {
+            const [customer, assignee] = await Promise.all([
+              workOrderService.getCustomerDetails(wo),
+              workOrderService.getAssignedToDetails(wo),
+            ]);
+            return { id: wo._id, customer, assignee };
+          })
+        );
+
+        setCustomerByWO((prev) => {
+          const next = { ...prev };
+          results.forEach((r) => (next[r.id] = r.customer));
+          return next;
+        });
+
+        setAssigneeByWO((prev) => {
+          const next = { ...prev };
+          results.forEach((r) => (next[r.id] = r.assignee));
+          return next;
+        });
+      } catch (e) {
+        console.error('Failed to hydrate customer/assignee details', e);
+      }
+    };
+
+    hydrate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workOrders]);
 
   // Initial data fetch
   useEffect(() => {
@@ -334,7 +375,6 @@ export default function WorkOrdersList() {
       label: getStatusLabel(status),
     };
   };
-
 
   // Error state
   if (error && workOrders.length === 0 && !loading) {
@@ -616,8 +656,6 @@ export default function WorkOrdersList() {
                   </thead>
                   <tbody>
                     {workOrders.map((order) => {
-                      const customerInfo = getCustomerInfo(order);
-                      const assignedToInfo = getAssignedToInfo(order);
                       const statusConfig = getStatusConfig(order.status);
                       
                       return (
@@ -662,52 +700,29 @@ export default function WorkOrdersList() {
                                 <div className="min-w-0">
                                   {/* Customer Name */}
                                   <p className="font-medium text-gray-900 truncate">
-                                    {(() => {
-                                      if (typeof order.opportunityId === 'object' && order.opportunityId.customer) {
-                                        return order.opportunityId.customer.name || 'Unknown Customer';
-                                      }
-                                      return 'Loading...';
-                                    })()}
+                                    {customerByWO[order._id]?.name || '—'}
                                   </p>
-                                  
-                                  {/* Company Name */}
-                                  {(() => {
-                                    if (typeof order.opportunityId === 'object' && order.opportunityId.customer?.companyName) {
-                                      return (
-                                        <p className="text-xs text-gray-500 truncate flex items-center gap-1 mt-0.5">
-                                          <Building className="h-3 w-3 flex-shrink-0" />
-                                          <span className="truncate">{order.opportunityId.customer.companyName}</span>
-                                        </p>
-                                      );
-                                    }
-                                    return null;
-                                  })()}
-                                  
-                                  {/* Contact Info - only show if available */}
-                                  <div className="flex flex-col gap-0.5 mt-1">
-                                    {(() => {
-                                      if (typeof order.opportunityId === 'object' && order.opportunityId.customer?.email) {
-                                        return (
-                                          <p className="text-xs text-gray-500 truncate flex items-center gap-1">
-                                            <Mail className="h-3 w-3 flex-shrink-0" />
-                                            <span className="truncate">{order.opportunityId.customer.email}</span>
-                                          </p>
-                                        );
-                                      }
-                                      return null;
-                                    })()}
-                                    {(() => {
-                                      if (typeof order.opportunityId === 'object' && order.opportunityId.customer?.phone) {
-                                        return (
-                                          <p className="text-xs text-gray-500 truncate flex items-center gap-1">
-                                            <Phone className="h-3 w-3 flex-shrink-0" />
-                                            <span className="truncate">{order.opportunityId.customer.phone}</span>
-                                          </p>
-                                        );
-                                      }
-                                      return null;
-                                    })()}
-                                  </div>
+
+                                  {customerByWO[order._id]?.companyName ? (
+                                    <p className="text-xs text-gray-500 truncate flex items-center gap-1 mt-0.5">
+                                      <Building className="h-3 w-3 flex-shrink-0" />
+                                      <span className="truncate">{customerByWO[order._id].companyName}</span>
+                                    </p>
+                                  ) : null}
+
+                                  {customerByWO[order._id]?.email ? (
+                                    <p className="text-xs text-gray-500 truncate flex items-center gap-1 mt-1">
+                                      <Mail className="h-3 w-3 flex-shrink-0" />
+                                      <span className="truncate">{customerByWO[order._id].email}</span>
+                                    </p>
+                                  ) : null}
+
+                                  {customerByWO[order._id]?.phone ? (
+                                    <p className="text-xs text-gray-500 truncate flex items-center gap-1">
+                                      <Phone className="h-3 w-3 flex-shrink-0" />
+                                      <span className="truncate">{customerByWO[order._id].phone}</span>
+                                    </p>
+                                  ) : null}
                                 </div>
                               </div>
                             </div>
@@ -743,50 +758,16 @@ export default function WorkOrdersList() {
                                 }
                               }}
                             >
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4 text-gray-400" />
-                                <span className="text-sm text-gray-700">
-                                  {(() => {
-                                    if (order.assignedTo && typeof order.assignedTo === 'object') {
-                                      return `${order.assignedTo.firstName || ''} ${order.assignedTo.lastName || ''}`.trim() || 'Unassigned';
-                                    }
-                                    
-                                    // Try to get from opportunity if not directly assigned
-                                    if (typeof order.opportunityId === 'object' && order.opportunityId.assignedTo) {
-                                      const oppAssigned = order.opportunityId.assignedTo;
-                                      if (typeof oppAssigned === 'object') {
-                                        return `${oppAssigned.firstName || ''} ${oppAssigned.lastName || ''}`.trim() || 'Unassigned';
-                                      }
-                                    }
-                                    
-                                    return 'Loading...';
-                                  })()}
-                                </span>
-                              </div>
-                              {(() => {
-                                const getEmail = () => {
-                                  if (order.assignedTo && typeof order.assignedTo === 'object' && order.assignedTo.email) {
-                                    return order.assignedTo.email;
-                                  }
-                                  
-                                  if (typeof order.opportunityId === 'object' && order.opportunityId.assignedTo) {
-                                    const oppAssigned = order.opportunityId.assignedTo;
-                                    // if (typeof oppAssigned === 'object' && oppAssigned.email) {
-                                    //   return oppAssigned.email;
-                                    // }
-                                  }
-                                  
-                                  return null;
-                                };
-                                
-                                const email = getEmail();
-                                return email ? (
-                                  <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
-                                    <Mail className="h-3 w-3" />
-                                    {email}
-                                  </p>
-                                ) : null;
-                              })()}
+                              <span className="text-sm text-gray-700">
+                                {assigneeByWO[order._id]?.name || 'Unassigned'}
+                              </span>
+
+                              {assigneeByWO[order._id]?.email ? (
+                                <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+                                  <Mail className="h-3 w-3" />
+                                  {assigneeByWO[order._id].email}
+                                </p>
+                              ) : null}
                             </div>
                           </td>
                           

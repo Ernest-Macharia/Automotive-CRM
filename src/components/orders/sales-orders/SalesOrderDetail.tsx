@@ -34,6 +34,8 @@ import { salesOrderService } from '@/services/salesOrderService';
 import { lifecycleIntegrationService, LifecycleStageUI } from '@/services/lifecycleIntegrationService';
 import { useToast } from '@/contexts/ToastContext';
 import { format } from 'date-fns';
+import { Quote, quoteService } from '@/services/quoteService';
+import { invoiceService } from '@/services/invoiceService';
 
 interface SalesOrderDetailPageProps {
   orderId: string;
@@ -72,7 +74,7 @@ interface WorkflowStage {
   }>;
 }
 
-// Skeleton Loader Components (same as work order)
+// Skeleton Loader Components
 const SkeletonLoader = {
   // Header Skeleton
   Header: () => (
@@ -437,6 +439,7 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
     estimatedTime: '0 days'
   });
   const [canProceedToNextStage, setCanProceedToNextStage] = useState(false);
+  const [quote, setQuote] = useState<Quote | null>(null);
   
   // Modal state
   const [modalStage, setModalStage] = useState<WorkflowStage | null>(null);
@@ -457,6 +460,7 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
   useEffect(() => {
     fetchSalesOrder();
   }, [orderId, refreshKey]);
+  
 
   const fetchSalesOrder = async () => {
     try {
@@ -465,7 +469,25 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
       setSalesOrder(data);
       
       if (data.opportunityId) {
-        fetchLifecycle(data);
+        await fetchLifecycle(data);
+        
+        // Check if invoice should exist but doesn't
+        if (data.quoteId && !data.invoiceId) {
+          const currentStage = getCurrentStage();
+          if (currentStage?.stage === 'invoice') {
+            // Invoice might be in the process of being created
+            showToast('Creating invoice from quote...', 'info');
+            
+            // Wait a bit and check again
+            setTimeout(async () => {
+              const refreshedData = await salesOrderService.getSalesOrderById(orderId);
+              if (refreshedData.invoiceId) {
+                setSalesOrder(refreshedData);
+                showToast('Invoice created successfully!', 'success');
+              }
+            }, 2000);
+          }
+        }
       }
     } catch (error) {
       console.error('Error fetching sales order:', error);
@@ -636,17 +658,17 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
       { id: 'completion', label: 'Completion', description: 'Mark stage as complete', completed: false }
     ];
 
-    const markSteps = (steps: any[], stage: LifecycleStageUI) => {
-      if (stage.completed) {
+    const markSteps = (steps: any[], stageObj: LifecycleStageUI) => {
+      if (stageObj.completed) {
         return steps.map(step => ({ ...step, completed: true }));
       }
       
-      if (stage.document) {
+      if (stageObj.document) {
         const updatedSteps = [...steps];
-        if (stage.document._id) updatedSteps[0].completed = true;
-        if (stage.document.status === 'created') updatedSteps[1].completed = true;
-        if (stage.document.status === 'verified') updatedSteps[2].completed = true;
-        if (stage.document.approved) updatedSteps[3].completed = true;
+        if (stageObj.document._id) updatedSteps[0].completed = true;
+        if (stageObj.document.status === 'created') updatedSteps[1].completed = true;
+        if (stageObj.document.status === 'verified') updatedSteps[2].completed = true;
+        if (stageObj.document.approved) updatedSteps[3].completed = true;
         return updatedSteps;
       }
       
@@ -782,6 +804,7 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
       setModalCurrentStep(prev => prev - 1);
     }
   };
+  
 
   const handleCompleteStep = async (stepId: string) => {
     if (!modalStage) return;
@@ -869,8 +892,11 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
           break;
         case 'approve':
           if (stage.stage === 'quote' && stage.documentId) {
-            await handleApproveQuote(stage);
+            await handleApproveQuote(stage.documentId);
           }
+          break;
+        default:
+          showToast(`Action ${actionId} not implemented`, 'warning');
           break;
       }
     } catch (error: any) {
@@ -878,21 +904,50 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
     }
   };
 
-  const handleApproveQuote = async (stage: WorkflowStage) => {
+  const handleApproveQuote = async (quoteId: string) => {
     try {
-      setWorkflowLoading(true);
-      const quoteService = require('@/services/quoteService');
-      await quoteService.approveQuote(stage.documentId, {
-        approvedBy: 'current-user-id',
-        approvedAt: new Date().toISOString()
-      });
+      if (!quoteId) {
+        showToast('No quote ID provided', 'error');
+        return false;
+      }
       
-      showToast('Quote approved successfully', 'success');
-      fetchSalesOrder();
-    } catch (error: any) {
-      showToast(error.message || 'Failed to approve quote', 'error');
-    } finally {
+      setWorkflowLoading(true);
+      
+      // First check if quote exists and get its status
+      const quote = await quoteService.getQuoteById(quoteId);
+      
+      if (quote.status === 'approved') {
+        showToast('Quote is already approved', 'info');
+        setWorkflowLoading(false);
+        return true;
+      }
+      
+      // Get user info
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const userId = user._id || user.id || 'system-auto';
+      const userRole = user.role || 'system';
+      
+      // Approve the quote
+      await quoteService.approveQuote(quoteId, userId, userRole);
+      showToast('Quote approved successfully!', 'success');
+      
+      // Refresh the sales order data to reflect the change
+      const updatedOrder = await salesOrderService.getSalesOrderById(orderId);
+      setSalesOrder(updatedOrder);
+      
+      // Refresh lifecycle data
+      if (updatedOrder.opportunityId) {
+        await fetchLifecycle(updatedOrder);
+      }
+      
       setWorkflowLoading(false);
+      return true;
+      
+    } catch (error: any) {
+      console.error('Error approving quote:', error);
+      showToast(error.message || 'Failed to approve quote', 'error');
+      setWorkflowLoading(false);
+      return false;
     }
   };
 
@@ -940,9 +995,11 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
                  `${stage.documentType?.toLowerCase()}s`;
     
     router.push(`/${route}/${stage.documentId}/edit`);
-  }
+  };
 
   const handleCreateDocument = async (stageType: string) => {
+    if (!salesOrder) return;
+    
     const opportunityId = typeof salesOrder.opportunityId === 'object' 
       ? salesOrder.opportunityId._id 
       : salesOrder.opportunityId;
@@ -967,6 +1024,7 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
     router.push(`/${route}/${stage.documentId}`);
   };
 
+  // Update handleCompleteStage to trigger invoice auto-creation
   const handleCompleteStage = async (stage: WorkflowStage) => {
     try {
       const opportunityId = typeof salesOrder.opportunityId === 'object' 
@@ -975,22 +1033,118 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
       
       if (!opportunityId) return;
       
-      const isValid = await validateStageCompletion(stage);
-      if (!isValid) return;
-      
       setWorkflowLoading(true);
+      
+      // Mark stage as completed - this should auto-create the invoice
       await lifecycleIntegrationService.markStageAsCompleted(
         opportunityId, 
         stage.stage,
-        { documentId: stage.documentId }
+        { 
+          documentId: stage.documentId,
+          completedBy: 'system-auto'
+        }
       );
       
-      showToast(`${stage.label} marked as completed`, 'success');
-      fetchSalesOrder();
+      showToast(`${stage.label} completed! Creating invoice...`, 'success');
+      
+      // Wait for invoice creation and refresh all data
+      setTimeout(async () => {
+        try {
+          // Refresh the sales order data
+          const refreshedOrder = await salesOrderService.getSalesOrderById(orderId);
+          setSalesOrder(refreshedOrder);
+          
+          // Refresh lifecycle data
+          if (refreshedOrder.opportunityId) {
+            await fetchLifecycle(refreshedOrder);
+          }
+          
+          // Check if invoice was created
+          if (refreshedOrder.invoiceId) {
+            showToast('Invoice created successfully!', 'success');
+            
+            // Also update the current stage in UI
+            const currentStageAfterUpdate = getCurrentStage();
+            if (currentStageAfterUpdate?.stage === 'invoice') {
+              showToast('Now on invoice stage. Please review and send invoice.', 'info');
+            }
+          } else {
+            showToast('Invoice creation may have failed. Please check or create manually.', 'warning');
+          }
+        } catch (error) {
+          console.error('Error refreshing data:', error);
+          showToast('Failed to refresh data. Please refresh the page.', 'error');
+        } finally {
+          setWorkflowLoading(false);
+        }
+      }, 3000); // Increased timeout to ensure invoice creation completes
+      
     } catch (error: any) {
+      console.error('Error completing stage:', error);
       showToast(error.message || 'Failed to complete stage', 'error');
-    } finally {
       setWorkflowLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // If invoice is created and we're on overview tab, suggest switching to invoice tab
+    if (salesOrder?.invoiceId && activeTab === 'overview') {
+      const timer = setTimeout(() => {
+        showToast('Invoice created! Switching to invoice tab...', 'info');
+        setActiveTab('invoice');
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [salesOrder?.invoiceId, activeTab, showToast]);
+
+  const handleMarkInvoiceAsPaid = async () => {
+    try {
+      if (!salesOrder?.invoiceId) return;
+      
+      const invoiceId = typeof salesOrder.invoiceId === 'object' 
+        ? salesOrder.invoiceId._id 
+        : salesOrder.invoiceId;
+      
+      if (!invoiceId) return;
+      
+      // Mock payment - update invoice status
+      const paidInvoice = await invoiceService.markInvoiceAsPaid(
+        invoiceId,
+        undefined, // amount paid (full amount)
+        undefined, // payment date (now)
+        'mock_payment', // payment method
+        `MOCK-${Date.now().toString(36).toUpperCase()}` // mock reference
+      );
+      
+      // If we're in invoice stage, mark it as complete
+      if (currentStage?.stage === 'invoice') {
+        const opportunityId = typeof salesOrder.opportunityId === 'object' 
+          ? salesOrder.opportunityId._id 
+          : salesOrder.opportunityId;
+        
+        if (opportunityId) {
+          await lifecycleIntegrationService.markStageAsCompleted(opportunityId, 'invoice', {
+            documentId: invoiceId,
+            completedBy: 'system',
+            notes: 'Mock payment completed'
+          });
+          
+          // Complete the sales order lifecycle
+          await lifecycleIntegrationService.completeSalesOrder(opportunityId);
+        }
+      }
+      
+      showToast('Invoice marked as paid! Sales order completed.', 'success');
+      
+      // Refresh all data
+      setTimeout(() => {
+        setRefreshKey(prev => prev + 1);
+      }, 500);
+      
+    } catch (error: any) {
+      console.error('Error marking invoice as paid:', error);
+      showToast(error.message || 'Failed to mark invoice as paid', 'error');
     }
   };
 
@@ -1127,7 +1281,11 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '—';
-    return format(new Date(dateString), 'MMM dd, yyyy');
+    try {
+      return format(new Date(dateString), 'MMM dd, yyyy');
+    } catch (error) {
+      return 'Invalid date';
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -1368,7 +1526,7 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
         </div>
       )}
 
-      {/* Tabs Navigation */}
+      {/* Tabs Navigation - Updated with Quotation and Invoice tabs */}
       {loading ? (
         <SkeletonLoader.Tabs />
       ) : (
@@ -1377,6 +1535,8 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
             <nav className="flex space-x-8">
               {[
                 { id: 'overview', label: 'Overview', icon: <BarChart3 className="h-4 w-4" /> },
+                { id: 'quotation', label: 'Quotation', icon: <FileText className="h-4 w-4" /> },
+                { id: 'invoice', label: 'Invoice', icon: <ReceiptIcon className="h-4 w-4" /> },
                 { id: 'items', label: 'Items', icon: <Package className="h-4 w-4" /> },
                 { id: 'documents', label: 'Documents', icon: <FileText className="h-4 w-4" /> },
                 { id: 'activity', label: 'Activity', icon: <History className="h-4 w-4" /> },
@@ -1414,67 +1574,82 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
               <div className="space-y-6">
                 {/* Current Stage Focus */}
                 {currentStage && (
-                  workflowLoading ? <SkeletonLoader.CurrentStage /> : (
-                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-4">
-                          <div className="p-3 bg-white rounded-lg shadow-sm">
-                            {currentStage.icon}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <h2 className="text-xl font-semibold text-gray-900">Current Stage: {currentStage.label}</h2>
-                              <span className="px-3 py-1 text-sm font-medium bg-blue-100 text-blue-800 rounded-full">
-                                Current
-                              </span>
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className="p-3 bg-blue-100 rounded-lg">
+                          {currentStage.icon}
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-xl font-bold text-gray-900">{currentStage.label}</h3>
+                            <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                              currentStage.completed 
+                                ? 'bg-green-100 text-green-800' 
+                                : currentStage.isCurrent 
+                                  ? 'bg-blue-100 text-blue-800' 
+                                  : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {currentStage.completed ? 'Completed' : currentStage.isCurrent ? 'In Progress' : 'Pending'}
                             </div>
-                            <p className="text-gray-600 mb-4">{currentStage.description}</p>
-                            <div className="flex items-center gap-6">
-                              <div className="flex items-center gap-2">
-                                <Clock className="h-4 w-4 text-gray-500" />
-                                <span className="text-sm font-medium text-gray-700">{currentStage.estimatedTime}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <CheckCircle className="h-4 w-4 text-gray-500" />
-                                <span className="text-sm font-medium text-gray-700">
-                                  {currentStage.progress?.completedSteps || 0} of {currentStage.progress?.totalSteps || 5} steps
-                                </span>
-                              </div>
+                          </div>
+                          <p className="text-gray-600">{currentStage.description}</p>
+                          <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-2">
+                              {currentStage.mandatory ? (
+                                <AlertCircle className="h-4 w-4 text-amber-500" />
+                              ) : (
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              )}
+                              <span className="text-sm text-gray-600">
+                                {currentStage.mandatory ? 'Required' : 'Optional'}
+                              </span>
                             </div>
                           </div>
                         </div>
-                        <button
-                          onClick={() => handleStageModalClick(currentStage)}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-                        >
-                          Open Stage Details
-                        </button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {currentStage.actions.map((action) => (
+                          <button
+                            key={action.id}
+                            onClick={() => handleStageAction(currentStage, action.id)}
+                            className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${
+                              action.variant === 'primary'
+                                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700'
+                                : action.variant === 'success'
+                                  ? 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700'
+                                  : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 hover:from-gray-200 hover:to-gray-300'
+                            }`}
+                          >
+                            {action.icon}
+                            {action.label}
+                          </button>
+                        ))}
                       </div>
                     </div>
-                  )
+                  </div>
                 )}
 
-                {/* Workflow Progress Timeline */}
-                {lifecycleLoading ? (
-                  <SkeletonLoader.WorkflowProgress />
-                ) : (
+                {/* Workflow Progress */}
+                {workflowStages.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-200 p-6">
                     <div className="flex items-center justify-between mb-6">
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-900">Sales Workflow Progress</h3>
-                        <p className="text-sm text-gray-600">Track progress through all sales stages</p>
+                        <h3 className="text-lg font-semibold text-gray-900">Workflow Progress</h3>
+                        <p className="text-sm text-gray-600">Track your order through the workflow stages</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-medium text-gray-700">{workflowProgress.completed} of {workflowProgress.total} stages</p>
-                        <p className="text-xs text-gray-500">~{workflowProgress.estimatedTime} total</p>
+                        <p className="text-sm text-gray-600">Overall Progress</p>
+                        <p className="text-2xl font-bold text-blue-600">{workflowProgress.percentage}%</p>
                       </div>
                     </div>
                     
-                    {/* Progress Bar */}
                     <div className="mb-8">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-700">Overall Progress</span>
-                        <span className="text-lg font-bold text-blue-600">{workflowProgress.percentage}%</span>
+                        <span className="text-sm font-medium text-gray-700">
+                          {workflowProgress.completed} of {workflowProgress.total} stages completed
+                        </span>
+                        <span className="text-sm font-medium text-blue-600">{workflowProgress.percentage}%</span>
                       </div>
                       <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
                         <div 
@@ -1484,152 +1659,505 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
                       </div>
                     </div>
                     
-                    {/* Stages Timeline */}
-                    <div className="relative">
-                      {/* Connecting Line */}
-                      <div className="absolute left-0 right-0 top-6 h-0.5 bg-gray-200"></div>
-                      
+                    <div className="relative mb-8">
+                      <div className="absolute left-0 right-0 top-6 h-0.5 bg-gray-200" />
                       <div className="relative flex justify-between">
                         {workflowStages.map((stage, index) => (
                           <div key={stage.id} className="flex flex-col items-center">
-                            {/* Stage Dot */}
-                            <div 
-                              className={`relative z-10 w-12 h-12 rounded-full flex items-center justify-center mb-3 border-4 ${
-                                stage.completed 
-                                  ? 'bg-green-100 border-green-400 text-green-600' 
-                                  : stage.isCurrent 
-                                    ? 'bg-blue-100 border-blue-400 text-blue-600 animate-pulse' 
-                                    : 'bg-gray-100 border-gray-300 text-gray-400'
-                              }`}
+                            <button
                               onClick={() => handleStageModalClick(stage)}
+                              className={`w-12 h-12 rounded-full flex items-center justify-center border-4 transition-all duration-300 ${
+                                stage.completed
+                                  ? 'bg-green-100 border-green-300 text-green-600 hover:bg-green-200'
+                                  : stage.isCurrent
+                                    ? 'bg-blue-100 border-blue-300 text-blue-600 hover:bg-blue-200 animate-pulse'
+                                    : 'bg-gray-100 border-gray-300 text-gray-400 hover:bg-gray-200'
+                              }`}
                             >
-                              {stage.completed ? (
-                                <CheckCircle className="h-5 w-5" />
-                              ) : stage.isCurrent ? (
-                                <CircleDot className="h-5 w-5" />
-                              ) : (
-                                <Circle className="h-5 w-5" />
-                              )}
-                            </div>
-                            
-                            {/* Stage Label */}
-                            <div className="text-center max-w-[120px]">
-                              <p className={`text-sm font-medium ${
-                                stage.completed ? 'text-green-700' : 
-                                stage.isCurrent ? 'text-blue-700' : 
-                                'text-gray-500'
-                              }`}>
-                                {stage.label}
+                              {getStageStatusIcon(stage)}
+                            </button>
+                            <div className="text-center max-w-[120px] mt-3">
+                              <p className="text-sm font-medium text-gray-900">{stage.label}</p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {stage.completed ? 'Completed' : stage.isCurrent ? 'Current' : 'Upcoming'}
                               </p>
-                              {stage.isCurrent && (
-                                <p className="text-xs text-blue-600 mt-1">Current</p>
-                              )}
-                              {stage.completed && (
-                                <p className="text-xs text-green-600 mt-1">Completed</p>
-                              )}
                             </div>
                           </div>
                         ))}
                       </div>
                     </div>
                     
-                    {/* Quick Stats */}
-                    <div className="grid grid-cols-3 gap-4 mt-8">
+                    <div className="grid grid-cols-3 gap-4">
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-blue-600">{workflowProgress.percentage}%</div>
-                        <div className="text-sm text-gray-600">Overall Progress</div>
+                        <div className="text-2xl font-bold text-blue-600">
+                          {formatCurrency(salesOrder.totalAmount)}
+                        </div>
+                        <div className="text-sm text-gray-600">Order Total</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600">{workflowProgress.completed}</div>
-                        <div className="text-sm text-gray-600">Stages Completed</div>
+                        <div className="text-2xl font-bold text-green-600">
+                          {formatDate(salesOrder.estimatedDeliveryDate || salesOrder.orderDate)}
+                        </div>
+                        <div className="text-sm text-gray-600">Estimated Delivery</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-gray-600">{workflowProgress.total - workflowProgress.completed}</div>
-                        <div className="text-sm text-gray-600">Remaining</div>
+                        <div className="text-2xl font-bold text-purple-600">
+                          {salesOrder.lineItems?.length || 0}
+                        </div>
+                        <div className="text-sm text-gray-600">Items</div>
                       </div>
                     </div>
                   </div>
                 )}
 
                 {/* Quick Actions */}
-                {currentStage && currentStage.actions && currentStage.actions.length > 0 && (
-                  workflowLoading ? (
-                    <SkeletonLoader.QuickActions />
-                  ) : (
-                    <div className="bg-white rounded-xl border border-gray-200 p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {currentStage.actions.slice(0, 3).map((action) => (
-                          <button
-                            key={action.id}
-                            onClick={() => handleStageAction(currentStage, action.id)}
-                            className={`p-4 rounded-xl border-2 flex items-center gap-3 transition-all duration-200 hover:scale-[1.02] ${
-                              action.variant === 'primary'
-                                ? 'bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200 text-blue-700 hover:from-blue-100 hover:to-blue-200'
-                                : action.variant === 'secondary'
-                                  ? 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200 text-gray-700 hover:from-gray-100 hover:to-gray-200'
-                                  : action.variant === 'success'
-                                    ? 'bg-gradient-to-r from-green-50 to-green-100 border-green-200 text-green-700 hover:from-green-100 hover:to-green-200'
-                                    : action.variant === 'warning'
-                                      ? 'bg-gradient-to-r from-amber-50 to-amber-100 border-amber-200 text-amber-700 hover:from-amber-100 hover:to-amber-200'
-                                      : 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200 text-gray-700'
-                            }`}
-                          >
-                            {action.icon}
-                            <div className="text-left">
-                              <p className="font-semibold">{action.label}</p>
-                              <p className="text-xs opacity-75">{action.description}</p>
-                            </div>
-                          </button>
-                        ))}
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {salesOrder.quoteId && (
+                      <Link
+                        href={`/quotes/${typeof salesOrder.quoteId === 'object' ? salesOrder.quoteId._id : salesOrder.quoteId}`}
+                        className="p-4 rounded-xl border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-3"
+                      >
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                          <FileText className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900">View Quote</h4>
+                          <p className="text-sm text-gray-600">Review the quotation details</p>
+                        </div>
+                      </Link>
+                    )}
+                    
+                    {salesOrder.invoiceId && (
+                      <Link
+                        href={`/invoices/${typeof salesOrder.invoiceId === 'object' ? salesOrder.invoiceId._id : salesOrder.invoiceId}`}
+                        className="p-4 rounded-xl border-2 border-green-200 bg-green-50 hover:bg-green-100 transition-colors flex items-center gap-3"
+                      >
+                        <div className="p-2 bg-green-100 rounded-lg">
+                          <Receipt className="h-5 w-5 text-green-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900">View Invoice</h4>
+                          <p className="text-sm text-gray-600">Check invoice details</p>
+                        </div>
+                      </Link>
+                    )}
+                    
+                    <button
+                      onClick={handlePrint}
+                      className="p-4 rounded-xl border-2 border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center gap-3"
+                    >
+                      <div className="p-2 bg-gray-100 rounded-lg">
+                        <Printer className="h-5 w-5 text-gray-600" />
                       </div>
-                    </div>
-                  )
-                )}
+                      <div>
+                        <h4 className="font-medium text-gray-900">Print Order</h4>
+                        <p className="text-sm text-gray-600">Generate printable version</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
 
-                {/* Order Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-white rounded-xl border border-gray-200 p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600">Total Amount</p>
-                        <h3 className="text-2xl font-bold text-gray-900 mt-1">
-                          {formatCurrency(salesOrder.totalAmount)}
-                        </h3>
-                      </div>
-                      <div className="p-3 bg-blue-100 rounded-lg">
-                        <DollarSign className="h-6 w-6 text-blue-600" />
+                {/* Special Quote Completion Message */}
+                {currentStage?.stage === 'quote' && (
+                  <div className="mt-6">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                          <FileText className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900">Complete Quote to Auto-Create Invoice</h4>
+                          <p className="text-sm text-gray-600 mt-1">
+                            When you complete this quote stage, an invoice will be automatically generated from the quote data.
+                          </p>
+                          
+                          <div className="mt-3 flex items-center gap-3">
+                            <div className="flex-1 bg-white rounded-lg p-3 border">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-gray-700">Current Quote</span>
+                                {salesOrder.quoteId && (
+                                  <Link 
+                                    href={`/quotes/${typeof salesOrder.quoteId === 'object' ? salesOrder.quoteId._id : salesOrder.quoteId}`}
+                                    className="text-blue-600 hover:underline text-sm"
+                                  >
+                                    View
+                                  </Link>
+                                )}
+                              </div>
+                              {salesOrder.quoteId && typeof salesOrder.quoteId === 'object' && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {salesOrder.quoteId.quoteNumber} • {formatCurrency(salesOrder.quoteId.totalAmount)}
+                                </p>
+                              )}
+                            </div>
+                            
+                            <button
+                              onClick={() => handleCompleteStage(currentStage)}
+                              disabled={workflowLoading}
+                              className="px-5 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 font-medium disabled:opacity-50 flex items-center gap-2"
+                            >
+                              {workflowLoading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <ArrowRight className="h-4 w-4" />
+                              )}
+                              {workflowLoading ? 'Processing...' : 'Complete & Create Invoice'}
+                            </button>
+                          </div>
+                          
+                          <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+                            <div className="flex items-center gap-1.5">
+                              <AlertCircle className="h-3 w-3" />
+                              <span>Invoice will be auto-created with same items and amounts as quote</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Quotation Tab */}
+            {activeTab === 'quotation' && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Quotation Details</h3>
+                      <p className="text-sm text-gray-600">Associated quotation for this sales order</p>
+                    </div>
+                    {salesOrder.quoteId && (
+                      <Link
+                        href={`/quotes/${typeof salesOrder.quoteId === 'object' ? salesOrder.quoteId._id : salesOrder.quoteId}`}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                      >
+                        <Eye className="h-4 w-4" />
+                        View Quote
+                      </Link>
+                    )}
                   </div>
                   
-                  <div className="bg-white rounded-xl border border-gray-200 p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600">Order Status</p>
-                        <h3 className="text-2xl font-bold text-gray-900 mt-1 capitalize">
-                          {salesOrder.status}
-                        </h3>
-                      </div>
-                      <div className="p-3 bg-green-100 rounded-lg">
-                        {statusConfig.icon}
+                  {salesOrder.quoteId ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Quote Number</label>
+                            <p className="text-gray-900 font-medium">
+                              {typeof salesOrder.quoteId === 'object' 
+                                ? salesOrder.quoteId.quoteNumber 
+                                : `Quote #${salesOrder.quoteId.slice(-8)}`
+                              }
+                            </p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Quote Status</label>
+                            <p className="text-gray-900 font-medium">
+                              {typeof salesOrder.quoteId === 'object' 
+                                ? salesOrder.quoteId.status 
+                                : 'N/A'
+                              }
+                            </p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Quote Date</label>
+                              <p className="text-gray-900">
+                                {typeof salesOrder.quoteId === 'object' 
+                                  ? formatDate(salesOrder.quoteId.createdAt) 
+                                  : 'N/A'
+                                }
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
+                              <p className="text-gray-900">
+                                {typeof salesOrder.quoteId === 'object' 
+                                  ? formatDate(salesOrder.quoteId.expiryDate) 
+                                  : 'N/A'
+                                }
+                              </p>
+                            </div>
+                          </div>
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Quote Amount</label>
+                              <p className="text-2xl font-bold text-blue-600">
+                                {typeof salesOrder.quoteId === 'object' 
+                                  ? formatCurrency(salesOrder.quoteId.totalAmount) 
+                                  : 'N/A'
+                                }
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Valid Until</label>
+                              <p className="text-gray-900">
+                                {typeof salesOrder.quoteId === 'object' && salesOrder.quoteId.expiryDate 
+                                  ? `${Math.ceil((new Date(salesOrder.quoteId.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days remaining`
+                                  : 'N/A'
+                                }
+                              </p>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">No Quotation Created</h3>
+                      <p className="text-gray-600 mb-6">Create a quotation to proceed with this sales order.</p>
+                      <button
+                        onClick={() => handleCreateDocument('quote')}
+                        className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 font-medium"
+                      >
+                        <FilePlus className="h-4 w-4 inline mr-2" />
+                        Create Quotation
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Invoice Tab */}
+
+            {activeTab === 'invoice' && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Invoice Details</h3>
+                      <p className="text-sm text-gray-600">
+                        {salesOrder.invoiceId 
+                          ? 'Invoice created from approved quote' 
+                          : currentStage?.stage === 'quote'
+                            ? 'Complete quote stage to auto-create invoice'
+                            : 'Invoice will be created automatically'}
+                      </p>
+                    </div>
+                    
+                    {salesOrder.invoiceId ? (
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/invoices/${typeof salesOrder.invoiceId === 'object' ? salesOrder.invoiceId._id : salesOrder.invoiceId}`}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View Invoice
+                        </Link>
+                        
+                        <button
+                          onClick={() => router.push(`/invoices/${typeof salesOrder.invoiceId === 'object' ? salesOrder.invoiceId._id : salesOrder.invoiceId}/edit`)}
+                          className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
+                        >
+                          <Edit className="h-4 w-4" />
+                          Edit Invoice
+                        </button>
+                        
+                        <button
+                          onClick={handleMarkInvoiceAsPaid}
+                          className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 flex items-center gap-2"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          Mark as Paid
+                        </button>
+                      </div>
+                    ) : currentStage?.stage === 'quote' ? (
+                      <button
+                        onClick={() => handleCompleteStage(currentStage)}
+                        disabled={workflowLoading}
+                        className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 font-medium disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {workflowLoading ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4" />
+                            Complete Quote & Create Invoice
+                          </>
+                        )}
+                      </button>
+                    ) : workflowLoading ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                        <span className="text-sm text-gray-600">Processing...</span>
+                      </div>
+                    ) : null}
                   </div>
                   
-                  <div className="bg-white rounded-xl border border-gray-200 p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600">Workflow Progress</p>
-                        <h3 className="text-2xl font-bold text-gray-900 mt-1">
-                          {workflowProgress.percentage}%
-                        </h3>
+                  {salesOrder.invoiceId ? (
+                    // SHOW THE CREATED INVOICE DETAILS
+                    <div className="space-y-6">
+                      {/* Invoice Header */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="p-4 bg-blue-50 rounded-lg">
+                          <p className="text-sm text-gray-600 mb-1">Invoice Number</p>
+                          <p className="font-semibold text-lg text-blue-700">
+                            {typeof salesOrder.invoiceId === 'object' 
+                              ? salesOrder.invoiceId.invoiceNumber 
+                              : 'INV-...'}
+                          </p>
+                        </div>
+                        
+                        <div className="p-4 bg-green-50 rounded-lg">
+                          <p className="text-sm text-gray-600 mb-1">Status</p>
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${
+                              (typeof salesOrder.invoiceId === 'object' ? salesOrder.invoiceId.status : 'draft') === 'paid' 
+                                ? 'bg-green-500' 
+                                : (typeof salesOrder.invoiceId === 'object' ? salesOrder.invoiceId.status : 'draft') === 'sent'
+                                  ? 'bg-blue-500'
+                                  : 'bg-gray-500'
+                            }`} />
+                            <p className="font-semibold text-lg text-green-700 capitalize">
+                              {typeof salesOrder.invoiceId === 'object' 
+                                ? salesOrder.invoiceId.status 
+                                : 'draft'}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="p-4 bg-purple-50 rounded-lg">
+                          <p className="text-sm text-gray-600 mb-1">Total Amount</p>
+                          <p className="font-semibold text-lg text-purple-700">
+                            {typeof salesOrder.invoiceId === 'object' 
+                              ? formatCurrency(salesOrder.invoiceId.totalAmount)
+                              : formatCurrency(salesOrder.totalAmount)}
+                          </p>
+                        </div>
+                        
+                        <div className="p-4 bg-amber-50 rounded-lg">
+                          <p className="text-sm text-gray-600 mb-1">Due Date</p>
+                          <p className="font-semibold text-lg text-amber-700">
+                            {typeof salesOrder.invoiceId === 'object' && salesOrder.invoiceId.dueDate
+                              ? formatDate(salesOrder.invoiceId.dueDate)
+                              : formatDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString())}
+                          </p>
+                        </div>
                       </div>
-                      <div className="p-3 bg-purple-100 rounded-lg">
-                        <TrendingUp className="h-6 w-6 text-purple-600" />
+                      
+                      {/* Invoice Items */}
+                      <div>
+                        <h4 className="font-medium text-gray-900 mb-3">Invoice Items</h4>
+                        <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit Price</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {/* Show invoice items if available, otherwise show sales order items */}
+                              {((typeof salesOrder.invoiceId === 'object' && salesOrder.invoiceId.items) || salesOrder.lineItems)?.map((item: any, index: number) => (
+                                <tr key={index} className="hover:bg-gray-50">
+                                  <td className="px-4 py-3 text-sm text-gray-900">{item.description}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-900">{item.quantity}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-900">{formatCurrency(item.unitPrice)}</td>
+                                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{formatCurrency(item.total)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot className="bg-gray-50">
+                              <tr>
+                                <td colSpan={3} className="px-4 py-3 text-right text-sm font-medium text-gray-700">
+                                  Total
+                                </td>
+                                <td className="px-4 py-3 text-right text-sm font-bold text-blue-600">
+                                  {typeof salesOrder.invoiceId === 'object' 
+                                    ? formatCurrency(salesOrder.invoiceId.totalAmount)
+                                    : formatCurrency(salesOrder.totalAmount)}
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      </div>
+                      
+                      {/* Invoice Status Message */}
+                      {typeof salesOrder.invoiceId === 'object' && salesOrder.invoiceId.status === 'draft' && (
+                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <AlertCircle className="h-5 w-5 text-amber-600" />
+                            <div>
+                              <p className="font-medium text-amber-800">Invoice is in draft status</p>
+                              <p className="text-sm text-amber-700">
+                                Review the invoice and mark it as sent to notify the customer.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : currentStage?.stage === 'quote' ? (
+                    <div className="text-center py-12">
+                      <ReceiptIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Invoice Not Created Yet</h3>
+                      <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                        Complete the quote stage to automatically generate an invoice from the approved quote.
+                        The invoice will include all items and pricing from the quote.
+                      </p>
+                      <button
+                        onClick={() => handleCompleteStage(currentStage)}
+                        disabled={workflowLoading}
+                        className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 font-medium disabled:opacity-50"
+                      >
+                        {workflowLoading ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                            Creating Invoice...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4 inline mr-2" />
+                            Complete Quote & Create Invoice
+                          </>
+                        )}
+                      </button>
+                      
+                      {workflowLoading && (
+                        <div className="mt-4 text-sm text-gray-500">
+                          This may take a few seconds. The page will refresh automatically.
+                        </div>
+                      )}
+                    </div>
+                  ) : currentStage?.stage === 'invoice' ? (
+                    <div className="text-center py-12">
+                      <div className="flex flex-col items-center">
+                        <Loader2 className="h-12 w-12 animate-spin text-blue-600 mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">Invoice Stage Active</h3>
+                        <p className="text-gray-600 mb-4">
+                          You're currently on the invoice stage. An invoice should have been created.
+                        </p>
+                        <button
+                          onClick={() => fetchSalesOrder()}
+                          className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          Check for Invoice
+                        </button>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <Clock className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-600">
+                        Complete the current stage to proceed to invoice creation.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1783,6 +2311,34 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
                         </div>
                       ))}
                     </div>
+                    
+                    {/* Additional Documents Section */}
+                    <div className="mt-8 pt-8 border-t border-gray-200">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Additional Documents</h4>
+                      {attachments.length > 0 ? (
+                        <div className="space-y-3">
+                          {attachments.map((attachment, index) => (
+                            <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <FileText className="h-5 w-5 text-gray-500" />
+                                <div>
+                                  <p className="font-medium text-gray-900">{attachment.name}</p>
+                                  <p className="text-xs text-gray-500">{attachment.type} • {formatDate(attachment.uploadedAt)}</p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => window.open(attachment.url, '_blank')}
+                                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                              >
+                                Download
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 text-sm">No additional documents attached.</p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1820,7 +2376,10 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
                           </div>
                         ))
                       ) : (
-                        <p className="text-gray-500 text-sm">No activity recorded yet.</p>
+                        <div className="text-center py-8">
+                          <History className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                          <p className="text-gray-500">No activity recorded yet.</p>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1876,7 +2435,10 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
                           <p className="text-gray-700">Your new note will appear here...</p>
                         </div>
                       ) : (
-                        <p className="text-gray-500 text-sm">No notes yet. Add your first note above.</p>
+                        <div className="text-center py-8">
+                          <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                          <p className="text-gray-500">No notes yet. Add your first note above.</p>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1887,7 +2449,7 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
         )}
       </div>
 
-      {/* Stage Details Modal (same as work order) */}
+      {/* Stage Details Modal */}
       {modalStage && (
         <>
           <div 

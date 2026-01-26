@@ -190,7 +190,7 @@ export default function SalesOrdersList() {
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          {/* <div className="flex items-center gap-2">
             <button
               onClick={handleRefresh}
               disabled={refreshing || loading}
@@ -210,7 +210,7 @@ export default function SalesOrdersList() {
               <Plus className="h-5 w-5" />
               <span className="hidden sm:inline">New Order</span>
             </Link>
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -325,42 +325,60 @@ export default function SalesOrdersList() {
                 </thead>
                 <tbody>
                   {salesOrders.map((order) => (
-                    <tr key={order._id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                    <tr
+                      key={order._id}
+                      onClick={() => {
+                        // close any open dropdown when navigating (optional)
+                        setExpandedRow(null);
+                        router.push(`/orders/sales-orders/${order._id}`);
+                      }}
+                      className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setExpandedRow(null);
+                          router.push(`/orders/sales-orders/${order._id}`);
+                        }
+                      }}
+                    >
                       <td className="py-4 px-4">
                         <p className="font-medium text-gray-900">{order.salesOrderNumber}</p>
                         <p className="text-xs text-gray-500">{formatDate(order.createdAt)}</p>
                       </td>
+
                       <td className="py-4 px-4">
                         <p className="font-medium text-gray-900">
-                          {typeof order.opportunityId === 'object' 
+                          {typeof order.opportunityId === 'object'
                             ? order.opportunityId.customer?.name || '—'
-                            : '—'
-                          }
+                            : '—'}
                         </p>
                         <p className="text-xs text-gray-500 truncate max-w-[160px]">
-                          {typeof order.opportunityId === 'object' 
-                            ? order.opportunityId.subject || ''
-                            : ''
-                          }
+                          {typeof order.opportunityId === 'object' ? order.opportunityId.subject || '' : ''}
                         </p>
                       </td>
+
                       <td className="py-4 px-4 text-gray-700">
                         {formatDate(order.orderDate)}
                       </td>
+
                       <td className="py-4 px-4">
                         <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
                           {order.status}
                         </span>
                       </td>
+
                       <td className="py-4 px-4 font-semibold text-gray-900">
                         {formatCurrency(order.totalAmount)}
                       </td>
-                      <td className="py-4 px-4">
+
+                      {/* ✅ Actions cell: prevent row click */}
+                      <td className="py-4 px-4" onClick={(e) => e.stopPropagation()}>
                         <div className="relative">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              // Toggle dropdown for this row
                               setExpandedRow(expandedRow === order._id ? null : order._id);
                             }}
                             className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
@@ -371,15 +389,19 @@ export default function SalesOrdersList() {
                             <MoreVertical className="h-4 w-4" />
                           </button>
 
-                          {/* Dropdown Menu */}
                           {expandedRow === order._id && (
                             <>
-                              {/* Click outside to close */}
                               <div
                                 className="fixed inset-0 z-10"
-                                onClick={() => setExpandedRow(null)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedRow(null);
+                                }}
                               />
-                              <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20 animate-fade-in">
+                              <div
+                                className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20 animate-fade-in"
+                                onClick={(e) => e.stopPropagation()}
+                              >
                                 <Link
                                   href={`/orders/sales-orders/${order._id}`}
                                   className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
@@ -388,14 +410,16 @@ export default function SalesOrdersList() {
                                   <Eye className="h-4 w-4" />
                                   View Details
                                 </Link>
-                                <Link
+
+                                {/* <Link
                                   href={`/quotes/create?orderId=${order._id}`}
                                   className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
                                   onClick={() => setExpandedRow(null)}
                                 >
                                   <FileText className="h-4 w-4" />
                                   Create Quote
-                                </Link>
+                                </Link> */}
+
                                 <Link
                                   href={`/invoices/create?orderId=${order._id}`}
                                   className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
@@ -404,20 +428,6 @@ export default function SalesOrdersList() {
                                   <CreditCard className="h-4 w-4" />
                                   Create Invoice
                                 </Link>
-                                {/* Optional: Add Edit or Delete if applicable */}
-                                {/* 
-                                <button
-                                  className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    setExpandedRow(null);
-                                    // handleDelete(order);
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  Delete Order
-                                </button>
-                                */}
                               </div>
                             </>
                           )}
