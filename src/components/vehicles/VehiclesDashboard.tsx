@@ -300,7 +300,7 @@ export default function VehiclesDashboard() {
               <p className="text-blue-100 mt-1">Manage your vehicle inventory and sales</p>
             </div>
             
-            <div className="flex gap-3">
+            {/* <div className="flex gap-3">
               <button
                 onClick={handleRefresh}
                 disabled={refreshing}
@@ -316,7 +316,7 @@ export default function VehiclesDashboard() {
                 <Plus className="h-5 w-5" />
                 Add Vehicle
               </Link>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>

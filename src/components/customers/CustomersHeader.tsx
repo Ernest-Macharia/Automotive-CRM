@@ -13,7 +13,7 @@ export default function CustomersHeader({
   const router = useRouter();
 
   return (
-    <div className="bg-gradient-to-r from-blue-600 to-blue-800 px-6 py-8 shadow-lg">
+    <div className="bg-gradient-to-r from-blue-600 to-purple-800 px-6 py-8 shadow-lg">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-4">

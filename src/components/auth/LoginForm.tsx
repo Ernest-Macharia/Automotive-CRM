@@ -332,45 +332,11 @@ export default function LoginForm({
               </>
             )}
           </button>
+          <p className="text-xs text-center text-gray-500 mt-2">
+            Use: superadmin@crm.local / Testme123!
+          </p>
         </div>
       </form>
-
-      {/* Demo */}
-      {showDemoButton && (
-        <>
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-gray-500">Or try a demo</span>
-            </div>
-          </div>
-
-          <div>
-            <button
-              type="button"
-              onClick={handleDemoLogin}
-              disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-4 bg-white border border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 10V3L4 14h7v7l9-11h-7z"
-                />
-              </svg>
-              <span>Try Demo Account</span>
-            </button>
-
-            <p className="text-xs text-center text-gray-500 mt-2">
-              Use: superadmin@crm.local / Testme123!
-            </p>
-          </div>
-        </>
-      )}
     </div>
   );
 }

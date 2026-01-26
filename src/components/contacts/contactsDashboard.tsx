@@ -304,25 +304,17 @@ export default function ContactsDashboard() {
           </div>
           
           <div className="flex items-center gap-3">
-            {/* Debug button - remove in production */}
-            {process.env.NODE_ENV === 'development' && (
-              <button
-                onClick={handleTestAddContact}
-                className="px-3 py-1 bg-yellow-500 text-white text-sm rounded-lg hover:bg-yellow-600"
-                title="Add test contact (dev only)"
-              >
-                Test Add
-              </button>
-            )}
-            
             <button
               onClick={handleExportContacts}
               className="p-2 text-white hover:bg-white/20 rounded-xl transition-colors"
               title="Export Contacts"
             >
-              <Download className="h-5 w-5" />
+              <span className="hidden sm:inline">
+                Export
+              </span>
+               {/* <Download className="h-5 w-5" /> */}
             </button>
-            <button
+            {/* <button
               onClick={handleRefresh}
               disabled={refreshing}
               className="p-2 hover:bg-white/20 rounded-xl transition-colors disabled:opacity-50"
@@ -340,7 +332,7 @@ export default function ContactsDashboard() {
             >
               <Plus className="h-5 w-5" />
               <span className="hidden sm:inline">New Contact</span>
-            </Link>
+            </Link> */}
           </div>
         </div>
       </div>

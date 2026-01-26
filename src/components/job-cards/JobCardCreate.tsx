@@ -1,21 +1,28 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   Wrench, ArrowLeft, Save, Plus, Trash2,
   Loader2, Calendar, Clock, User as UserIcon, 
   Car, FileText, DollarSign, Package, ChevronDown,
   CheckCircle, Briefcase, Shield, Tag,
-  Search, Mail, Phone
+  Search, Mail, Phone, Car as CarIcon,
+  Home, MapPin, Target, Settings, AlertCircle, Zap, Thermometer,
+  AlertTriangle, Info, Sparkles, FileSignature, Upload, X,
+  FileCheck, ClipboardList, Check
 } from 'lucide-react';
 import { jobCardService, CreateJobCardData } from '@/services/jobCardService';
 import { opportunityService, Opportunity } from '@/services/opportunityService';
 import { userService, User } from '@/services/settings/userService';
 import { vehicleService, Vehicle } from '@/services/vehicleService';
+import { workOrderService } from '@/services/workOrderService';
+import { preChecklistService } from '@/services/preChecklistService';
 import { useToast } from '@/contexts/ToastContext';
 import { format } from 'date-fns';
 import debounce from 'lodash/debounce';
+import SignatureCanvas from 'react-signature-canvas';
+import { lifecycleIntegrationService } from '@/services/lifecycleIntegrationService';
 
 interface FormData {
   opportunityId: string;
@@ -43,32 +50,133 @@ interface FormData {
     totalCost: number;
     description?: string;
   }>;
-}
+  
+  // Customer Information
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  jobCardOwner: string;
+  customerResidence: string;
+  customerSource: string;
+  customerOther: string;
+  customerOccupation: string;
+  
+  // Car Details
+  regNumber: string;
+  carModel: string;
+  yom: string;
+  mileage: string;
+  carMake: string;
+  
+  // Functionality Testing
+  highBeamFunctionality: string;
+  lowBeamFunctionality: string;
+  turnSignalFunctionality: string;
+  fogLightFunctionality: string;
+  brakeLightsFunctionality: string;
+  parkingLightFunctionality: string;
+  conditionOfRearLights: string;
+  afsFunctionality: string;
+  angelRingsFunctionality: string;
+  daytimeRunningLightFunctionality: string;
+  reverseLightFunctionality: string;
+  descReverseLight: string;
+  
+  // Special Diagnosis
+  frontEndDamages: string;
+  descFrontEndDamages: string;
+  conditionOfCurrentHeadlights: string;
+  descConditionOfHeadlights: string;
+  existingWiringOrElectricalIssues: string;
+  descExistingWiringIssue: string;
+  conditionOfFrontGrille: string;
+  descConditionOfFrontGrille: string;
+  conditionOfFrontBumper: string;
+  descConditionOfFrontBumper: string;
+  conditionOfFogLights: string;
+  
+  // AFS Headlight Inspection
+  adaptiveFrontLightingSystemHeadlights: string;
+  afsFunctionalityInspection: string;
+  afsLevelingFunctionality: string;
+  afsAutoAdjustmentFunctionality: string;
+  afsManualSwitchOnAndOff: string;
+  
+  // Interior Inspection
+  conditionOfHeadlightSwitch: string;
+  functionalityOfHeadlightSwitch: string;
+  conditionOfDashboardControlsAndIndicators: string;
+  displayOfDashboardLights: string;
+  conditionOfInteriorRoofLights: string;
+  conditionOfInteriorWiring: string;
+  conditionOfInteriorDoorLights: string;
+  
+  // Dashboard Warning Lights
+  checkEngineLight: string;
+  absWarningLight: string;
+  airbagWarningLight: string;
+  batteryWarningLights: string;
+  tpmsWarningLight: string;
+  otherWarningLights: string;
+  
+  // Customer Requirements
+  desiredOutcomeAndPreference: string;
+  
+  // Legal Considerations
+  complianceWithLocalLawsAndRegulations: string;
+  
+  // Product Selection
+  selectedProducts: string;
+  partOfInstallation: string;
+  additionalAccessoriesNeeded: string;
+  
+  // Budget and Pricing
+  agreedUponCost: string;
+  
+  // Installation Process
+  complexityAssessmentAndPotentialChallenges: string;
+  
+  // Alignment and Calibration
+  headlightAlignmentAndCalibration: string;
+  additionalStepsOrEquipmentNeeded: string;
 
-interface QuickTemplate {
-  id: string;
-  title: string;
-  description: string;
-  estimatedHours: number;
-  parts: Array<{
-    name: string;
-    partNumber: string;
-    quantity: number;
-    unitPrice: number;
-  }>;
+  // Signatures
+  technicianSignature: string;
+  customerSignature: string;
+  acceptTerms: boolean;
+  acceptDiagnosticCharges: boolean;
 }
 
 export default function JobCardCreate() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { showToast } = useToast();
   
-  const [loading, setLoading] = useState(false);
-  const [loadingTechnicians, setLoadingTechnicians] = useState(false);
-  const [searching, setSearching] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  // Get parameters from URL
+  const opportunityId = searchParams.get('opportunityId');
+  const workOrderId = searchParams.get('workOrderId');
+  const vehicleId = searchParams.get('vehicleId');
+  const source = searchParams.get('source');
+  const preChecklistId = searchParams.get('preChecklistId');
+  
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
+  const [vehicleDetails, setVehicleDetails] = useState<Vehicle | null>(null);
+  const [workOrder, setWorkOrder] = useState<any>(null);
+  const [preChecklist, setPreChecklist] = useState<any>(null);
+  const [technicians, setTechnicians] = useState<User[]>([]);
+  const [selectedTechnician, setSelectedTechnician] = useState<User | null>(null);
+  const [parts, setParts] = useState<any[]>([]);
+  const [autoPopulated, setAutoPopulated] = useState(false);
+  const [showCustomerSignature, setShowCustomerSignature] = useState(false);
+  const [showTechnicianSignature, setShowTechnicianSignature] = useState(false);
+  const customerSigRef = useRef<SignatureCanvas>(null);
+  const technicianSigRef = useRef<SignatureCanvas>(null);
   
   const [formData, setFormData] = useState<FormData>({
-    opportunityId: '',
+    opportunityId: opportunityId || '',
     jobTitle: '',
     jobDescription: '',
     assignedTo: '',
@@ -84,23 +192,104 @@ export default function JobCardCreate() {
     status: 'pending',
     notes: [],
     newNote: '',
-    partsUsed: []
+    partsUsed: [],
+    
+    // Customer Information - Default values
+    customerName: '',
+    customerPhone: '',
+    customerEmail: '',
+    jobCardOwner: sessionStorage.getItem('userName') || 'Dalton Ongeche',
+    customerResidence: '',
+    customerSource: 'None',
+    customerOther: '',
+    customerOccupation: '',
+    
+    // Car Details - Default values
+    regNumber: '',
+    carModel: '',
+    yom: '',
+    mileage: '',
+    carMake: '',
+    
+    // Functionality Testing - Default values
+    highBeamFunctionality: '-None-',
+    lowBeamFunctionality: '-None-',
+    turnSignalFunctionality: '-None-',
+    fogLightFunctionality: '-None-',
+    brakeLightsFunctionality: '-None-',
+    parkingLightFunctionality: '-None-',
+    conditionOfRearLights: '-None-',
+    afsFunctionality: '-None-',
+    angelRingsFunctionality: '-None-',
+    daytimeRunningLightFunctionality: '-None-',
+    reverseLightFunctionality: '-None-',
+    descReverseLight: '',
+    
+    // Special Diagnosis - Default values
+    frontEndDamages: '-None-',
+    descFrontEndDamages: '',
+    conditionOfCurrentHeadlights: '-None-',
+    descConditionOfHeadlights: '',
+    existingWiringOrElectricalIssues: '-None-',
+    descExistingWiringIssue: '',
+    conditionOfFrontGrille: '-None-',
+    descConditionOfFrontGrille: '',
+    conditionOfFrontBumper: '-None-',
+    descConditionOfFrontBumper: '',
+    conditionOfFogLights: '-None-',
+    
+    // AFS Headlight Inspection - Default values
+    adaptiveFrontLightingSystemHeadlights: '-None-',
+    afsFunctionalityInspection: '-None-',
+    afsLevelingFunctionality: '-None-',
+    afsAutoAdjustmentFunctionality: '-None-',
+    afsManualSwitchOnAndOff: '-None-',
+    
+    // Interior Inspection - Default values
+    conditionOfHeadlightSwitch: '',
+    functionalityOfHeadlightSwitch: '-None-',
+    conditionOfDashboardControlsAndIndicators: '',
+    displayOfDashboardLights: '-None-',
+    conditionOfInteriorRoofLights: '-None-',
+    conditionOfInteriorWiring: '-None-',
+    conditionOfInteriorDoorLights: '-None-',
+    
+    // Dashboard Warning Lights - Default values
+    checkEngineLight: '-None-',
+    absWarningLight: '-None-',
+    airbagWarningLight: '-None-',
+    batteryWarningLights: '-None-',
+    tpmsWarningLight: '-None-',
+    otherWarningLights: '',
+    
+    // Customer Requirements
+    desiredOutcomeAndPreference: '',
+    
+    // Legal Considerations
+    complianceWithLocalLawsAndRegulations: '',
+    
+    // Product Selection
+    selectedProducts: '',
+    partOfInstallation: '',
+    additionalAccessoriesNeeded: '',
+    
+    // Budget and Pricing
+    agreedUponCost: '',
+    
+    // Installation Process
+    complexityAssessmentAndPotentialChallenges: '',
+    
+    // Alignment and Calibration
+    headlightAlignmentAndCalibration: '-None-',
+    additionalStepsOrEquipmentNeeded: '-None-',
+
+    // Signatures
+    technicianSignature: '',
+    customerSignature: '',
+    acceptTerms: false,
+    acceptDiagnosticCharges: false
   });
 
-  const [technicians, setTechnicians] = useState<User[]>([]);
-  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
-  const [parts, setParts] = useState<any[]>([]);
-  const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
-  const [selectedTechnician, setSelectedTechnician] = useState<User | null>(null);
-  const [vehicleDetails, setVehicleDetails] = useState<Vehicle | null>(null);
-  
-  // Dropdown visibility
-  const [showOpportunityDropdown, setShowOpportunityDropdown] = useState(false);
-  const [recentOpportunities, setRecentOpportunities] = useState<Opportunity[]>([]);
-  
-  // Search terms
-  const [opportunitySearch, setOpportunitySearch] = useState('');
-  
   const priorityOptions = [
     { value: 'low', label: 'Low', color: 'bg-green-100 text-green-800 border-green-200', icon: '🟢' },
     { value: 'medium', label: 'Medium', color: 'bg-blue-100 text-blue-800 border-blue-200', icon: '🔵' },
@@ -108,191 +297,193 @@ export default function JobCardCreate() {
     { value: 'urgent', label: 'Urgent', color: 'bg-red-100 text-red-800 border-red-200', icon: '🔴' },
   ];
 
-  const [templates] = useState<QuickTemplate[]>([
-    {
-      id: '1',
-      title: 'Basic Service',
-      description: 'Oil change, filter replacement, and basic inspection',
-      estimatedHours: 1.5,
-      parts: [
-        { name: 'Engine Oil 5W-30', partNumber: 'OIL-001', quantity: 1, unitPrice: 32.50 },
-        { name: 'Oil Filter', partNumber: 'FIL-001', quantity: 1, unitPrice: 12.75 }
-      ]
-    },
-    {
-      id: '2',
-      title: 'Brake Service',
-      description: 'Brake pad replacement and rotor inspection',
-      estimatedHours: 2.5,
-      parts: [
-        { name: 'Brake Pads (Front)', partNumber: 'BRK-001', quantity: 1, unitPrice: 45.99 },
-        { name: 'Brake Fluid', partNumber: 'BRK-FLUID', quantity: 1, unitPrice: 18.50 }
-      ]
-    },
-    {
-      id: '3',
-      title: 'Tire Rotation & Balance',
-      description: 'Four-tire rotation and wheel balancing',
-      estimatedHours: 1,
-      parts: [
-        { name: 'Tire Balancing Weights', partNumber: 'TIR-WT', quantity: 8, unitPrice: 2.50 }
-      ]
-    }
-  ]);
+  // Dropdown options for functionality testing and inspections
+  const inspectionOptions = ['-None-', 'Working', 'Not Working', 'Damaged', 'Requires Replacement', 'Needs Adjustment'];
 
-  // Fetch dropdown data on component mount
+  // Load related data on component mount
   useEffect(() => {
-    fetchDropdownData();
-  }, []);
+    if (opportunityId) {
+      loadRelatedData();
+    } else {
+      showToast('No opportunity specified in URL', 'error');
+      router.push('/job-cards');
+    }
+  }, [opportunityId]);
 
-  const fetchDropdownData = async () => {
+  // Auto-populate form when opportunity is loaded
+  useEffect(() => {
+    if (opportunity && !autoPopulated) {
+      autoPopulateFromOpportunity();
+    }
+  }, [opportunity]);
+
+  const loadRelatedData = async () => {
     try {
+      setLoading(true);
+
+      // Load opportunity
+      if (opportunityId) {
+        const opp = await opportunityService.getOpportunityById(opportunityId, false);
+        setOpportunity(opp);
+        console.log('Loaded opportunity:', opp);
+        
+        // Get vehicle from opportunity
+        if (opp.vehicles && opp.vehicles.length > 0) {
+          const primaryVehicle = opp.vehicles[0];
+          setVehicleDetails(primaryVehicle);
+          
+          // Try to fetch detailed vehicle info if we have vehicleId
+          if (primaryVehicle._id) {
+            try {
+              const detailedVehicle = await vehicleService.getVehicleById(primaryVehicle._id);
+              setVehicleDetails(detailedVehicle);
+            } catch (vehicleError) {
+              console.warn('Could not fetch detailed vehicle:', vehicleError);
+            }
+          }
+        } else if (vehicleId) {
+          // Fallback to vehicleId parameter
+          try {
+            const veh = await vehicleService.getVehicleById(vehicleId);
+            setVehicleDetails(veh);
+          } catch (vehError) {
+            console.error('Error loading vehicle:', vehError);
+          }
+        }
+      }
+
+      // Load work order if provided
+      if (workOrderId) {
+        try {
+          const wo = await workOrderService.getWorkOrderById(workOrderId);
+          setWorkOrder(wo);
+        } catch (error) {
+          console.error('Error loading work order:', error);
+        }
+      }
+
+      // Load pre-checklist if provided
+      if (preChecklistId) {
+        try {
+          const pc = await preChecklistService.getPreChecklistById(preChecklistId);
+          setPreChecklist(pc);
+        } catch (error) {
+          console.error('Error loading pre-checklist:', error);
+        }
+      }
+
+      // Load technicians and parts
       await Promise.all([
         fetchTechnicians(),
         fetchParts()
       ]);
+
     } catch (error) {
-      console.error('Error fetching dropdown data:', error);
-      showToast('Failed to load dropdown data', 'error');
-    }
-  };
-  const loadOpportunities = async (search = '', forceReload = false) => {
-    try {
-      setSearching(true);
-      
-      let opportunitiesData: Opportunity[] = [];
-      
-      // For dropdown search, use the optimized autocomplete endpoint
-      if (search.trim()) {
-        try {
-          opportunitiesData = await opportunityService.searchAutocomplete(
-            search.trim(),
-            50  // ✅ Fixed: Added limit parameter
-          );
-        } catch (autocompleteError) {
-          console.warn('Autocomplete failed, falling back to filter:', autocompleteError);
-          // Fallback to filter endpoint
-          const response = await opportunityService.filterOpportunities({
-            search: search.trim(),
-            page: 1,
-            limit: 50,
-            sort: '-createdAt',
-          });
-          opportunitiesData = response?.data || [];
-        }
-      } else {
-        // When no search term, load recent opportunities
-        const response = await opportunityService.filterOpportunities({
-          page: 1,
-          limit: 20, // Smaller limit for recent
-          sort: '-createdAt',
-        });
-        opportunitiesData = response?.data || [];
-      }
-      
-      setOpportunities(opportunitiesData);
-      
-    } catch (error) {
-      console.error('❌ Error loading opportunities:', error);
-      showToast('Failed to load opportunities', 'error');
-      setOpportunities([]);
+      console.error('Error loading related data:', error);
+      showToast('Failed to load related information', 'error');
     } finally {
-      setSearching(false);
+      setLoading(false);
     }
   };
 
-  const handleSelectOpportunity = async (opportunity: Opportunity) => {
+  const autoPopulateFromOpportunity = () => {
+    if (!opportunity || autoPopulated) return;
+
     try {
-      setSelectedOpportunity(opportunity);
+      console.log('Auto-populating from opportunity:', opportunity);
       
-      // ✅ Fixed: Pass vehicle ID correctly
-      if (opportunity.vehicles?.[0]?._id) {
-        await fetchVehicleDetails(opportunity.vehicles[0]._id);
-      } else if (opportunity.vehicles?.[0]) {
-        // If vehicle object already has details, use them
-        setVehicleDetails(opportunity.vehicles[0] as Vehicle);
-      }
+      // Extract customer name
+      const customerName = opportunity.customer?.name || '';
+      const customerPhone = opportunity.customer?.phone || '';
+      const customerEmail = opportunity.customer?.email || '';
       
-      setFormData(prev => ({ 
-        ...prev, 
-        opportunityId: opportunity._id || '',
-        jobTitle: prev.jobTitle || opportunity.subject || '',
-        jobDescription: prev.jobDescription || opportunity.notes || ''
-      }));
-      setShowOpportunityDropdown(false);
-      setOpportunitySearch('');
+      // Get vehicle from opportunity vehicles array
+      const primaryVehicle = opportunity.vehicles?.[0] || vehicleDetails || {};
       
-      // Clear dropdown to show fresh results next time
-      setTimeout(() => setOpportunities([]), 100);
+      // Simple registration number extraction
+      const getRegistrationNumber = (vehicle: any) => {
+        if (!vehicle) return '';
+        
+        // Check common field names
+        const fields = [
+          'registrationNumber',
+          'regNumber',
+          'regNo',
+          'licensePlate',
+          'plateNumber',
+          'plate',
+          'numberPlate'
+        ];
+        
+        for (const field of fields) {
+          if (vehicle[field]) {
+            console.log(`Found registration in field "${field}":`, vehicle[field]);
+            return vehicle[field];
+          }
+        }
+        
+        return '';
+      };
+      
+      const registrationNumber = getRegistrationNumber(primaryVehicle);
+      
+      // Update form data with opportunity information
+      const updatedFormData: Partial<FormData> = {
+        opportunityId: opportunity._id || opportunityId || '',
+        customerName: customerName,
+        customerPhone: customerPhone,
+        customerEmail: customerEmail,
+        jobCardOwner: sessionStorage.getItem('userName') || 'Dalton Ongeche',
+        customerSource: opportunity.source || 'None',
+        
+        // Vehicle details
+        regNumber: registrationNumber || '',
+        carMake: primaryVehicle.make || '',
+        carModel: primaryVehicle.model || '',
+        yom: primaryVehicle.year?.toString() || '',
+        mileage: primaryVehicle.mileage || '',
+        
+        // Job details from opportunity
+        jobTitle: opportunity.subject || 'Headlight Service',
+        jobDescription: opportunity.notes || '',
+      };
+      
+      setFormData(prev => ({ ...prev, ...updatedFormData }));
+      setAutoPopulated(true);
+      
+      showToast('Opportunity data loaded successfully', 'success');
       
     } catch (error) {
-      console.error('Error selecting opportunity:', error);
-      showToast('Failed to load opportunity details', 'error');
+      console.error('Error auto-populating from opportunity:', error);
+      showToast('Error loading vehicle details from opportunity', 'warning');
     }
   };
-
-  // Update the debounced search to pass forceReload flag
-  const debouncedSearchOpportunities = useCallback(
-    debounce((searchTerm: string) => {
-      const forceReload = searchTerm.trim() === '';
-      loadOpportunities(searchTerm, forceReload);
-    }, 300), // Reduced debounce time for better UX
-    []
-  );
 
   const fetchTechnicians = async () => {
     try {
-      setLoadingTechnicians(true);
       const users = await userService.getAllUsers();
-      const technicianUsers = users.filter(user => 
-        userService.getUserRoleName(user) === 'technician' && user.active
-      );
+      const technicianUsers = users.filter(user => {
+        if (!user.active) return false;
+        const roleName = userService.getUserRoleName(user);
+        return roleName?.toLowerCase() === 'technician';
+      });
       setTechnicians(technicianUsers);
+      
     } catch (error) {
       console.error('Error fetching technicians:', error);
       showToast('Failed to load technicians', 'error');
-    } finally {
-      setLoadingTechnicians(false);
     }
   };
 
   const fetchParts = async () => {
-    // Mock parts data - in production, fetch from parts service
+    // Mock parts data for headlights and related components
     setParts([
-      { _id: '1', partNumber: 'BRK-001', name: 'Brake Pads', description: 'Premium Ceramic Brake Pads', unitPrice: 45.99, category: 'Brakes', stock: 42 },
-      { _id: '2', partNumber: 'OIL-002', name: 'Engine Oil 5W-30', description: 'Full Synthetic Motor Oil', unitPrice: 32.50, category: 'Fluids', stock: 150 },
-      { _id: '3', partNumber: 'FIL-003', name: 'Oil Filter', description: 'Premium Oil Filter', unitPrice: 12.75, category: 'Filters', stock: 89 },
-      { _id: '4', partNumber: 'SPK-004', name: 'Spark Plugs', description: 'Iridium Spark Plugs (Set of 4)', unitPrice: 8.99, category: 'Ignition', stock: 56 },
-      { _id: '5', partNumber: 'BAT-005', name: 'Car Battery', description: '12V 60Ah Maintenance-Free', unitPrice: 120.00, category: 'Electrical', stock: 24 },
+      { _id: '1', partNumber: 'HLB-001', name: 'LED Headlight Bulbs', description: 'High-performance LED headlight bulbs', unitPrice: 45.99, category: 'Lighting', stock: 42 },
+      { _id: '2', partNumber: 'HLA-002', name: 'Headlight Assembly', description: 'Complete headlight assembly with housing', unitPrice: 250.50, category: 'Lighting', stock: 15 },
+      { _id: '3', partNumber: 'AFS-003', name: 'AFS Control Module', description: 'Adaptive Front Lighting System control module', unitPrice: 120.75, category: 'Electrical', stock: 8 },
+      { _id: '4', partNumber: 'FOG-004', name: 'Fog Light Kit', description: 'Complete fog light installation kit', unitPrice: 89.99, category: 'Lighting', stock: 23 },
+      { _id: '5', partNumber: 'WIR-005', name: 'Wiring Harness', description: 'Headlight wiring harness', unitPrice: 35.00, category: 'Electrical', stock: 56 },
     ]);
-  };
-
-  const fetchVehicleDetails = async (vehicleId: string) => {
-    try {
-      const vehicle = await vehicleService.getVehicleById(vehicleId);
-      setVehicleDetails(vehicle);
-    } catch (error) {
-      console.error('Error fetching vehicle details:', error);
-      setVehicleDetails(null);
-    }
-  };
-
-  const applyTemplate = (template: QuickTemplate) => {
-    setFormData(prev => ({
-      ...prev,
-      jobTitle: template.title,
-      jobDescription: template.description,
-      estimatedHours: template.estimatedHours,
-      partsUsed: template.parts.map(part => ({
-        partId: '',
-        partNumber: part.partNumber,
-        name: part.name,
-        quantity: part.quantity,
-        unitPrice: part.unitPrice,
-        totalCost: part.quantity * part.unitPrice
-      }))
-    }));
-    showToast(`Applied template: ${template.title}`, 'success');
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -306,18 +497,48 @@ export default function JobCardCreate() {
     if (name === 'assignedTo') {
       const tech = technicians.find(t => t.id === value);
       setSelectedTechnician(tech || null);
-      setFormData(prev => ({ ...prev, [name]: newValue }));
-    } else {
-      setFormData(prev => {
-        const updated = { ...prev, [name]: newValue };
-        
-        if (['laborCost'].includes(name)) {
-          const partsTotal = updated.partsUsed.reduce((sum, part) => sum + (part.totalCost || 0), 0);
-          updated.totalCost = (updated.laborCost || 0) + partsTotal;
-        }
-        
-        return updated;
-      });
+    }
+    
+    setFormData(prev => {
+      const updated = { ...prev, [name]: newValue };
+      
+      // Recalculate totals if labor cost changes
+      if (name === 'laborCost') {
+        const partsTotal = updated.partsUsed.reduce((sum, part) => sum + (part.totalCost || 0), 0);
+        updated.totalCost = (updated.laborCost || 0) + partsTotal;
+      }
+      
+      return updated;
+    });
+  };
+
+  const handleInputChange = (field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Signature handling functions
+  const clearSignature = (type: 'customer' | 'technician') => {
+    if (type === 'customer' && customerSigRef.current) {
+      customerSigRef.current.clear();
+      setFormData(prev => ({ ...prev, customerSignature: '' }));
+    } else if (type === 'technician' && technicianSigRef.current) {
+      technicianSigRef.current.clear();
+      setFormData(prev => ({ ...prev, technicianSignature: '' }));
+    }
+  };
+
+  const saveSignature = (type: 'customer' | 'technician') => {
+    if (type === 'customer' && customerSigRef.current) {
+      const dataUrl = customerSigRef.current.getTrimmedCanvas().toDataURL('image/png');
+      setFormData(prev => ({ ...prev, customerSignature: dataUrl }));
+      setShowCustomerSignature(false);
+    } else if (type === 'technician' && technicianSigRef.current) {
+      const dataUrl = technicianSigRef.current.getTrimmedCanvas().toDataURL('image/png');
+      setFormData(prev => ({ ...prev, technicianSignature: dataUrl }));
+      setShowTechnicianSignature(false);
     }
   };
 
@@ -410,10 +631,12 @@ export default function JobCardCreate() {
   const validateForm = (): boolean => {
     const errors: string[] = [];
     
-    if (!formData.opportunityId) errors.push('Opportunity is required');
+    if (!formData.opportunityId) errors.push('Opportunity ID is required');
     if (!formData.jobTitle.trim()) errors.push('Job title is required');
-    if (!formData.jobDescription.trim()) errors.push('Job description is required');
-    if (!formData.startDate) errors.push('Start date is required');
+    if (!formData.customerName.trim()) errors.push('Customer name is required');
+    if (!formData.regNumber.trim()) errors.push('Vehicle registration number is required');
+    if (!formData.acceptTerms) errors.push('Please accept terms and conditions');
+    if (!formData.acceptDiagnosticCharges) errors.push('Please accept diagnostic charges policy');
     
     if (errors.length > 0) {
       showToast(errors.join(', '), 'error');
@@ -439,198 +662,96 @@ export default function JobCardCreate() {
     if (!validateForm()) return;
     
     try {
-      setLoading(true);
+      setSubmitting(true);
       
+      // Prepare job card data
       const createData: CreateJobCardData = {
         opportunityId: formData.opportunityId,
         jobTitle: formData.jobTitle,
         jobDescription: formData.jobDescription,
-        assignedTo: formData.assignedTo || undefined
+        assignedTo: formData.assignedTo || undefined,
+        status: formData.status
       };
       
+      // Create job card
       const newJobCard = await jobCardService.createJobCard(createData);
       showToast('Job card created successfully!', 'success');
       
-      setTimeout(() => {
-        router.push(`/job-cards/`);
-      }, 100);
+      // Auto-transition to next stage if coming from workflow
+      if (source === 'workflow' && opportunityId) {
+        try {
+          await lifecycleIntegrationService.transitionToStage(
+            opportunityId,
+            'completion',
+            {
+              skipValidation: true,
+              metadata: {
+                autoTransition: true,
+                jobCardId: newJobCard._id || newJobCard.id,
+                triggeredBy: 'job-card-auto-creation'
+              }
+            }
+          );
+          showToast('Job card created! Moved to Completion stage.', 'success');
+        } catch (autoError) {
+          console.error('Auto-transition failed:', autoError);
+          showToast('Job card created, but auto-transition failed.', 'warning');
+        }
+      }
+      
+      // Navigate based on source
+      if (source === 'workflow' && workOrderId) {
+        router.push(`/orders/work-orders/${workOrderId}`);
+      } else if (newJobCard._id || newJobCard.id) {
+        router.push(`/job-cards/${newJobCard._id || newJobCard.id}`);
+      } else {
+        router.push('/job-cards');
+      }
       
     } catch (error: any) {
       console.error('Error creating job card:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
       showToast(`Failed to create job card: ${errorMessage}`, 'error');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
   const handleCancel = () => {
-    if (window.confirm('Are you sure you want to cancel? Unsaved changes will be lost.')) {
+    if (source === 'workflow' && workOrderId) {
+      router.push(`/orders/work-orders/${workOrderId}`);
+    } else {
       router.push('/job-cards');
     }
   };
 
-  useEffect(() => {
-    if (showOpportunityDropdown && opportunities.length === 0) {
-      loadOpportunities('', true);
-    }
-  }, [showOpportunityDropdown]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowOpportunityDropdown(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-// Fetch recent opportunities on mount (for better UX)
-  useEffect(() => {
-    const fetchRecentOpportunities = async () => {
-      try {
-        const response = await opportunityService.filterOpportunities({
-          page: 1,
-          limit: 20,
-          sort: '-createdAt',
-        });
-        
-        if (response?.data) {
-          setRecentOpportunities(response.data);
-        }
-      } catch (error) {
-        console.error('Error fetching recent opportunities:', error);
-      }
-    };
-    
-    fetchRecentOpportunities();
-  }, []);
-
-  const OpportunityDropdown = () => (
-    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-xl max-h-96 overflow-auto">
-      <div className="p-3 border-b bg-gray-50">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            value={opportunitySearch}
-            onChange={(e) => {
-              const value = e.target.value;
-              setOpportunitySearch(value);
-              debouncedSearchOpportunities(value);
-            }}
-            className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            placeholder="Type to search opportunities by customer, vehicle, or subject..."
-            autoFocus
-          />
-          {searching && (
-            <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-blue-600" />
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50/30 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading job card form...</p>
+          {opportunityId && (
+            <p className="text-sm text-gray-500 mt-2">Fetching opportunity: {opportunityId}</p>
           )}
         </div>
       </div>
-      
-      {searching && opportunities.length === 0 ? (
-        <div className="p-8 text-center">
-          <Loader2 className="h-6 w-6 animate-spin mx-auto text-blue-600 mb-3" />
-          <p className="text-sm text-gray-600">Searching opportunities...</p>
-        </div>
-      ) : opportunities.length === 0 ? (
-        <div className="p-6 text-center">
-          {opportunitySearch ? (
-            <>
-              <Search className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-600 mb-2">No matching opportunities found</p>
-              <p className="text-sm text-gray-500">Try searching by customer name, vehicle registration, or subject</p>
-            </>
-          ) : (
-            <>
-              <Package className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-600 mb-3">No recent opportunities found</p>
-              <button
-                type="button"
-                onClick={() => loadOpportunities('', true)}
-                className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Load Opportunities
-              </button>
-            </>
+    );
+  }
+
+    if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50/30 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading job card form...</p>
+          {opportunityId && (
+            <p className="text-sm text-gray-500 mt-2">Fetching opportunity: {opportunityId}</p>
           )}
         </div>
-      ) : (
-        <div className="py-2">
-          {opportunities.map((opp) => (
-            <button
-              key={opp._id}
-              type="button"
-              onClick={() => handleSelectOpportunity(opp)}
-              className="w-full text-left px-4 py-3 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none transition-colors border-b border-gray-100 last:border-b-0 group"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="font-medium text-gray-900 group-hover:text-blue-700 truncate">
-                    {opp.subject || 'Untitled Opportunity'}
-                  </div>
-                  <div className="text-sm text-gray-600 truncate">
-                    {opp.customer?.name || 'No customer'}
-                    {opp.customer?.companyName && ` • ${opp.customer.companyName}`}
-                  </div>
-                </div>
-                <div className="text-xs text-gray-500 whitespace-nowrap ml-2">
-                  {opp.createdAt ? format(new Date(opp.createdAt), 'MMM d') : 'N/A'}
-                </div>
-              </div>
-              
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {opp.vehicles?.[0]?.registrationNumber && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-xs">
-                    <Car className="h-3 w-3" />
-                    {opp.vehicles[0].registrationNumber}
-                  </span>
-                )}
-                
-                {opp.opportunityType && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs">
-                    <Tag className="h-3 w-3" />
-                    {opp.opportunityType}
-                  </span>
-                )}
-                
-                {opp.status && (
-                  <span className={`px-2 py-1 rounded-md text-xs font-medium ${
-                    opp.status === 'won' ? 'bg-green-100 text-green-800' :
-                    opp.status === 'lost' ? 'bg-red-100 text-red-800' :
-                    opp.status === 'new' ? 'bg-blue-100 text-blue-800' :
-                    'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {opp.status.replace(/_/g, ' ')}
-                  </span>
-                )}
-              </div>
-              
-              {opp.customer?.email || opp.customer?.phone ? (
-                <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
-                  {opp.customer?.email && (
-                    <span className="flex items-center gap-1 truncate">
-                      <Mail className="h-3 w-3" />
-                      {opp.customer.email}
-                    </span>
-                  )}
-                  {opp.customer?.phone && (
-                    <span className="flex items-center gap-1 truncate">
-                      <Phone className="h-3 w-3" />
-                      {opp.customer.phone}
-                    </span>
-                  )}
-                </div>
-              ) : null}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50/30">
@@ -641,7 +762,7 @@ export default function JobCardCreate() {
             <div className="flex items-center gap-3">
               <button
                 onClick={handleCancel}
-                disabled={loading}
+                disabled={submitting}
                 className="p-2 hover:bg-white/20 rounded-xl transition-colors backdrop-blur-sm"
               >
                 <ArrowLeft className="h-5 w-5 text-white" />
@@ -652,8 +773,13 @@ export default function JobCardCreate() {
               <div>
                 <h1 className="text-2xl font-bold text-white">Create Job Card</h1>
                 <p className="text-blue-100 text-sm">
-                  Create a new work order for service tasks
+                  {opportunity ? `For: ${opportunity.subject}` : 'Create a new work order for service tasks'}
                 </p>
+                {opportunityId && (
+                  <p className="text-blue-200 text-xs mt-1">
+                    Opportunity ID: {opportunityId.slice(-8)}
+                  </p>
+                )}
               </div>
             </div>
             
@@ -661,168 +787,254 @@ export default function JobCardCreate() {
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={loading}
+                disabled={submitting}
                 className="px-6 py-2 bg-white text-blue-600 font-semibold rounded-xl hover:bg-white/90 flex items-center gap-2 shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transition-all hover:shadow-xl"
               >
-                {loading ? (
+                {submitting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <CheckCircle className="h-4 w-4" />
                 )}
-                {loading ? 'Creating...' : 'Create Job Card'}
+                {submitting ? 'Creating...' : 'Create Job Card'}
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content - FIXED: Removed grid and simplified to single column */}
-      <div className="max-w-4xl mx-auto p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-6 border border-blue-100">
-          <form onSubmit={handleSubmit} className="space-y-8">
-            {/* Quick Templates */}
-            <div>
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Quick Templates</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {templates.map(template => (
-                  <button
-                    key={template.id}
-                    type="button"
-                    onClick={() => applyTemplate(template)}
-                    className="p-4 text-left border border-gray-200 rounded-xl hover:border-blue-300 hover:bg-blue-50/30 transition-all hover:scale-[1.02] bg-white"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <h4 className="font-medium text-gray-800">{template.title}</h4>
-                      <Clock className="h-4 w-4 text-gray-400" />
-                    </div>
-                    <p className="text-sm text-gray-600 mb-2">{template.description}</p>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-500">{template.estimatedHours} hrs</span>
-                      <span className="text-blue-600 font-medium">
-                        {template.parts.length} part{template.parts.length !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                  </button>
-                ))}
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto p-4">
+        {/* Opportunity Info Banner */}
+        {opportunity && (
+          <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-gray-800">Opportunity Information</h3>
+                <p className="text-sm text-gray-600">
+                  {opportunity.subject} • {opportunity.customer?.name}
+                  {opportunity.customer?.companyName && ` • ${opportunity.customer.companyName}`}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-1 rounded-md text-xs font-medium ${
+                  opportunity.status === 'won' ? 'bg-green-100 text-green-800' :
+                  opportunity.status === 'lost' ? 'bg-red-100 text-red-800' :
+                  opportunity.status === 'new' ? 'bg-blue-100 text-blue-800' :
+                  'bg-yellow-100 text-yellow-800'
+                }`}>
+                  {opportunity.status?.replace(/_/g, ' ')}
+                </span>
+                <button
+                  onClick={autoPopulateFromOpportunity}
+                  className="inline-flex items-center gap-2 px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  Refresh Data
+                </button>
               </div>
             </div>
+          </div>
+        )}
 
-            {/* Opportunity Selection - FIXED */}
+        <div className="bg-white rounded-2xl shadow-xl p-6 border border-blue-100">
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Customer & Vehicle Information */}
             <div>
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Select Opportunity</h2>
-              <div className="space-y-4">
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowOpportunityDropdown(!showOpportunityDropdown);
-                      if (!showOpportunityDropdown && opportunities.length === 0) {
-                        loadOpportunities('', true);
-                      }
-                    }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl text-left hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors flex items-center justify-between bg-white"
-                    disabled={searching}
-                  >
-                    {selectedOpportunity ? (
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900">{selectedOpportunity.subject}</div>
-                        <div className="text-sm text-gray-600">
-                          {selectedOpportunity.customer?.name}
-                          {selectedOpportunity.customer?.companyName && ` • ${selectedOpportunity.customer.companyName}`}
+              <h2 className="text-lg font-bold text-gray-800 mb-4">Customer & Vehicle Information</h2>
+              
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Customer Information */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <UserIcon className="h-5 w-5 text-blue-600" />
+                      <h4 className="font-semibold text-gray-800">Customer Information</h4>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                        <input
+                          type="text"
+                          name="customerName"
+                          value={formData.customerName}
+                          onChange={handleChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Customer name"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Phone No. *</label>
+                          <input
+                            type="text"
+                            name="customerPhone"
+                            value={formData.customerPhone}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Phone number"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                          <input
+                            type="email"
+                            name="customerEmail"
+                            value={formData.customerEmail}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Email address"
+                          />
                         </div>
                       </div>
-                    ) : (
-                      <span className="text-gray-500">
-                        {searching ? 'Searching opportunities...' : 'Search and select an opportunity...'}
-                      </span>
-                    )}
-                    {searching ? (
-                      <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-                    ) : (
-                      <ChevronDown className="h-5 w-5 text-gray-400" />
-                    )}
-                  </button>
-                  {showOpportunityDropdown && <OpportunityDropdown />}
-                </div>
-
-                {/* Customer & Vehicle Information */}
-                {selectedOpportunity && (
-                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      
                       <div>
-                        <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                          <UserIcon className="h-4 w-4" />
-                          Customer Details
-                        </h4>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-600">Name:</span>
-                            <span className="font-medium">{selectedOpportunity.customer?.name || 'N/A'}</span>
-                          </div>
-                          {selectedOpportunity.customer?.companyName && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-600">Company:</span>
-                              <span className="font-medium">{selectedOpportunity.customer.companyName}</span>
-                            </div>
-                          )}
-                          {selectedOpportunity.customer?.email && (
-                            <div className="flex items-center gap-2">
-                              <Mail className="h-3 w-3 text-gray-400" />
-                              <span className="text-gray-600">{selectedOpportunity.customer.email}</span>
-                            </div>
-                          )}
-                          {selectedOpportunity.customer?.phone && (
-                            <div className="flex items-center gap-2">
-                              <Phone className="h-3 w-3 text-gray-400" />
-                              <span className="text-gray-600">{selectedOpportunity.customer.phone}</span>
-                            </div>
-                          )}
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Job Card Owner</label>
+                        <input
+                          type="text"
+                          name="jobCardOwner"
+                          value={formData.jobCardOwner}
+                          onChange={handleChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Job card owner"
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Residence</label>
+                          <input
+                            type="text"
+                            name="customerResidence"
+                            value={formData.customerResidence}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Residence"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Source</label>
+                          <select
+                            name="customerSource"
+                            value={formData.customerSource}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="None">None</option>
+                            <option value="Walk-in">Walk-in</option>
+                            <option value="Referral">Referral</option>
+                            <option value="Online">Online</option>
+                            <option value="Phone">Phone</option>
+                          </select>
                         </div>
                       </div>
-
-                      <div>
-                        <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                          <Car className="h-4 w-4" />
-                          Vehicle Details
-                        </h4>
-                        {vehicleDetails ? (
-                          <div className="space-y-2 text-sm">
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-600">Vehicle:</span>
-                              <span className="font-medium">
-                                {vehicleDetails.make} {vehicleDetails.model}
-                              </span>
-                            </div>
-                            {vehicleDetails.registrationNumber && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-gray-600">Reg No:</span>
-                                <span className="font-medium">{vehicleDetails.registrationNumber}</span>
-                              </div>
-                            )}
-                            {vehicleDetails.year && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-gray-600">Year:</span>
-                                <span className="font-medium">{vehicleDetails.year}</span>
-                              </div>
-                            )}
-                            {vehicleDetails.vin && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-gray-600">VIN:</span>
-                                <span className="font-medium text-xs">{vehicleDetails.vin}</span>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-gray-500 text-sm">No vehicle details available</p>
-                        )}
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Other</label>
+                          <input
+                            type="text"
+                            name="customerOther"
+                            value={formData.customerOther}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Other information"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Occupation</label>
+                          <input
+                            type="text"
+                            name="customerOccupation"
+                            value={formData.customerOccupation}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Occupation"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
-                )}
+
+                  {/* Car Details */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CarIcon className="h-5 w-5 text-blue-600" />
+                      <h4 className="font-semibold text-gray-800">Car Details</h4>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Reg Number *</label>
+                        <input
+                          type="text"
+                          name="regNumber"
+                          value={formData.regNumber}
+                          onChange={handleChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Registration number"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Car Model</label>
+                          <input
+                            type="text"
+                            name="carModel"
+                            value={formData.carModel}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Car model"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">YOM</label>
+                          <input
+                            type="text"
+                            name="yom"
+                            value={formData.yom}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Year of manufacture"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Mileage</label>
+                          <input
+                            type="text"
+                            name="mileage"
+                            value={formData.mileage}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Mileage"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Car Make</label>
+                          <input
+                            type="text"
+                            name="carMake"
+                            value={formData.carMake}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Car make"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Rest of the form remains the same... */}
             {/* Job Details Section */}
             <div>
               <h2 className="text-lg font-bold text-gray-800 mb-4">Job Details</h2>
@@ -836,7 +1048,7 @@ export default function JobCardCreate() {
                     name="jobTitle"
                     value={formData.jobTitle}
                     onChange={handleChange}
-                    placeholder="e.g., Front Brake Replacement & Inspection"
+                    placeholder="e.g., Headlight Replacement & AFS Calibration"
                     className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
                     required
                   />
@@ -850,7 +1062,7 @@ export default function JobCardCreate() {
                     name="jobDescription"
                     value={formData.jobDescription}
                     onChange={handleChange}
-                    rows={6}
+                    rows={4}
                     placeholder="Provide detailed description of work to be performed..."
                     className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none resize-none"
                     required
@@ -895,270 +1107,1222 @@ export default function JobCardCreate() {
               </div>
             </div>
 
-            {/* Assignment & Settings */}
+            {/* Functionality Testing Section */}
             <div>
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Assignment & Settings</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Assignment Section */}
-                <div>
-                  <h3 className="font-semibold text-gray-700 mb-3">Assignment</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Assign Technician
-                      </label>
-                      <div className="relative">
-                        <select
-                          name="assignedTo"
-                          value={formData.assignedTo}
-                          onChange={handleChange}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none appearance-none"
-                          disabled={loadingTechnicians}
-                        >
-                          <option value="">Unassigned</option>
-                          {technicians.map(tech => (
-                            <option key={tech.id} value={tech.id}>
-                              {tech.name} ({tech.email})
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
-                      </div>
-                    </div>
-
-                    {selectedTechnician && (
-                      <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
-                            {selectedTechnician.name.charAt(0)}
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900">{selectedTechnician.name}</div>
-                            <div className="text-sm text-gray-600">{selectedTechnician.email}</div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+              <h2 className="text-lg font-bold text-gray-800 mb-4">Functionality Testing</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Column 1 */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">High beam functionality</label>
+                    <select
+                      name="highBeamFunctionality"
+                      value={formData.highBeamFunctionality}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Low beam functionality</label>
+                    <select
+                      name="lowBeamFunctionality"
+                      value={formData.lowBeamFunctionality}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Turn signal functionality</label>
+                    <select
+                      name="turnSignalFunctionality"
+                      value={formData.turnSignalFunctionality}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Fog light functionality (if applicable)</label>
+                    <select
+                      name="fogLightFunctionality"
+                      value={formData.fogLightFunctionality}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Brake lights functionality</label>
+                    <select
+                      name="brakeLightsFunctionality"
+                      value={formData.brakeLightsFunctionality}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
-
-                {/* Settings Section */}
-                <div>
-                  <h3 className="font-semibold text-gray-700 mb-3">Settings</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Priority
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {priorityOptions.map((option) => (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => setFormData(prev => ({ ...prev, priority: option.value as any }))}
-                            className={`px-3 py-2.5 text-sm font-medium rounded-lg border transition-all flex items-center justify-center gap-2 ${
-                              formData.priority === option.value
-                                ? `${option.color} border-blue-500 ring-2 ring-blue-200`
-                                : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-                            }`}
-                          >
-                            <span>{option.icon}</span>
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Status
-                      </label>
-                      <div className="relative">
-                        <select
-                          name="status"
-                          value={formData.status}
-                          onChange={handleChange}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none appearance-none"
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="completed">Completed</option>
-                          <option value="cancelled">Cancelled</option>
-                        </select>
-                        <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
-                      </div>
-                    </div>
+                
+                {/* Column 2 */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Parking Light functionality</label>
+                    <select
+                      name="parkingLightFunctionality"
+                      value={formData.parkingLightFunctionality}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Condition of rear lights</label>
+                    <select
+                      name="conditionOfRearLights"
+                      value={formData.conditionOfRearLights}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">AFS functionality</label>
+                    <select
+                      name="afsFunctionality"
+                      value={formData.afsFunctionality}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Angel Rings functionality (if applicable)</label>
+                    <select
+                      name="angelRingsFunctionality"
+                      value={formData.angelRingsFunctionality}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Daytime running light functionality (if applicable)</label>
+                    <select
+                      name="daytimeRunningLightFunctionality"
+                      value={formData.daytimeRunningLightFunctionality}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Reverse light functionality</label>
+                    <select
+                      name="reverseLightFunctionality"
+                      value={formData.reverseLightFunctionality}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Desc Reverse Light</label>
+                    <textarea
+                      name="descReverseLight"
+                      value={formData.descReverseLight}
+                      onChange={handleChange}
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Description of reverse light condition"
+                    />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Parts & Cost */}
+            {/* Special Diagnosis Section */}
             <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-gray-800">Parts & Cost</h2>
-                <button
-                  type="button"
-                  onClick={addPart}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 rounded-xl text-sm font-medium hover:from-blue-100 hover:to-blue-200 shadow-sm border border-blue-200 hover:border-blue-300 transition-all"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Part
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                {formData.partsUsed.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Package className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-                    <h4 className="text-gray-700 font-medium mb-2">No parts added</h4>
-                    <p className="text-gray-500 mb-4">Add parts that will be used for this job</p>
+              <h2 className="text-lg font-bold text-gray-800 mb-4">Special Diagnosis</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left Column */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Front-end damages</label>
+                    <select
+                      name="frontEndDamages"
+                      value={formData.frontEndDamages}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
                   </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-gray-200">
-                          <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Part Number</th>
-                          <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Description</th>
-                          <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Qty</th>
-                          <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Unit Price</th>
-                          <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Total</th>
-                          <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {formData.partsUsed.map((part, index) => (
-                          <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                            <td className="py-3 px-4">
-                              <select
-                                value={part.partId}
-                                onChange={(e) => handleSelectPart(index, e.target.value)}
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none bg-white appearance-none min-w-[120px]"
-                              >
-                                <option value="">Select Part</option>
-                                {parts.map(p => (
-                                  <option key={p._id} value={p._id}>
-                                    {p.partNumber}
-                                  </option>
-                                ))}
-                              </select>
-                            </td>
-                            <td className="py-3 px-4">
-                              <input
-                                type="text"
-                                value={part.name}
-                                onChange={(e) => handlePartChange(index, 'name', e.target.value)}
-                                placeholder="Part description"
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none min-w-[200px]"
-                              />
-                            </td>
-                            <td className="py-3 px-4">
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Desc Front-end Damages</label>
+                    <textarea
+                      name="descFrontEndDamages"
+                      value={formData.descFrontEndDamages}
+                      onChange={handleChange}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Description of front-end damages"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Condition of current headlights</label>
+                    <select
+                      name="conditionOfCurrentHeadlights"
+                      value={formData.conditionOfCurrentHeadlights}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Desc. condition of headlights</label>
+                    <textarea
+                      name="descConditionOfHeadlights"
+                      value={formData.descConditionOfHeadlights}
+                      onChange={handleChange}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Description of headlight condition"
+                    />
+                  </div>
+                </div>
+                
+                {/* Right Column */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Existing wiring or electrical issues</label>
+                    <select
+                      name="existingWiringOrElectricalIssues"
+                      value={formData.existingWiringOrElectricalIssues}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Desc. existing wiring issue</label>
+                    <textarea
+                      name="descExistingWiringIssue"
+                      value={formData.descExistingWiringIssue}
+                      onChange={handleChange}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Description of wiring issues"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Condition of front grille</label>
+                    <select
+                      name="conditionOfFrontGrille"
+                      value={formData.conditionOfFrontGrille}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Desc. condition of front grille</label>
+                    <textarea
+                      name="descConditionOfFrontGrille"
+                      value={formData.descConditionOfFrontGrille}
+                      onChange={handleChange}
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Description of front grille condition"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Condition of front bumper</label>
+                    <select
+                      name="conditionOfFrontBumper"
+                      value={formData.conditionOfFrontBumper}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Desc. condition of front bumper</label>
+                    <textarea
+                      name="descConditionOfFrontBumper"
+                      value={formData.descConditionOfFrontBumper}
+                      onChange={handleChange}
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Description of front bumper condition"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Condition of fog lights (if applicable)</label>
+                    <select
+                      name="conditionOfFogLights"
+                      value={formData.conditionOfFogLights}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* AFS Headlight Inspection Section */}
+            <div>
+              <h2 className="text-lg font-bold text-gray-800 mb-4">AFS Headlight Inspection</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Adaptive Front Lighting System (AFS) headlights</label>
+                  <select
+                    name="adaptiveFrontLightingSystemHeadlights"
+                    value={formData.adaptiveFrontLightingSystemHeadlights}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    {inspectionOptions.map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">AFS functionality</label>
+                  <select
+                    name="afsFunctionalityInspection"
+                    value={formData.afsFunctionalityInspection}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    {inspectionOptions.map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">AFS leveling functionality</label>
+                  <select
+                    name="afsLevelingFunctionality"
+                    value={formData.afsLevelingFunctionality}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    {inspectionOptions.map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">AFS auto-adjustment functionality</label>
+                    <select
+                      name="afsAutoAdjustmentFunctionality"
+                      value={formData.afsAutoAdjustmentFunctionality}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">AFS manual switch on and off</label>
+                    <select
+                      name="afsManualSwitchOnAndOff"
+                      value={formData.afsManualSwitchOnAndOff}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Interior Inspection Section */}
+              <div>
+                <h2 className="text-lg font-bold text-gray-800 mb-4">Interior Inspection</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Condition of headlight switch (describe)</label>
+                    <input
+                      type="text"
+                      name="conditionOfHeadlightSwitch"
+                      value={formData.conditionOfHeadlightSwitch}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Describe headlight switch condition"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Functionality of headlight switch</label>
+                    <select
+                      name="functionalityOfHeadlightSwitch"
+                      value={formData.functionalityOfHeadlightSwitch}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Condition of dashboard controls and indicators</label>
+                    <input
+                      type="text"
+                      name="conditionOfDashboardControlsAndIndicators"
+                      value={formData.conditionOfDashboardControlsAndIndicators}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Describe dashboard controls condition"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Display of dashboard lights</label>
+                    <select
+                      name="displayOfDashboardLights"
+                      value={formData.displayOfDashboardLights}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Condition of interior roof lights (if applicable)</label>
+                    <select
+                      name="conditionOfInteriorRoofLights"
+                      value={formData.conditionOfInteriorRoofLights}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Condition of interior wiring (if applicable)</label>
+                    <select
+                      name="conditionOfInteriorWiring"
+                      value={formData.conditionOfInteriorWiring}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Condition of interior door lights (if applicable)</label>
+                    <select
+                      name="conditionOfInteriorDoorLights"
+                      value={formData.conditionOfInteriorDoorLights}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dashboard Warning Lights Section */}
+              <div>
+                <h2 className="text-lg font-bold text-gray-800 mb-4">Dashboard Warning Lights</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Check Engine Light</label>
+                    <select
+                      name="checkEngineLight"
+                      value={formData.checkEngineLight}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ABS Warning Light</label>
+                    <select
+                      name="absWarningLight"
+                      value={formData.absWarningLight}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Airbag Warning Light</label>
+                    <select
+                      name="airbagWarningLight"
+                      value={formData.airbagWarningLight}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Battery Warning Lights</label>
+                    <select
+                      name="batteryWarningLights"
+                      value={formData.batteryWarningLights}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">TPMS Warning Light</label>
+                    <select
+                      name="tpmsWarningLight"
+                      value={formData.tpmsWarningLight}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Other Warning Lights (specify)</label>
+                    <input
+                      type="text"
+                      name="otherWarningLights"
+                      value={formData.otherWarningLights}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Specify other warning lights"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Customer Requirements Section */}
+              <div>
+                <h2 className="text-lg font-bold text-gray-800 mb-4">Customer Requirements</h2>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Desired outcome and preference</label>
+                  <textarea
+                    name="desiredOutcomeAndPreference"
+                    value={formData.desiredOutcomeAndPreference}
+                    onChange={handleChange}
+                    rows={4}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                    placeholder="Enter customer's desired outcome and preferences..."
+                  />
+                  <button
+                    type="button"
+                    className="mt-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200 transition-colors"
+                    onClick={() => {
+                      const newRequirement = prompt('Enter new requirement:');
+                      if (newRequirement) {
+                        setFormData(prev => ({
+                          ...prev,
+                          desiredOutcomeAndPreference: prev.desiredOutcomeAndPreference 
+                            ? prev.desiredOutcomeAndPreference + '\n• ' + newRequirement
+                            : '• ' + newRequirement
+                        }));
+                      }
+                    }}
+                  >
+                    <Plus className="h-4 w-4 inline mr-1" />
+                    Add row
+                  </button>
+                </div>
+              </div>
+
+              {/* Legal Considerations Section */}
+              <div>
+                <h2 className="text-lg font-bold text-gray-800 mb-4">Legal Considerations</h2>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Compliance with local laws and regulations</label>
+                  <textarea
+                    name="complianceWithLocalLawsAndRegulations"
+                    value={formData.complianceWithLocalLawsAndRegulations}
+                    onChange={handleChange}
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                    placeholder="Enter legal compliance notes..."
+                  />
+                </div>
+              </div>
+
+              {/* Product Selection Section */}
+              <div>
+                <h2 className="text-lg font-bold text-gray-800 mb-4">Product Selection</h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Selected products</label>
+                    <textarea
+                      name="selectedProducts"
+                      value={formData.selectedProducts}
+                      onChange={handleChange}
+                      rows={3}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                      placeholder="Enter selected products..."
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Part of installation</label>
+                    <textarea
+                      name="partOfInstallation"
+                      value={formData.partOfInstallation}
+                      onChange={handleChange}
+                      rows={3}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                      placeholder="Enter installation parts..."
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Additional accessories needed</label>
+                    <textarea
+                      name="additionalAccessoriesNeeded"
+                      value={formData.additionalAccessoriesNeeded}
+                      onChange={handleChange}
+                      rows={3}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                      placeholder="Enter additional accessories needed..."
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Budget and Pricing Section */}
+              <div>
+                <h2 className="text-lg font-bold text-gray-800 mb-4">Budget and Pricing</h2>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Agreed-upon cost (including labor and parts)</label>
+                  <textarea
+                    name="agreedUponCost"
+                    value={formData.agreedUponCost}
+                    onChange={handleChange}
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                    placeholder="Enter agreed-upon cost details..."
+                  />
+                </div>
+              </div>
+
+              {/* Installation Process Section */}
+              <div>
+                <h2 className="text-lg font-bold text-gray-800 mb-4">Installation Process</h2>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Complexity assessment and potential challenges</label>
+                  <textarea
+                    name="complexityAssessmentAndPotentialChallenges"
+                    value={formData.complexityAssessmentAndPotentialChallenges}
+                    onChange={handleChange}
+                    rows={4}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                    placeholder="Enter complexity assessment and potential challenges..."
+                  />
+                </div>
+              </div>
+
+              {/* Alignment and Calibration Section */}
+              <div>
+                <h2 className="text-lg font-bold text-gray-800 mb-4">Alignment and Calibration</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Headlight alignment and calibration</label>
+                    <select
+                      name="headlightAlignmentAndCalibration"
+                      value={formData.headlightAlignmentAndCalibration}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Additional steps or equipment needed</label>
+                    <select
+                      name="additionalStepsOrEquipmentNeeded"
+                      value={formData.additionalStepsOrEquipmentNeeded}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {inspectionOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Assignment & Settings */}
+              <div>
+                <h2 className="text-lg font-bold text-gray-800 mb-4">Assignment & Settings</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Assignment Section */}
+                  <div>
+                    <h3 className="font-semibold text-gray-700 mb-3">Assignment</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Assign Technician
+                        </label>
+                        <div className="relative">
+                          <select
+                            name="assignedTo"
+                            value={formData.assignedTo}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none appearance-none"
+                          >
+                            <option value="">Unassigned</option>
+                            {technicians.map(tech => (
+                              <option key={tech.id} value={tech.id}>
+                                {tech.name} ({tech.email})
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+                        </div>
+                      </div>
+
+                      {selectedTechnician && (
+                        <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
+                              {selectedTechnician.name?.charAt(0) || selectedTechnician.email?.charAt(0) || 'T'}
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900">{selectedTechnician.name}</div>
+                              <div className="text-sm text-gray-600">{selectedTechnician.email}</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Settings Section */}
+                  <div>
+                    <h3 className="font-semibold text-gray-700 mb-3">Settings</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Priority
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {priorityOptions.map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => handleInputChange('priority', option.value)}
+                              className={`px-3 py-2.5 text-sm font-medium rounded-lg border transition-all flex items-center justify-center gap-2 ${
+                                formData.priority === option.value
+                                  ? `${option.color} border-blue-500 ring-2 ring-blue-200`
+                                  : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                              }`}
+                            >
+                              <span>{option.icon}</span>
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Status
+                        </label>
+                        <div className="relative">
+                          <select
+                            name="status"
+                            value={formData.status}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none appearance-none"
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                          </select>
+                          <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Parts & Cost */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-gray-800">Parts & Cost</h2>
+                  <button
+                    type="button"
+                    onClick={addPart}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 rounded-xl text-sm font-medium hover:from-blue-100 hover:to-blue-200 shadow-sm border border-blue-200 hover:border-blue-300 transition-all"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Part
+                  </button>
+                </div>
+                
+                <div className="space-y-4">
+                  {formData.partsUsed.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Package className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                      <h4 className="text-gray-700 font-medium mb-2">No parts added</h4>
+                      <p className="text-gray-500 mb-4">Add parts that will be used for this job</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-gray-200">
+                            <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Part Number</th>
+                            <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Description</th>
+                            <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Qty</th>
+                            <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Unit Price</th>
+                            <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Total</th>
+                            <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {formData.partsUsed.map((part, index) => (
+                            <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                              <td className="py-3 px-4">
+                                <select
+                                  value={part.partId}
+                                  onChange={(e) => handleSelectPart(index, e.target.value)}
+                                  className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none bg-white appearance-none min-w-[120px]"
+                                >
+                                  <option value="">Select Part</option>
+                                  {parts.map(p => (
+                                    <option key={p._id} value={p._id}>
+                                      {p.partNumber}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="py-3 px-4">
+                                <input
+                                  type="text"
+                                  value={part.name}
+                                  onChange={(e) => handlePartChange(index, 'name', e.target.value)}
+                                  placeholder="Part description"
+                                  className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none min-w-[200px]"
+                                />
+                              </td>
+                              <td className="py-3 px-4">
+                                <input
+                                  type="number"
+                                  value={part.quantity}
+                                  onChange={(e) => handlePartChange(index, 'quantity', parseInt(e.target.value) || 1)}
+                                  min="1"
+                                  className="w-20 px-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none"
+                                />
+                              </td>
+                              <td className="py-3 px-4">
+                                <input
+                                  type="number"
+                                  value={part.unitPrice}
+                                  onChange={(e) => handlePartChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                  min="0"
+                                  step="0.01"
+                                  className="w-32 px-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none"
+                                />
+                              </td>
+                              <td className="py-3 px-4 font-medium">
+                                {jobCardService.formatCurrency(part.totalCost)}
+                              </td>
+                              <td className="py-3 px-4">
+                                <button
+                                  type="button"
+                                  onClick={() => removePart(index)}
+                                  className="p-2 hover:bg-red-50 rounded-lg text-red-500 hover:text-red-600 transition-colors"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      
+                      <div className="mt-6 pt-6 border-t border-gray-200">
+                        <div className="flex justify-end">
+                          <div className="w-64 space-y-3">
+                            <div>
+                              <label className="block text-sm text-gray-600 mb-1">
+                                Labor Cost (KES)
+                              </label>
                               <input
                                 type="number"
-                                value={part.quantity}
-                                onChange={(e) => handlePartChange(index, 'quantity', parseInt(e.target.value) || 1)}
-                                min="1"
-                                className="w-20 px-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none"
-                              />
-                            </td>
-                            <td className="py-3 px-4">
-                              <input
-                                type="number"
-                                value={part.unitPrice}
-                                onChange={(e) => handlePartChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                name="laborCost"
+                                value={formData.laborCost}
+                                onChange={handleChange}
                                 min="0"
                                 step="0.01"
-                                className="w-32 px-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none"
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none"
                               />
-                            </td>
-                            <td className="py-3 px-4 font-medium">
-                              {jobCardService.formatCurrency(part.totalCost)}
-                            </td>
-                            <td className="py-3 px-4">
-                              <button
-                                type="button"
-                                onClick={() => removePart(index)}
-                                className="p-2 hover:bg-red-50 rounded-lg text-red-500 hover:text-red-600 transition-colors"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    
-                    <div className="mt-6 pt-6 border-t border-gray-200">
-                      <div className="flex justify-end">
-                        <div className="w-64 space-y-3">
-                          <div>
-                            <label className="block text-sm text-gray-600 mb-1">
-                              Labor Cost (KES)
-                            </label>
-                            <input
-                              type="number"
-                              name="laborCost"
-                              value={formData.laborCost}
-                              onChange={handleChange}
-                              min="0"
-                              step="0.01"
-                              className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-none"
-                            />
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Parts Total:</span>
-                            <span className="font-medium">{jobCardService.formatCurrency(totals.partsTotal)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Labor Cost:</span>
-                            <span className="font-medium">{jobCardService.formatCurrency(formData.laborCost)}</span>
-                          </div>
-                          <div className="pt-3 border-t border-gray-200">
-                            <div className="flex justify-between font-semibold">
-                              <span>Total Estimate:</span>
-                              <span className="text-blue-600">{jobCardService.formatCurrency(totals.totalCost)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Parts Total:</span>
+                              <span className="font-medium">{jobCardService.formatCurrency(totals.partsTotal)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Labor Cost:</span>
+                              <span className="font-medium">{jobCardService.formatCurrency(formData.laborCost)}</span>
+                            </div>
+                            <div className="pt-3 border-t border-gray-200">
+                              <div className="flex justify-between font-semibold">
+                                <span>Total Estimate:</span>
+                                <span className="text-blue-600">{jobCardService.formatCurrency(totals.totalCost)}</span>
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Submit Section */}
-            <div className="pt-6 border-t border-gray-200">
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  disabled={loading}
-                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors"
-                >
-                  Cancel
-                </button>
-                
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-8 py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 text-white font-semibold rounded-xl hover:from-blue-700 hover:via-indigo-700 hover:to-purple-800 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="h-4 w-4" />
-                      Create Job Card
-                    </>
                   )}
-                </button>
+                </div>
               </div>
-            </div>
+
+              {/* Terms and Signatures */}
+              <div>
+                <h2 className="text-lg font-bold text-gray-800 mb-4">Terms & Signatures</h2>
+                <div className="bg-white rounded-2xl shadow-xl border p-6">
+                  
+                  {/* Dashboard Warning Notice */}
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="font-medium text-yellow-800 mb-1">NOTICE</h4>
+                        <p className="text-sm text-yellow-700">
+                          If your vehicle has dashboard warning lights/errors, additional diagnostic charges may apply 
+                          for error code reading/clearing.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Acceptance Checkboxes */}
+                  <div className="space-y-4 mb-6">
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        id="acceptDiagnosticCharges"
+                        checked={formData.acceptDiagnosticCharges}
+                        onChange={(e) => handleInputChange('acceptDiagnosticCharges', e.target.checked)}
+                        className="mt-1"
+                        required
+                      />
+                      <label htmlFor="acceptDiagnosticCharges" className="text-sm text-gray-700">
+                        I understand that dashboard error diagnosis/clearing incurs additional charges as per the service rate card *
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        id="acceptTerms"
+                        checked={formData.acceptTerms}
+                        onChange={(e) => handleInputChange('acceptTerms', e.target.checked)}
+                        className="mt-1"
+                        required
+                      />
+                      <label htmlFor="acceptTerms" className="text-sm text-gray-700">
+                        I accept the Terms and Conditions of Eagle Lights Automotive LTD *
+                      </label>
+                    </div>
+                  </div>
+                  
+                  {/* Signatures */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Customer Signature *
+                        </label>
+                        {formData.customerSignature && (
+                          <button
+                            type="button"
+                            onClick={() => clearSignature('customer')}
+                            className="text-xs text-red-600 hover:text-red-800"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      
+                      {showCustomerSignature ? (
+                        <div className="space-y-3">
+                          <div className="border border-gray-300 rounded-lg bg-white p-2">
+                            <SignatureCanvas
+                              ref={customerSigRef}
+                              penColor="black"
+                              canvasProps={{
+                                width: 400,
+                                height: 150,
+                                className: 'w-full h-32 border rounded bg-white'
+                              }}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => saveSignature('customer')}
+                              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                            >
+                              Save Signature
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowCustomerSignature(false)}
+                              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => setShowCustomerSignature(true)}
+                          className="h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                        >
+                          {formData.customerSignature ? (
+                            <div className="text-center p-2">
+                              <img 
+                                src={formData.customerSignature} 
+                                alt="Customer Signature" 
+                                className="h-20 mx-auto object-contain"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">Click to change signature</p>
+                            </div>
+                          ) : (
+                            <div className="text-center">
+                              <FileSignature className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                              <p className="text-sm text-gray-600">Click to sign</p>
+                              <p className="text-xs text-gray-500">Customer signature</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Technician Signature
+                        </label>
+                        {formData.technicianSignature && (
+                          <button
+                            type="button"
+                            onClick={() => clearSignature('technician')}
+                            className="text-xs text-red-600 hover:text-red-800"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      
+                      {showTechnicianSignature ? (
+                        <div className="space-y-3">
+                          <div className="border border-gray-300 rounded-lg bg-white p-2">
+                            <SignatureCanvas
+                              ref={technicianSigRef}
+                              penColor="black"
+                              canvasProps={{
+                                width: 400,
+                                height: 150,
+                                className: 'w-full h-32 border rounded bg-white'
+                              }}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => saveSignature('technician')}
+                              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                            >
+                              Save Signature
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowTechnicianSignature(false)}
+                              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => setShowTechnicianSignature(true)}
+                          className="h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                        >
+                          {formData.technicianSignature ? (
+                            <div className="text-center p-2">
+                              <img 
+                                src={formData.technicianSignature} 
+                                alt="Technician Signature" 
+                                className="h-20 mx-auto object-contain"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">Click to change signature</p>
+                            </div>
+                          ) : (
+                            <div className="text-center">
+                              <FileSignature className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                              <p className="text-sm text-gray-600">Click to sign</p>
+                              <p className="text-xs text-gray-500">Technician signature</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Submit Section */}
+              <div className="pt-6 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    disabled={submitting}
+                    className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="px-8 py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 text-white font-semibold rounded-xl hover:from-blue-700 hover:via-indigo-700 hover:to-purple-800 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4" />
+                        Create Job Card
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
           </form>
         </div>
       </div>

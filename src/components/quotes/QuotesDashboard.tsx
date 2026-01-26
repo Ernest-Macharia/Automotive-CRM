@@ -306,7 +306,7 @@ export default function QuotesDashboard() {
               <p className="text-blue-100 mt-1">Create, manage, and track customer quotes</p>
             </div>
             
-            <div className="flex gap-3">
+            {/* <div className="flex gap-3">
               <button
                 onClick={handleRefresh}
                 disabled={refreshing}
@@ -322,7 +322,7 @@ export default function QuotesDashboard() {
                 <Plus className="h-5 w-5" />
                 New Quote
               </Link>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>

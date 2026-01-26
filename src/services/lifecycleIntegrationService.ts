@@ -1089,26 +1089,40 @@ export class LifecycleIntegrationService {
   ): Promise<any> {
     try {
       const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
+      const packageType = lifecycle.packageType;
       
-      // Find the stage
-      const stageIndex = lifecycle.stages?.findIndex((s: any) => s.stage === stage);
-      if (stageIndex === -1) {
-        throw new Error(`Stage ${stage} not found in lifecycle`);
+      // For sales orders, when quote is completed, auto-create invoice
+      if (packageType === 'sales_order' && stage === 'quote') {
+        // First complete the quote stage
+        const result = await lifecycleService.transitionToStage(opportunityId, 'invoice', {
+          metadata: {
+            ...data,
+            previousStageCompleted: stage,
+            completedAt: new Date().toISOString()
+          }
+        });
+        
+        // Then auto-create invoice
+        await this.autoCreateInvoiceForSalesOrder(opportunityId);
+        
+        return {
+          success: true,
+          message: `Quote completed and invoice auto-created`,
+          stage: 'invoice',
+          autoCreated: true
+        };
       }
       
-      // Since we can't directly update the lifecycle, we'll transition to the next stage
-      // after marking current as complete in our local state
-      const pattern = lifecycle.packageType === 'work_order' 
+      // Original logic for other stages
+      const pattern = packageType === 'work_order' 
         ? WORKFLOW_PATTERNS.WORK_ORDER 
         : WORKFLOW_PATTERNS.SALES_ORDER;
       
       const currentIndex = pattern.indexOf(stage);
       
-      // If this is the current stage and we should auto-transition
       if (lifecycle.currentStage === stage && currentIndex < pattern.length - 1) {
         const nextStage = pattern[currentIndex + 1];
-        return await this.transitionToStage(opportunityId, nextStage, { 
-          skipValidation: true,
+        return await lifecycleService.transitionToStage(opportunityId, nextStage, { 
           metadata: {
             ...data,
             previousStageCompleted: stage,
@@ -1117,8 +1131,6 @@ export class LifecycleIntegrationService {
         });
       }
       
-      // If we're not auto-transitioning, just update our local understanding
-      // In a real app, you'd want to save this to your database
       return {
         success: true,
         message: `Stage ${stage} marked as completed`,
@@ -1251,6 +1263,12 @@ export class LifecycleIntegrationService {
       // Perform transition
       const result = await lifecycleService.transitionToStage(opportunityId, targetStage, options);
       
+      // =========== AUTO-CREATE INVOICE LOGIC ===========
+      if (targetStage === 'invoice' && packageType === 'sales_order') {
+        await this.autoCreateInvoiceForSalesOrder(opportunityId);
+      }
+      // =================================================
+      
       return {
         success: true,
         message: `Transitioned from ${currentStage} to ${targetStage}`,
@@ -1259,6 +1277,92 @@ export class LifecycleIntegrationService {
       };
     } catch (error) {
       console.error('Error transitioning to stage:', error);
+      throw error;
+    }
+  }
+
+  async autoCreateInvoiceForSalesOrder(opportunityId: string): Promise<any> {
+    try {
+      console.log('Auto-creating invoice for sales order...');
+      
+      // Get sales order for this opportunity
+      const salesOrders = await salesOrderService.getSalesOrdersByOpportunity(opportunityId);
+      if (salesOrders.length === 0) {
+        console.error('No sales order found for opportunity');
+        return null;
+      }
+      
+      const salesOrder = salesOrders[0];
+      
+      // Check if invoice already exists and is properly linked
+      if (salesOrder.invoiceId) {
+        console.log('Invoice already exists:', salesOrder.invoiceId);
+        
+        // If it's just an ID string, fetch the full invoice object
+        if (typeof salesOrder.invoiceId === 'string') {
+          try {
+            const invoice = await invoiceService.getInvoiceById(salesOrder.invoiceId);
+            return invoice;
+          } catch (error) {
+            console.error('Error fetching existing invoice:', error);
+          }
+        }
+        
+        return salesOrder.invoiceId;
+      }
+      
+      // Get quote for the sales order
+      if (!salesOrder.quoteId) {
+        console.error('No quote found for sales order');
+        return null;
+      }
+      
+      const quoteId = typeof salesOrder.quoteId === 'object' 
+        ? salesOrder.quoteId._id 
+        : salesOrder.quoteId;
+      
+      const quote = await quoteService.getQuoteById(quoteId);
+      
+      // Auto-create invoice from quote data
+      const invoiceData = {
+        opportunityId,
+        salesOrderId: salesOrder._id || salesOrder.id,
+        quoteId,
+        invoiceNumber: `INV-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`,
+        items: quote.items?.map(item => ({
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          total: item.total
+        })) || [],
+        subtotal: quote.subtotal || salesOrder.subtotal,
+        tax: quote.tax || salesOrder.tax,
+        totalAmount: quote.totalAmount || salesOrder.totalAmount,
+        status: 'draft',
+        issueDate: new Date().toISOString(),
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        notes: `Auto-generated from quote ${quote.quoteNumber}`,
+        paymentTerms: 'Due within 30 days'
+      };
+      
+      console.log('Creating invoice with data:', invoiceData);
+      
+      // Create the invoice
+      const invoice = await invoiceService.createInvoice(invoiceData);
+      
+      console.log('Invoice created:', invoice);
+      
+      // IMPORTANT: Update sales order with invoice ID
+      const updatedSalesOrder = await salesOrderService.updateSalesOrder(salesOrder._id || salesOrder.id, {
+        invoiceId: invoice._id || invoice.id
+      });
+      
+      console.log('Sales order updated with invoice ID:', updatedSalesOrder);
+      
+      // Return the full invoice object
+      return invoice;
+    } catch (error) {
+      console.error('Error auto-creating invoice:', error);
       throw error;
     }
   }
@@ -1980,8 +2084,8 @@ async autoTransitionOnPreChecklistComplete(
     
     if (packageType === 'sales_order') {
       const salesDescriptions: Record<string, string> = {
-        'quote': 'Prepare sales quotation for customer approval',
-        'invoice': 'Generate sales invoice and track payment'
+        'quote': 'Sales quotation for customer approval',
+        'invoice': 'Sales invoice and track payment'
       };
       return salesDescriptions[stage] || descriptions[stage] || 'Process stage';
     }
@@ -2060,16 +2164,14 @@ async autoTransitionOnPreChecklistComplete(
     const configs: Record<string, any> = {
       'quote': {
         label: 'Sales Quote',
-        description: 'Prepare sales quotation',
+        description: 'Sales quotation',
         icon: '📄',
-        required: true,
         skippable: false
       },
       'invoice': {
         label: 'Sales Invoice',
-        description: 'Generate sales invoice',
+        description: 'Sales invoice',
         icon: '💰',
-        required: true,
         skippable: false
       }
     };
