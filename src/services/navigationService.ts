@@ -23,6 +23,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/vehicles', label: 'Vehicles', icon: 'Truck', permission: 'vehicles.read' },
   { href: '/job-cards', label: 'Job Cards', icon: 'ClipboardList', permission: 'jobcards.read' },
   { href: '/settings', label: 'Settings', icon: 'Settings', permission: 'settings.manage' },
+  { href: '/hr-portal', label: 'HR Portal', icon: 'Users', permission: 'hr.dashboard.view' },
 ];
 
 export class NavigationService {

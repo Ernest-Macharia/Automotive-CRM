@@ -1,0 +1,1098 @@
+import { apiClient } from '@/lib/api/client';
+
+// ==================== TYPES ====================
+
+export interface LeaveAction {
+  action: 'approved' | 'denied' | 'pending';
+  comments?: string;
+  hrUserId?: string;
+  date: string;
+  leavePeriod?: string;
+  days?: number;
+}
+
+export interface LeaveBalance {
+  employeeId: string;
+  name: string;
+  department: string;
+  position: string;
+  email: string;
+  leaveRecords: any[];
+  pendingActions: LeaveAction[];
+  totalLeaveAccrued: number;
+  totalLeaveUsed: number;
+  currentLeaveBalance: number;
+  profileId: string;
+}
+
+export interface PerformanceReview {
+  reviewDate: string;
+  reviewer: string;
+  rating: number;
+  comments?: string;
+  achievements: string[];
+  areasForImprovement: string[];
+  actionPlan?: string;
+  completed: boolean;
+}
+
+export interface PerformancePlan {
+  id: string;
+  _id?: string;
+  employee: any;
+  employeeProfile?: any;
+  title: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  goals: string[];
+  reviewFrequency: string;
+  reviews: PerformanceReview[];
+  status: 'draft' | 'active' | 'completed' | 'terminated';
+  hrManager: any;
+  hrManagerNotes?: string;
+  employeeFeedback?: string;
+  active: boolean;
+  outcome?: 'improved' | 'terminated' | 'transferred' | 'extended' | 'pending';
+  completionDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IncidentReport {
+  id: string;
+  _id?: string;
+  title: string;
+  description: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  status: 'open' | 'investigating' | 'resolved' | 'closed';
+  involvedEmployees: any[];
+  location?: string;
+  incidentDate: string;
+  reportedDate: string;
+  reporter: any;
+  investigationNotes?: string;
+  correctiveActions: string[];
+  category?: 'safety' | 'harassment' | 'misconduct' | 'discrimination' | 'theft' | 'damage' | 'other';
+  witnesses: string[];
+  evidenceUrls: string[];
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CompanyPolicy {
+  id: string;
+  _id?: string;
+  title: string;
+  description: string;
+  documentUrl: string;
+  version: string;
+  category: 'hr' | 'finance' | 'operations' | 'safety' | 'it' | 'general' | 'code_of_conduct' | 'leave' | 'attendance';
+  effectiveDate: string;
+  reviewDate?: string;
+  approvedBy: string;
+  applicableDepartments: string[];
+  applicablePositions: string[];
+  active: boolean;
+  views: number;
+  previousVersion?: string;
+  mandatoryAcknowledgement: boolean;
+  acknowledgementDeadline?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WelfareProgram {
+  id: string;
+  _id?: string;
+  title: string;
+  description: string;
+  category: 'health' | 'financial' | 'education' | 'recreational' | 'support' | 'family' | 'wellness' | 'mental_health' | 'fitness';
+  startDate: string;
+  endDate?: string;
+  budget: number;
+  coordinator: any;
+  eligibleDepartments: string[];
+  eligiblePositions: string[];
+  participants: any[];
+  successMetrics: string[];
+  feedback?: string;
+  active: boolean;
+  utilizedBudget: number;
+  location?: string;
+  frequency: 'once' | 'monthly' | 'quarterly' | 'annually' | 'ongoing';
+  maxParticipants?: number;
+  currentParticipants: number;
+  registrationDeadline?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RecruitmentCandidate {
+  id: string;
+  _id?: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  positionApplied: string;
+  department: string;
+  resumeUrl: string;
+  coverLetterUrl?: string;
+  status: 'screening' | 'phone_interview' | 'technical_interview' | 'hr_interview' | 'final_interview' | 'background_check' | 'offer_pending' | 'offered' | 'accepted' | 'rejected' | 'withdrawn';
+  appliedDate: string;
+  source: 'linkedin' | 'website' | 'referral' | 'job_board' | 'agency' | 'campus' | 'social_media' | 'career_fair';
+  currentCompany?: string;
+  currentPosition?: string;
+  expectedSalary?: number;
+  noticePeriod?: string;
+  skills: string[];
+  qualifications: string[];
+  yearsOfExperience?: number;
+  overallRating?: number;
+  recruiterNotes?: string;
+  assignedRecruiter?: any;
+  offerDetails?: string;
+  offerDate?: string;
+  acceptanceDate?: string;
+  startDate?: string;
+  active: boolean;
+  rejectionReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmployeeContract {
+  id: string;
+  _id?: string;
+  employeeId: string;
+  firstName: string;
+  lastName: string;
+  department: string;
+  position: string;
+  contractType?: string;
+  contractStartDate?: string;
+  contractEndDate?: string;
+  employmentStatus?: string;
+  contractDocumentUrl?: string;
+  probationEndDate?: string;
+  onProbation?: boolean;
+  user?: any;
+  reportingManager?: any;
+}
+
+export interface HrDashboardStats {
+  totalEmployees: number;
+  activePerformancePlans: number;
+  openIncidents: number;
+  activePolicies: number;
+  activeWelfarePrograms: number;
+  activeCandidates: number;
+  expiringContracts: number;
+  lowLeaveBalance: number;
+}
+
+export interface HrAlert {
+  type: 'danger' | 'warning' | 'info';
+  message: string;
+  priority: 'high' | 'medium' | 'low';
+  action: string;
+}
+
+export interface HrDashboard {
+  statistics: HrDashboardStats;
+  alerts: HrAlert[];
+  recentIncidents: IncidentReport[];
+  upcomingReviews: PerformancePlan[];
+}
+
+export interface RecruitmentStats {
+  total: number;
+  screening: number;
+  interviewing: number;
+  background_check: number;
+  offer_pending: number;
+  offered: number;
+  hired: number;
+  rejected: number;
+}
+
+export interface RecruitmentPipeline {
+  statistics: RecruitmentStats;
+  candidates: RecruitmentCandidate[];
+}
+
+export interface CreatePerformancePlanData {
+  employee: string;
+  title: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  goals: string[];
+  reviewFrequency?: string;
+  reviews?: PerformanceReview[];
+  status?: 'draft' | 'active' | 'completed' | 'terminated';
+  hrManagerNotes?: string;
+}
+
+export interface CreateIncidentReportData {
+  title: string;
+  description: string;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
+  incidentDate: string;
+  location?: string;
+  involvedEmployees?: string[];
+  category?: 'safety' | 'harassment' | 'misconduct' | 'discrimination' | 'theft' | 'damage' | 'other';
+  witnesses?: string[];
+  correctiveActions?: string[];
+}
+
+export interface CreatePolicyData {
+  title: string;
+  description: string;
+  documentUrl: string;
+  version?: string;
+  category: 'hr' | 'finance' | 'operations' | 'safety' | 'it' | 'general' | 'code_of_conduct' | 'leave' | 'attendance';
+  effectiveDate: string;
+  approvedBy: string;
+  applicableDepartments?: string[];
+  applicablePositions?: string[];
+  mandatoryAcknowledgement?: boolean;
+  acknowledgementDeadline?: string;
+}
+
+export interface CreateWelfareProgramData {
+  title: string;
+  description: string;
+  category: 'health' | 'financial' | 'education' | 'recreational' | 'support' | 'family' | 'wellness';
+  startDate: string;
+  endDate?: string;
+  budget: number;
+  eligibleDepartments?: string[];
+  eligiblePositions?: string[];
+  frequency?: string;
+  location?: string;
+  maxParticipants?: number;
+  registrationDeadline?: string;
+}
+
+export interface CreateRecruitmentCandidateData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  positionApplied: string;
+  department: string;
+  resumeUrl: string;
+  coverLetterUrl?: string;
+  source?: string;
+  currentCompany?: string;
+  currentPosition?: string;
+  expectedSalary?: number;
+  noticePeriod?: string;
+  skills?: string[];
+  qualifications?: string[];
+  yearsOfExperience?: number;
+}
+
+export interface LeaveActionData {
+  action: 'approved' | 'denied' | 'pending';
+  comments?: string;
+  leavePeriod?: string;
+  days?: number;
+}
+
+export interface UpdateEmployeeHrInfoData {
+  hrNotes?: string;
+  lastPerformanceReview?: string;
+  nextPerformanceReview?: string;
+  probationEndDate?: string;
+  onProbation?: boolean;
+  employmentStatus?: string;
+  currentSalary?: number;
+  salaryBand?: string;
+  lastPromotionDate?: string;
+  disciplinaryActions?: string[];
+  yearsOfService?: number;
+}
+
+export interface EmployeeHrDetails {
+  profile: any;
+  hrData: {
+    performancePlans: PerformancePlan[];
+    incidentReports: IncidentReport[];
+    leaveHistory: LeaveAction[];
+    disciplinaryActions: string[];
+    probationStatus: {
+      onProbation: boolean;
+      probationEndDate?: string;
+    };
+    salaryInfo: {
+      currentSalary?: number;
+      salaryBand?: string;
+      lastPromotionDate?: string;
+    };
+  };
+}
+
+// ==================== HR SERVICE ====================
+
+class HrService {
+  private basePath = '/hr';
+
+  /**
+   * Get HR dashboard
+   * GET /api/v1/hr/dashboard
+   */
+  async getDashboard(): Promise<HrDashboard> {
+    try {
+      const response = await apiClient.get<any>(`${this.basePath}/dashboard`);
+      return this.normalizeDashboard(response);
+    } catch (error) {
+      console.error('Error fetching HR dashboard:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all leave requests
+   * GET /api/v1/hr/leaves
+   */
+  async getAllLeaves(status?: string, department?: string): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (status) params.append('status', status);
+      if (department) params.append('department', department);
+      
+      const url = `${this.basePath}/leaves${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await apiClient.get<any[]>(url);
+      return response.map(item => this.normalizeLeaveData(item));
+    } catch (error) {
+      console.error('Error fetching leaves:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Approve/Deny leave request
+   * POST /api/v1/hr/leaves/{profileId}/action
+   */
+  async handleLeaveAction(profileId: string, data: LeaveActionData): Promise<{ message: string; profile: any }> {
+    try {
+      const response = await apiClient.post<LeaveActionData, any>(
+        `${this.basePath}/leaves/${profileId}/action`, 
+        data
+      );
+      return response;
+    } catch (error) {
+      console.error('Error handling leave action:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get employee contracts
+   * GET /api/v1/hr/contracts
+   */
+  async getAllContracts(status?: string): Promise<EmployeeContract[]> {
+    try {
+      const params = new URLSearchParams();
+      if (status) params.append('status', status);
+      
+      const url = `${this.basePath}/contracts${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await apiClient.get<any[]>(url);
+      return response.map(contract => this.normalizeContract(contract));
+    } catch (error) {
+      console.error('Error fetching contracts:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create performance improvement plan
+   * POST /api/v1/hr/performance-plans/{employeeId}
+   */
+  async createPerformancePlan(employeeId: string, data: CreatePerformancePlanData): Promise<{ message: string; plan: PerformancePlan }> {
+    try {
+      const response = await apiClient.post<CreatePerformancePlanData, any>(
+        `${this.basePath}/performance-plans/${employeeId}`, 
+        data
+      );
+      return {
+        message: response.message,
+        plan: this.normalizePerformancePlan(response.plan)
+      };
+    } catch (error) {
+      console.error('Error creating performance plan:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get performance plans
+   * GET /api/v1/hr/performance-plans
+   */
+  async getPerformancePlans(status?: string): Promise<PerformancePlan[]> {
+    try {
+      const params = new URLSearchParams();
+      if (status) params.append('status', status);
+      
+      const url = `${this.basePath}/performance-plans${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await apiClient.get<any[]>(url);
+      return response.map(plan => this.normalizePerformancePlan(plan));
+    } catch (error) {
+      console.error('Error fetching performance plans:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create incident report
+   * POST /api/v1/hr/incidents
+   */
+  async createIncidentReport(data: CreateIncidentReportData): Promise<{ message: string; report: IncidentReport }> {
+    try {
+      const response = await apiClient.post<CreateIncidentReportData, any>(
+        `${this.basePath}/incidents`, 
+        data
+      );
+      return {
+        message: response.message,
+        report: this.normalizeIncidentReport(response.report)
+      };
+    } catch (error) {
+      console.error('Error creating incident report:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get incident reports
+   * GET /api/v1/hr/incidents
+   */
+  async getIncidentReports(severity?: string, status?: string): Promise<IncidentReport[]> {
+    try {
+      const params = new URLSearchParams();
+      if (severity) params.append('severity', severity);
+      if (status) params.append('status', status);
+      
+      const url = `${this.basePath}/incidents${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await apiClient.get<any[]>(url);
+      return response.map(report => this.normalizeIncidentReport(report));
+    } catch (error) {
+      console.error('Error fetching incident reports:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create/Update policy
+   * POST /api/v1/hr/policies
+   */
+  async createPolicy(data: CreatePolicyData): Promise<{ message: string; policy: CompanyPolicy }> {
+    try {
+      const response = await apiClient.post<CreatePolicyData, any>(
+        `${this.basePath}/policies`, 
+        data
+      );
+      return {
+        message: response.message,
+        policy: this.normalizeCompanyPolicy(response.policy)
+      };
+    } catch (error) {
+      console.error('Error creating policy:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get company policies
+   * GET /api/v1/hr/policies
+   */
+  async getPolicies(category?: string, active?: boolean): Promise<CompanyPolicy[]> {
+    try {
+      const params = new URLSearchParams();
+      if (category) params.append('category', category);
+      if (active !== undefined) params.append('active', active.toString());
+      
+      const url = `${this.basePath}/policies${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await apiClient.get<any[]>(url);
+      return response.map(policy => this.normalizeCompanyPolicy(policy));
+    } catch (error) {
+      console.error('Error fetching policies:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create welfare program
+   * POST /api/v1/hr/welfare
+   */
+  async createWelfareProgram(data: CreateWelfareProgramData): Promise<{ message: string; program: WelfareProgram }> {
+    try {
+      const response = await apiClient.post<CreateWelfareProgramData, any>(
+        `${this.basePath}/welfare`, 
+        data
+      );
+      return {
+        message: response.message,
+        program: this.normalizeWelfareProgram(response.program)
+      };
+    } catch (error) {
+      console.error('Error creating welfare program:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get welfare programs
+   * GET /api/v1/hr/welfare
+   */
+  async getWelfarePrograms(active?: boolean): Promise<WelfareProgram[]> {
+    try {
+      const params = new URLSearchParams();
+      if (active !== undefined) params.append('active', active.toString());
+      
+      const url = `${this.basePath}/welfare${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await apiClient.get<any[]>(url);
+      return response.map(program => this.normalizeWelfareProgram(program));
+    } catch (error) {
+      console.error('Error fetching welfare programs:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add recruitment candidate
+   * POST /api/v1/hr/recruitment
+   */
+  async createRecruitmentCandidate(data: CreateRecruitmentCandidateData): Promise<{ message: string; candidate: RecruitmentCandidate }> {
+    try {
+      const response = await apiClient.post<CreateRecruitmentCandidateData, any>(
+        `${this.basePath}/recruitment`, 
+        data
+      );
+      return {
+        message: response.message,
+        candidate: this.normalizeRecruitmentCandidate(response.candidate)
+      };
+    } catch (error) {
+      console.error('Error adding recruitment candidate:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get recruitment pipeline
+   * GET /api/v1/hr/recruitment
+   */
+  async getRecruitmentPipeline(status?: string): Promise<RecruitmentPipeline> {
+    try {
+      const params = new URLSearchParams();
+      if (status) params.append('status', status);
+      
+      const url = `${this.basePath}/recruitment${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await apiClient.get<any>(url);
+      return {
+        statistics: response.statistics,
+        candidates: response.candidates.map((candidate: any) => this.normalizeRecruitmentCandidate(candidate))
+      };
+    } catch (error) {
+      console.error('Error fetching recruitment pipeline:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get employee leave balances
+   * GET /api/v1/hr/leave-balances
+   */
+  async getLeaveBalances(department?: string): Promise<LeaveBalance[]> {
+    try {
+      const params = new URLSearchParams();
+      if (department) params.append('department', department);
+      
+      const url = `${this.basePath}/leave-balances${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await apiClient.get<any[]>(url);
+      return response.map(balance => this.normalizeLeaveBalance(balance));
+    } catch (error) {
+      console.error('Error fetching leave balances:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get employee HR details
+   * GET /api/v1/hr/employees/{employeeId}
+   */
+  async getEmployeeDetails(employeeId: string): Promise<EmployeeHrDetails> {
+    try {
+      const response = await apiClient.get<any>(`${this.basePath}/employees/${employeeId}`);
+      return this.normalizeEmployeeHrDetails(response);
+    } catch (error) {
+      console.error('Error fetching employee HR details:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update employee HR information
+   * PUT /api/v1/hr/employees/{profileId}/hr-info
+   */
+  async updateEmployeeHrInfo(profileId: string, data: UpdateEmployeeHrInfoData): Promise<{ message: string; profile: any }> {
+    try {
+      const response = await apiClient.put<UpdateEmployeeHrInfoData, any>(
+        `${this.basePath}/employees/${profileId}/hr-info`, 
+        data
+      );
+      return response;
+    } catch (error) {
+      console.error('Error updating employee HR info:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get HR alerts
+   * GET /api/v1/hr/alerts
+   */
+  async getHrAlerts(): Promise<HrAlert[]> {
+    try {
+      const response = await apiClient.get<any[]>(`${this.basePath}/alerts`);
+      return response.map(alert => this.normalizeHrAlert(alert));
+    } catch (error) {
+      console.error('Error fetching HR alerts:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get employee attendance summary
+   * GET /api/v1/hr/attendance
+   */
+  async getAttendanceSummary(startDate?: string, endDate?: string): Promise<any> {
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      
+      const url = `${this.basePath}/attendance${params.toString() ? `?${params.toString()}` : ''}`;
+      return await apiClient.get<any>(url);
+    } catch (error) {
+      console.error('Error fetching attendance summary:', error);
+      throw error;
+    }
+  }
+
+  // ==================== HELPER METHODS ====================
+
+  private normalizeDashboard(data: any): HrDashboard {
+    return {
+      statistics: data.statistics,
+      alerts: data.alerts?.map((alert: any) => this.normalizeHrAlert(alert)) || [],
+      recentIncidents: data.recentIncidents?.map((incident: any) => this.normalizeIncidentReport(incident)) || [],
+      upcomingReviews: data.upcomingReviews?.map((review: any) => this.normalizePerformancePlan(review)) || [],
+    };
+  }
+
+  private normalizeLeaveData(data: any): any {
+    return {
+      employeeId: data.employeeId,
+      employeeName: data.employeeName,
+      department: data.department,
+      position: data.position,
+      email: data.email,
+      leaveRecords: data.leaveRecords,
+      leaveActions: data.leaveActions || [],
+      totalLeaveAccrued: data.totalLeaveAccrued,
+      totalLeaveUsed: data.totalLeaveUsed,
+      currentLeaveBalance: data.currentLeaveBalance,
+      profileId: data.profileId,
+      userId: data.userId,
+    };
+  }
+
+  private normalizeContract(data: any): EmployeeContract {
+    return {
+      id: data._id || data.id,
+      _id: data._id,
+      employeeId: data.employeeId,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      department: data.department,
+      position: data.position,
+      contractType: data.contractType,
+      contractStartDate: data.contractStartDate,
+      contractEndDate: data.contractEndDate,
+      employmentStatus: data.employmentStatus,
+      contractDocumentUrl: data.contractDocumentUrl,
+      probationEndDate: data.probationEndDate,
+      onProbation: data.onProbation,
+      user: data.user,
+      reportingManager: data.reportingManager,
+    };
+  }
+
+  private normalizePerformancePlan(data: any): PerformancePlan {
+    return {
+      id: data._id || data.id,
+      _id: data._id,
+      employee: data.employee,
+      employeeProfile: data.employeeProfile,
+      title: data.title,
+      description: data.description,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      goals: data.goals || [],
+      reviewFrequency: data.reviewFrequency,
+      reviews: data.reviews?.map((review: any) => this.normalizePerformanceReview(review)) || [],
+      status: data.status,
+      hrManager: data.hrManager,
+      hrManagerNotes: data.hrManagerNotes,
+      employeeFeedback: data.employeeFeedback,
+      active: data.active !== undefined ? data.active : true,
+      outcome: data.outcome,
+      completionDate: data.completionDate,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+    };
+  }
+
+  private normalizePerformanceReview(data: any): PerformanceReview {
+    return {
+      reviewDate: data.reviewDate,
+      reviewer: data.reviewer,
+      rating: data.rating,
+      comments: data.comments,
+      achievements: data.achievements || [],
+      areasForImprovement: data.areasForImprovement || [],
+      actionPlan: data.actionPlan,
+      completed: data.completed || false,
+    };
+  }
+
+  private normalizeIncidentReport(data: any): IncidentReport {
+    return {
+      id: data._id || data.id,
+      _id: data._id,
+      title: data.title,
+      description: data.description,
+      severity: data.severity,
+      status: data.status,
+      involvedEmployees: data.involvedEmployees || [],
+      location: data.location,
+      incidentDate: data.incidentDate,
+      reportedDate: data.reportedDate,
+      reporter: data.reporter,
+      investigationNotes: data.investigationNotes,
+      correctiveActions: data.correctiveActions || [],
+      category: data.category,
+      witnesses: data.witnesses || [],
+      evidenceUrls: data.evidenceUrls || [],
+      active: data.active !== undefined ? data.active : true,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+    };
+  }
+
+  private normalizeCompanyPolicy(data: any): CompanyPolicy {
+    return {
+      id: data._id || data.id,
+      _id: data._id,
+      title: data.title,
+      description: data.description,
+      documentUrl: data.documentUrl,
+      version: data.version,
+      category: data.category,
+      effectiveDate: data.effectiveDate,
+      reviewDate: data.reviewDate,
+      approvedBy: data.approvedBy,
+      applicableDepartments: data.applicableDepartments || [],
+      applicablePositions: data.applicablePositions || [],
+      active: data.active !== undefined ? data.active : true,
+      views: data.views || 0,
+      previousVersion: data.previousVersion,
+      mandatoryAcknowledgement: data.mandatoryAcknowledgement || false,
+      acknowledgementDeadline: data.acknowledgementDeadline,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+    };
+  }
+
+  private normalizeWelfareProgram(data: any): WelfareProgram {
+    return {
+      id: data._id || data.id,
+      _id: data._id,
+      title: data.title,
+      description: data.description,
+      category: data.category,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      budget: data.budget,
+      coordinator: data.coordinator,
+      eligibleDepartments: data.eligibleDepartments || [],
+      eligiblePositions: data.eligiblePositions || [],
+      participants: data.participants || [],
+      successMetrics: data.successMetrics || [],
+      feedback: data.feedback,
+      active: data.active !== undefined ? data.active : true,
+      utilizedBudget: data.utilizedBudget || 0,
+      location: data.location,
+      frequency: data.frequency,
+      maxParticipants: data.maxParticipants,
+      currentParticipants: data.currentParticipants || 0,
+      registrationDeadline: data.registrationDeadline,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+    };
+  }
+
+  private normalizeRecruitmentCandidate(data: any): RecruitmentCandidate {
+    return {
+      id: data._id || data.id,
+      _id: data._id,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email,
+      phone: data.phone,
+      positionApplied: data.positionApplied,
+      department: data.department,
+      resumeUrl: data.resumeUrl,
+      coverLetterUrl: data.coverLetterUrl,
+      status: data.status,
+      appliedDate: data.appliedDate,
+      source: data.source,
+      currentCompany: data.currentCompany,
+      currentPosition: data.currentPosition,
+      expectedSalary: data.expectedSalary,
+      noticePeriod: data.noticePeriod,
+      skills: data.skills || [],
+      qualifications: data.qualifications || [],
+      yearsOfExperience: data.yearsOfExperience,
+      overallRating: data.overallRating,
+      recruiterNotes: data.recruiterNotes,
+      assignedRecruiter: data.assignedRecruiter,
+      offerDetails: data.offerDetails,
+      offerDate: data.offerDate,
+      acceptanceDate: data.acceptanceDate,
+      startDate: data.startDate,
+      active: data.active !== undefined ? data.active : true,
+      rejectionReason: data.rejectionReason,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+    };
+  }
+
+  private normalizeLeaveBalance(data: any): LeaveBalance {
+    return {
+      employeeId: data.employeeId,
+      name: data.name,
+      department: data.department,
+      position: data.position,
+      email: data.email,
+      leaveRecords: data.leaveRecords || [],
+      pendingActions: data.pendingActions?.map((action: any) => this.normalizeLeaveAction(action)) || [],
+      totalLeaveAccrued: data.totalLeaveAccrued || 0,
+      totalLeaveUsed: data.totalLeaveUsed || 0,
+      currentLeaveBalance: data.currentLeaveBalance || 0,
+      profileId: data.profileId,
+    };
+  }
+
+  private normalizeLeaveAction(data: any): LeaveAction {
+    return {
+      action: data.action,
+      comments: data.comments,
+      hrUserId: data.hrUserId,
+      date: data.date,
+      leavePeriod: data.leavePeriod,
+      days: data.days,
+    };
+  }
+
+  private normalizeEmployeeHrDetails(data: any): EmployeeHrDetails {
+    return {
+      profile: data.profile,
+      hrData: {
+        performancePlans: data.hrData?.performancePlans?.map((plan: any) => this.normalizePerformancePlan(plan)) || [],
+        incidentReports: data.hrData?.incidentReports?.map((report: any) => this.normalizeIncidentReport(report)) || [],
+        leaveHistory: data.hrData?.leaveHistory?.map((action: any) => this.normalizeLeaveAction(action)) || [],
+        disciplinaryActions: data.hrData?.disciplinaryActions || [],
+        probationStatus: {
+          onProbation: data.hrData?.probationStatus?.onProbation || false,
+          probationEndDate: data.hrData?.probationStatus?.probationEndDate,
+        },
+        salaryInfo: {
+          currentSalary: data.hrData?.salaryInfo?.currentSalary,
+          salaryBand: data.hrData?.salaryInfo?.salaryBand,
+          lastPromotionDate: data.hrData?.salaryInfo?.lastPromotionDate,
+        },
+      },
+    };
+  }
+
+  private normalizeHrAlert(data: any): HrAlert {
+    return {
+      type: data.type,
+      message: data.message,
+      priority: data.priority,
+      action: data.action,
+    };
+  }
+
+  // ==================== UTILITY METHODS ====================
+
+  /**
+   * Get contract status based on dates
+   */
+  getContractStatus(contract: EmployeeContract): 'active' | 'expiring_soon' | 'expired' | 'unknown' {
+    if (!contract.contractEndDate) return 'unknown';
+    
+    const today = new Date();
+    const endDate = new Date(contract.contractEndDate);
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(today.getDate() + 30);
+    
+    if (endDate < today) return 'expired';
+    if (endDate <= thirtyDaysFromNow) return 'expiring_soon';
+    return 'active';
+  }
+
+  /**
+   * Format date for display
+   */
+  formatDate(dateString?: string, format: 'short' | 'long' = 'short'): string {
+    if (!dateString) return 'N/A';
+    
+    const date = new Date(dateString);
+    if (format === 'short') {
+      return date.toLocaleDateString();
+    } else {
+      return date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
+  }
+
+  /**
+   * Calculate days until contract expires
+   */
+  getDaysUntilExpiry(contractEndDate?: string): number | null {
+    if (!contractEndDate) return null;
+    
+    const today = new Date();
+    const endDate = new Date(contractEndDate);
+    const diffTime = endDate.getTime() - today.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  }
+
+  /**
+   * Get color for severity level
+   */
+  getSeverityColor(severity: string): string {
+    switch (severity) {
+      case 'critical': return 'bg-red-100 text-red-800';
+      case 'high': return 'bg-orange-100 text-orange-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'low': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  }
+
+  /**
+   * Get color for performance rating
+   */
+  getRatingColor(rating: number): string {
+    if (rating >= 4.5) return 'bg-green-100 text-green-800';
+    if (rating >= 3.5) return 'bg-blue-100 text-blue-800';
+    if (rating >= 2.5) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-red-100 text-red-800';
+  }
+
+  /**
+   * Get icon for performance rating
+   */
+  getRatingIcon(rating: number): string {
+    if (rating >= 4.5) return '⭐️⭐️⭐️⭐️⭐️';
+    if (rating >= 4) return '⭐️⭐️⭐️⭐️';
+    if (rating >= 3) return '⭐️⭐️⭐️';
+    if (rating >= 2) return '⭐️⭐️';
+    return '⭐️';
+  }
+
+  /**
+   * Get candidate status color
+   */
+  getCandidateStatusColor(status: string): string {
+    switch (status) {
+      case 'accepted': return 'bg-green-100 text-green-800';
+      case 'offered': return 'bg-blue-100 text-blue-800';
+      case 'interviewing': return 'bg-purple-100 text-purple-800';
+      case 'screening': return 'bg-yellow-100 text-yellow-800';
+      case 'rejected': return 'bg-red-100 text-red-800';
+      case 'withdrawn': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  }
+
+  /**
+   * Get alert priority color
+   */
+  getAlertPriorityColor(priority: string): string {
+    switch (priority) {
+      case 'high': return 'bg-red-100 text-red-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'low': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  }
+
+  /**
+   * Filter contracts by status
+   */
+  filterContractsByStatus(contracts: EmployeeContract[], status: 'active' | 'expiring_soon' | 'expired'): EmployeeContract[] {
+    return contracts.filter(contract => this.getContractStatus(contract) === status);
+  }
+
+  /**
+   * Sort contracts by expiry date
+   */
+  sortContractsByExpiry(contracts: EmployeeContract[], ascending: boolean = true): EmployeeContract[] {
+    return [...contracts].sort((a, b) => {
+      if (!a.contractEndDate) return 1;
+      if (!b.contractEndDate) return -1;
+      
+      const dateA = new Date(a.contractEndDate).getTime();
+      const dateB = new Date(b.contractEndDate).getTime();
+      
+      return ascending ? dateA - dateB : dateB - dateA;
+    });
+  }
+
+  /**
+   * Calculate total leave days for an employee
+   */
+  calculateTotalLeaveDays(leaveBalance: LeaveBalance): {
+    accrued: number;
+    used: number;
+    remaining: number;
+    pending: number;
+  } {
+    const pendingDays = leaveBalance.pendingActions.reduce((sum, action) => {
+      return action.action === 'pending' ? sum + (action.days || 0) : sum;
+    }, 0);
+    
+    return {
+      accrued: leaveBalance.totalLeaveAccrued,
+      used: leaveBalance.totalLeaveUsed,
+      remaining: leaveBalance.currentLeaveBalance,
+      pending: pendingDays,
+    };
+  }
+}
+
+export const hrService = new HrService();
