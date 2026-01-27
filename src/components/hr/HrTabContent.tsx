@@ -17,7 +17,7 @@ interface HRTabContentProps {
   searchTerm: string;
   router: any;
   formatDate: (dateString?: string) => string;
-  getContractStatus: (contract: EmployeeContract) => string; // Prop
+  getContractStatus: (contract: EmployeeContract) => string; 
   getContractStatusColor: (status: string) => string;
   getIncidentSeverityColor: (severity: string) => string;
   getCandidateStatusColor: (status: string) => string;
@@ -38,14 +38,13 @@ export default function HRTabContent({
   searchTerm,
   router,
   formatDate,
-  getContractStatus, // Now using the prop version
+  getContractStatus, 
   getContractStatusColor,
   getIncidentSeverityColor,
   getCandidateStatusColor,
   getWelfareIcon,
   getDaysUntil,
 }: HRTabContentProps) {
-  // Helper function - renamed to avoid conflict
   const getContractStatusFromService = (contract: EmployeeContract) => {
     return hrService.getContractStatus(contract);
   };
@@ -64,7 +63,6 @@ export default function HRTabContent({
 
     return (
       <div className="space-y-6">
-        {/* Recent Incidents */}
         {dashboardData?.recentIncidents && dashboardData.recentIncidents.length > 0 && (
           <div>
             <h3 className="text-sm font-semibold text-gray-900 mb-3">Recent Incidents</h3>
@@ -95,7 +93,6 @@ export default function HRTabContent({
           </div>
         )}
 
-        {/* Upcoming Reviews */}
         {dashboardData?.upcomingReviews && dashboardData.upcomingReviews.length > 0 && (
           <div>
             <h3 className="text-sm font-semibold text-gray-900 mb-3">Upcoming Performance Reviews</h3>
@@ -130,7 +127,6 @@ export default function HRTabContent({
           </div>
         )}
 
-        {/* Expiring Contracts */}
         <div>
           <h3 className="text-sm font-semibold text-gray-900 mb-3">Contracts Expiring Soon</h3>
           <div className="space-y-2">
@@ -252,7 +248,7 @@ export default function HRTabContent({
           </thead>
           <tbody>
             {filteredContracts.map((contract, index) => {
-              const status = getContractStatus(contract); // Using prop function
+              const status = getContractStatus(contract);
               const daysLeft = getDaysUntil(contract.contractEndDate);
               return (
                 <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
