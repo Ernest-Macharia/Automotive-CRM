@@ -498,7 +498,7 @@ export default function HRDashboardPage() {
                 <button
                   onClick={() => {
                     if (activeTab === 'overview') router.push('/hr/reports');
-                    else router.push(`/hr/${activeTab}/create`);
+                    else router.push(`/hr-portal/${activeTab}/create`);
                   }}
                   className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
