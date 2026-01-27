@@ -337,29 +337,36 @@ export default function HRDashboardPage() {
       label: 'Report Incident',
       icon: AlertTriangle,
       color: 'bg-red-500',
-      link: '/hr/incidents/create',
+      link: '/hr-portal/incidents/create',
       description: 'Report workplace incident'
     },
     {
       label: 'Add Policy',
       icon: FileText,
       color: 'bg-green-500',
-      link: '/hr/policies/create',
+      link: '/hr-portal/policies/create',
       description: 'Create company policy'
     },
     {
       label: 'Plan Welfare Program',
       icon: Heart,
       color: 'bg-pink-500',
-      link: '/hr/welfare/create',
+      link: '/hr-portal/welfare/create',
       description: 'Organize welfare activity'
     },
     {
       label: 'Add Candidate',
       icon: UserCheck,
       color: 'bg-orange-500',
-      link: '/hr/recruitment/create',
+      link: '/hr-portal/recruitment/create',
       description: 'Add recruitment candidate'
+    },
+    {
+      label: 'Employee Leaves',
+      icon: UserCheck,
+      color: 'bg-orange-500',
+      link: '/hr-portal/employeeleaves/create',
+      description: 'Add Leaves for Employees'
     }
   ];
 
