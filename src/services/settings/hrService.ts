@@ -1,7 +1,5 @@
 import { apiClient } from '@/lib/api/client';
 
-// ==================== TYPES ====================
-
 export interface LeaveAction {
   action: 'approved' | 'denied' | 'pending';
   comments?: string;
@@ -336,15 +334,9 @@ export interface EmployeeHrDetails {
   };
 }
 
-// ==================== HR SERVICE ====================
-
 class HrService {
   private basePath = '/hr';
 
-  /**
-   * Get HR dashboard
-   * GET /api/v1/hr/dashboard
-   */
   async getDashboard(): Promise<HrDashboard> {
     try {
       const response = await apiClient.get<any>(`${this.basePath}/dashboard`);
@@ -355,10 +347,6 @@ class HrService {
     }
   }
 
-  /**
-   * Get all leave requests
-   * GET /api/v1/hr/leaves
-   */
   async getAllLeaves(status?: string, department?: string): Promise<any[]> {
     try {
       const params = new URLSearchParams();
@@ -374,10 +362,6 @@ class HrService {
     }
   }
 
-  /**
-   * Approve/Deny leave request
-   * POST /api/v1/hr/leaves/{profileId}/action
-   */
   async handleLeaveAction(profileId: string, data: LeaveActionData): Promise<{ message: string; profile: any }> {
     try {
       const response = await apiClient.post<LeaveActionData, any>(
@@ -391,10 +375,6 @@ class HrService {
     }
   }
 
-  /**
-   * Get employee contracts
-   * GET /api/v1/hr/contracts
-   */
   async getAllContracts(status?: string): Promise<EmployeeContract[]> {
     try {
       const params = new URLSearchParams();
@@ -409,10 +389,6 @@ class HrService {
     }
   }
 
-  /**
-   * Create performance improvement plan
-   * POST /api/v1/hr/performance-plans/{employeeId}
-   */
   async createPerformancePlan(employeeId: string, data: CreatePerformancePlanData): Promise<{ message: string; plan: PerformancePlan }> {
     try {
       const response = await apiClient.post<CreatePerformancePlanData, any>(
@@ -429,10 +405,6 @@ class HrService {
     }
   }
 
-  /**
-   * Get performance plans
-   * GET /api/v1/hr/performance-plans
-   */
   async getPerformancePlans(status?: string): Promise<PerformancePlan[]> {
     try {
       const params = new URLSearchParams();
@@ -447,10 +419,6 @@ class HrService {
     }
   }
 
-  /**
-   * Create incident report
-   * POST /api/v1/hr/incidents
-   */
   async createIncidentReport(data: CreateIncidentReportData): Promise<{ message: string; report: IncidentReport }> {
     try {
       const response = await apiClient.post<CreateIncidentReportData, any>(
@@ -467,10 +435,6 @@ class HrService {
     }
   }
 
-  /**
-   * Get incident reports
-   * GET /api/v1/hr/incidents
-   */
   async getIncidentReports(severity?: string, status?: string): Promise<IncidentReport[]> {
     try {
       const params = new URLSearchParams();
@@ -486,10 +450,6 @@ class HrService {
     }
   }
 
-  /**
-   * Create/Update policy
-   * POST /api/v1/hr/policies
-   */
   async createPolicy(data: CreatePolicyData): Promise<{ message: string; policy: CompanyPolicy }> {
     try {
       const response = await apiClient.post<CreatePolicyData, any>(
@@ -506,10 +466,6 @@ class HrService {
     }
   }
 
-  /**
-   * Get company policies
-   * GET /api/v1/hr/policies
-   */
   async getPolicies(category?: string, active?: boolean): Promise<CompanyPolicy[]> {
     try {
       const params = new URLSearchParams();
@@ -525,10 +481,6 @@ class HrService {
     }
   }
 
-  /**
-   * Create welfare program
-   * POST /api/v1/hr/welfare
-   */
   async createWelfareProgram(data: CreateWelfareProgramData): Promise<{ message: string; program: WelfareProgram }> {
     try {
       const response = await apiClient.post<CreateWelfareProgramData, any>(
@@ -545,10 +497,6 @@ class HrService {
     }
   }
 
-  /**
-   * Get welfare programs
-   * GET /api/v1/hr/welfare
-   */
   async getWelfarePrograms(active?: boolean): Promise<WelfareProgram[]> {
     try {
       const params = new URLSearchParams();
@@ -563,10 +511,6 @@ class HrService {
     }
   }
 
-  /**
-   * Add recruitment candidate
-   * POST /api/v1/hr/recruitment
-   */
   async createRecruitmentCandidate(data: CreateRecruitmentCandidateData): Promise<{ message: string; candidate: RecruitmentCandidate }> {
     try {
       const response = await apiClient.post<CreateRecruitmentCandidateData, any>(
@@ -583,10 +527,6 @@ class HrService {
     }
   }
 
-  /**
-   * Get recruitment pipeline
-   * GET /api/v1/hr/recruitment
-   */
   async getRecruitmentPipeline(status?: string): Promise<RecruitmentPipeline> {
     try {
       const params = new URLSearchParams();
@@ -604,10 +544,6 @@ class HrService {
     }
   }
 
-  /**
-   * Get employee leave balances
-   * GET /api/v1/hr/leave-balances
-   */
   async getLeaveBalances(department?: string): Promise<LeaveBalance[]> {
     try {
       const params = new URLSearchParams();
@@ -622,10 +558,6 @@ class HrService {
     }
   }
 
-  /**
-   * Get employee HR details
-   * GET /api/v1/hr/employees/{employeeId}
-   */
   async getEmployeeDetails(employeeId: string): Promise<EmployeeHrDetails> {
     try {
       const response = await apiClient.get<any>(`${this.basePath}/employees/${employeeId}`);
@@ -636,10 +568,6 @@ class HrService {
     }
   }
 
-  /**
-   * Update employee HR information
-   * PUT /api/v1/hr/employees/{profileId}/hr-info
-   */
   async updateEmployeeHrInfo(profileId: string, data: UpdateEmployeeHrInfoData): Promise<{ message: string; profile: any }> {
     try {
       const response = await apiClient.put<UpdateEmployeeHrInfoData, any>(
@@ -653,10 +581,6 @@ class HrService {
     }
   }
 
-  /**
-   * Get HR alerts
-   * GET /api/v1/hr/alerts
-   */
   async getHrAlerts(): Promise<HrAlert[]> {
     try {
       const response = await apiClient.get<any[]>(`${this.basePath}/alerts`);
@@ -667,10 +591,6 @@ class HrService {
     }
   }
 
-  /**
-   * Get employee attendance summary
-   * GET /api/v1/hr/attendance
-   */
   async getAttendanceSummary(startDate?: string, endDate?: string): Promise<any> {
     try {
       const params = new URLSearchParams();
@@ -684,8 +604,6 @@ class HrService {
       throw error;
     }
   }
-
-  // ==================== HELPER METHODS ====================
 
   private normalizeDashboard(data: any): HrDashboard {
     return {
@@ -941,11 +859,6 @@ class HrService {
     };
   }
 
-  // ==================== UTILITY METHODS ====================
-
-  /**
-   * Get contract status based on dates
-   */
   getContractStatus(contract: EmployeeContract): 'active' | 'expiring_soon' | 'expired' | 'unknown' {
     if (!contract.contractEndDate) return 'unknown';
     
@@ -959,9 +872,6 @@ class HrService {
     return 'active';
   }
 
-  /**
-   * Format date for display
-   */
   formatDate(dateString?: string, format: 'short' | 'long' = 'short'): string {
     if (!dateString) return 'N/A';
     
@@ -978,9 +888,6 @@ class HrService {
     }
   }
 
-  /**
-   * Calculate days until contract expires
-   */
   getDaysUntilExpiry(contractEndDate?: string): number | null {
     if (!contractEndDate) return null;
     
@@ -990,9 +897,6 @@ class HrService {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
 
-  /**
-   * Get color for severity level
-   */
   getSeverityColor(severity: string): string {
     switch (severity) {
       case 'critical': return 'bg-red-100 text-red-800';
@@ -1003,9 +907,6 @@ class HrService {
     }
   }
 
-  /**
-   * Get color for performance rating
-   */
   getRatingColor(rating: number): string {
     if (rating >= 4.5) return 'bg-green-100 text-green-800';
     if (rating >= 3.5) return 'bg-blue-100 text-blue-800';
@@ -1013,9 +914,6 @@ class HrService {
     return 'bg-red-100 text-red-800';
   }
 
-  /**
-   * Get icon for performance rating
-   */
   getRatingIcon(rating: number): string {
     if (rating >= 4.5) return '⭐️⭐️⭐️⭐️⭐️';
     if (rating >= 4) return '⭐️⭐️⭐️⭐️';
@@ -1024,9 +922,6 @@ class HrService {
     return '⭐️';
   }
 
-  /**
-   * Get candidate status color
-   */
   getCandidateStatusColor(status: string): string {
     switch (status) {
       case 'accepted': return 'bg-green-100 text-green-800';
@@ -1039,9 +934,6 @@ class HrService {
     }
   }
 
-  /**
-   * Get alert priority color
-   */
   getAlertPriorityColor(priority: string): string {
     switch (priority) {
       case 'high': return 'bg-red-100 text-red-800';
@@ -1051,16 +943,10 @@ class HrService {
     }
   }
 
-  /**
-   * Filter contracts by status
-   */
   filterContractsByStatus(contracts: EmployeeContract[], status: 'active' | 'expiring_soon' | 'expired'): EmployeeContract[] {
     return contracts.filter(contract => this.getContractStatus(contract) === status);
   }
 
-  /**
-   * Sort contracts by expiry date
-   */
   sortContractsByExpiry(contracts: EmployeeContract[], ascending: boolean = true): EmployeeContract[] {
     return [...contracts].sort((a, b) => {
       if (!a.contractEndDate) return 1;
@@ -1073,9 +959,7 @@ class HrService {
     });
   }
 
-  /**
-   * Calculate total leave days for an employee
-   */
+
   calculateTotalLeaveDays(leaveBalance: LeaveBalance): {
     accrued: number;
     used: number;
