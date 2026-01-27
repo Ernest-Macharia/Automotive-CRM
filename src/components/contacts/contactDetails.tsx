@@ -24,11 +24,49 @@ import {
   TrendingUp,
   BarChart3,
   FileText,
-  History
+  History,
+  Briefcase,
+  Target,
+  ExternalLink,
+  Globe,
+  MapPin,
+  Tag,
+  DollarSign,
+  Activity
 } from 'lucide-react';
 import { contactService, Contact, CallLog, WhatsAppMessageLog } from '@/services/contactService';
+import { opportunityService, Opportunity } from '@/services/opportunityService';
 import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
+
+// Extended Contact interface for opportunity-based contacts
+interface OpportunityContact extends Contact {
+  engagementScore: number;
+  leadPriority: number;
+  lastContact: string;
+  address?: string;
+  website?: string;
+  jobTitle?: string;
+  department?: string;
+  tags: string[];
+  source: string;
+  assignedTo: any;
+  totalValue: number;
+  lifetimeValue: number;
+  lastPurchaseDate: string;
+  emailOptIn: boolean;
+  smsOptIn: boolean;
+  linkedinProfile?: string;
+  facebookProfile?: string;
+  companySize?: string;
+  industry?: string;
+  referredBy?: string;
+  lastActivityDate: string;
+  activityCount: number;
+  attachments: any[];
+  nextFollowUpDate?: string;
+  followUpNotes?: string;
+}
 
 interface ContactDetailsProps {
   contactId: string;
@@ -38,11 +76,12 @@ export default function ContactDetails({ contactId }: ContactDetailsProps) {
   const router = useRouter();
   const { showToast } = useToast();
   
-  const [contact, setContact] = useState<Contact | null>(null);
+  const [contact, setContact] = useState<OpportunityContact | null>(null);
+  const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [loading, setLoading] = useState(true);
   const [callHistory, setCallHistory] = useState<CallLog[]>([]);
   const [whatsappHistory, setWhatsappHistory] = useState<WhatsAppMessageLog[]>([]);
-  const [activeTab, setActiveTab] = useState<'overview' | 'calls' | 'whatsapp' | 'notes'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'calls' | 'whatsapp' | 'notes' | 'opportunity'>('overview');
   const [callStats, setCallStats] = useState({
     totalCalls: 0,
     totalDuration: 0,
@@ -54,29 +93,38 @@ export default function ContactDetails({ contactId }: ContactDetailsProps) {
   const loadContactData = async () => {
     try {
       setLoading(true);
-      const [contactData, historyData, statsData] = await Promise.all([
-        contactService.getContactById(contactId),
+      
+      // First try to load as opportunity-based contact
+      if (contactId.startsWith('opp-')) {
+        // This is an opportunity-based contact
+        const opportunityId = contactId.replace('opp-', '');
+        await loadOpportunityContact(opportunityId);
+      } else {
+        // Try to load as regular contact
+        try {
+          const contactData = await contactService.getContactById(contactId);
+          setContact(contactData as OpportunityContact);
+          
+          // Load opportunity if linked
+          if (contactData.opportunityId) {
+            await loadOpportunityData(contactData.opportunityId);
+          }
+        } catch (contactError) {
+          // If contact not found, try loading as opportunity
+          console.log('Contact not found, trying opportunity...');
+          await loadOpportunityContact(contactId);
+        }
+      }
+      
+      // Load additional data
+      const [historyData, statsData, calls] = await Promise.all([
         contactService.getWhatsAppHistory(contactId, 10),
-        contactService.getContactCallSummary(contactId)
+        contactService.getContactCallSummary(contactId),
+        contactService.getContactCallHistory(contactId)
       ]);
       
-      setContact(contactData);
       setWhatsappHistory(historyData);
-      
-      // Calculate engagement score
-      let score = 0;
-      if (contactData.email) score += 10;
-      if (contactData.phone) score += 10;
-      if (contactData.companyName) score += 5;
-      if (contactData.totalCalls > 0) score += 20;
-      if (contactData.totalWhatsAppSent > 0) score += 15;
-      if (contactData.totalWhatsAppReceived > 0) score += 25;
-      setEngagementScore(Math.min(score, 100));
-      
       setCallStats(statsData);
-      
-      // Load call history
-      const calls = await contactService.getContactCallHistory(contactId);
       setCallHistory(calls);
       
     } catch (error) {
@@ -84,6 +132,126 @@ export default function ContactDetails({ contactId }: ContactDetailsProps) {
       showToast('Failed to load contact details', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadOpportunityContact = async (opportunityId: string) => {
+    try {
+      const opportunityData = await opportunityService.getOpportunityById(opportunityId);
+      setOpportunity(opportunityData);
+      
+      // Convert opportunity to contact
+      const customer = opportunityData.customer;
+      const opportunityType = opportunityData.opportunityType || 'SERVICE';
+      
+      let contactType = 'lead';
+      if (opportunityType === 'SERVICE' || opportunityType === 'MAINTENANCE' || opportunityType === 'REPAIR') {
+        contactType = 'customer';
+      } else if (opportunityType === 'SALE') {
+        contactType = 'customer';
+      }
+      
+      const tier = opportunityData.leadScore?.tier || 'cold';
+      const isActive = opportunityData.status !== 'lost' && opportunityData.status !== 'non_progressive';
+      
+      // Calculate engagement score
+      let engagementScore = 0;
+      if (customer.email) engagementScore += 10;
+      if (customer.phone || customer.companyPhone) engagementScore += 10;
+      if (customer.companyName) engagementScore += 5;
+      if (opportunityData.status === 'won') engagementScore += 30;
+      if (tier === 'hot') engagementScore += 25;
+      if (tier === 'warm') engagementScore += 15;
+      if (opportunityData.leadScore?.totalScore && opportunityData.leadScore.totalScore > 70) engagementScore += 20;
+      engagementScore = Math.min(engagementScore, 100);
+      setEngagementScore(engagementScore);
+      
+      const contactData: OpportunityContact = {
+        _id: opportunityData._id || `opp-${opportunityData.id}`,
+        id: opportunityData.id,
+        name: customer.name || 'Unknown Customer',
+        email: customer.email || '',
+        phone: customer.phone || customer.companyPhone || '',
+        companyName: customer.companyName || '',
+        opportunityId: opportunityData._id,
+        opportunity: {
+          _id: opportunityData._id,
+          subject: opportunityData.subject,
+          type: opportunityData.type || 'individual',
+          status: opportunityData.status,
+          customer: customer
+        },
+        active: isActive,
+        type: contactType,
+        notes: opportunityData.notes || `Opportunity: ${opportunityData.subject}. Status: ${opportunityData.status}`,
+        whatsappEnabled: tier === 'hot' || tier === 'warm',
+        whatsappStatus: 'active',
+        customFields: {
+          leadScore: opportunityData.leadScore?.totalScore || 0,
+          leadTier: tier,
+          opportunitySource: opportunityData.source || 'unknown',
+          opportunityStatus: opportunityData.status,
+          opportunityType: opportunityType,
+          packageType: opportunityData.packageType,
+          lastStageChange: opportunityData.updatedAt,
+          hasVehicles: opportunityData.vehicles && opportunityData.vehicles.length > 0,
+          vehicleCount: opportunityData.vehicles?.length || 0,
+          totalValue: opportunityData.total || 0
+        },
+        whatsappMessages: [],
+        lastWhatsAppSent: undefined,
+        lastWhatsAppReceived: undefined,
+        totalWhatsAppSent: 0,
+        totalWhatsAppReceived: 0,
+        whatsappOptInDate: undefined,
+        whatsappOptOutDate: undefined,
+        callHistory: [],
+        totalCallDuration: 0,
+        totalCalls: 0,
+        lastCallDate: undefined,
+        createdAt: opportunityData.createdAt,
+        updatedAt: opportunityData.updatedAt,
+        engagementScore,
+        leadPriority: opportunityData.leadScore?.priority || 3,
+        lastContact: new Date().toISOString(),
+        address: customer.companyAddress || '',
+        website: '',
+        jobTitle: '',
+        department: '',
+        tags: [tier, opportunityType.toLowerCase()],
+        source: opportunityData.source || 'opportunity',
+        assignedTo: opportunityData.assignedTo || null,
+        totalValue: opportunityData.total || 0,
+        lifetimeValue: opportunityData.total || 0,
+        lastPurchaseDate: opportunityData.createdAt,
+        emailOptIn: true,
+        smsOptIn: true,
+        linkedinProfile: '',
+        facebookProfile: '',
+        companySize: '',
+        industry: '',
+        referredBy: '',
+        lastActivityDate: opportunityData.updatedAt,
+        activityCount: 0,
+        attachments: [],
+        nextFollowUpDate: '',
+        followUpNotes: ''
+      };
+      
+      setContact(contactData);
+      
+    } catch (error) {
+      console.error('Error loading opportunity contact:', error);
+      throw error;
+    }
+  };
+
+  const loadOpportunityData = async (opportunityId: string) => {
+    try {
+      const opportunityData = await opportunityService.getOpportunityById(opportunityId);
+      setOpportunity(opportunityData);
+    } catch (error) {
+      console.error('Error loading opportunity data:', error);
     }
   };
 
@@ -97,12 +265,19 @@ export default function ContactDetails({ contactId }: ContactDetailsProps) {
     if (!confirm('Are you sure you want to delete this contact?')) return;
     
     try {
-      await contactService.deleteContact(contactId);
-      showToast('Contact deleted successfully', 'success');
+      // Check if it's an opportunity-based contact
+      if (contactId.startsWith('opp-')) {
+        const opportunityId = contactId.replace('opp-', '');
+        await opportunityService.deleteOpportunity(opportunityId);
+        showToast('Opportunity deleted successfully', 'success');
+      } else {
+        await contactService.deleteContact(contactId);
+        showToast('Contact deleted successfully', 'success');
+      }
       router.push('/contacts');
     } catch (error) {
-      console.error('Error deleting contact:', error);
-      showToast('Failed to delete contact', 'error');
+      console.error('Error deleting:', error);
+      showToast('Failed to delete', 'error');
     }
   };
 
@@ -172,6 +347,26 @@ export default function ContactDetails({ contactId }: ContactDetailsProps) {
     return 'text-red-600 bg-red-50';
   };
 
+  const getOpportunityTypeColor = (type: string) => {
+    switch (type) {
+      case 'SERVICE': return 'bg-blue-100 text-blue-800';
+      case 'SALE': return 'bg-green-100 text-green-800';
+      case 'REPAIR': return 'bg-orange-100 text-orange-800';
+      case 'MAINTENANCE': return 'bg-purple-100 text-purple-800';
+      case 'INSPECTION': return 'bg-yellow-100 text-yellow-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getLeadTierColor = (tier: string) => {
+    switch (tier) {
+      case 'hot': return 'bg-red-100 text-red-800';
+      case 'warm': return 'bg-orange-100 text-orange-800';
+      case 'cold': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -197,6 +392,8 @@ export default function ContactDetails({ contactId }: ContactDetailsProps) {
     );
   }
 
+  const isOpportunityContact = contactId.startsWith('opp-') || contact.opportunityId;
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
@@ -211,12 +408,17 @@ export default function ContactDetails({ contactId }: ContactDetailsProps) {
             </Link>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-blue-600 font-bold text-lg">
-                {contact.name.charAt(0).toUpperCase()}
+                {contact.name?.charAt(0).toUpperCase() || '?'}
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">{contact.name}</h1>
+                <h1 className="text-xl font-bold text-white">{contact.name || 'Unnamed Contact'}</h1>
                 <p className="text-blue-100 text-sm">
-                  {contact.companyName || 'No company'} • {contact.type.charAt(0).toUpperCase() + contact.type.slice(1)}
+                  {contact.companyName || 'No company'} • {contact.type?.charAt(0).toUpperCase() + contact.type?.slice(1) || 'Unknown'}
+                  {contact.customFields?.leadTier && (
+                    <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium ${getLeadTierColor(contact.customFields.leadTier as string)}`}>
+                      {contact.customFields.leadTier as string}
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -275,26 +477,35 @@ export default function ContactDetails({ contactId }: ContactDetailsProps) {
                 <nav className="flex space-x-4 px-6" aria-label="Tabs">
                   {[
                     { id: 'overview', label: 'Overview', icon: Users },
+                    { id: 'opportunity', label: 'Opportunity', icon: Briefcase },
                     { id: 'calls', label: 'Call History', icon: PhoneCall },
                     { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
                     { id: 'notes', label: 'Notes', icon: FileText },
                   ].map((tab) => {
                     const Icon = tab.icon;
                     const isActive = activeTab === tab.id;
+                    const disabled = tab.id === 'opportunity' && !isOpportunityContact;
+                    
                     return (
                       <button
                         key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
+                        onClick={() => !disabled && setActiveTab(tab.id as any)}
+                        disabled={disabled}
                         className={`
                           flex items-center gap-2 px-4 py-3 text-sm font-medium rounded-t-lg border-b-2 transition-colors
                           ${isActive 
                             ? 'border-blue-500 text-blue-600' 
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            : disabled
+                              ? 'border-transparent text-gray-300 cursor-not-allowed'
+                              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                           }
                         `}
                       >
                         <Icon className="h-4 w-4" />
                         {tab.label}
+                        {tab.id === 'opportunity' && !isOpportunityContact && (
+                          <span className="text-xs text-gray-400">(N/A)</span>
+                        )}
                       </button>
                     );
                   })}
@@ -356,6 +567,34 @@ export default function ContactDetails({ contactId }: ContactDetailsProps) {
                             </p>
                           </div>
                         </div>
+
+                        {contact.address && (
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-white rounded-lg shadow-sm">
+                              <MapPin className="h-5 w-5 text-gray-500" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">Address</p>
+                              <p className="font-medium text-gray-900">
+                                {contact.address}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {contact.customFields?.opportunityType && (
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-white rounded-lg shadow-sm">
+                              <Tag className="h-5 w-5 text-gray-500" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">Opportunity Type</p>
+                              <p className="font-medium text-gray-900">
+                                {contact.customFields.opportunityType as string}
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -402,6 +641,24 @@ export default function ContactDetails({ contactId }: ContactDetailsProps) {
                               )}
                             </div>
                           </div>
+
+                          {contact.customFields?.leadTier && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-700">Lead Tier</span>
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${getLeadTierColor(contact.customFields.leadTier as string)}`}>
+                                {contact.customFields.leadTier as string}
+                              </span>
+                            </div>
+                          )}
+
+                          {contact.customFields?.leadScore && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-700">Lead Score</span>
+                              <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                {contact.customFields.leadScore as number}/100
+                              </span>
+                            </div>
+                          )}
                         </div>
                         
                         <div className="space-y-2">
@@ -417,9 +674,37 @@ export default function ContactDetails({ contactId }: ContactDetailsProps) {
                               style={{ width: `${engagementScore}%` }}
                             />
                           </div>
+                          
+                          {contact.customFields?.totalValue && (
+                            <div className="pt-4">
+                              <div className="flex items-center justify-between">
+                                <span className="text-gray-700">Opportunity Value</span>
+                                <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  ${(contact.customFields.totalValue as number).toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
+
+                    {/* Tags Card */}
+                    {contact.tags && contact.tags.length > 0 && (
+                      <div className="bg-white border border-gray-200 rounded-xl p-6">
+                        <h3 className="font-semibold text-gray-800 mb-4">Tags & Categories</h3>
+                        <div className="flex flex-wrap gap-2">
+                          {contact.tags.map((tag, index) => (
+                            <span
+                              key={index}
+                              className="px-3 py-1 bg-gradient-to-r from-blue-50 to-purple-50 text-blue-700 rounded-full text-xs font-medium"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Notes Card */}
                     {contact.notes && (
@@ -428,6 +713,143 @@ export default function ContactDetails({ contactId }: ContactDetailsProps) {
                         <p className="text-gray-700 whitespace-pre-wrap">{contact.notes}</p>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {activeTab === 'opportunity' && isOpportunityContact && (
+                  <div className="space-y-6">
+                    {/* Opportunity Header */}
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-semibold text-gray-800">Linked Opportunity</h3>
+                        {contact.opportunityId && (
+                          <Link
+                            href={`/opportunities/${contact.opportunityId}`}
+                            className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 font-medium inline-flex items-center gap-2 text-sm"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                            View Full Opportunity
+                          </Link>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <p className="text-sm text-gray-600">Subject</p>
+                          <p className="font-medium text-gray-900 text-lg">
+                            {contact.opportunity?.subject || 'No subject'}
+                          </p>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm text-gray-600">Type</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                                {contact.opportunity?.type || 'Unknown'}
+                              </span>
+                              {contact.customFields?.opportunityType && (
+                                <span className={`px-2 py-1 text-xs rounded ${getOpportunityTypeColor(contact.customFields.opportunityType as string)}`}>
+                                  {contact.customFields.opportunityType as string}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <p className="text-sm text-gray-600">Status</p>
+                            <span className={`px-2 py-1 text-xs rounded ${
+                              contact.opportunity?.status === 'won' 
+                                ? 'bg-green-100 text-green-800' 
+                                : contact.opportunity?.status === 'lost'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {contact.opportunity?.status?.replace(/_/g, ' ') || 'Unknown'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Opportunity Details */}
+                        {opportunity && (
+                          <div className="space-y-4 pt-4 border-t border-gray-200">
+                            {/* Vehicles */}
+                            {opportunity.vehicles && opportunity.vehicles.length > 0 && (
+                              <div>
+                                <h4 className="font-medium text-gray-700 mb-2">Vehicles ({opportunity.vehicles.length})</h4>
+                                <div className="space-y-2">
+                                  {opportunity.vehicles.map((vehicle, index) => (
+                                    <div key={index} className="bg-white rounded-lg p-3 border border-gray-200">
+                                      <p className="font-medium text-gray-900">
+                                        {vehicle.make} {vehicle.model} {vehicle.year && `(${vehicle.year})`}
+                                      </p>
+                                      {vehicle.registrationNumber && (
+                                        <p className="text-sm text-gray-600">Reg: {vehicle.registrationNumber}</p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Services/Products */}
+                            {opportunity.servicesProducts && opportunity.servicesProducts.length > 0 && (
+                              <div>
+                                <h4 className="font-medium text-gray-700 mb-2">Services & Products</h4>
+                                <div className="space-y-2">
+                                  {opportunity.servicesProducts.map((item, index) => (
+                                    <div key={index} className="bg-white rounded-lg p-3 border border-gray-200">
+                                      <div className="flex justify-between">
+                                        <span className="font-medium text-gray-900">{item.title}</span>
+                                        <span className="text-sm text-gray-600">${item.total}</span>
+                                      </div>
+                                      {item.description && (
+                                        <p className="text-sm text-gray-600 mt-1">{item.description}</p>
+                                      )}
+                                      <div className="flex gap-2 mt-2">
+                                        <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
+                                          {item.type}
+                                        </span>
+                                        <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
+                                          Qty: {item.quantity}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Financial Summary */}
+                            {(opportunity.subtotal || opportunity.total) && (
+                              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                                <h4 className="font-medium text-gray-700 mb-3">Financial Summary</h4>
+                                <div className="space-y-2">
+                                  {opportunity.subtotal && (
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">Subtotal</span>
+                                      <span className="font-medium">${opportunity.subtotal.toLocaleString()}</span>
+                                    </div>
+                                  )}
+                                  {opportunity.totalDiscount && (
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-600">Discount</span>
+                                      <span className="font-medium text-red-600">-${opportunity.totalDiscount.toLocaleString()}</span>
+                                    </div>
+                                  )}
+                                  {opportunity.total && (
+                                    <div className="flex justify-between pt-2 border-t border-gray-200">
+                                      <span className="font-medium text-gray-700">Total</span>
+                                      <span className="font-bold text-lg">${opportunity.total.toLocaleString()}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -683,44 +1105,47 @@ export default function ContactDetails({ contactId }: ContactDetailsProps) {
               </div>
             </div>
 
-            {/* Opportunity Info */}
-            {contact.opportunityId && contact.opportunity && (
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6">
-                <h3 className="font-semibold text-gray-800 mb-4">Linked Opportunity</h3>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm text-gray-600">Subject</p>
-                    <p className="font-medium text-gray-900">{contact.opportunity.subject}</p>
+            {/* Source & Activity */}
+            <div className="bg-white border border-gray-200 rounded-2xl p-6">
+              <h3 className="font-semibold text-gray-800 mb-4">Source & Activity</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-gray-400" />
+                    <span className="text-gray-700">Source</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Type</p>
-                      <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-                        {contact.opportunity.type}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Status</p>
-                      <span className={`px-2 py-1 text-xs rounded ${
-                        contact.opportunity.status === 'won' 
-                          ? 'bg-green-100 text-green-800' 
-                          : contact.opportunity.status === 'lost'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {contact.opportunity.status}
-                      </span>
-                    </div>
+                  <span className="font-medium text-gray-900">{contact.source || 'Unknown'}</span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-gray-400" />
+                    <span className="text-gray-700">Created</span>
                   </div>
-                  <Link
-                    href={`/opportunities/${contact.opportunityId}`}
-                    className="block text-center mt-4 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 font-medium"
-                  >
-                    View Opportunity
-                  </Link>
+                  <span className="font-medium text-gray-900">
+                    {new Date(contact.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-gray-400" />
+                    <span className="text-gray-700">Last Updated</span>
+                  </div>
+                  <span className="font-medium text-gray-900">
+                    {new Date(contact.updatedAt).toLocaleDateString()}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-gray-400" />
+                    <span className="text-gray-700">Activity Count</span>
+                  </div>
+                  <span className="font-semibold text-gray-900">{contact.activityCount || 0}</span>
                 </div>
               </div>
-            )}
+            </div>
 
             {/* Custom Fields */}
             {contact.customFields && Object.keys(contact.customFields).length > 0 && (
@@ -730,12 +1155,56 @@ export default function ContactDetails({ contactId }: ContactDetailsProps) {
                   {Object.entries(contact.customFields).map(([key, value]) => (
                     <div key={key} className="flex justify-between">
                       <span className="text-sm text-gray-600 capitalize">{key.replace(/([A-Z])/g, ' $1')}:</span>
-                      <span className="font-medium text-gray-900">{String(value)}</span>
+                      <span className="font-medium text-gray-900 text-right max-w-[150px] truncate">
+                        {String(value)}
+                      </span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
+
+            {/* Communication Preferences */}
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6">
+              <h3 className="font-semibold text-gray-800 mb-4">Communication</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-gray-500" />
+                    <span className="text-gray-700">Email Opt-in</span>
+                  </div>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    contact.emailOptIn ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {contact.emailOptIn ? 'Opted In' : 'Opted Out'}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="h-4 w-4 text-gray-500" />
+                    <span className="text-gray-700">SMS Opt-in</span>
+                  </div>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    contact.smsOptIn ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {contact.smsOptIn ? 'Opted In' : 'Opted Out'}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 text-gray-500" />
+                    <span className="text-gray-700">WhatsApp</span>
+                  </div>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    contact.whatsappEnabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {contact.whatsappEnabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

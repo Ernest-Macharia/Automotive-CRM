@@ -61,6 +61,7 @@ export interface Invoice {
   quoteId?: QuoteRef | string;
   jobCardId?: JobCardRef | string;
   vehicleId?: VehicleRef | string;
+  salesOrderId?: VehicleRef | string;
   items: InvoiceItem[];
   subtotal: number;
   tax: number;

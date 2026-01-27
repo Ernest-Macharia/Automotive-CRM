@@ -30,7 +30,8 @@ import {
   ChevronRight,
   X,
   Loader2,
-  ShieldCheck
+  ShieldCheck,
+  PackageCheck
 } from 'lucide-react';
 import { invoiceService, Invoice, INVOICE_STATUS, PAYMENT_STATUS } from '@/services/invoiceService';
 import { useToast } from '@/contexts/ToastContext';
@@ -49,6 +50,7 @@ export default function InvoiceDetailPage({ id }: InvoiceDetailPageProps) {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showCompleteWorkflowModal, setShowCompleteWorkflowModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('bank_transfer');
   const [paymentReference, setPaymentReference] = useState('');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -174,16 +176,58 @@ export default function InvoiceDetailPage({ id }: InvoiceDetailPageProps) {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
+  const canCompleteWorkflow = () => {
+    if (!invoice) return false;
+    
+    // Only show for unpaid invoices that are approved
+    if (invoice.paymentStatus !== PAYMENT_STATUS.UNPAID) return false;
+    if (invoice.status !== INVOICE_STATUS.APPROVED) return false;
+    
+    // Check if this is linked to a sales order (via opportunity)
+    return !!invoice.opportunityId;
+  };
+
   /* ---------------- actions ---------------- */
+
+  const handleSendInvoice = async () => {
+    if (!invoice) return;
+    
+    try {
+      setProcessing(true);
+      
+      // Update invoice status to "sent"
+      const sentInvoice = await invoiceService.updateInvoice(invoice.id, {
+        status: INVOICE_STATUS.SENT,
+        sentAt: new Date().toISOString()
+      });
+      
+      setInvoice(sentInvoice);
+      showToast('Invoice sent successfully! It can now be approved.', 'success');
+      
+    } catch (error: any) {
+      console.error('Error sending invoice:', error);
+      showToast(error.message || 'Failed to send invoice', 'error');
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   const handleApprove = async () => {
     if (!invoice) return;
     
     try {
       setProcessing(true);
+      
+      // Check if invoice is in correct status for approval
+      if (invoice.status !== INVOICE_STATUS.SENT) {
+        showToast('Invoice must be sent before it can be approved', 'error');
+        return;
+      }
+      
       const approvedInvoice = await invoiceService.approveInvoice(invoice.id);
       setInvoice(approvedInvoice);
-      showToast('Invoice approved successfully', 'success');
+      showToast('Invoice approved successfully! It can now be marked as paid.', 'success');
+      
     } catch (error: any) {
       showToast(error.message || 'Failed to approve invoice', 'error');
     } finally {
@@ -249,6 +293,75 @@ export default function InvoiceDetailPage({ id }: InvoiceDetailPageProps) {
       showToast(error.message || 'Failed to process payment', 'error');
     } finally {
       setIsProcessingPayment(false);
+    }
+  };
+
+  const handlePaidAndCompleteWorkflow = async () => {
+    if (!invoice) return;
+    setShowCompleteWorkflowModal(true);
+  };
+
+  const confirmCompleteWorkflow = async () => {
+    if (!invoice) return;
+    
+    try {
+      setProcessing(true);
+      setShowCompleteWorkflowModal(false);
+      
+      // First, mark the invoice as paid
+      const paidInvoice = await invoiceService.markInvoiceAsPaid(
+        invoice.id,
+        undefined, // amount paid (full amount)
+        undefined, // payment date (now)
+        'workflow_completion', // payment method
+        `WORKFLOW-COMPLETE-${Date.now().toString(36).toUpperCase()}` // reference
+      );
+      
+      setInvoice(paidInvoice);
+      showToast('Invoice marked as paid!', 'success');
+      
+      // If invoice is linked to a sales order, complete the workflow
+      if (paidInvoice.opportunityId) {
+        const opportunityId = typeof paidInvoice.opportunityId === 'object' 
+          ? paidInvoice.opportunityId._id 
+          : paidInvoice.opportunityId;
+        
+        if (opportunityId) {
+          try {
+            // Complete the sales order lifecycle
+            const { lifecycleIntegrationService } = await import('@/services/lifecycleIntegrationService');
+            await lifecycleIntegrationService.completeSalesOrder(opportunityId);
+            
+            showToast('Sales order workflow completed successfully!', 'success');
+            
+            // If there's a sales order linked, update its status too
+            if (paidInvoice.salesOrderId) {
+              const salesOrderId = typeof paidInvoice.salesOrderId === 'object' 
+                ? paidInvoice.salesOrderId._id 
+                : paidInvoice.salesOrderId;
+              
+              if (salesOrderId) {
+                const { salesOrderService } = await import('@/services/salesOrderService');
+                await salesOrderService.updateSalesOrder(salesOrderId, {
+                  status: 'delivered',
+                  actualDeliveryDate: new Date().toISOString()
+                });
+                
+                showToast('Sales order marked as delivered', 'success');
+              }
+            }
+          } catch (error: any) {
+            console.error('Error completing workflow:', error);
+            showToast('Workflow completed, but could not update sales order: ' + error.message, 'warning');
+          }
+        }
+      }
+      
+    } catch (error: any) {
+      console.error('Error completing workflow:', error);
+      showToast(error.message || 'Failed to complete workflow', 'error');
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -514,6 +627,12 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
                           <span className="text-gray-900">{renderReference(invoice.jobCardId)}</span>
                         </div>
                       )}
+                      {invoice.salesOrderId && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Sales Order:</span>
+                          <span className="text-gray-900">{renderReference(invoice.salesOrderId)}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -525,6 +644,117 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
                   <p className="text-sm text-gray-700 bg-gray-50 rounded p-2.5">{invoice.notes}</p>
                 </div>
               )}
+            </div>
+
+            {/* Status Flow Indicator */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <h2 className="text-base font-semibold text-gray-800 mb-4">Invoice Flow</h2>
+              
+              <div className="relative">
+                <div className="absolute left-0 right-0 top-1/2 h-0.5 bg-gray-200 transform -translate-y-1/2" />
+                
+                <div className="relative flex justify-between">
+                  {/* Draft Step */}
+                  <div className="flex flex-col items-center">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${
+                      invoice.status === INVOICE_STATUS.DRAFT 
+                        ? 'bg-blue-100 border-2 border-blue-500' 
+                        : invoice.status === INVOICE_STATUS.SENT || invoice.status === INVOICE_STATUS.APPROVED || invoice.paymentStatus === PAYMENT_STATUS.PAID
+                          ? 'bg-green-100 border-2 border-green-500'
+                          : 'bg-gray-100 border-2 border-gray-300'
+                    }`}>
+                      {invoice.status === INVOICE_STATUS.DRAFT ? (
+                        <FileText className="h-5 w-5 text-blue-600" />
+                      ) : (
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      )}
+                    </div>
+                    <span className="text-xs font-medium">Draft</span>
+                    <span className="text-xs text-gray-500">Create invoice</span>
+                  </div>
+                  
+                  {/* Sent Step */}
+                  <div className="flex flex-col items-center">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${
+                      invoice.status === INVOICE_STATUS.SENT 
+                        ? 'bg-blue-100 border-2 border-blue-500' 
+                        : invoice.status === INVOICE_STATUS.APPROVED || invoice.paymentStatus === PAYMENT_STATUS.PAID
+                          ? 'bg-green-100 border-2 border-green-500'
+                          : 'bg-gray-100 border-2 border-gray-300'
+                    }`}>
+                      {invoice.status === INVOICE_STATUS.SENT ? (
+                        <Send className="h-5 w-5 text-blue-600" />
+                      ) : invoice.status === INVOICE_STATUS.APPROVED || invoice.paymentStatus === PAYMENT_STATUS.PAID ? (
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      ) : (
+                        <Send className="h-5 w-5 text-gray-400" />
+                      )}
+                    </div>
+                    <span className="text-xs font-medium">Sent</span>
+                    <span className="text-xs text-gray-500">Send to customer</span>
+                  </div>
+                  
+                  {/* Approved Step */}
+                  <div className="flex flex-col items-center">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${
+                      invoice.status === INVOICE_STATUS.APPROVED 
+                        ? 'bg-blue-100 border-2 border-blue-500' 
+                        : invoice.paymentStatus === PAYMENT_STATUS.PAID
+                          ? 'bg-green-100 border-2 border-green-500'
+                          : 'bg-gray-100 border-2 border-gray-300'
+                    }`}>
+                      {invoice.status === INVOICE_STATUS.APPROVED ? (
+                        <CheckCircle className="h-5 w-5 text-blue-600" />
+                      ) : invoice.paymentStatus === PAYMENT_STATUS.PAID ? (
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      ) : (
+                        <CheckCircle className="h-5 w-5 text-gray-400" />
+                      )}
+                    </div>
+                    <span className="text-xs font-medium">Approved</span>
+                    <span className="text-xs text-gray-500">Customer approval</span>
+                  </div>
+                  
+                  {/* Paid Step */}
+                  <div className="flex flex-col items-center">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${
+                      invoice.paymentStatus === PAYMENT_STATUS.PAID 
+                        ? 'bg-green-100 border-2 border-green-500' 
+                        : 'bg-gray-100 border-2 border-gray-300'
+                    }`}>
+                      {invoice.paymentStatus === PAYMENT_STATUS.PAID ? (
+                        <CreditCard className="h-5 w-5 text-green-600" />
+                      ) : (
+                        <CreditCard className="h-5 w-5 text-gray-400" />
+                      )}
+                    </div>
+                    <span className="text-xs font-medium">Paid</span>
+                    <span className="text-xs text-gray-500">Receive payment</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Current Action Required */}
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                <p className="text-sm font-medium text-blue-800 mb-1">Current Action Required:</p>
+                {invoice.status === INVOICE_STATUS.DRAFT ? (
+                  <p className="text-xs text-blue-700">
+                    <strong>Send this invoice</strong> to the customer to begin the approval process.
+                  </p>
+                ) : invoice.status === INVOICE_STATUS.SENT ? (
+                  <p className="text-xs text-blue-700">
+                    <strong>Approve this invoice</strong> once the customer has reviewed and accepted it.
+                  </p>
+                ) : invoice.status === INVOICE_STATUS.APPROVED && invoice.paymentStatus === PAYMENT_STATUS.UNPAID ? (
+                  <p className="text-xs text-blue-700">
+                    <strong>Mark this invoice as paid</strong> once payment has been received from the customer.
+                  </p>
+                ) : invoice.paymentStatus === PAYMENT_STATUS.PAID ? (
+                  <p className="text-xs text-green-700">
+                    ✓ Invoice completed and paid. Sales order workflow can be completed.
+                  </p>
+                ) : null}
+              </div>
             </div>
 
             {/* Items */}
@@ -581,17 +811,19 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
               <h2 className="text-base font-semibold text-gray-800 mb-4">Actions</h2>
               
               <div className="space-y-3">
-                {/* Pay Now Button - Only show for unpaid, approved invoices */}
-                {invoice.paymentStatus === PAYMENT_STATUS.UNPAID && invoice.status === INVOICE_STATUS.APPROVED && (
+                {/* Send Invoice Button - For Draft invoices */}
+                {invoice.status === INVOICE_STATUS.DRAFT && (
                   <button 
-                    onClick={() => setShowPaymentModal(true)}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 text-white text-sm font-medium rounded-lg hover:from-emerald-700 hover:to-green-700"
+                    onClick={handleSendInvoice}
+                    disabled={processing}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-medium rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-60"
                   >
-                    <CreditCard className="h-4 w-4" />
-                    Pay Now
+                    <Send className="h-4 w-4" />
+                    Send Invoice
                   </button>
                 )}
 
+                {/* Approve Invoice Button - For Sent invoices */}
                 {invoice.status === INVOICE_STATUS.SENT && (
                   <button 
                     onClick={handleApprove}
@@ -603,6 +835,39 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
                   </button>
                 )}
 
+                {/* Pay Now Button - For approved, unpaid invoices */}
+                {invoice.paymentStatus === PAYMENT_STATUS.UNPAID && invoice.status === INVOICE_STATUS.APPROVED && (
+                  <button 
+                    onClick={() => setShowPaymentModal(true)}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 text-white text-sm font-medium rounded-lg hover:from-emerald-700 hover:to-green-700"
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    Pay Now
+                  </button>
+                )}
+
+                {/* Mark as Paid & Complete Workflow Button - For approved, unpaid invoices linked to sales order */}
+                {invoice.paymentStatus === PAYMENT_STATUS.UNPAID && invoice.status === INVOICE_STATUS.APPROVED && canCompleteWorkflow() && (
+                  <button 
+                    onClick={handlePaidAndCompleteWorkflow}
+                    disabled={processing}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-sm font-medium rounded-lg hover:from-purple-700 hover:to-indigo-700 disabled:opacity-60"
+                  >
+                    {processing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <PackageCheck className="h-4 w-4" />
+                        Mark Paid & Complete Workflow
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {/* Mark as Paid (Simple) Button - For approved, unpaid invoices */}
                 {invoice.paymentStatus === PAYMENT_STATUS.UNPAID && invoice.status === INVOICE_STATUS.APPROVED && (
                   <button 
                     onClick={handleMarkAsPaid}
@@ -705,6 +970,14 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
                   <span className="text-gray-600">Issued</span>
                   <span className="text-gray-900">{formatDate(invoice.createdAt)}</span>
                 </div>
+                {canCompleteWorkflow() && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <div className="flex items-center gap-2 text-xs text-gray-600">
+                      <PackageCheck className="h-3.5 w-3.5 text-purple-500" />
+                      <span>Ready to complete sales order workflow</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -838,6 +1111,98 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
                   <ShieldCheck className="h-3.5 w-3.5" />
                   <span>This is a mock payment for demonstration only. No real transaction will occur.</span>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Complete Workflow Confirmation Modal */}
+      {showCompleteWorkflowModal && invoice && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
+            <div className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <PackageCheck className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900">Complete Sales Order Workflow</h3>
+                    <p className="text-xs text-gray-600">This will mark the invoice as paid and complete the sales order</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowCompleteWorkflowModal(false)}
+                  className="p-1.5 rounded hover:bg-gray-100"
+                  disabled={processing}
+                >
+                  <X className="h-4 w-4 text-gray-500" />
+                </button>
+              </div>
+              
+              <div className="space-y-4 mb-5">
+                <div className="p-3 bg-purple-50 border border-purple-200 rounded">
+                  <p className="text-sm font-medium text-purple-800 mb-2">Workflow Actions:</p>
+                  <ul className="text-xs text-purple-700 space-y-1">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-3 w-3" />
+                      <span>Mark invoice #{invoice.invoiceNumber} as paid</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-3 w-3" />
+                      <span>Complete sales order workflow</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-3 w-3" />
+                      <span>Update sales order status to "delivered"</span>
+                    </li>
+                    {invoice.salesOrderId && (
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-3 w-3" />
+                        <span>Record actual delivery date</span>
+                      </li>
+                    )}
+                  </ul>
+                </div>
+                
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded">
+                  <div className="flex items-center gap-2 mb-1">
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                    <p className="text-sm font-medium text-amber-800">Important</p>
+                  </div>
+                  <p className="text-xs text-amber-700">
+                    This action cannot be undone. The sales order will be marked as completed and 
+                    the workflow will be closed.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowCompleteWorkflowModal(false)}
+                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                  disabled={processing}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmCompleteWorkflow}
+                  className="flex-1 px-3 py-2 text-sm bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded hover:from-purple-700 hover:to-indigo-700 flex items-center justify-center gap-1"
+                  disabled={processing}
+                >
+                  {processing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <PackageCheck className="h-4 w-4" />
+                      Confirm & Complete
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>
