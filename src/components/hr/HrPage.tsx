@@ -48,7 +48,7 @@ import { hrService, HrDashboard, HrAlert, EmployeeContract, IncidentReport, Perf
 import HRStatsCards from './HrStatsCards';
 import HRQuickActions from './HrQuickActions';
 import HRAlertsPanel from './HrAlertsPanel';
-// import HRTabNavigation from '../hr';
+import HRTabNavigation from './HrTabNavigation';
 import HRTabContent from './HrTabContent';
 
 interface DashboardStat {
@@ -77,12 +77,10 @@ export default function HRDashboardPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'leaves' | 'contracts' | 'performance' | 'incidents' | 'recruitment' | 'welfare' | 'policies'>('overview');
   const [showAlertModal, setShowAlertModal] = useState<HrAlert | null>(null);
   
-  // Filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   
-  // Data states
   const [contracts, setContracts] = useState<EmployeeContract[]>([]);
   const [incidents, setIncidents] = useState<IncidentReport[]>([]);
   const [performancePlans, setPerformancePlans] = useState<PerformancePlan[]>([]);
@@ -274,7 +272,7 @@ export default function HRDashboardPage() {
       value: dashboardData.statistics.activePerformancePlans,
       icon: Target,
       color: 'text-purple-600 bg-purple-100',
-      link: '/hr/performance'
+      link: '/hr-portal/performance'
     },
     {
       label: 'Open Incidents',
@@ -332,7 +330,7 @@ export default function HRDashboardPage() {
       label: 'Create Performance Plan',
       icon: Target,
       color: 'bg-purple-500',
-      link: '/hr/performance/create',
+      link: '/hr-portal/performance/create',
       description: 'Set up performance improvement plan'
     },
     {
@@ -378,7 +376,6 @@ export default function HRDashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
       <div className="mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
@@ -404,13 +401,10 @@ export default function HRDashboardPage() {
           </div>
         </div>
 
-        {/* Stats Grid */}
         <HRStatsCards stats={stats} router={router} />
       </div>
 
-      {/* Main Content */}
       <div className="flex flex-col lg:flex-row gap-8">
-        {/* Left Sidebar */}
         <div className="lg:w-64">
           <div className="bg-white border border-gray-200 rounded-xl p-5 sticky top-8">
             <HRQuickActions quickActions={quickActions} router={router} />
@@ -422,14 +416,10 @@ export default function HRDashboardPage() {
           </div>
         </div>
 
-        {/* Main Content Area */}
         <div className="flex-1">
-          {/* Tabs */}
-          {/* <HRTabNavigation activeTab={activeTab} setActiveTab={setActiveTab} /> */}
+          <HRTabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
           
-          {/* Tab Content */}
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            {/* Tab Header with Filters */}
             <div className="p-4 border-b border-gray-200">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3 flex-1">
@@ -518,7 +508,6 @@ export default function HRDashboardPage() {
               </div>
             </div>
 
-            {/* Tab Content */}
             <div className="p-4">
               <HRTabContent
                 activeTab={activeTab}
@@ -545,7 +534,6 @@ export default function HRDashboardPage() {
         </div>
       </div>
 
-      {/* Alert Modal */}
       {showAlertModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white rounded-xl p-5 max-w-md w-full">

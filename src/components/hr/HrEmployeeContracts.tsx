@@ -82,12 +82,10 @@ export default function HREmployeeContracts({ contractId }: HREmployeeContractsP
     if (!selectedContract || !newEndDate) return;
 
     try {
-      // This would typically call an API endpoint to renew the contract
       showToast('Contract renewal request submitted', 'success');
       setShowRenewModal(false);
       setNewEndDate('');
       
-      // Refresh the data
       if (contractId) {
         loadContractDetails();
       } else {
@@ -298,7 +296,6 @@ export default function HREmployeeContracts({ contractId }: HREmployeeContractsP
           </div>
         </div>
 
-        {/* Renew Modal */}
         {showRenewModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
             <div className="bg-white rounded-xl p-6 max-w-md w-full">
@@ -364,7 +361,6 @@ export default function HREmployeeContracts({ contractId }: HREmployeeContractsP
     );
   }
 
-  // All contracts view
   return (
     <div className="bg-white rounded-xl border border-gray-200">
       <div className="p-6 border-b border-gray-200">

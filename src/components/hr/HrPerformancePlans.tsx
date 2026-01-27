@@ -89,10 +89,9 @@ export default function HRPerformancePlans({ planId }: HRPerformancePlansProps) 
     if (!selectedPlan) return;
 
     try {
-      // This would typically call an API endpoint to add a review
       const newReview = {
         reviewDate: new Date().toISOString().split('T')[0],
-        reviewer: 'HR Manager', // This would be the current user
+        reviewer: 'HR Manager',
         rating: reviewData.rating,
         comments: reviewData.comments,
         achievements: reviewData.achievements.filter(a => a.trim() !== ''),
@@ -111,7 +110,6 @@ export default function HRPerformancePlans({ planId }: HRPerformancePlansProps) 
         actionPlan: '',
       });
 
-      // Refresh the data
       if (planId) {
         loadPlanDetails();
       } else {
@@ -414,7 +412,6 @@ export default function HRPerformancePlans({ planId }: HRPerformancePlansProps) 
           </div>
         )}
 
-        {/* Review Modal */}
         {showReviewModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
             <div className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -566,7 +563,6 @@ export default function HRPerformancePlans({ planId }: HRPerformancePlansProps) 
     );
   }
 
-  // All plans view
   return (
     <div className="bg-white rounded-xl border border-gray-200">
       <div className="p-6 border-b border-gray-200">

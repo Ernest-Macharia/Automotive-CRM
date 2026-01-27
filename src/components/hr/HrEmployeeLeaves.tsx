@@ -36,7 +36,6 @@ export default function HREmployeeLeaves({ profileId }: HREmployeeLeavesProps) {
     try {
       setLoading(true);
       const details = await hrService.getEmployeeDetails(profileId!);
-      // Transform employee details to leave balance format
       const leaveBalance: LeaveBalance = {
         employeeId: details.profile.employeeId,
         name: `${details.profile.firstName} ${details.profile.lastName}`,
@@ -234,7 +233,6 @@ export default function HREmployeeLeaves({ profileId }: HREmployeeLeavesProps) {
           </div>
         )}
 
-        {/* Action Modal */}
         {showActionModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
             <div className="bg-white rounded-xl p-6 max-w-md w-full">
@@ -324,7 +322,6 @@ export default function HREmployeeLeaves({ profileId }: HREmployeeLeavesProps) {
     );
   }
 
-  // All leaves view
   return (
     <div className="bg-white rounded-xl border border-gray-200">
       <div className="p-6 border-b border-gray-200">
