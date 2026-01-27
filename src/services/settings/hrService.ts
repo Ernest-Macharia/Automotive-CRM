@@ -58,6 +58,7 @@ export interface PerformancePlan {
 }
 
 export interface IncidentReport {
+  resolutionDate: any;
   id: string;
   _id?: string;
   title: string;
@@ -189,6 +190,7 @@ export interface HrDashboardStats {
   activeCandidates: number;
   expiringContracts: number;
   lowLeaveBalance: number;
+  pendingLeaveRequests: number;
 }
 
 export interface HrAlert {
@@ -203,6 +205,7 @@ export interface HrDashboard {
   alerts: HrAlert[];
   recentIncidents: IncidentReport[];
   upcomingReviews: PerformancePlan[];
+  pendingLeaves: any[];
 }
 
 export interface RecruitmentStats {
@@ -295,9 +298,8 @@ export interface CreateRecruitmentCandidateData {
 }
 
 export interface LeaveActionData {
-  action: 'approved' | 'denied' | 'pending';
+  action: 'approved' | 'denied';
   comments?: string;
-  leavePeriod?: string;
   days?: number;
 }
 
@@ -331,8 +333,52 @@ export interface EmployeeHrDetails {
       salaryBand?: string;
       lastPromotionDate?: string;
     };
+    leaveRequests: any[];
   };
 }
+
+export interface LeaveRequest {
+  _id?: string;
+  requestId?: string;
+  leaveType: string;
+  startDate: string;
+  endDate: string;
+  days: number;
+  reason: string;
+  status: 'pending' | 'approved' | 'denied' | 'cancelled';
+  submittedDate: string;
+  reviewedDate?: string;
+  reviewedBy?: any;
+  reviewComments?: string;
+  supportingDocumentUrl?: string;
+  employeeId?: string;
+  employeeName?: string;
+  department?: string;
+  position?: string;
+  email?: string;
+  profileId?: string;
+  userId?: string;
+  reportingManager?: any;
+  leaveBalance?: number;
+  isEmergencyLeave?: boolean;
+  emergencyContact?: string;
+  contactDuringLeave?: string;
+  active: boolean;
+}
+
+export interface CreateLeaveRequestDto {
+  leaveType: string;
+  startDate: string;
+  endDate: string;
+  days: number;
+  reason: string;
+  supportingDocumentUrl?: string;
+  isEmergencyLeave?: boolean;
+  emergencyContact?: string;
+  contactDuringLeave?: string;
+}
+
+
 
 class HrService {
   private basePath = '/hr';
@@ -347,25 +393,54 @@ class HrService {
     }
   }
 
-  async getAllLeaves(status?: string, department?: string): Promise<any[]> {
+  async submitLeaveRequest(leaveDto: CreateLeaveRequestDto): Promise<{ message: string; requestId: string; days: number; status: string }> {
     try {
-      const params = new URLSearchParams();
-      if (status) params.append('status', status);
-      if (department) params.append('department', department);
-      
-      const url = `${this.basePath}/leaves${params.toString() ? `?${params.toString()}` : ''}`;
-      const response = await apiClient.get<any[]>(url);
-      return response.map(item => this.normalizeLeaveData(item));
+      const response = await apiClient.post<CreateLeaveRequestDto, any>(
+        `${this.basePath}/leaves/submit`, 
+        leaveDto
+      );
+      return response;
     } catch (error) {
-      console.error('Error fetching leaves:', error);
+      console.error('Error submitting leave request:', error);
       throw error;
     }
   }
 
-  async handleLeaveAction(profileId: string, data: LeaveActionData): Promise<{ message: string; profile: any }> {
+  async getEmployeeLeaveRequests(userId: string, status?: string): Promise<LeaveRequest[]> {
+    try {
+      const params = new URLSearchParams();
+      if (status) params.append('status', status);
+      
+      const url = `${this.basePath}/leaves/my-requests${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await apiClient.get<any[]>(url);
+      return response.map(item => this.normalizeLeaveRequest(item));
+    } catch (error) {
+      console.error('Error fetching employee leave requests:', error);
+      throw error;
+    }
+  }
+
+  async getAllLeaveRequests(status?: string, department?: string, startDate?: string, endDate?: string): Promise<LeaveRequest[]> {
+    try {
+      const params = new URLSearchParams();
+      if (status) params.append('status', status);
+      if (department) params.append('department', department);
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      
+      const url = `${this.basePath}/leaves${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await apiClient.get<any[]>(url);
+      return response.map(item => this.normalizeLeaveRequest(item));
+    } catch (error) {
+      console.error('Error fetching all leave requests:', error);
+      throw error;
+    }
+  }
+
+  async handleLeaveAction(profileId: string, requestId: string, data: LeaveActionData): Promise<{ message: string; request: any; newBalance: number; employeeName: string }> {
     try {
       const response = await apiClient.post<LeaveActionData, any>(
-        `${this.basePath}/leaves/${profileId}/action`, 
+        `${this.basePath}/leaves/${profileId}/requests/${requestId}/action`, 
         data
       );
       return response;
@@ -535,8 +610,17 @@ class HrService {
       const url = `${this.basePath}/recruitment${params.toString() ? `?${params.toString()}` : ''}`;
       const response = await apiClient.get<any>(url);
       return {
-        statistics: response.statistics,
-        candidates: response.candidates.map((candidate: any) => this.normalizeRecruitmentCandidate(candidate))
+        statistics: response.statistics || {
+          total: 0,
+          screening: 0,
+          interviewing: 0,
+          background_check: 0,
+          offer_pending: 0,
+          offered: 0,
+          hired: 0,
+          rejected: 0,
+        },
+        candidates: response.candidates?.map((candidate: any) => this.normalizeRecruitmentCandidate(candidate)) || []
       };
     } catch (error) {
       console.error('Error fetching recruitment pipeline:', error);
@@ -605,29 +689,184 @@ class HrService {
     }
   }
 
+  // Utility Methods
+  getContractStatus(contract: EmployeeContract): 'active' | 'expiring_soon' | 'expired' | 'unknown' {
+    if (!contract.contractEndDate) return 'unknown';
+    
+    const today = new Date();
+    const endDate = new Date(contract.contractEndDate);
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(today.getDate() + 30);
+    
+    if (endDate < today) return 'expired';
+    if (endDate <= thirtyDaysFromNow) return 'expiring_soon';
+    return 'active';
+  }
+
+  formatDate(dateString?: string, format: 'short' | 'long' = 'short'): string {
+    if (!dateString) return 'N/A';
+    
+    const date = new Date(dateString);
+    if (format === 'short') {
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    } else {
+      return date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
+  }
+
+  getDaysUntilExpiry(endDate?: string): number | null {
+    if (!endDate) return null;
+    
+    const today = new Date();
+    const expiryDate = new Date(endDate);
+    const diffTime = expiryDate.getTime() - today.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  }
+
+  getSeverityColor(severity: string): string {
+    switch (severity) {
+      case 'critical': return 'bg-red-100 text-red-800';
+      case 'high': return 'bg-orange-100 text-orange-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'low': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  }
+
+  getRatingColor(rating: number): string {
+    if (rating >= 4) return 'bg-green-100 text-green-800';
+    if (rating >= 3) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-red-100 text-red-800';
+  }
+
+  getRatingIcon(rating: number): string {
+    if (rating >= 4) return 'Excellent';
+    if (rating >= 3) return 'Good';
+    if (rating >= 2) return 'Fair';
+    return 'Poor';
+  }
+
+  getCandidateStatusColor(status: string): string {
+    switch (status) {
+      case 'accepted': return 'bg-green-100 text-green-800';
+      case 'offered': return 'bg-blue-100 text-blue-800';
+      case 'interviewing': 
+      case 'phone_interview': 
+      case 'technical_interview': 
+      case 'hr_interview': 
+      case 'final_interview':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'rejected': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  }
+
+  getAlertPriorityColor(priority: string): string {
+    switch (priority) {
+      case 'high': return 'bg-red-100 text-red-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'low': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  }
+
+  getWelfareIcon(category: string): string {
+    switch (category) {
+      case 'health': return '🩺';
+      case 'financial': return '💰';
+      case 'education': return '🎓';
+      case 'recreational': return '🎯';
+      case 'wellness': return '🧘';
+      case 'fitness': return '💪';
+      case 'family': return '🏠';
+      case 'support': return '🤝';
+      case 'mental_health': return '🧠';
+      default: return '❤️';
+    }
+  }
+
+  filterContractsByStatus(contracts: EmployeeContract[], status: 'active' | 'expiring_soon' | 'expired'): EmployeeContract[] {
+    return contracts.filter(contract => this.getContractStatus(contract) === status);
+  }
+
+  sortContractsByExpiry(contracts: EmployeeContract[], ascending: boolean = true): EmployeeContract[] {
+    return [...contracts].sort((a, b) => {
+      if (!a.contractEndDate) return 1;
+      if (!b.contractEndDate) return -1;
+      
+      const dateA = new Date(a.contractEndDate).getTime();
+      const dateB = new Date(b.contractEndDate).getTime();
+      
+      return ascending ? dateA - dateB : dateB - dateA;
+    });
+  }
+
+  calculateTotalLeaveDays(leaveBalance: LeaveBalance): {
+    accrued: number;
+    used: number;
+    remaining: number;
+    pending: number;
+  } {
+    const pendingDays = leaveBalance.pendingActions.reduce((sum, action) => {
+      return action.action === 'pending' ? sum + (action.days || 0) : sum;
+    }, 0);
+    
+    return {
+      accrued: leaveBalance.totalLeaveAccrued,
+      used: leaveBalance.totalLeaveUsed,
+      remaining: leaveBalance.currentLeaveBalance,
+      pending: pendingDays,
+    };
+  }
+
+  // Normalization Methods
   private normalizeDashboard(data: any): HrDashboard {
     return {
       statistics: data.statistics,
       alerts: data.alerts?.map((alert: any) => this.normalizeHrAlert(alert)) || [],
       recentIncidents: data.recentIncidents?.map((incident: any) => this.normalizeIncidentReport(incident)) || [],
       upcomingReviews: data.upcomingReviews?.map((review: any) => this.normalizePerformancePlan(review)) || [],
+      pendingLeaves: data.pendingLeaves || [],
     };
   }
 
-  private normalizeLeaveData(data: any): any {
+  private normalizeLeaveRequest(data: any): LeaveRequest {
     return {
+      _id: data._id || data.id,
+      requestId: data.requestId || data._id || data.id,
+      leaveType: data.leaveType,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      days: data.days,
+      reason: data.reason,
+      status: data.status,
+      submittedDate: data.submittedDate,
+      reviewedDate: data.reviewedDate,
+      reviewedBy: data.reviewedBy,
+      reviewComments: data.reviewComments,
+      supportingDocumentUrl: data.supportingDocumentUrl,
       employeeId: data.employeeId,
       employeeName: data.employeeName,
       department: data.department,
       position: data.position,
       email: data.email,
-      leaveRecords: data.leaveRecords,
-      leaveActions: data.leaveActions || [],
-      totalLeaveAccrued: data.totalLeaveAccrued,
-      totalLeaveUsed: data.totalLeaveUsed,
-      currentLeaveBalance: data.currentLeaveBalance,
       profileId: data.profileId,
       userId: data.userId,
+      reportingManager: data.reportingManager,
+      leaveBalance: data.leaveBalance,
+      isEmergencyLeave: data.isEmergencyLeave,
+      emergencyContact: data.emergencyContact,
+      contactDuringLeave: data.contactDuringLeave,
+      active: data.active !== undefined ? data.active : true,
     };
   }
 
@@ -690,29 +929,30 @@ class HrService {
     };
   }
 
-  private normalizeIncidentReport(data: any): IncidentReport {
-    return {
-      id: data._id || data.id,
-      _id: data._id,
-      title: data.title,
-      description: data.description,
-      severity: data.severity,
-      status: data.status,
-      involvedEmployees: data.involvedEmployees || [],
-      location: data.location,
-      incidentDate: data.incidentDate,
-      reportedDate: data.reportedDate,
-      reporter: data.reporter,
-      investigationNotes: data.investigationNotes,
-      correctiveActions: data.correctiveActions || [],
-      category: data.category,
-      witnesses: data.witnesses || [],
-      evidenceUrls: data.evidenceUrls || [],
-      active: data.active !== undefined ? data.active : true,
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
-    };
-  }
+ private normalizeIncidentReport(data: any): IncidentReport {
+  return {
+    id: data._id || data.id,
+    _id: data._id,
+    title: data.title,
+    description: data.description,
+    severity: data.severity,
+    status: data.status,
+    involvedEmployees: data.involvedEmployees || [],
+    location: data.location,
+    incidentDate: data.incidentDate,
+    reportedDate: data.reportedDate,
+    reporter: data.reporter,
+    investigationNotes: data.investigationNotes,
+    correctiveActions: data.correctiveActions || [],
+    category: data.category,
+    witnesses: data.witnesses || [],
+    evidenceUrls: data.evidenceUrls || [],
+    active: data.active !== undefined ? data.active : true,
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
+    resolutionDate: data.resolutionDate || null,
+  };
+}
 
   private normalizeCompanyPolicy(data: any): CompanyPolicy {
     return {
@@ -757,7 +997,7 @@ class HrService {
       active: data.active !== undefined ? data.active : true,
       utilizedBudget: data.utilizedBudget || 0,
       location: data.location,
-      frequency: data.frequency,
+      frequency: data.frequency || 'once',
       maxParticipants: data.maxParticipants,
       currentParticipants: data.currentParticipants || 0,
       registrationDeadline: data.registrationDeadline,
@@ -846,6 +1086,7 @@ class HrService {
           salaryBand: data.hrData?.salaryInfo?.salaryBand,
           lastPromotionDate: data.hrData?.salaryInfo?.lastPromotionDate,
         },
+        leaveRequests: data.hrData?.leaveRequests || [],
       },
     };
   }
@@ -859,123 +1100,20 @@ class HrService {
     };
   }
 
-  getContractStatus(contract: EmployeeContract): 'active' | 'expiring_soon' | 'expired' | 'unknown' {
-    if (!contract.contractEndDate) return 'unknown';
-    
-    const today = new Date();
-    const endDate = new Date(contract.contractEndDate);
-    const thirtyDaysFromNow = new Date();
-    thirtyDaysFromNow.setDate(today.getDate() + 30);
-    
-    if (endDate < today) return 'expired';
-    if (endDate <= thirtyDaysFromNow) return 'expiring_soon';
-    return 'active';
+  // Static helper methods for compatibility
+  static getContractStatus(contract: EmployeeContract): 'active' | 'expiring_soon' | 'expired' | 'unknown' {
+    const service = new HrService();
+    return service.getContractStatus(contract);
   }
 
-  formatDate(dateString?: string, format: 'short' | 'long' = 'short'): string {
-    if (!dateString) return 'N/A';
-    
-    const date = new Date(dateString);
-    if (format === 'short') {
-      return date.toLocaleDateString();
-    } else {
-      return date.toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-    }
+  static getDaysUntilExpiry(endDate?: string): number | null {
+    const service = new HrService();
+    return service.getDaysUntilExpiry(endDate);
   }
 
-  getDaysUntilExpiry(contractEndDate?: string): number | null {
-    if (!contractEndDate) return null;
-    
-    const today = new Date();
-    const endDate = new Date(contractEndDate);
-    const diffTime = endDate.getTime() - today.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  }
-
-  getSeverityColor(severity: string): string {
-    switch (severity) {
-      case 'critical': return 'bg-red-100 text-red-800';
-      case 'high': return 'bg-orange-100 text-orange-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  }
-
-  getRatingColor(rating: number): string {
-    if (rating >= 4.5) return 'bg-green-100 text-green-800';
-    if (rating >= 3.5) return 'bg-blue-100 text-blue-800';
-    if (rating >= 2.5) return 'bg-yellow-100 text-yellow-800';
-    return 'bg-red-100 text-red-800';
-  }
-
-  getRatingIcon(rating: number): string {
-    if (rating >= 4.5) return '⭐️⭐️⭐️⭐️⭐️';
-    if (rating >= 4) return '⭐️⭐️⭐️⭐️';
-    if (rating >= 3) return '⭐️⭐️⭐️';
-    if (rating >= 2) return '⭐️⭐️';
-    return '⭐️';
-  }
-
-  getCandidateStatusColor(status: string): string {
-    switch (status) {
-      case 'accepted': return 'bg-green-100 text-green-800';
-      case 'offered': return 'bg-blue-100 text-blue-800';
-      case 'interviewing': return 'bg-purple-100 text-purple-800';
-      case 'screening': return 'bg-yellow-100 text-yellow-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      case 'withdrawn': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  }
-
-  getAlertPriorityColor(priority: string): string {
-    switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  }
-
-  filterContractsByStatus(contracts: EmployeeContract[], status: 'active' | 'expiring_soon' | 'expired'): EmployeeContract[] {
-    return contracts.filter(contract => this.getContractStatus(contract) === status);
-  }
-
-  sortContractsByExpiry(contracts: EmployeeContract[], ascending: boolean = true): EmployeeContract[] {
-    return [...contracts].sort((a, b) => {
-      if (!a.contractEndDate) return 1;
-      if (!b.contractEndDate) return -1;
-      
-      const dateA = new Date(a.contractEndDate).getTime();
-      const dateB = new Date(b.contractEndDate).getTime();
-      
-      return ascending ? dateA - dateB : dateB - dateA;
-    });
-  }
-
-
-  calculateTotalLeaveDays(leaveBalance: LeaveBalance): {
-    accrued: number;
-    used: number;
-    remaining: number;
-    pending: number;
-  } {
-    const pendingDays = leaveBalance.pendingActions.reduce((sum, action) => {
-      return action.action === 'pending' ? sum + (action.days || 0) : sum;
-    }, 0);
-    
-    return {
-      accrued: leaveBalance.totalLeaveAccrued,
-      used: leaveBalance.totalLeaveUsed,
-      remaining: leaveBalance.currentLeaveBalance,
-      pending: pendingDays,
-    };
+  static formatDate(dateString?: string): string {
+    const service = new HrService();
+    return service.formatDate(dateString);
   }
 }
 
