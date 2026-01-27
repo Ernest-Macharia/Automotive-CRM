@@ -1,28 +1,31 @@
 'use client';
 
-import { ChevronRight } from 'lucide-react';
-import { HrDashboard, EmployeeContract, IncidentReport, PerformancePlan, RecruitmentCandidate, WelfareProgram, CompanyPolicy, LeaveBalance } from '@/services/settings/hrService';
-import { hrService } from '@/services/settings/hrService';
+import React from 'react';
+import { 
+  Users, Calendar, FileText, AlertCircle, CheckCircle, Clock, 
+  Eye, Download, Edit, User, Building, Briefcase, Target, 
+  Heart, UserCheck, UserPlus, TrendingUp, TrendingDown 
+} from 'lucide-react';
 
 interface HRTabContentProps {
-  activeTab: 'overview' | 'leaves' | 'contracts' | 'performance' | 'incidents' | 'recruitment' | 'welfare' | 'policies';
-  dashboardData: HrDashboard | null;
-  contracts: EmployeeContract[];
-  incidents: IncidentReport[];
-  performancePlans: PerformancePlan[];
-  candidates: RecruitmentCandidate[];
-  welfarePrograms: WelfareProgram[];
-  policies: CompanyPolicy[];
-  leaveBalances: LeaveBalance[];
+  activeTab: string;
+  dashboardData: any;
+  contracts: any[];
+  incidents: any[];
+  performancePlans: any[];
+  candidates: any[];
+  welfarePrograms: any[];
+  policies: any[];
+  leaveBalances: any[];
   searchTerm: string;
   router: any;
-  formatDate: (dateString?: string) => string;
-  getContractStatus: (contract: EmployeeContract) => string; 
+  formatDate: (date?: string) => string;
+  getContractStatus: (contract: any) => string;
   getContractStatusColor: (status: string) => string;
   getIncidentSeverityColor: (severity: string) => string;
   getCandidateStatusColor: (status: string) => string;
   getWelfareIcon: (category: string) => any;
-  getDaysUntil: (dateString?: string) => number | null;
+  getDaysUntil: (date?: string) => number | null;
 }
 
 export default function HRTabContent({
@@ -38,124 +41,168 @@ export default function HRTabContent({
   searchTerm,
   router,
   formatDate,
-  getContractStatus, 
+  getContractStatus,
   getContractStatusColor,
   getIncidentSeverityColor,
   getCandidateStatusColor,
   getWelfareIcon,
-  getDaysUntil,
+  getDaysUntil
 }: HRTabContentProps) {
-  const getContractStatusFromService = (contract: EmployeeContract) => {
-    return hrService.getContractStatus(contract);
-  };
+  
+  const filteredContracts = contracts.filter(contract => 
+    `${contract.firstName} ${contract.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    contract.employeeId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    contract.position.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  const filterBySearchTerm = <T,>(items: T[], getSearchText: (item: T) => string): T[] => {
-    if (!searchTerm) return items;
-    const term = searchTerm.toLowerCase();
-    return items.filter(item => getSearchText(item).toLowerCase().includes(term));
-  };
+  const filteredIncidents = incidents.filter(incident =>
+    incident.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    incident.description.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredPerformancePlans = performancePlans.filter(plan =>
+    plan.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    plan.employee.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredCandidates = candidates.filter(candidate =>
+    `${candidate.firstName} ${candidate.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    candidate.positionApplied.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredWelfarePrograms = welfarePrograms.filter(program =>
+    program.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    program.description.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredPolicies = policies.filter(policy =>
+    policy.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    policy.category.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredLeaveBalances = leaveBalances.filter(leave =>
+    leave.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    leave.department.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   if (activeTab === 'overview') {
-    const filteredContracts = filterBySearchTerm(
-      contracts.filter(c => getContractStatus(c) === 'expiring_soon'),
-      (contract) => `${contract.firstName} ${contract.lastName} ${contract.position} ${contract.department}`
-    ).slice(0, 5);
-
     return (
-      <div className="space-y-6">
-        {dashboardData?.recentIncidents && dashboardData.recentIncidents.length > 0 && (
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Recent Incidents</h3>
-            <div className="space-y-2">
-              {dashboardData.recentIncidents.slice(0, 5).map((incident, index) => (
-                <div
-                  key={index}
-                  className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
-                  onClick={() => router.push(`/hr/incidents/${incident.id}`)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900">{incident.title}</p>
-                      <p className="text-sm text-gray-600 mt-0.5">{formatDate(incident.incidentDate)}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 text-xs rounded ${getIncidentSeverityColor(incident.severity)}`}>
-                        {incident.severity}
-                      </span>
-                      <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded">
-                        {incident.status}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {dashboardData?.upcomingReviews && dashboardData.upcomingReviews.length > 0 && (
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Upcoming Performance Reviews</h3>
-            <div className="space-y-2">
-              {dashboardData.upcomingReviews.slice(0, 5).map((review, index) => (
-                <div
-                  key={index}
-                  className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
-                  onClick={() => router.push(`/hr/performance/${review.id}`)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900">{review.title}</p>
-                      <p className="text-sm text-gray-600 mt-0.5">
-                        {review.employeeProfile?.name || 'Employee'} • Ends {formatDate(review.endDate)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 text-xs rounded ${
-                        review.status === 'active' ? 'bg-green-100 text-green-800' :
-                        review.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {review.status}
-                      </span>
-                      <ChevronRight className="h-4 w-4 text-gray-400" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div>
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Contracts Expiring Soon</h3>
-          <div className="space-y-2">
-            {filteredContracts.map((contract, index) => (
-              <div
-                key={index}
-                className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
-                onClick={() => router.push(`/hr/contracts/${contract.id}`)}
-              >
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Pending Leave Requests */}
+        <div className="bg-white border border-gray-200 rounded-lg p-5">
+          <h3 className="font-semibold text-gray-900 mb-4">Pending Leave Requests</h3>
+          <div className="space-y-3">
+            {dashboardData?.pendingLeaves?.slice(0, 5).map((leave: any) => (
+              <div key={leave.requestId} className="p-3 border border-gray-200 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-gray-900">
-                      {contract.firstName} {contract.lastName}
-                    </p>
-                    <p className="text-sm text-gray-600 mt-0.5">
-                      {contract.position} • {contract.department}
-                    </p>
+                    <p className="font-medium text-gray-900">{leave.employeeName}</p>
+                    <p className="text-sm text-gray-600">{leave.department}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-1 text-xs rounded ${getContractStatusColor(getContractStatus(contract))}`}>
-                      {getContractStatus(contract)}
-                    </span>
-                    <span className="text-sm text-gray-600">
-                      {getDaysUntil(contract.contractEndDate)} days
-                    </span>
-                  </div>
+                  <button
+                    onClick={() => router.push(`/hr/leaves/${leave.profileId}`)}
+                    className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg"
+                  >
+                    Review
+                  </button>
+                </div>
+                <div className="mt-2 text-sm text-gray-600">
+                  {leave.leaveType} • {formatDate(leave.startDate)} to {formatDate(leave.endDate)}
                 </div>
               </div>
             ))}
+            {(!dashboardData?.pendingLeaves || dashboardData.pendingLeaves.length === 0) && (
+              <p className="text-gray-500 text-center py-4">No pending leave requests</p>
+            )}
+          </div>
+        </div>
+
+        {/* Recent Incidents */}
+        <div className="bg-white border border-gray-200 rounded-lg p-5">
+          <h3 className="font-semibold text-gray-900 mb-4">Recent Incidents</h3>
+          <div className="space-y-3">
+            {dashboardData?.recentIncidents?.map((incident: any) => (
+              <div key={incident._id} className="p-3 border border-gray-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">{incident.title}</p>
+                    <p className="text-sm text-gray-600">{formatDate(incident.incidentDate)}</p>
+                  </div>
+                  <span className={`px-2 py-1 text-xs rounded ${getIncidentSeverityColor(incident.severity)}`}>
+                    {incident.severity}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600 mt-2 line-clamp-2">{incident.description}</p>
+              </div>
+            ))}
+            {(!dashboardData?.recentIncidents || dashboardData.recentIncidents.length === 0) && (
+              <p className="text-gray-500 text-center py-4">No recent incidents</p>
+            )}
+          </div>
+        </div>
+
+        {/* Upcoming Performance Reviews */}
+        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg p-5">
+          <h3 className="font-semibold text-gray-900 mb-4">Upcoming Performance Reviews</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-2 text-sm font-medium text-gray-500">Employee</th>
+                  <th className="text-left py-2 text-sm font-medium text-gray-500">Plan</th>
+                  <th className="text-left py-2 text-sm font-medium text-gray-500">End Date</th>
+                  <th className="text-left py-2 text-sm font-medium text-gray-500">Status</th>
+                  <th className="text-left py-2 text-sm font-medium text-gray-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dashboardData?.upcomingReviews?.map((plan: any) => {
+                  const daysLeft = getDaysUntil(plan.endDate);
+                  return (
+                    <tr key={plan._id} className="border-b border-gray-100">
+                      <td className="py-3">
+                        <p className="font-medium text-gray-900">{plan.employee?.name || 'N/A'}</p>
+                        <p className="text-sm text-gray-600">{plan.employeeProfile?.position || 'N/A'}</p>
+                      </td>
+                      <td className="py-3">
+                        <p className="text-gray-900">{plan.title}</p>
+                      </td>
+                      <td className="py-3">
+                        <p className="text-gray-900">{formatDate(plan.endDate)}</p>
+                        {daysLeft !== null && (
+                          <p className="text-sm text-gray-600">{daysLeft} days left</p>
+                        )}
+                      </td>
+                      <td className="py-3">
+                        <span className={`px-2 py-1 text-xs rounded ${
+                          plan.status === 'active' ? 'bg-green-100 text-green-800' :
+                          plan.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                          plan.status === 'draft' ? 'bg-gray-100 text-gray-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {plan.status}
+                        </span>
+                      </td>
+                      <td className="py-3">
+                        <button
+                          onClick={() => router.push(`/hr/performance/${plan._id}`)}
+                          className="text-blue-600 hover:text-blue-800 text-sm"
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {(!dashboardData?.upcomingReviews || dashboardData.upcomingReviews.length === 0) && (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-gray-500">
+                      No upcoming performance reviews
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -163,62 +210,69 @@ export default function HRTabContent({
   }
 
   if (activeTab === 'leaves') {
-    const filteredLeaves = filterBySearchTerm(
-      leaveBalances,
-      (balance) => `${balance.name} ${balance.employeeId} ${balance.position} ${balance.department}`
-    );
-
     return (
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-200">
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Employee</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Department</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Position</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Accrued</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Used</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Balance</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Pending</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Actions</th>
+            <tr className="border-b border-gray-200 bg-gray-50">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Employee</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Department</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Balance</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Used</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Pending</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filteredLeaves.map((balance, index) => {
-              const leaveDays = hrService.calculateTotalLeaveDays(balance);
-              return (
-                <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <div>
-                      <p className="font-medium text-gray-900">{balance.name}</p>
-                      <p className="text-sm text-gray-600">{balance.employeeId}</p>
+            {filteredLeaveBalances.map((leave, index) => (
+              <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
+                      <User className="h-4 w-4 text-white" />
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{balance.department}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{balance.position}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{leaveDays.accrued} days</td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{leaveDays.used} days</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 text-xs rounded ${
-                      leaveDays.remaining < 5 ? 'bg-red-100 text-red-800' :
-                      leaveDays.remaining < 10 ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-green-100 text-green-800'
-                    }`}>
-                      {leaveDays.remaining} days
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{leaveDays.pending} days</td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => router.push(`/hr/leaves/${balance.profileId}`)}
-                      className="text-blue-600 hover:text-blue-800 text-sm"
-                    >
-                      Manage
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
+                    <div>
+                      <p className="font-medium text-gray-900">{leave.name}</p>
+                      <p className="text-sm text-gray-600">{leave.employeeId}</p>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-4 py-4">
+                  <p className="text-gray-900">{leave.department}</p>
+                  <p className="text-sm text-gray-600">{leave.position}</p>
+                </td>
+                <td className="px-4 py-4">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    leave.currentLeaveBalance < 5 ? 'bg-red-100 text-red-800' :
+                    leave.currentLeaveBalance < 10 ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-green-100 text-green-800'
+                  }`}>
+                    {leave.currentLeaveBalance} days
+                  </span>
+                </td>
+                <td className="px-4 py-4">
+                  <span className="font-medium text-gray-900">{leave.totalLeaveUsed}</span>
+                </td>
+                <td className="px-4 py-4">
+                  <span className="font-medium text-gray-900">{leave.pendingRequests}</span>
+                </td>
+                <td className="px-4 py-4">
+                  <button
+                    onClick={() => router.push(`/hr/leaves/${leave.profileId}`)}
+                    className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg"
+                  >
+                    Manage
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {filteredLeaveBalances.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  No leave balances found
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -226,54 +280,61 @@ export default function HRTabContent({
   }
 
   if (activeTab === 'contracts') {
-    const filteredContracts = filterBySearchTerm(
-      contracts,
-      (contract) => `${contract.firstName} ${contract.lastName} ${contract.employeeId} ${contract.position} ${contract.department}`
-    );
-
     return (
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-200">
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Employee</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Position</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Contract Type</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Start Date</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">End Date</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Status</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Days Left</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Actions</th>
+            <tr className="border-b border-gray-200 bg-gray-50">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Employee</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Position/Dept</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Start Date</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">End Date</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredContracts.map((contract, index) => {
               const status = getContractStatus(contract);
-              const daysLeft = getDaysUntil(contract.contractEndDate);
+              const daysUntil = getDaysUntil(contract.contractEndDate);
+              
               return (
                 <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <div>
-                      <p className="font-medium text-gray-900">{contract.firstName} {contract.lastName}</p>
-                      <p className="text-sm text-gray-600">{contract.employeeId}</p>
+                  <td className="px-4 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
+                        <User className="h-4 w-4 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{contract.firstName} {contract.lastName}</p>
+                        <p className="text-sm text-gray-600">{contract.employeeId}</p>
+                      </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{contract.position}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 capitalize">{contract.contractType || 'N/A'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{formatDate(contract.contractStartDate)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{formatDate(contract.contractEndDate)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 text-xs rounded ${getContractStatusColor(status)}`}>
+                  <td className="px-4 py-4">
+                    <p className="text-gray-900">{contract.position}</p>
+                    <p className="text-sm text-gray-600">{contract.department}</p>
+                  </td>
+                  <td className="px-4 py-4">
+                    <p className="text-gray-900">{formatDate(contract.contractStartDate)}</p>
+                  </td>
+                  <td className="px-4 py-4">
+                    <div>
+                      <p className="text-gray-900">{formatDate(contract.contractEndDate)}</p>
+                      {daysUntil !== null && daysUntil <= 30 && (
+                        <p className="text-sm text-yellow-600">{daysUntil} days left</p>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-4">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getContractStatusColor(status)}`}>
                       {status.replace('_', ' ')}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-900">
-                    {daysLeft !== null ? `${daysLeft} days` : 'N/A'}
-                  </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-4">
                     <button
-                      onClick={() => router.push(`/hr/contracts/${contract.id}`)}
-                      className="text-blue-600 hover:text-blue-800 text-sm"
+                      onClick={() => router.push(`/hr/contracts/${contract._id}`)}
+                      className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg"
                     >
                       View
                     </button>
@@ -281,6 +342,78 @@ export default function HRTabContent({
                 </tr>
               );
             })}
+            {filteredContracts.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  No contracts found
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (activeTab === 'incidents') {
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-gray-200 bg-gray-50">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Title</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Severity</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Category</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredIncidents.map((incident, index) => (
+              <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-4">
+                  <p className="font-medium text-gray-900">{incident.title}</p>
+                  <p className="text-sm text-gray-600 line-clamp-1">{incident.description}</p>
+                </td>
+                <td className="px-4 py-4">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getIncidentSeverityColor(incident.severity)}`}>
+                    {incident.severity}
+                  </span>
+                </td>
+                <td className="px-4 py-4">
+                  <p className="text-gray-900">{formatDate(incident.incidentDate)}</p>
+                </td>
+                <td className="px-4 py-4">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    incident.status === 'open' ? 'bg-red-100 text-red-800' :
+                    incident.status === 'investigating' ? 'bg-yellow-100 text-yellow-800' :
+                    incident.status === 'resolved' ? 'bg-green-100 text-green-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {incident.status}
+                  </span>
+                </td>
+                <td className="px-4 py-4">
+                  <span className="text-gray-900 capitalize">{incident.category}</span>
+                </td>
+                <td className="px-4 py-4">
+                  <button
+                    onClick={() => router.push(`/hr/incidents/${incident._id}`)}
+                    className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg"
+                  >
+                    View
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {filteredIncidents.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  No incidents found
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -288,129 +421,146 @@ export default function HRTabContent({
   }
 
   if (activeTab === 'performance') {
-    const filteredPlans = filterBySearchTerm(
-      performancePlans,
-      (plan) => `${plan.title} ${plan.employeeProfile?.name || plan.employee} ${plan.description}`
-    );
-
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredPlans.map((plan, index) => (
-          <div
-            key={index}
-            className="p-4 border border-gray-200 rounded-lg hover:shadow-md cursor-pointer"
-            onClick={() => router.push(`/hr/performance/${plan.id}`)}
-          >
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h4 className="font-medium text-gray-900">{plan.title}</h4>
-                <p className="text-sm text-gray-600 mt-0.5">
-                  {plan.employeeProfile?.name || plan.employee}
-                </p>
-              </div>
-              <span className={`px-2 py-1 text-xs rounded ${
-                plan.status === 'active' ? 'bg-green-100 text-green-800' :
-                plan.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                'bg-gray-100 text-gray-800'
-              }`}>
-                {plan.status}
-              </span>
-            </div>
-            <p className="text-sm text-gray-600 line-clamp-2 mb-3">{plan.description}</p>
-            <div className="flex items-center justify-between text-sm text-gray-500">
-              <span>Ends: {formatDate(plan.endDate)}</span>
-              <span>{plan.reviews?.length || 0} reviews</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (activeTab === 'incidents') {
-    const filteredIncidents = filterBySearchTerm(
-      incidents,
-      (incident) => `${incident.title} ${incident.description} ${incident.category || ''}`
-    );
-
-    return (
-      <div className="space-y-3">
-        {filteredIncidents.map((incident, index) => (
-          <div
-            key={index}
-            className="p-4 border border-gray-200 rounded-lg hover:shadow-md cursor-pointer"
-            onClick={() => router.push(`/hr/incidents/${incident.id}`)}
-          >
-            <div className="flex items-start justify-between mb-2">
-              <h4 className="font-medium text-gray-900">{incident.title}</h4>
-              <div className="flex items-center gap-2">
-                <span className={`px-2 py-1 text-xs rounded ${getIncidentSeverityColor(incident.severity)}`}>
-                  {incident.severity}
-                </span>
-                <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded">
-                  {incident.status}
-                </span>
-              </div>
-            </div>
-            <p className="text-sm text-gray-600 line-clamp-2 mb-3">{incident.description}</p>
-            <div className="flex items-center justify-between text-sm text-gray-500">
-              <span>Reported: {formatDate(incident.reportedDate)}</span>
-              <span>{incident.involvedEmployees?.length || 0} involved</span>
-            </div>
-          </div>
-        ))}
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-gray-200 bg-gray-50">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Plan</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Employee</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Timeline</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Reviews</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredPerformancePlans.map((plan, index) => {
+              const daysLeft = getDaysUntil(plan.endDate);
+              
+              return (
+                <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                  <td className="px-4 py-4">
+                    <p className="font-medium text-gray-900">{plan.title}</p>
+                    <p className="text-sm text-gray-600 line-clamp-1">{plan.description}</p>
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
+                        <User className="h-4 w-4 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-gray-900">{plan.employee?.name || plan.employeeProfile?.name || plan.employee}</p>
+                        <p className="text-sm text-gray-600">{plan.employeeProfile?.position || 'N/A'}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-4">
+                    <div>
+                      <p className="text-sm text-gray-900">Start: {formatDate(plan.startDate)}</p>
+                      <p className="text-sm text-gray-600">End: {formatDate(plan.endDate)}</p>
+                      {daysLeft !== null && (
+                        <p className="text-sm text-yellow-600">{daysLeft} days left</p>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-4">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      plan.status === 'active' ? 'bg-green-100 text-green-800' :
+                      plan.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                      plan.status === 'draft' ? 'bg-gray-100 text-gray-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {plan.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-4">
+                    <span className="text-gray-900">{plan.reviews?.length || 0}</span>
+                  </td>
+                  <td className="px-4 py-4">
+                    <button
+                      onClick={() => router.push(`/hr/performance/${plan._id}`)}
+                      className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg"
+                    >
+                      View
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {filteredPerformancePlans.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  No performance plans found
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     );
   }
 
   if (activeTab === 'recruitment') {
-    const filteredCandidates = filterBySearchTerm(
-      candidates,
-      (candidate) => `${candidate.firstName} ${candidate.lastName} ${candidate.email} ${candidate.positionApplied} ${candidate.department}`
-    );
-
     return (
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-200">
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Candidate</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Position</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Department</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Status</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Applied</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Source</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Actions</th>
+            <tr className="border-b border-gray-200 bg-gray-50">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Candidate</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Position</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Applied Date</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Source</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredCandidates.map((candidate, index) => (
               <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-3">
-                  <div>
-                    <p className="font-medium text-gray-900">{candidate.firstName} {candidate.lastName}</p>
-                    <p className="text-sm text-gray-600">{candidate.email}</p>
+                <td className="px-4 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
+                      <User className="h-4 w-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">{candidate.firstName} {candidate.lastName}</p>
+                      <p className="text-sm text-gray-600">{candidate.email}</p>
+                    </div>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-900">{candidate.positionApplied}</td>
-                <td className="px-4 py-3 text-sm text-gray-900">{candidate.department}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 text-xs rounded ${getCandidateStatusColor(candidate.status)}`}>
+                <td className="px-4 py-4">
+                  <p className="text-gray-900">{candidate.positionApplied}</p>
+                  <p className="text-sm text-gray-600">{candidate.department}</p>
+                </td>
+                <td className="px-4 py-4">
+                  <p className="text-gray-900">{formatDate(candidate.appliedDate)}</p>
+                </td>
+                <td className="px-4 py-4">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCandidateStatusColor(candidate.status)}`}>
                     {candidate.status.replace('_', ' ')}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-900">{formatDate(candidate.appliedDate)}</td>
-                <td className="px-4 py-3 text-sm text-gray-900 capitalize">{candidate.source?.replace('_', ' ') || 'N/A'}</td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-4">
+                  <span className="text-gray-900 capitalize">{candidate.source || 'N/A'}</span>
+                </td>
+                <td className="px-4 py-4">
                   <button
-                    onClick={() => router.push(`/hr/recruitment/${candidate.id}`)}
-                    className="text-blue-600 hover:text-blue-800 text-sm"
+                    onClick={() => router.push(`/hr/recruitment/${candidate._id}`)}
+                    className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg"
                   >
                     View
                   </button>
                 </td>
               </tr>
             ))}
+            {filteredCandidates.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  No candidates found
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -418,80 +568,129 @@ export default function HRTabContent({
   }
 
   if (activeTab === 'welfare') {
-    const filteredPrograms = filterBySearchTerm(
-      welfarePrograms,
-      (program) => `${program.title} ${program.description} ${program.category}`
-    );
-
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredPrograms.map((program, index) => {
-          const Icon = getWelfareIcon(program.category);
+        {filteredWelfarePrograms.map((program, index) => {
+          const WelfareIcon = getWelfareIcon(program.category);
+          const daysLeft = getDaysUntil(program.endDate);
+          
           return (
-            <div
-              key={index}
-              className="p-4 border border-gray-200 rounded-lg hover:shadow-md cursor-pointer"
-              onClick={() => router.push(`/hr/welfare/${program.id}`)}
-            >
-              <div className="flex items-start gap-3 mb-3">
-                <div className="p-2 bg-gray-100 rounded-lg">
-                  <Icon className="h-5 w-5 text-gray-600" />
+            <div key={index} className="bg-white border border-gray-200 rounded-lg p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <WelfareIcon className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{program.title}</h3>
+                    <span className="text-xs text-gray-600 capitalize">{program.category.replace('_', ' ')}</span>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <h4 className="font-medium text-gray-900">{program.title}</h4>
-                  <p className="text-xs text-gray-600 mt-0.5 capitalize">{program.category.replace('_', ' ')}</p>
+                <span className={`px-2 py-1 text-xs rounded ${
+                  program.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {program.active ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+              
+              <p className="text-sm text-gray-600 mb-4 line-clamp-2">{program.description}</p>
+              
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Budget:</span>
+                  <span className="font-medium text-gray-900">KES {program.budget?.toLocaleString()}</span>
                 </div>
-                {program.active && (
-                  <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">Active</span>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Start Date:</span>
+                  <span className="font-medium text-gray-900">{formatDate(program.startDate)}</span>
+                </div>
+                {program.endDate && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">End Date:</span>
+                    <span className="font-medium text-gray-900">{formatDate(program.endDate)}</span>
+                  </div>
                 )}
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Participants:</span>
+                  <span className="font-medium text-gray-900">{program.currentParticipants || 0}</span>
+                </div>
               </div>
-              <p className="text-sm text-gray-600 line-clamp-2 mb-3">{program.description}</p>
-              <div className="flex items-center justify-between text-sm text-gray-500">
-                <span>{program.currentParticipants}/{program.maxParticipants || '∞'} participants</span>
-                <span>Budget: ${program.budget.toLocaleString()}</span>
-              </div>
+              
+              <button
+                onClick={() => router.push(`/hr/welfare/${program._id}`)}
+                className="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                View Details
+              </button>
             </div>
           );
         })}
+        
+        {filteredWelfarePrograms.length === 0 && (
+          <div className="col-span-3 text-center py-12 text-gray-500">
+            No welfare programs found
+          </div>
+        )}
       </div>
     );
   }
 
   if (activeTab === 'policies') {
-    const filteredPolicies = filterBySearchTerm(
-      policies,
-      (policy) => `${policy.title} ${policy.description} ${policy.category}`
-    );
-
     return (
-      <div className="space-y-3">
-        {filteredPolicies.map((policy, index) => (
-          <div
-            key={index}
-            className="p-4 border border-gray-200 rounded-lg hover:shadow-md cursor-pointer"
-            onClick={() => router.push(`/hr/policies/${policy.id}`)}
-          >
-            <div className="flex items-start justify-between mb-2">
-              <div>
-                <h4 className="font-medium text-gray-900">{policy.title}</h4>
-                <p className="text-xs text-gray-600 mt-0.5 capitalize">{policy.category.replace('_', ' ')}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded">
-                  v{policy.version}
-                </span>
-                {policy.active && (
-                  <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">Active</span>
-                )}
-              </div>
-            </div>
-            <p className="text-sm text-gray-600 line-clamp-2 mb-3">{policy.description}</p>
-            <div className="flex items-center justify-between text-sm text-gray-500">
-              <span>Effective: {formatDate(policy.effectiveDate)}</span>
-              <span>{policy.views} views</span>
-            </div>
-          </div>
-        ))}
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-gray-200 bg-gray-50">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Policy</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Category</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Effective Date</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Version</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredPolicies.map((policy, index) => (
+              <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-4">
+                  <p className="font-medium text-gray-900">{policy.title}</p>
+                  <p className="text-sm text-gray-600 line-clamp-1">{policy.description}</p>
+                </td>
+                <td className="px-4 py-4">
+                  <span className="text-gray-900 capitalize">{policy.category.replace('_', ' ')}</span>
+                </td>
+                <td className="px-4 py-4">
+                  <p className="text-gray-900">{formatDate(policy.effectiveDate)}</p>
+                </td>
+                <td className="px-4 py-4">
+                  <span className="text-gray-900">{policy.version}</span>
+                </td>
+                <td className="px-4 py-4">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    policy.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {policy.active ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td className="px-4 py-4">
+                  <button
+                    onClick={() => router.push(`/hr/policies/${policy._id}`)}
+                    className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg"
+                  >
+                    View
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {filteredPolicies.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  No policies found
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     );
   }
