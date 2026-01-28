@@ -56,10 +56,12 @@ export interface JobCard {
 
 export interface CreateJobCardData {
   opportunityId: string;
+  workOrderId?: string;
   // vehicleId: string;
   jobTitle: string;
   jobDescription?: string;
   assignedTo?: string;
+  estimatedHours?: number;
   status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   priority?: 'low' | 'medium' | 'high' | 'urgent';
 }

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { pdf } from '@react-pdf/renderer';
 import Image from 'next/image';
 import { userService, User } from '@/services/settings/userService';
 import SignatureCanvas from 'react-signature-canvas';
@@ -11,65 +10,39 @@ import {
   ArrowLeft,
   Save,
   X,
-  Plus,
-  Trash2,
   CheckCircle,
   AlertCircle,
   FileText,
   Car,
   User as UserType,
-  Building,
   Calendar,
-  Wrench,
   Upload,
   Loader2,
-  AlertTriangle,
   Info,
-  Eye,
   ChevronDown,
   ChevronUp,
   Clock,
-  Shield,
   FileSignature,
   Settings,
   Lightbulb,
   Car as CarIcon,
   Package,
   Timer,
-  CheckSquare,
-  AlertOctagon,
-  MessageSquare,
+  BarChart3,
   Camera,
-  ShieldAlert,
-  CreditCard,
-  Truck,
-  Home,
-  Mail,
-  Phone,
-  MapPin,
-  FileCheck,
-  ClipboardList,
-  Thermometer,
-  Droplets,
-  Zap,
-  Wrench as WrenchIcon,
-  Sparkles,
+  Shield,
   Check,
   ArrowRight,
   Download,
   Star,
   ThumbsUp,
   ThumbsDown,
-  Award,
-  Target,
-  BarChart3,
-  Copy,
-  Calculator,
-  DollarSign,
-  Image as ImageIcon,
+  MessageSquare,
+  Sparkles,
   File,
-  Tag,
-  Star as StarIcon
+  Eye,
+  Trash2,
+  Plus
 } from 'lucide-react';
 import { postChecklistService, ChecklistItem, ChecklistItemStatus } from '@/services/postChecklistService';
 import { workOrderService } from '@/services/workOrderService';
@@ -77,9 +50,8 @@ import { opportunityService } from '@/services/opportunityService';
 import { vehicleService } from '@/services/vehicleService';
 import { preChecklistService } from '@/services/preChecklistService';
 import { useToast } from '@/contexts/ToastContext';
-import Link from 'next/link';
 import { format } from 'date-fns';
-import * as XLSX from 'xlsx';
+import { lifecycleIntegrationService } from '@/services/lifecycleIntegrationService';
 
 interface PostChecklistCreatePageProps {
   mode?: 'create' | 'edit';
@@ -89,7 +61,7 @@ interface PostChecklistCreatePageProps {
 // Define a local type that includes working status
 interface PostChecklistInspectionItem extends Omit<ChecklistItem, 'status'> {
   working: boolean;
-  status?: ChecklistItemStatus; // Keep status optional for compatibility
+  status?: ChecklistItemStatus;
 }
 
 export default function HeadlightPostChecklistCreatePage({ 
@@ -116,30 +88,27 @@ export default function HeadlightPostChecklistCreatePage({
   const [preChecklist, setPreChecklist] = useState<any>(null);
   const [existingChecklist, setExistingChecklist] = useState<any>(null);
   const [autoPopulated, setAutoPopulated] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
   const [selectedBeforeFiles, setSelectedBeforeFiles] = useState<File[]>([]);
   const [selectedAfterFiles, setSelectedAfterFiles] = useState<File[]>([]);
 
   // Step-by-step wizard state
   const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 5; // customer, inspection, photos, terms, feedback
+  const totalSteps = 5;
 
   // Step titles and descriptions
   const stepTitles = [
-    'Customer Details',
+    'Customer & Warranty',
     'Inspection Results', 
     'Photos Documentation',
-    'Terms & Signatures',
+    'Product Handover & Terms',
     'Feedback & Rating'
   ];
 
   const stepDescriptions = [
-    'Enter customer information and service completion details',
+    'Enter customer information and warranty details',
     'Document post-service inspection results',
     'Upload before/after photos and documentation',
-    'Review terms and obtain signatures',
+    'Confirm product handover and accept terms',
     'Collect customer feedback and ratings'
   ];
 
@@ -148,7 +117,7 @@ export default function HeadlightPostChecklistCreatePage({
     opportunityId: opportunityId || '',
     vehicleId: vehicleId || '',
     preChecklistId: preChecklistId || '',
-    jobCardId: jobCardId || '', // Add jobCardId
+    jobCardId: jobCardId || '',
     inspectedBy: sessionStorage.getItem('userId') || '',
     dateTime: new Date().toISOString(),
     
@@ -157,7 +126,6 @@ export default function HeadlightPostChecklistCreatePage({
       firstName: '',
       lastName: '',
       email: '',
-      phone: '',
     },
     
     // Headlight inspection items with working status
@@ -170,11 +138,11 @@ export default function HeadlightPostChecklistCreatePage({
       { item: 'Parking Bulb', working: false, remarks: '', side: 'both' as const, status: ChecklistItemStatus.INCOMPLETE },
       { item: 'Angel Lights', working: false, remarks: '', side: 'both' as const, status: ChecklistItemStatus.INCOMPLETE },
       { item: 'Headlight Adjusters', working: false, remarks: '', side: 'both' as const, status: ChecklistItemStatus.INCOMPLETE },
-      { item: 'Adaptive Front Lights (AFS)', working: false, remarks: '', side: 'both' as const, status: ChecklistItemStatus.INCOMPLETE },
+      { item: 'Adaptive Front Lights(AFS)', working: false, remarks: '', side: 'both' as const, status: ChecklistItemStatus.INCOMPLETE },
       { item: 'Dimming Functionality', working: false, remarks: '', side: 'both' as const, status: ChecklistItemStatus.INCOMPLETE },
-      { item: 'Headlight Wiring and Connectors', working: false, remarks: '', side: 'both' as const, status: ChecklistItemStatus.INCOMPLETE },
+      { item: 'Wiring And Connectors', working: false, remarks: '', side: 'both' as const, status: ChecklistItemStatus.INCOMPLETE },
       { item: 'Beam Alignment', working: false, remarks: '', side: 'both' as const, status: ChecklistItemStatus.INCOMPLETE },
-      { item: 'Headlight Lens (Scratches, Cracks, Haziness)', working: false, remarks: '', side: 'both' as const, status: ChecklistItemStatus.INCOMPLETE },
+      { item: 'Headlight Lens(Scratches, Cracks, Haziness)', working: false, remarks: '', side: 'both' as const, status: ChecklistItemStatus.INCOMPLETE },
       { item: 'Water Proofing', working: false, remarks: '', side: 'both' as const, status: ChecklistItemStatus.INCOMPLETE },
       { item: 'Dashboard Warning Lights', working: false, remarks: '', side: 'vehicle' as const, status: ChecklistItemStatus.INCOMPLETE },
       { item: 'Bumper', working: false, remarks: '', side: 'both' as const, status: ChecklistItemStatus.INCOMPLETE }
@@ -187,6 +155,11 @@ export default function HeadlightPostChecklistCreatePage({
     beforePhotos: [] as string[],
     afterPhotos: [] as string[],
     
+    // Product handover confirmation
+    productHandoverConfirmed: false,
+    productSatisfactory: true,
+    issuesNoted: '',
+    
     // Terms acceptance
     acceptTerms: false,
     
@@ -198,8 +171,6 @@ export default function HeadlightPostChecklistCreatePage({
     customerSignature: '',
     
     // Additional fields
-    additionalComments: '',
-    diagnosticChargesAccepted: false,
     serviceRating: 5,
     serviceComments: ''
   });
@@ -219,7 +190,6 @@ export default function HeadlightPostChecklistCreatePage({
   }, [opportunityId, workOrderId, vehicleId, preChecklistId, checklistId, mode]);
 
   useEffect(() => {
-    // Auto-populate form data when opportunity is loaded
     if (opportunity && !autoPopulated) {
       autoPopulateFromOpportunity();
     }
@@ -229,12 +199,10 @@ export default function HeadlightPostChecklistCreatePage({
     if (!opportunity || autoPopulated) return;
 
     try {
-      // Extract customer name
       const customerName = opportunity.customer?.name || '';
       const [firstName, ...lastNameParts] = customerName.split(' ');
       const lastName = lastNameParts.join(' ') || '';
 
-      // Update form data
       setFormData(prev => ({
         ...prev,
         customerDetails: {
@@ -242,7 +210,6 @@ export default function HeadlightPostChecklistCreatePage({
           firstName: firstName || '',
           lastName: lastName || '',
           email: opportunity.customer?.email || '',
-          phone: opportunity.customer?.phone || '',
         }
       }));
 
@@ -261,160 +228,145 @@ export default function HeadlightPostChecklistCreatePage({
     }
   };
 
-  // Update the loadRelatedData function to properly set customerDetails
-const loadRelatedData = async () => {
-  try {
-    setLoading(true);
+  const loadRelatedData = async () => {
+    try {
+      setLoading(true);
 
-    // Load existing checklist if in edit mode
-    if (mode === 'edit' && checklistId) {
-      const checklist = await postChecklistService.getPostChecklistById(checklistId);
-      setExistingChecklist(checklist);
-      
-      // Transform inspection items - convert status to working
-      const transformedInspectionItems = checklist.inspectionItems?.map(item => ({
-        item: item.item || '',
-        working: item.status === ChecklistItemStatus.COMPLETED, // Convert status to working
-        remarks: item.remarks || '',
-        side: (item.side || 'both') as 'both' | 'left' | 'right' | 'vehicle',
-        status: item.status || ChecklistItemStatus.INCOMPLETE
-      })) || [];
-      
-      // Get customerDetails properly - check if it's an object or needs to be constructed
-      let customerDetails = {
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-      };
-      
-      if (checklist.customerDetails && typeof checklist.customerDetails === 'object') {
-        // If customerDetails is already an object
-        customerDetails = {
-          firstName: customerDetails.firstName || '',
-          lastName: customerDetails.lastName || '',
-          email: customerDetails.email || '',
-          phone: customerDetails.phone || '',
-        };
-      } else if (checklist.customerName) {
-        // If we only have customerName string, parse it
-        const customerName = checklist.customerName || '';
-        const [firstName, ...lastNameParts] = customerName.split(' ');
-        const lastName = lastNameParts.join(' ') || '';
+      if (mode === 'edit' && checklistId) {
+        const checklist = await postChecklistService.getPostChecklistById(checklistId);
+        setExistingChecklist(checklist);
         
-        customerDetails = {
-          firstName,
-          lastName,
+        const transformedInspectionItems = checklist.inspectionItems?.map(item => ({
+          item: item.item || '',
+          working: item.status === ChecklistItemStatus.COMPLETED,
+          remarks: item.remarks || '',
+          side: (item.side || 'both') as 'both' | 'left' | 'right' | 'vehicle',
+          status: item.status || ChecklistItemStatus.INCOMPLETE
+        })) || [];
+        
+        let customerDetails = {
+          firstName: '',
+          lastName: '',
           email: '',
-          phone: '',
         };
-      }
-      
-      setFormData({
-        opportunityId: typeof checklist.opportunityId === 'object' 
-          ? checklist.opportunityId._id 
-          : checklist.opportunityId,
-        vehicleId: typeof checklist.vehicleId === 'object' 
-          ? checklist.vehicleId._id 
-          : checklist.vehicleId,
-        preChecklistId: checklist.preChecklistId || '',
-        jobCardId: typeof checklist.jobCardId === 'object' 
-          ? checklist.jobCardId._id 
-          : checklist.jobCardId || '',
-        inspectedBy: checklist.inspectedBy 
-          ? (typeof checklist.inspectedBy === 'object' 
-              ? checklist.inspectedBy._id 
-              : checklist.inspectedBy)
-          : sessionStorage.getItem('userId') || '',
-        dateTime: checklist.dateTime || new Date().toISOString(),
-        customerDetails: customerDetails, // Use the properly constructed object
-        inspectionItems: transformedInspectionItems,
-        warrantyDuration: checklist.warrantyDuration || '12 months',
-        beforePhotos: checklist.beforePhotos || [],
-        afterPhotos: checklist.afterPhotos || [],
-        acceptTerms: checklist.acceptTerms || false,
-        rating: checklist.rating || 0,
-        comments: checklist.comments || '',
-        customerSignature: checklist.customerSignature || '',
-        additionalComments: checklist.additionalComments || '',
-        diagnosticChargesAccepted: checklist.diagnosticChargesAccepted || false,
-        serviceRating: checklist.serviceRating || 5,
-        serviceComments: checklist.serviceComments || ''
-      });
-
-      // Set related data
-      if (typeof checklist.opportunityId === 'object') {
-        setOpportunity(checklist.opportunityId);
-      }
-      if (typeof checklist.vehicleId === 'object') {
-        setVehicle(checklist.vehicleId);
-      }
-    }
-
-    // Load pre-checklist if ID provided
-    if (preChecklistId) {
-      try {
-        const preChecklist = await preChecklistService.getPreChecklistById(preChecklistId);
-        setPreChecklist(preChecklist);
         
-        // Populate customer details from pre-checklist
-        if (preChecklist.customerDetails && typeof preChecklist.customerDetails === 'object') {
+        if (checklist.customerDetails && typeof checklist.customerDetails === 'object') {
+          customerDetails = {
+            firstName: checklist.customerDetails.firstName || '',
+            lastName: checklist.customerDetails.lastName || '',
+            email: checklist.customerDetails.email || '',
+          };
+        } else if (checklist.customerName) {
+          const customerName = checklist.customerName || '';
+          const [firstName, ...lastNameParts] = customerName.split(' ');
+          const lastName = lastNameParts.join(' ') || '';
+          
+          customerDetails = {
+            firstName,
+            lastName,
+            email: '',
+          };
+        }
+        
+        setFormData({
+          opportunityId: typeof checklist.opportunityId === 'object' 
+            ? checklist.opportunityId._id 
+            : checklist.opportunityId,
+          vehicleId: typeof checklist.vehicleId === 'object' 
+            ? checklist.vehicleId._id 
+            : checklist.vehicleId,
+          preChecklistId: checklist.preChecklistId || '',
+          jobCardId: typeof checklist.jobCardId === 'object' 
+            ? checklist.jobCardId._id 
+            : checklist.jobCardId || '',
+          inspectedBy: checklist.inspectedBy 
+            ? (typeof checklist.inspectedBy === 'object' 
+                ? checklist.inspectedBy._id 
+                : checklist.inspectedBy)
+            : sessionStorage.getItem('userId') || '',
+          dateTime: checklist.dateTime || new Date().toISOString(),
+          customerDetails: customerDetails,
+          inspectionItems: transformedInspectionItems,
+          warrantyDuration: checklist.warrantyDuration || '12 months',
+          beforePhotos: checklist.beforePhotos || [],
+          afterPhotos: checklist.afterPhotos || [],
+          productHandoverConfirmed: checklist.productHandoverConfirmed || false,
+          productSatisfactory: checklist.productSatisfactory ?? true,
+          issuesNoted: checklist.issuesNoted || '',
+          acceptTerms: checklist.acceptTerms || false,
+          rating: checklist.rating || 0,
+          comments: checklist.comments || '',
+          customerSignature: checklist.customerSignature || '',
+          serviceRating: checklist.serviceRating || 5,
+          serviceComments: checklist.serviceComments || ''
+        });
+
+        if (typeof checklist.opportunityId === 'object') {
+          setOpportunity(checklist.opportunityId);
+        }
+        if (typeof checklist.vehicleId === 'object') {
+          setVehicle(checklist.vehicleId);
+        }
+      }
+
+      if (preChecklistId) {
+        try {
+          const preChecklist = await preChecklistService.getPreChecklistById(preChecklistId);
+          setPreChecklist(preChecklist);
+          
+          if (preChecklist.customerDetails && typeof preChecklist.customerDetails === 'object') {
+            setFormData(prev => ({
+              ...prev,
+              customerDetails: {
+                firstName: preChecklist.customerDetails.firstName || '',
+                lastName: preChecklist.customerDetails.lastName || '',
+                email: preChecklist.customerDetails.email || '',
+              }
+            }));
+          }
+        } catch (error) {
+          console.error('Error loading pre-checklist:', error);
+          showToast('Could not load pre-checklist details', 'warning');
+        }
+      }
+
+      if (opportunityId) {
+        try {
+          const opp = await opportunityService.getOpportunityById(opportunityId);
+          setOpportunity(opp);
+          
           setFormData(prev => ({
             ...prev,
-            customerDetails: {
-              firstName: preChecklist.customerDetails.firstName || '',
-              lastName: preChecklist.customerDetails.lastName || '',
-              email: preChecklist.customerDetails.email || '',
-              phone: preChecklist.customerDetails.phone || '',
-            }
+            opportunityId
           }));
+        } catch (error) {
+          console.error('Error loading opportunity:', error);
+          showToast('Could not load opportunity details', 'warning');
         }
-      } catch (error) {
-        console.error('Error loading pre-checklist:', error);
-        showToast('Could not load pre-checklist details', 'warning');
       }
-    }
 
-    // Load opportunity if provided
-    if (opportunityId) {
-      try {
-        const opp = await opportunityService.getOpportunityById(opportunityId);
-        setOpportunity(opp);
-        
-        // Set opportunity ID
-        setFormData(prev => ({
-          ...prev,
-          opportunityId
-        }));
-      } catch (error) {
-        console.error('Error loading opportunity:', error);
-        showToast('Could not load opportunity details', 'warning');
+      if (vehicleId) {
+        try {
+          const veh = await vehicleService.getVehicleById(vehicleId);
+          setVehicle(veh);
+          
+          setFormData(prev => ({
+            ...prev,
+            vehicleId
+          }));
+        } catch (error) {
+          console.error('Error loading vehicle:', error);
+          showToast('Could not load vehicle details', 'warning');
+        }
       }
-    }
 
-    // Load vehicle if provided
-    if (vehicleId) {
-      try {
-        const veh = await vehicleService.getVehicleById(vehicleId);
-        setVehicle(veh);
-        
-        setFormData(prev => ({
-          ...prev,
-          vehicleId
-        }));
-      } catch (error) {
-        console.error('Error loading vehicle:', error);
-        showToast('Could not load vehicle details', 'warning');
-      }
+    } catch (error) {
+      console.error('Error loading related data:', error);
+      showToast('Failed to load related information', 'error');
+    } finally {
+      setLoading(false);
     }
-
-  } catch (error) {
-    console.error('Error loading related data:', error);
-    showToast('Failed to load related information', 'error');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -448,7 +400,6 @@ const loadRelatedData = async () => {
   };
 
   const handleWorkingChange = (index: number, working: boolean) => {
-    // Update working and also update status for API compatibility
     handleItemChange(index, 'working', working);
     handleItemChange(index, 'status', working ? ChecklistItemStatus.COMPLETED : ChecklistItemStatus.INCOMPLETE);
   };
@@ -480,11 +431,11 @@ const loadRelatedData = async () => {
           { item: 'Parking Bulb', working: false, remarks: '', side: 'both', status: ChecklistItemStatus.INCOMPLETE },
           { item: 'Angel Lights', working: false, remarks: '', side: 'both', status: ChecklistItemStatus.INCOMPLETE },
           { item: 'Headlight Adjusters', working: false, remarks: '', side: 'both', status: ChecklistItemStatus.INCOMPLETE },
-          { item: 'Adaptive Front Lights (AFS)', working: false, remarks: '', side: 'both', status: ChecklistItemStatus.INCOMPLETE },
+          { item: 'Adaptive Front Lights(AFS)', working: false, remarks: '', side: 'both', status: ChecklistItemStatus.INCOMPLETE },
           { item: 'Dimming Functionality', working: false, remarks: '', side: 'both', status: ChecklistItemStatus.INCOMPLETE },
-          { item: 'Headlight Wiring and Connectors', working: false, remarks: '', side: 'both', status: ChecklistItemStatus.INCOMPLETE },
+          { item: 'Wiring And Connectors', working: false, remarks: '', side: 'both', status: ChecklistItemStatus.INCOMPLETE },
           { item: 'Beam Alignment', working: false, remarks: '', side: 'both', status: ChecklistItemStatus.INCOMPLETE },
-          { item: 'Headlight Lens (Scratches, Cracks, Haziness)', working: false, remarks: '', side: 'both', status: ChecklistItemStatus.INCOMPLETE },
+          { item: 'Headlight Lens(Scratches, Cracks, Haziness)', working: false, remarks: '', side: 'both', status: ChecklistItemStatus.INCOMPLETE },
           { item: 'Water Proofing', working: false, remarks: '', side: 'both', status: ChecklistItemStatus.INCOMPLETE },
           { item: 'Dashboard Warning Lights', working: false, remarks: '', side: 'vehicle', status: ChecklistItemStatus.INCOMPLETE },
           { item: 'Bumper', working: false, remarks: '', side: 'both', status: ChecklistItemStatus.INCOMPLETE }
@@ -514,10 +465,16 @@ const loadRelatedData = async () => {
     try {
       setSubmitting(true);
 
-      // Validate required fields
       if (!formData.customerDetails.firstName.trim() || !formData.customerDetails.lastName.trim()) {
         showToast('Customer name is required', 'error');
         setCurrentStep(1);
+        setSubmitting(false);
+        return;
+      }
+
+      if (!formData.productHandoverConfirmed) {
+        showToast('Please confirm product handover', 'error');
+        setCurrentStep(4);
         setSubmitting(false);
         return;
       }
@@ -536,21 +493,24 @@ const loadRelatedData = async () => {
         return;
       }
 
-      // Convert inspection items for API (convert working to status)
       const apiInspectionItems = formData.inspectionItems.map(item => ({
         item: item.item,
         status: item.working ? ChecklistItemStatus.COMPLETED : ChecklistItemStatus.INCOMPLETE,
         remarks: item.remarks,
         side: item.side,
-        working: item.working // Keep working for reference
+        working: item.working
       }));
 
-      // Prepare submission data
+      const allItemsCompleted = apiInspectionItems.every(item => 
+        item.status === ChecklistItemStatus.COMPLETED
+      );
+
       const submissionData = {
         opportunityId: formData.opportunityId,
         vehicleId: formData.vehicleId,
         preChecklistId: formData.preChecklistId,
         jobCardId: formData.jobCardId,
+        workOrderId: workOrderId,
         inspectedBy: formData.inspectedBy,
         dateTime: formData.dateTime,
         customerDetails: formData.customerDetails,
@@ -558,14 +518,16 @@ const loadRelatedData = async () => {
         warrantyDuration: formData.warrantyDuration,
         beforePhotos: formData.beforePhotos,
         afterPhotos: formData.afterPhotos,
+        productHandoverConfirmed: formData.productHandoverConfirmed,
+        productSatisfactory: formData.productSatisfactory,
+        issuesNoted: formData.issuesNoted,
         acceptTerms: formData.acceptTerms,
         rating: formData.rating,
         comments: formData.comments,
         customerSignature: formData.customerSignature,
-        additionalComments: formData.additionalComments,
-        diagnosticChargesAccepted: formData.diagnosticChargesAccepted,
         serviceRating: formData.serviceRating,
-        serviceComments: formData.serviceComments
+        serviceComments: formData.serviceComments,
+        approved: allItemsCompleted
       };
 
       console.log('Submitting post-checklist:', submissionData);
@@ -579,11 +541,96 @@ const loadRelatedData = async () => {
         const userId = sessionStorage.getItem('userId') || undefined;
         result = await postChecklistService.createPostChecklist(submissionData, userId);
         showToast('Post-checklist created successfully', 'success');
+        
+        if (workOrderId && result._id) {
+          try {
+            await workOrderService.updateWorkOrder(workOrderId, {
+              postChecklistId: result._id,
+              postChecklistStatus: allItemsCompleted ? 'completed' : 'in_progress',
+              updatedAt: new Date().toISOString()
+            });
+          } catch (updateError) {
+            console.error('Error updating work order:', updateError);
+          }
+        }
+        
+        if (allItemsCompleted && result._id) {
+          try {
+            const approvedChecklist = await postChecklistService.approvePostChecklist(
+              result._id, 
+              userId
+            );
+            
+            const opportunityId = result.opportunityId || formData.opportunityId;
+            if (opportunityId) {
+              await lifecycleIntegrationService.markStageAsCompleted(
+                opportunityId,
+                'postchecklist',
+                {
+                  documentId: result._id,
+                  completedBy: 'system-auto',
+                  notes: 'Post-checklist auto-approved'
+                }
+              );
+              
+              await lifecycleIntegrationService.transitionToStage(
+                opportunityId,
+                'invoice',
+                {
+                  skipValidation: true,
+                  metadata: {
+                    autoTransition: true,
+                    postChecklistId: result._id,
+                    triggeredBy: 'post-checklist-auto-approval'
+                  }
+                }
+              );
+              
+              if (workOrderId) {
+                await workOrderService.updateWorkOrder(workOrderId, {
+                  currentStage: 'invoice',
+                  updatedAt: new Date().toISOString()
+                });
+              }
+              
+              showToast('Post-checklist auto-approved! Auto-transitioned to Invoice stage.', 'success');
+            }
+          } catch (autoError) {
+            console.error('Auto-transition failed:', autoError);
+            showToast('Post-checklist created, but auto-approval and transition failed.', 'warning');
+          }
+        } else {
+          const opportunityId = result.opportunityId || formData.opportunityId;
+          if (opportunityId) {
+            try {
+              await lifecycleIntegrationService.markStageAsCompleted(
+                opportunityId,
+                'postchecklist',
+                {
+                  documentId: result._id,
+                  completedBy: 'system-auto',
+                  notes: 'Post-checklist created, pending approval'
+                }
+              );
+            } catch (markError) {
+              console.error('Error marking stage:', markError);
+            }
+          }
+          showToast('Post-checklist created. Please complete all items to proceed to Invoice stage.', 'info');
+        }
       }
 
-      // Navigate based on source
-      if (source === 'workflow' && workOrderId) {
+      if (workOrderId) {
         router.push(`/orders/work-orders/${workOrderId}`);
+      } else if (source === 'workflow' && opportunityId) {
+        const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
+        if (workOrders.length > 0) {
+          router.push(`/orders/work-orders/${workOrders[0]._id}`);
+        } else if (result._id) {
+          router.push(`/post-checklist/${result._id}`);
+        } else {
+          router.push('/postchecklists');
+        }
       } else if (result._id) {
         router.push(`/post-checklist/${result._id}`);
       } else {
@@ -642,7 +689,6 @@ const loadRelatedData = async () => {
     }
   };
 
-  // Handle file uploads
   const handleBeforeFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -650,7 +696,6 @@ const loadRelatedData = async () => {
     const newFiles = Array.from(files);
     setSelectedBeforeFiles(prev => [...prev, ...newFiles]);
     
-    // Preview images immediately
     newFiles.forEach(file => {
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
@@ -675,7 +720,6 @@ const loadRelatedData = async () => {
     const newFiles = Array.from(files);
     setSelectedAfterFiles(prev => [...prev, ...newFiles]);
     
-    // Preview images immediately
     newFiles.forEach(file => {
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
@@ -709,7 +753,23 @@ const loadRelatedData = async () => {
     setSelectedAfterFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Progress Stepper Component
+  const clearSignature = () => {
+    if (customerSigRef.current) {
+      customerSigRef.current.clear();
+      setCustomerSignature('');
+      handleInputChange('customerSignature', '');
+    }
+  };
+
+  const saveSignature = () => {
+    if (customerSigRef.current) {
+      const dataUrl = customerSigRef.current.getTrimmedCanvas().toDataURL('image/png');
+      setCustomerSignature(dataUrl);
+      handleInputChange('customerSignature', dataUrl);
+      setShowCustomerSignature(false);
+    }
+  };
+
   const renderProgressStepper = () => (
     <div className="mb-8">
       <div className="flex items-center justify-between">
@@ -752,7 +812,7 @@ const loadRelatedData = async () => {
       <div className="min-h-screen bg-gradient-to-br from-green-50/30 via-white to-emerald-50/30 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-green-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading headlight post-checklist form...</p>
+          <p className="text-gray-600">Loading post-checklist form...</p>
         </div>
       </div>
     );
@@ -761,9 +821,9 @@ const loadRelatedData = async () => {
   const stats = calculateStats();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50/30 via-white to-emerald-50/30">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-purple-50/30">
       {/* Header */}
-      <div className="bg-gradient-to-r from-green-600 via-emerald-500 to-teal-600 text-white px-8 py-6 shadow-lg">
+      <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-8 py-6 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
@@ -803,10 +863,8 @@ const loadRelatedData = async () => {
 
       {/* Main Content with Step-by-Step Wizard */}
       <div className="max-w-7xl mx-auto px-8 py-8">
-        {/* Progress Stepper */}
         {renderProgressStepper()}
         
-        {/* Step Content */}
         <div className="bg-white rounded-2xl shadow-xl border p-6 md:p-8">
           {currentStep === 1 && (
             <div className="space-y-6">
@@ -817,7 +875,7 @@ const loadRelatedData = async () => {
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                     <UserType className="h-5 w-5 text-green-600" />
-                    Customer Details
+                    CUSTOMER DETAILS
                   </h2>
                   {opportunity && (
                     <button
@@ -844,65 +902,42 @@ const loadRelatedData = async () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      First Name *
+                      Name
                     </label>
-                    <input
-                      type="text"
-                      value={formData.customerDetails.firstName}
-                      onChange={(e) => handleCustomerDetailChange('firstName', e.target.value)}
-                      placeholder="First name"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                      required
-                    />
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        value={formData.customerDetails.firstName}
+                        onChange={(e) => handleCustomerDetailChange('firstName', e.target.value)}
+                        placeholder="First Name"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      />
+                      <input
+                        type="text"
+                        value={formData.customerDetails.lastName}
+                        onChange={(e) => handleCustomerDetailChange('lastName', e.target.value)}
+                        placeholder="Last Name"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Last Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.customerDetails.lastName}
-                      onChange={(e) => handleCustomerDetailChange('lastName', e.target.value)}
-                      placeholder="Last name"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email *
+                      Email
                     </label>
                     <input
                       type="email"
                       value={formData.customerDetails.email}
                       onChange={(e) => handleCustomerDetailChange('email', e.target.value)}
-                      placeholder="customer@example.com"
+                      placeholder="Email"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Phone Number *
-                    </label>
-                    <input
-                      type="tel"
-                      value={formData.customerDetails.phone}
-                      onChange={(e) => handleCustomerDetailChange('phone', e.target.value)}
-                      placeholder="+254 712 345 678"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                      required
                     />
                   </div>
                 </div>
 
-                {/* Date & Time */}
                 <div className="mt-6">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Date & Time *
+                    DATE-TIME *Required
                   </label>
                   <input
                     type="datetime-local"
@@ -916,10 +951,9 @@ const loadRelatedData = async () => {
                   </p>
                 </div>
 
-                {/* Warranty Duration */}
                 <div className="mt-6">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Warranty Duration *
+                    WARRANTY DURATION *Required
                   </label>
                   <select
                     value={formData.warrantyDuration}
@@ -950,7 +984,7 @@ const loadRelatedData = async () => {
                         <ClipboardCheck className="h-5 w-5 text-green-600" />
                       </div>
                       <div>
-                        <h2 className="text-xl font-bold text-gray-900">Inspection Items (Tick if Working)</h2>
+                        <h2 className="text-xl font-bold text-gray-900">INSPECTION ITEM(TICK IF IT IS WORKING)</h2>
                         <p className="text-sm text-gray-600">R-RIGHT SIDE | L-LEFT SIDE</p>
                       </div>
                     </div>
@@ -1065,7 +1099,6 @@ const loadRelatedData = async () => {
                   })}
                 </div>
 
-                {/* Summary Stats */}
                 <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-medium text-gray-700">
@@ -1091,8 +1124,443 @@ const loadRelatedData = async () => {
             </div>
           )}
 
-          {/* Steps 3, 4, 5 remain the same as before */}
-          {/* ... (rest of the component code remains unchanged) */}
+          {currentStep === 3 && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">{stepTitles[2]}</h2>
+              <p className="text-gray-600 mb-6">{stepDescriptions[2]}</p>
+              
+              <div className="bg-white rounded-2xl shadow-xl border p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Before Photos */}
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+                      <Camera className="h-5 w-5 text-green-600" />
+                      UPLOAD BEFORE PHOTOS
+                    </h3>
+                    
+                    <div 
+                      onClick={() => document.getElementById('before-file-input')?.click()}
+                      className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-green-500 hover:bg-green-50 transition-colors"
+                    >
+                      <input
+                        id="before-file-input"
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={handleBeforeFileSelect}
+                        className="hidden"
+                      />
+                      <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-600 mb-1">Choose File(s)</p>
+                      <p className="text-xs text-gray-500">Select multiple images</p>
+                      <div className="mt-2 text-xs text-gray-500">
+                        {selectedBeforeFiles.length > 0 
+                          ? `${selectedBeforeFiles.length} file(s) selected` 
+                          : 'No file chosen'}
+                      </div>
+                    </div>
+
+                    {formData.beforePhotos.length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">
+                          Before Photos ({formData.beforePhotos.length})
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          {formData.beforePhotos.map((image, index) => (
+                            <div key={index} className="relative group">
+                              <div className="aspect-square rounded-lg overflow-hidden border border-gray-200">
+                                <img
+                                  src={image}
+                                  alt={`Before ${index + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeBeforePhoto(index)}
+                                className="absolute -top-2 -right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* After Photos */}
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+                      <Camera className="h-5 w-5 text-green-600" />
+                      UPLOAD AFTER PHOTOS
+                    </h3>
+                    
+                    <div 
+                      onClick={() => document.getElementById('after-file-input')?.click()}
+                      className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-green-500 hover:bg-green-50 transition-colors"
+                    >
+                      <input
+                        id="after-file-input"
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={handleAfterFileSelect}
+                        className="hidden"
+                      />
+                      <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-600 mb-1">Choose File(s)</p>
+                      <p className="text-xs text-gray-500">Select multiple images</p>
+                      <div className="mt-2 text-xs text-gray-500">
+                        {selectedAfterFiles.length > 0 
+                          ? `${selectedAfterFiles.length} file(s) selected` 
+                          : 'No file chosen'}
+                      </div>
+                    </div>
+
+                    {formData.afterPhotos.length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">
+                          After Photos ({formData.afterPhotos.length})
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          {formData.afterPhotos.map((image, index) => (
+                            <div key={index} className="relative group">
+                              <div className="aspect-square rounded-lg overflow-hidden border border-gray-200">
+                                <img
+                                  src={image}
+                                  alt={`After ${index + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeAfterPhoto(index)}
+                                className="absolute -top-2 -right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 4 && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">{stepTitles[3]}</h2>
+              <p className="text-gray-600 mb-6">{stepDescriptions[3]}</p>
+              
+              <div className="bg-white rounded-2xl shadow-xl border p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <FileSignature className="h-5 w-5 text-green-600" />
+                    Product Handover & Terms
+                  </h2>
+                  <span className="text-sm text-gray-500">Required Fields *</span>
+                </div>
+                
+                {/* Product Handover Confirmation */}
+                <div className="mb-8 p-6 border border-gray-200 rounded-lg bg-blue-50">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">
+                    Initial Product Handover Confirmation
+                  </h3>
+                  
+                  <div className="flex items-start gap-3 mb-4">
+                    <input
+                      type="checkbox"
+                      id="productHandoverConfirmed"
+                      checked={formData.productHandoverConfirmed}
+                      onChange={(e) => handleInputChange('productHandoverConfirmed', e.target.checked)}
+                      className="mt-1"
+                      required
+                    />
+                    <label htmlFor="productHandoverConfirmed" className="text-sm text-gray-700">
+                      I confirm that I have received and reviewed the initial product after installation *
+                    </label>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="radio"
+                        id="productSatisfactory"
+                        checked={formData.productSatisfactory}
+                        onChange={() => handleInputChange('productSatisfactory', true)}
+                        className="mt-1"
+                      />
+                      <label htmlFor="productSatisfactory" className="text-sm text-gray-700">
+                        The initial product is satisfactory
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="radio"
+                        id="issuesNoted"
+                        checked={!formData.productSatisfactory}
+                        onChange={() => handleInputChange('productSatisfactory', false)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <label htmlFor="issuesNoted" className="text-sm text-gray-700 block mb-2">
+                          Issues noted (if any):
+                        </label>
+                        <textarea
+                          value={formData.issuesNoted}
+                          onChange={(e) => handleInputChange('issuesNoted', e.target.value)}
+                          placeholder="Describe any issues with the installation..."
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                          rows={3}
+                          disabled={formData.productSatisfactory}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Terms and Conditions */}
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="h-64 overflow-y-auto p-4">
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">TERMS AND CONDITIONS</h3>
+                    <ol className="space-y-2 text-xs text-gray-700">
+                      <li className="flex gap-2">
+                        <span className="font-medium">1.</span>
+                        <span>Eagle Lights Automotive LTD takes great care in servicing your vehicle, but we strongly recommend that you remove all personal items, valuables, and items of sentimental value from your vehicle before leaving it in our care for service.</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="font-medium">2.</span>
+                        <span>While we make every effort to ensure the safety and security of your personal belongings, we want to make it clear that we cannot accept liability for any loss, damage, or theft of items left in your vehicle during the service process.</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="font-medium">3.</span>
+                        <span>This includes, but is not limited to, electronic devices, jewelry, cash, documents, and any other personal property.</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="font-medium">4.</span>
+                        <span>We advise you to thoroughly inspect your vehicle before handing it over to us for service and ensure that all personal items are removed.</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="font-medium">5.</span>
+                        <span>By choosing to leave personal items in your vehicle during service, you acknowledge and accept that Eagle Lights Automotive LTD is not liable for any loss or damage to these items.</span>
+                      </li>
+                    </ol>
+                    
+                    <div className="mt-4">
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Additional Terms:</h4>
+                      <div className="text-xs text-gray-700 space-y-1">
+                        <p>1. Scope and Customer Obligations: Eagle Lights specialises in automotive lighting, offering headlight installations and customizations.</p>
+                        <p>2. Manufacturer's Warranty and Voiding Conditions: While Eagle Lights provides a limited warranty for workmanship, manufacturer's warranties vary and are not their responsibility.</p>
+                        <p>3. Warranty Period and Refund: The warranty period for workmanship is Six Months to One Year depending on the product.</p>
+                        <p>14. Non-Liability for Damages Resulting from Customization: Eagle Lights shall not be held liable for any damages, losses, or costs resulting from the customization process.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Terms Acceptance */}
+                <div className="mt-6 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      id="acceptTerms"
+                      checked={formData.acceptTerms}
+                      onChange={(e) => handleInputChange('acceptTerms', e.target.checked)}
+                      className="mt-1"
+                      required
+                    />
+                    <label htmlFor="acceptTerms" className="text-sm text-gray-700">
+                      I accept the Terms and Conditions *
+                    </label>
+                  </div>
+                </div>
+                
+                {/* Customer Signature */}
+                <div className="mt-8 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Customer Signature *
+                    </label>
+                    {customerSignature && (
+                      <button
+                        type="button"
+                        onClick={clearSignature}
+                        className="text-xs text-red-600 hover:text-red-800"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  
+                  {showCustomerSignature ? (
+                    <div className="space-y-3">
+                      <div className="border border-gray-300 rounded-lg bg-white p-2">
+                        <SignatureCanvas
+                          ref={customerSigRef}
+                          penColor="black"
+                          canvasProps={{
+                            width: 400,
+                            height: 150,
+                            className: 'w-full h-32 border rounded bg-white'
+                          }}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={saveSignature}
+                          className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                        >
+                          Save Signature
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowCustomerSignature(false)}
+                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => setShowCustomerSignature(true)}
+                      className="h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-green-500 hover:bg-green-50 transition-colors"
+                    >
+                      {customerSignature ? (
+                        <div className="text-center p-2">
+                          <img 
+                            src={customerSignature} 
+                            alt="Customer Signature" 
+                            className="h-20 mx-auto object-contain"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Click to change signature</p>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <FileSignature className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                          <p className="text-sm text-gray-600">Click to sign</p>
+                          <p className="text-xs text-gray-500">Draw your signature</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 5 && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">{stepTitles[4]}</h2>
+              <p className="text-gray-600 mb-6">{stepDescriptions[4]}</p>
+              
+              <div className="bg-white rounded-2xl shadow-xl border p-6 space-y-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                  <Star className="h-5 w-5 text-yellow-500" />
+                  Feedback & Rating
+                </h2>
+                
+                {/* Service Rating */}
+                <div className="space-y-4">
+                  <label className="block text-sm font-medium text-gray-700">
+                    RATE US
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => handleInputChange('serviceRating', star)}
+                        className="p-1 hover:scale-110 transition-transform"
+                      >
+                        <Star className={`h-8 w-8 ${star <= formData.serviceRating ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'}`} />
+                      </button>
+                    ))}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {formData.serviceRating === 1 && 'Poor'}
+                    {formData.serviceRating === 2 && 'Fair'}
+                    {formData.serviceRating === 3 && 'Good'}
+                    {formData.serviceRating === 4 && 'Very Good'}
+                    {formData.serviceRating === 5 && 'Excellent'}
+                  </div>
+                </div>
+                
+                {/* Service Comments */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    LEAVE A COMMENT ABOUT OUR SERVICES
+                  </label>
+                  <textarea
+                    value={formData.serviceComments}
+                    onChange={(e) => handleInputChange('serviceComments', e.target.value)}
+                    placeholder="Tell us about your experience..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    rows={4}
+                  />
+                </div>
+                
+                {/* Overall Experience */}
+                <div className="space-y-4">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Overall Experience
+                  </label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => handleInputChange('rating', 5)}
+                      className={`p-4 border rounded-lg flex items-center justify-center gap-3 transition-all ${
+                        formData.rating === 5
+                          ? 'border-green-500 bg-green-50'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <ThumbsUp className="h-6 w-6 text-green-600" />
+                      <div className="text-left">
+                        <div className="font-medium">Satisfied</div>
+                        <div className="text-sm text-gray-600">Everything was perfect</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleInputChange('rating', 1)}
+                      className={`p-4 border rounded-lg flex items-center justify-center gap-3 transition-all ${
+                        formData.rating === 1
+                          ? 'border-red-500 bg-red-50'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <ThumbsDown className="h-6 w-6 text-red-600" />
+                      <div className="text-left">
+                        <div className="font-medium">Needs Improvement</div>
+                        <div className="text-sm text-gray-600">Issues need attention</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Additional Comments */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Additional Comments
+                  </label>
+                  <textarea
+                    value={formData.comments}
+                    onChange={(e) => handleInputChange('comments', e.target.value)}
+                    placeholder="Any additional feedback or suggestions..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    rows={3}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         
         {/* Navigation Buttons */}
@@ -1110,71 +1578,64 @@ const loadRelatedData = async () => {
             Previous
           </button>
           
-          <div className="flex gap-4">
+          <div className="flex justify-between gap-4 mt-6 pt-6 border-t border-gray-200">
             <button
-              onClick={handleSaveAsDraft}
-              className="px-6 py-3 rounded-lg font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+              type="button"
+              onClick={handleCancel}
+              className="px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+              disabled={submitting}
             >
-              <Save className="h-5 w-5" />
-              Save as Draft
-              {draftSaved && (
-                <span className="text-xs text-green-600">
-                  ✓ Saved
-                </span>
-              )}
+              <ArrowLeft className="h-4 w-4" />
+              Cancel & Back to Work Order
             </button>
             
-            {currentStep < totalSteps ? (
+            <div className="flex gap-4">
               <button
-                onClick={() => setCurrentStep(currentStep + 1)}
-                className="px-6 py-3 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 flex items-center gap-2"
-              >
-                Next
-                <ArrowRight className="h-5 w-5" />
-              </button>
-            ) : (
-              <button
-                onClick={handleSubmit}
+                onClick={handleSaveAsDraft}
+                className="px-6 py-3 rounded-lg font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                 disabled={submitting}
-                className="px-6 py-3 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
               >
-                {submitting ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    {mode === 'edit' ? 'Updating...' : 'Creating...'}
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-5 w-5" />
-                    {mode === 'edit' ? 'Update Checklist' : 'Save & Submit'}
-                  </>
+                <Save className="h-5 w-5" />
+                Save as Draft
+                {draftSaved && (
+                  <span className="text-xs text-green-600">
+                    ✓ Saved
+                  </span>
                 )}
               </button>
-            )}
+              
+              {currentStep < totalSteps ? (
+                <button
+                  onClick={() => setCurrentStep(currentStep + 1)}
+                  className="px-6 py-3 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2"
+                  disabled={submitting}
+                >
+                  Next
+                  <ArrowRight className="h-5 w-5" />
+                </button>
+              ) : (
+                <button
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="px-6 py-3 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      {mode === 'edit' ? 'Updating...' : 'Creating...'}
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-5 w-5" />
+                      {mode === 'edit' ? 'Update Checklist' : 'Create Post-Checklist'}
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
     </div>
-  );
-}
-
-// Helper component for file icon
-function FileIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-      <polyline points="14 2 14 8 20 8" />
-    </svg>
   );
 }

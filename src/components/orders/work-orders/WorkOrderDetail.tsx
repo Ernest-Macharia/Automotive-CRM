@@ -74,7 +74,7 @@ interface WorkflowStage {
     id: string; 
     label: string; 
     icon: React.ReactNode; 
-    variant: 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'info' | 'outline'; 
+    variant: 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'info' | 'outline';
     description?: string;
     action: () => Promise<void> | void;
   }>;
@@ -111,6 +111,7 @@ interface WorkflowStage {
     requirements?: string[];
   };
   nextAction?: string;
+  canTransition?: boolean;
 }
 
 // Enhanced Skeleton Loader Components
@@ -294,6 +295,27 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   const [stageOverview, setStageOverview] = useState<any>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
+  const [shouldCreateJobCard, setShouldCreateJobCard] = useState(false);
+  const [jobCardRedirectUrl, setJobCardRedirectUrl] = useState('');
+  const [jobCardStatus, setJobCardStatus] = useState<{
+    needsJobCard: boolean;
+    reason: string;
+    checking: boolean;
+  }>({
+    needsJobCard: false,
+    reason: '',
+    checking: true
+  });
+
+  const [postChecklistStatus, setPostChecklistStatus] = useState<{
+    needsPostChecklist: boolean;
+    reason: string;
+    checking: boolean;
+  }>({
+    needsPostChecklist: false,
+    reason: '',
+    checking: true
+  });
 
   const [currentStageSummary, setCurrentStageSummary] = useState<{
     title: string;
@@ -369,51 +391,124 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     }
   }, [workOrder, autoRefresh]);
 
-  // useEffect(() => {
-  //   const initializeWorkflow = async () => {
-  //     if (!workOrder) return;
+  useEffect(() => {
+    const checkForJobCardCreation = async () => {
+      if (!workOrder) return;
       
-  //     try {
-  //       const opportunityId = typeof workOrder.opportunityId === 'object' 
-  //         ? workOrder.opportunityId._id 
-  //         : workOrder.opportunityId;
+      const opportunityId = typeof workOrder.opportunityId === 'object' 
+        ? workOrder.opportunityId._id 
+        : workOrder.opportunityId;
+      
+      try {
+        const check = await lifecycleIntegrationService.shouldRedirectToJobCardCreation(opportunityId);
         
-  //       // Initialize workflow if not already done
-  //       const result = await lifecycleIntegrationService.initializeWorkOrderWorkflow(opportunityId);
-        
-  //       if (result.success) {
-  //         console.log('Workflow initialized:', result.message);
-  //         // Now fetch the work order data
-  //         await fetchWorkOrder();
-  //       }
-  //     } catch (error) {
-  //       console.error('Workflow initialization error:', error);
-  //     }
-  //   };
+        if (check.shouldRedirect && check.workOrderId) {
+          setShouldCreateJobCard(true);
+          setJobCardRedirectUrl(`/job-cards/create?workOrderId=${check.workOrderId}&opportunityId=${opportunityId}&autoRedirect=true`);
+          
+          // Optionally auto-redirect after a delay
+          setTimeout(() => {
+            router.push(jobCardRedirectUrl);
+          }, 2000); // 2 second delay to show message
+        }
+      } catch (error) {
+        console.error('Error checking job card creation:', error);
+      }
+    };
     
-  //   if (workOrder && (!workOrder.currentStage || workOrder.currentStage === 'pre_checklist')) {
-  //     initializeWorkflow();
-  //   }
-  // }, [workOrder]);
+    if (workOrder) {
+      checkForJobCardCreation();
+    }
+  }, [workOrder]);
 
+  useEffect(() => {
+  const checkJobCardStatus = async () => {
+    if (!workOrder) return;
+    
+    const opportunityId = typeof workOrder.opportunityId === 'object' 
+      ? workOrder.opportunityId._id 
+      : workOrder.opportunityId;
+    
+    try {
+      setJobCardStatus(prev => ({ ...prev, checking: true }));
+      
+      const check = await lifecycleIntegrationService.checkJobCardCreationNeeded(opportunityId);
+      
+      setJobCardStatus({
+        needsJobCard: check.needsJobCard,
+        reason: check.reason,
+        checking: false
+      });
+      
+    } catch (error) {
+      console.error('Error checking job card status:', error);
+      setJobCardStatus({
+        needsJobCard: false,
+        reason: 'Error checking job card status',
+        checking: false
+      });
+    }
+  };
+  
+  // Check when work order changes or when we're on job-cards tab
+  if (workOrder && (activeTab === 'job-cards' || activeTab === 'overview' || activeTab === 'stages')) {
+    checkJobCardStatus();
+  }
+}, [workOrder, activeTab]);
+
+useEffect(() => {
+  const checkStageRequirements = async () => {
+    if (!workOrder) return;
+    
+    const opportunityId = typeof workOrder.opportunityId === 'object' 
+      ? workOrder.opportunityId._id 
+      : workOrder.opportunityId;
+    
+    try {
+      setJobCardStatus(prev => ({ ...prev, checking: true }));
+      setPostChecklistStatus(prev => ({ ...prev, checking: true }));
+      
+      const check = await lifecycleIntegrationService.checkStageRequirements(opportunityId);
+      
+      setJobCardStatus({
+        needsJobCard: check.jobCardNeeded,
+        reason: check.jobCardStatus.reason,
+        checking: false
+      });
+      
+      setPostChecklistStatus({
+        needsPostChecklist: check.postChecklistNeeded,
+        reason: check.postChecklistStatus.reason,
+        checking: false
+      });
+      
+    } catch (error) {
+      console.error('Error checking stage requirements:', error);
+      setJobCardStatus({
+        needsJobCard: false,
+        reason: 'Error checking job card status',
+        checking: false
+      });
+      setPostChecklistStatus({
+        needsPostChecklist: false,
+        reason: 'Error checking post-checklist status',
+        checking: false
+      });
+    }
+  };
+  
+  if (workOrder && (activeTab === 'overview' || activeTab === 'stages' || 
+      activeTab === 'job-cards' || activeTab === 'post-checklist')) {
+    checkStageRequirements();
+  }
+}, [workOrder, activeTab]);
+
+  // Also update the fetchWorkOrder function to remove the initialization call:
   const fetchWorkOrder = async () => {
     try {
       setLoading(true);
-      let data = await workOrderService.getWorkOrderById(orderId);
+      const data = await workOrderService.getWorkOrderById(orderId);
       setWorkOrder(data);
-      
-      // Initialize workflow if needed
-      if (!data.currentStage || data.currentStage === 'pre_checklist') {
-        const opportunityId = typeof data.opportunityId === 'object' 
-          ? data.opportunityId._id 
-          : data.opportunityId;
-        
-        await lifecycleIntegrationService.initializeWorkOrderWorkflow(opportunityId);
-        // Refetch after initialization
-        const updatedData = await workOrderService.getWorkOrderById(orderId);
-        setWorkOrder(updatedData);
-        data = updatedData;
-      }
       
       await transformWorkOrderToStages(data);
       await fetchStageOverview();
@@ -495,6 +590,42 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     }
   }, [activeTab, workOrder?.preChecklistId, preChecklist, fetchPreChecklist]);
 
+  // Add this useEffect to listen for changes and refresh data
+  // useEffect(() => {
+  //   // Refresh data when pre-checklist is created or approved
+  //   const refreshData = async () => {
+  //     if (workOrder) {
+  //       // Wait a moment for backend to process
+  //       await new Promise(resolve => setTimeout(resolve, 1000));
+        
+  //       // Refresh all data
+  //       await fetchWorkOrder();
+        
+  //       // Force re-fetch of pre-checklist if it exists
+  //       if (workOrder.preChecklistId) {
+  //         fetchPreChecklist();
+  //       }
+        
+  //       // Force re-fetch of stage overview
+  //       fetchStageOverview();
+  //     }
+  //   };
+
+  //   // Listen for pre-checklist creation/approval events
+  //   const handleChecklistEvent = () => {
+  //     refreshData();
+  //   };
+
+  //   // You can use a custom event or polling
+  //   const interval = setInterval(() => {
+  //     if (workOrder) {
+  //       refreshData();
+  //     }
+  //   }, 5000); // Poll every 5 seconds
+
+  //   return () => clearInterval(interval);
+  // }, [workOrder?._id]);
+
   const fetchPostChecklist = async () => {
     try {
       setLoadingPostChecklist(true);
@@ -508,18 +639,85 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   };
 
   const fetchStageOverview = async () => {
-    if (!workOrder) return;
+    if (!workOrder) {
+      setStageOverview(null);
+      return;
+    }
     
     try {
       const opportunityId = typeof workOrder.opportunityId === 'object' 
         ? workOrder.opportunityId._id 
         : workOrder.opportunityId;
       
-      const overview = await lifecycleIntegrationService.getStageOverview(opportunityId);
-      setStageOverview(overview);
+      // First check if we have any documents
+      if (workOrder.preChecklistId) {
+        // Force workflow initialization if needed
+        try {
+          const overview = await lifecycleIntegrationService.getStageOverview(opportunityId);
+          
+          if (!overview) {
+            // Try to initialize workflow
+            await lifecycleIntegrationService.initializeWorkOrderWorkflow(opportunityId);
+            
+            // Try getting overview again
+            const newOverview = await lifecycleIntegrationService.getStageOverview(opportunityId);
+            setStageOverview(newOverview || getDefaultStageOverview());
+          } else {
+            setStageOverview(overview);
+          }
+        } catch (error) {
+          console.error('Error fetching stage overview, using default:', error);
+          setStageOverview(getDefaultStageOverview());
+        }
+      } else {
+        // No pre-checklist yet, show default
+        setStageOverview(getDefaultStageOverview());
+      }
     } catch (error) {
       console.error('Error fetching stage overview:', error);
+      setStageOverview(getDefaultStageOverview());
     }
+  };
+
+  // Add helper function for default overview
+  const getDefaultStageOverview = () => {
+    return {
+      currentStage: {
+        id: 'prechecklist',
+        label: 'Pre-Checklist',
+        description: 'Complete pre-service inspection',
+        status: workOrder?.preChecklistId ? 'in_progress' : 'not_started',
+        progress: workOrder?.preChecklistId ? 50 : 0,
+        icon: '✅',
+        color: workOrder?.preChecklistId ? 'blue' : 'gray',
+        hasDocument: !!workOrder?.preChecklistId,
+        documentStatus: workOrder?.preChecklistId ? 'pending' : 'none',
+        canProceed: false,
+        requirements: [workOrder?.preChecklistId ? 'Complete and approve checklist' : 'Create pre-checklist']
+      },
+      nextStage: {
+        id: 'jobcard',
+        label: 'Job Card',
+        description: 'Create detailed work instructions',
+        icon: '🔧',
+        isReady: false,
+        requirements: ['Complete Pre-Checklist']
+      },
+      progress: {
+        percentage: workOrder?.preChecklistId ? 25 : 0,
+        completed: workOrder?.preChecklistId ? 1 : 0,
+        total: 4,
+        estimatedCompletion: 'Not started'
+      },
+      actions: [{
+        id: 'create-pre-checklist',
+        label: workOrder?.preChecklistId ? 'Continue Pre-Checklist' : 'Create Pre-Checklist',
+        type: 'primary',
+        icon: workOrder?.preChecklistId ? 'edit' : 'plus',
+        description: workOrder?.preChecklistId ? 'Continue working on pre-checklist' : 'Start the workflow',
+        action: 'create'
+      }]
+    };
   };
 
   const refreshAllData = async () => {
@@ -548,32 +746,360 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     }
   };
 
+  const handleCreatePreChecklistDirect = async () => {
+    if (!workOrder) return;
+    
+    try {
+      setIsTransitioning(true);
+      
+      // First initialize workflow if not already initialized
+      const opportunityId = typeof workOrder.opportunityId === 'object' 
+        ? workOrder.opportunityId._id 
+        : workOrder.opportunityId;
+      
+      // Initialize workflow
+      await lifecycleIntegrationService.initializeWorkOrderWorkflow(opportunityId);
+      
+      // Navigate to pre-checklist creation
+      router.push(`/pre-checklist/create?workOrderId=${workOrder._id}&opportunityId=${opportunityId}&vehicleId=${workOrder.vehicleId}&autoTransition=true`);
+      
+    } catch (error) {
+      console.error('Error navigating to pre-checklist creation:', error);
+      showToast('Failed to initialize workflow', 'error');
+    } finally {
+      setIsTransitioning(false);
+    }
+  };
+
   const CurrentStageDisplay = () => {
-    if (!stageOverview) {
+    // If there's no pre-checklist yet, always show create options
+    if (!stageOverview && !workOrder?.preChecklistId) {
       return (
-        <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-4">
               <div className="p-3 bg-white rounded-lg shadow-sm">
-                <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
+                <ClipboardCheck className="h-6 w-6 text-blue-600" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">Initializing Workflow...</h2>
-                <p className="text-gray-600">Setting up workflow stages</p>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Start Work Order Process</h2>
+                <p className="text-gray-600 mb-4">
+                  Begin by creating the pre-service inspection checklist. This will automatically initialize the workflow.
+                </p>
+                
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => handleCreatePreChecklistDirect()}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                    disabled={isTransitioning}
+                  >
+                    {isTransitioning ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plus className="h-4 w-4" />
+                    )}
+                    Create Pre-Checklist
+                  </button>
+                </div>
               </div>
             </div>
-            <button
-              onClick={refreshAllData}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Initialize
-            </button>
           </div>
         </div>
       );
     }
     
+    // If we have pre-checklist but workflow not showing properly
+    if (workOrder?.preChecklistId && !stageOverview) {
+      return (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-white rounded-lg shadow-sm">
+                <ClipboardCheck className="h-6 w-6 text-green-600" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Pre-Checklist Created</h2>
+                <p className="text-gray-600 mb-4">
+                  Pre-checklist has been created. Loading workflow status...
+                </p>
+                
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      // Manually trigger workflow initialization
+                      const opportunityId = typeof workOrder.opportunityId === 'object' 
+                        ? workOrder.opportunityId._id 
+                        : workOrder.opportunityId;
+                      lifecycleIntegrationService.initializeWorkOrderWorkflow(opportunityId);
+                      fetchWorkOrder();
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Initialize Workflow
+                  </button>
+                  
+                  <button
+                    onClick={() => router.push(`/pre-checklist/${workOrder.preChecklistId}`)}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                  >
+                    <Eye className="h-4 w-4" />
+                    View Pre-Checklist
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (shouldCreateJobCard) {
+    return (
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-white rounded-lg shadow-sm">
+              <Wrench className="h-6 w-6 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Create Job Card</h2>
+              <p className="text-gray-600 mb-4">
+                Pre-checklist completed. You need to create a job card to assign technicians and track work progress.
+              </p>
+              
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-yellow-800 font-medium mb-1">
+                      Redirecting to Job Card Creation...
+                    </p>
+                    <p className="text-yellow-700 text-sm">
+                      You will be automatically redirected to the job card creation page in a few seconds.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => router.push(jobCardRedirectUrl)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                >
+                  <ArrowRight className="h-4 w-4" />
+                  Go to Job Card Creation
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setShouldCreateJobCard(false);
+                    // Optional: stay on current page
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
+                >
+                  <Clock className="h-4 w-4" />
+                  Create Later
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (stageOverview?.currentStage?.id === 'postchecklist' && 
+      postChecklistStatus.needsPostChecklist && 
+      !postChecklistStatus.checking) {
+    return (
+      <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-xl p-6 mb-6">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-white rounded-lg shadow-sm">
+              <ClipboardList className="h-6 w-6 text-purple-600" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <h2 className="text-2xl font-bold text-gray-900">Create Post-Checklist</h2>
+                <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">
+                  Action Required
+                </span>
+              </div>
+              
+              <p className="text-gray-600 mb-4">
+                Job card completed. Create a post-checklist for quality verification.
+              </p>
+              
+              {/* Status Message */}
+              <div className={`p-4 rounded-lg mb-6 ${
+                postChecklistStatus.reason.includes('No post-checklist') 
+                  ? 'bg-purple-50 border border-purple-200' 
+                  : 'bg-yellow-50 border border-yellow-200'
+              }`}>
+                <div className="flex items-start gap-3">
+                  {postChecklistStatus.reason.includes('No post-checklist') ? (
+                    <FilePlus className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                  )}
+                  <div>
+                    <p className="font-medium text-gray-900 mb-1">
+                      {postChecklistStatus.reason.includes('No post-checklist') 
+                        ? 'Post-Checklist Not Created' 
+                        : 'Post-Checklist Needs Completion'}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {postChecklistStatus.reason}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => router.push(`/post-checklist/create?workOrderId=${workOrder?._id}&jobCardId=${jobCards[0]?._id}`)}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Post-Checklist
+                </button>
+                
+                {/* <button
+                  onClick={() => {
+                    const opportunityId = typeof workOrder?.opportunityId === 'object' 
+                      ? workOrder.opportunityId._id 
+                      : workOrder?.opportunityId;
+                    if (opportunityId) {
+                      lifecycleIntegrationService.checkStageRequirements(opportunityId)
+                        .then(check => {
+                          setPostChecklistStatus({
+                            needsPostChecklist: check.postChecklistNeeded,
+                            reason: check.postChecklistStatus.reason,
+                            checking: false
+                          });
+                        });
+                    }
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Check Again
+                </button> */}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // If current stage is jobcard and no job card exists (non-redirect version)
+  if (stageOverview?.currentStage?.id === 'jobcard' && 
+      jobCardStatus.needsJobCard && 
+      !jobCardStatus.checking) {
+    return (
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-white rounded-lg shadow-sm">
+              <Wrench className="h-6 w-6 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <h2 className="text-2xl font-bold text-gray-900">Create Job Card</h2>
+                <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
+                  Action Required
+                </span>
+              </div>
+              
+              <p className="text-gray-600 mb-4">
+                Pre-checklist completed. You need to create a job card with technician assignments to proceed.
+              </p>
+              
+              {/* Status Message */}
+              <div className={`p-4 rounded-lg mb-6 ${
+                jobCardStatus.reason.includes('No job cards') 
+                  ? 'bg-blue-50 border border-blue-200' 
+                  : jobCardStatus.reason.includes('not properly assigned')
+                  ? 'bg-yellow-50 border border-yellow-200'
+                  : 'bg-gray-50 border border-gray-200'
+              }`}>
+                <div className="flex items-start gap-3">
+                  {jobCardStatus.reason.includes('No job cards') ? (
+                    <FilePlus className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  ) : jobCardStatus.reason.includes('not properly assigned') ? (
+                    <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <Info className="h-5 w-5 text-gray-600 flex-shrink-0 mt-0.5" />
+                  )}
+                  <div>
+                    <p className="font-medium text-gray-900 mb-1">
+                      {jobCardStatus.reason.includes('No job cards') 
+                        ? 'Job Card Not Created' 
+                        : 'Job Card Needs Setup'}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {jobCardStatus.reason}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => router.push(`/job-cards/create?workOrderId=${workOrder?._id}&opportunityId=${workOrder?.opportunityId}`)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Job Card
+                </button>
+                
+                <button
+                  onClick={() => {
+                    // Refresh job card status
+                    const opportunityId = typeof workOrder?.opportunityId === 'object' 
+                      ? workOrder.opportunityId._id 
+                      : workOrder?.opportunityId;
+                    if (opportunityId) {
+                      lifecycleIntegrationService.checkJobCardCreationNeeded(opportunityId)
+                        .then(check => {
+                          setJobCardStatus({
+                            needsJobCard: check.needsJobCard,
+                            reason: check.reason,
+                            checking: false
+                          });
+                        });
+                    }
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Check Again
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+    
+    // Only show stage overview if we have data
+    if (!stageOverview) {
+      return (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
+          <div className="flex items-center justify-center">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
+              <span className="text-gray-600">Loading workflow status...</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    // Original stage overview display when we have data
     const { currentStage, nextStage, progress, actions } = stageOverview;
     
     return (
@@ -884,156 +1410,114 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
   };
 
   // Enhanced workflow transformation using the integrated service
+  // Replace the existing transformWorkOrderToStages function with this enhanced version
   const transformWorkOrderToStages = async (order: WorkOrder) => {
-  if (!order) {
-    setWorkflowStages([]);
-    return;
-  }
-  
-  try {
-    const opportunityId = typeof order.opportunityId === 'object' 
-      ? order.opportunityId._id 
-      : order.opportunityId;
+    if (!order) {
+      setWorkflowStages([]);
+      return;
+    }
     
-    const workflowUI = await lifecycleIntegrationService.getEnhancedWorkflowUI(opportunityId);
-    
-    const stages = workflowUI.stages.map((stage: any, index: number) => {
-      // Map stage names correctly
-      const stageName = stage.stage === 'pre_checklist' ? 'prechecklist' :
-                       stage.stage === 'job_card' ? 'jobcard' :
-                       stage.stage === 'post_checklist' ? 'postchecklist' : stage.stage;
+    try {
+      const opportunityId = typeof order.opportunityId === 'object' 
+        ? order.opportunityId._id 
+        : order.opportunityId;
       
-      const status = mapEnhancedStatusToStageStatus(stage.status, stage.isCurrent, stage.completed);
-      const statusDisplay = getStageStatusDisplay(status);
-      
-      // Get correct stage label
-      const stageLabel = stageName === 'prechecklist' ? 'Pre-Checklist' :
-                        stageName === 'jobcard' ? 'Job Card' :
-                        stageName === 'postchecklist' ? 'Post-Checklist' :
-                        stageName === 'invoice' ? 'Invoice' : stage.label;
-      
-      // Get correct icon
-      const stageIcon = getStageIcon(stageName);
-      
-      return {
-        id: `stage-${stageName}`,
-        stage: stageName,
-        label: stageLabel,
-        description: stage.description,
-        status,
-        completed: stage.completed,
-        isCurrent: stage.isCurrent,
-        document: stage.document,
-        documentId: stage.documentId,
-        documentType: stage.documentType,
-        actions: buildStageActionsFromEnhanced(stage, order),
-        statusLabel: statusDisplay.label,
-        statusColor: statusDisplay.color,
-        bgColor: statusDisplay.bgColor,
-        statusIcon: statusDisplay.icon,
-        icon: stageIcon,
-        mandatory: stage.mandatory || stage.required || true,
-        estimatedTime: getStageEstimatedTime(stageName),
-        canSkip: stage.skippable || false,
-        progress: stage.progress || 0,
-        validation: stage.validation,
-        nextAction: stage.nextAction
-      };
-    });
-    
-    setWorkflowStages(stages);
-    
-  } catch (error) {
-    console.error('Error transforming work order to stages:', error);
-    fallbackTransform(order);
-  }
-};
-
-  const fallbackTransform = (order: WorkOrder) => {
-    const mainStages = [
-      {
-        id: 'pre_checklist',
-        stage: 'pre_checklist',
-        label: 'Pre-Checklist',
-        description: 'Pre-service inspection and validation',
-        icon: <ClipboardCheck className="h-5 w-5" />,
-        mandatory: true,
-        estimatedTime: '30-60 min',
-        canSkip: false,
-      },
-      {
-        id: 'job_card',
-        stage: 'job_card',
-        label: 'Job Card',
-        description: 'Detailed job tasks and technician assignments',
-        icon: <Wrench className="h-5 w-5" />,
-        mandatory: true,
-        estimatedTime: '2-4 hours',
-        canSkip: false,
-      },
-      {
-        id: 'post_checklist',
-        stage: 'post_checklist',
-        label: 'Post-Checklist',
-        description: 'Post-service verification and quality check',
-        icon: <ClipboardList className="h-5 w-5" />,
-        mandatory: true,
-        estimatedTime: '30-60 min',
-        canSkip: false,
-      },
-      {
-        id: 'invoice',
-        stage: 'invoice',
-        label: 'Invoice',
-        description: 'Generate and manage billing',
-        icon: <ReceiptIcon className="h-5 w-5" />,
-        mandatory: true,
-        estimatedTime: '30 min',
-        canSkip: false,
-      }
-    ];
-
-    const stagesWithStatus = mainStages.map(stageConfig => {
-      const status = determineStageStatus(order, stageConfig.stage);
-      const statusDisplay = getStageStatusDisplay(status);
-      
-      let documentId: string | undefined;
-      switch (stageConfig.stage) {
-        case 'pre_checklist':
-          documentId = order.preChecklistId;
-          break;
-        case 'job_card': 
-          documentId = getJobCardId(order.jobCards);
-          break;
-        case 'post_checklist':
-          documentId = order.postChecklistId;
-          break;
-        case 'invoice':
-          documentId = order.invoiceId;
-          break;
+      if (!opportunityId) {
+        console.error('No opportunity ID found for work order');
+        fallbackTransform(order);
+        return;
       }
       
-      const actions = getStageActions(order, stageConfig.stage, status, documentId);
+      // First, check if we have a pre-checklist (this triggers workflow)
+      let workflowUI;
+      try {
+        workflowUI = await lifecycleIntegrationService.getEnhancedWorkflowUI(opportunityId);
+      } catch (error) {
+        console.log('Workflow not found, will create one:', error);
+        
+        // If we have a pre-checklist ID but no workflow, auto-initialize
+        if (order.preChecklistId) {
+          try {
+            console.log('Auto-initializing workflow...');
+            await lifecycleIntegrationService.initializeWorkOrderWorkflow(opportunityId);
+            
+            // Try getting workflow UI again
+            workflowUI = await lifecycleIntegrationService.getEnhancedWorkflowUI(opportunityId);
+          } catch (initError) {
+            console.error('Failed to auto-initialize workflow:', initError);
+            fallbackTransform(order);
+            return;
+          }
+        } else {
+          // No pre-checklist yet, use fallback
+          fallbackTransform(order);
+          return;
+        }
+      }
       
-      return {
-        ...stageConfig,
-        status,
-        statusLabel: statusDisplay?.label || 'Unknown',
-        statusColor: statusDisplay?.color || 'text-gray-600',
-        bgColor: statusDisplay?.bgColor || 'bg-gray-100',
-        completed: ['completed', 'approved'].includes(status),
-        isCurrent: order.currentStage === stageConfig.stage,
-        documentId,
-        actions: actions || [],
-        progress: getStageProgress(status),
-        approvalDate: order.stageApprovals?.[stageConfig.stage as keyof typeof order.stageApprovals]?.approvedAt,
-        approvedBy: order.stageApprovals?.[stageConfig.stage as keyof typeof order.stageApprovals]?.approvedBy,
-        completionDate: documentId ? new Date().toISOString() : undefined
-      };
-    });
-
-    setWorkflowStages(stagesWithStatus as WorkflowStage[]);
+      // If we got workflow UI but it has no stages, use fallback
+      if (!workflowUI || !workflowUI.stages || workflowUI.stages.length === 0) {
+        console.log('No stages in workflow UI, using fallback');
+        fallbackTransform(order);
+        return;
+      }
+      
+      const stages = workflowUI.stages.map((stage: any, index: number) => {
+        // Normalize stage names
+        const stageName = stage.stage === 'pre_checklist' ? 'prechecklist' :
+                        stage.stage === 'job_card' ? 'jobcard' :
+                        stage.stage === 'post_checklist' ? 'postchecklist' : stage.stage;
+        
+        const status = mapEnhancedStatusToStageStatus(stage.status, stage.isCurrent, stage.completed);
+        const statusDisplay = getStageStatusDisplay(status);
+        
+        // Get correct stage label
+        const stageLabel = stageName === 'prechecklist' ? 'Pre-Checklist' :
+                          stageName === 'jobcard' ? 'Job Card' :
+                          stageName === 'postchecklist' ? 'Post-Checklist' :
+                          stageName === 'invoice' ? 'Invoice' : stage.label;
+        
+        // Get correct icon
+        const stageIcon = getStageIcon(stageName);
+        
+        // Build actions from enhanced stage
+        const actions = buildStageActionsFromEnhanced(stage, order);
+        
+        return {
+          id: `stage-${stageName}`,
+          stage: stageName,
+          label: stageLabel,
+          description: stage.description,
+          status,
+          completed: stage.completed || false,
+          isCurrent: stage.isCurrent || false,
+          document: stage.document,
+          documentId: stage.documentId,
+          documentType: stage.documentType,
+          actions,
+          statusLabel: statusDisplay.label,
+          statusColor: statusDisplay.color,
+          bgColor: statusDisplay.bgColor,
+          statusIcon: statusDisplay.icon,
+          icon: stageIcon,
+          mandatory: stage.mandatory || stage.required || true,
+          estimatedTime: getStageEstimatedTime(stageName),
+          canSkip: stage.skippable || false,
+          progress: stage.progress || 0,
+          validation: stage.validation,
+          nextAction: stage.nextAction
+        };
+      });
+      
+      setWorkflowStages(stages);
+      
+    } catch (error) {
+      console.error('Error transforming work order to stages:', error);
+      fallbackTransform(order);
+    }
   };
+
+  // Helper functions that need to be defined or updated:
 
   const mapEnhancedStatusToStageStatus = (enhancedStatus: string, isCurrent: boolean, completed: boolean): StageStatus => {
     switch (enhancedStatus) {
@@ -1149,6 +1633,93 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       default:
         return 'Unknown';
     }
+  };
+
+  // Fallback transformation for when workflow data is not available
+  const fallbackTransform = (order: WorkOrder) => {
+    const mainStages = [
+      {
+        id: 'pre_checklist',
+        stage: 'pre_checklist',
+        label: 'Pre-Checklist',
+        description: 'Pre-service inspection and validation',
+        icon: <ClipboardCheck className="h-5 w-5" />,
+        mandatory: true,
+        estimatedTime: '30-60 min',
+        canSkip: false,
+      },
+      {
+        id: 'job_card',
+        stage: 'job_card',
+        label: 'Job Card',
+        description: 'Detailed job tasks and technician assignments',
+        icon: <Wrench className="h-5 w-5" />,
+        mandatory: true,
+        estimatedTime: '2-4 hours',
+        canSkip: false,
+      },
+      {
+        id: 'post_checklist',
+        stage: 'post_checklist',
+        label: 'Post-Checklist',
+        description: 'Post-service verification and quality check',
+        icon: <ClipboardList className="h-5 w-5" />,
+        mandatory: true,
+        estimatedTime: '30-60 min',
+        canSkip: false,
+      },
+      {
+        id: 'invoice',
+        stage: 'invoice',
+        label: 'Invoice',
+        description: 'Generate and manage billing',
+        icon: <ReceiptIcon className="h-5 w-5" />,
+        mandatory: true,
+        estimatedTime: '30 min',
+        canSkip: false,
+      }
+    ];
+
+    const stagesWithStatus = mainStages.map(stageConfig => {
+      const status = determineStageStatus(order, stageConfig.stage);
+      const statusDisplay = getStageStatusDisplay(status);
+      
+      let documentId: string | undefined;
+      switch (stageConfig.stage) {
+        case 'pre_checklist':
+          documentId = order.preChecklistId;
+          break;
+        case 'job_card': 
+          documentId = getJobCardId(order.jobCards);
+          break;
+        case 'post_checklist':
+          documentId = order.postChecklistId;
+          break;
+        case 'invoice':
+          documentId = order.invoiceId;
+          break;
+      }
+      
+      const actions = getStageActions(order, stageConfig.stage, status, documentId);
+      
+      return {
+        ...stageConfig,
+        status,
+        statusLabel: statusDisplay?.label || 'Unknown',
+        statusColor: statusDisplay?.color || 'text-gray-600',
+        bgColor: statusDisplay?.bgColor || 'bg-gray-100',
+        completed: ['completed', 'approved'].includes(status),
+        isCurrent: order.currentStage === stageConfig.stage,
+        documentId,
+        actions: actions || [],
+        progress: getStageProgress(status),
+        approvalDate: order.stageApprovals?.[stageConfig.stage as keyof typeof order.stageApprovals]?.approvedAt,
+        approvedBy: order.stageApprovals?.[stageConfig.stage as keyof typeof order.stageApprovals]?.approvedBy,
+        completionDate: documentId ? new Date().toISOString() : undefined
+      };
+    });
+
+    setWorkflowStages(stagesWithStatus as WorkflowStage[]);
   };
 
   const getStageProgress = (status: StageStatus) => {
@@ -1613,28 +2184,15 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         case 'prechecklist':
         case 'pre_checklist':
           // Create pre-checklist
-          documentData = {
-            opportunityId,
-            vehicleId: workOrder.vehicleId || '',
-            inspectionItems: [
-              { item: 'Vehicle Exterior', status: 'n/a', remarks: 'To be inspected' },
-              { item: 'Vehicle Interior', status: 'n/a', remarks: 'To be inspected' },
-              { item: 'Engine Bay', status: 'n/a', remarks: 'To be inspected' },
-              { item: 'Tires & Wheels', status: 'n/a', remarks: 'To be inspected' },
-            ],
-            remarks: `Pre-service inspection for ${workOrder.notes || 'work order'}`,
-            approved: false
-          };
-          
-          await lifecycleIntegrationService.createDocumentAndUpdateWorkflow(
-            'prechecklist',
-            opportunityId,
-            documentData,
-            'current-user-id' // Replace with actual user
-          );
-          
-          showToast('Pre-checklist created', 'success');
-          break;
+
+          try {
+            await lifecycleIntegrationService.initializeWorkOrderLifecycle(opportunityId);
+          } catch (error) {
+            console.log('Workflow may already be initialized:', error);
+          }
+            
+          router.push(`/pre-checklist/create?workOrderId=${workOrder._id}&opportunityId=${opportunityId}&vehicleId=${workOrder.vehicleId}`);
+          return;
           
         case 'jobcard':
         case 'job_card':
@@ -1855,6 +2413,53 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       setIsTransitioning(false);
     }
   };
+
+  // In your job card service or component
+const handleCompleteJobCard = async (jobCardId: string) => {
+  try {
+    // Mark job card as completed
+    const completedJobCard = await jobCardService.updateJobCard(jobCardId, {
+      status: 'completed',
+      completedAt: new Date().toISOString()
+    });
+    
+    // Get opportunity ID from job card
+    const opportunityId = typeof completedJobCard.opportunityId === 'object' 
+      ? completedJobCard.opportunityId._id 
+      : completedJobCard.opportunityId;
+    
+    if (opportunityId) {
+      // Auto-transition to post-checklist stage
+      await lifecycleIntegrationService.transitionToStage(
+        opportunityId,
+        'postchecklist',
+        {
+          skipValidation: true,
+          metadata: {
+            autoTransition: true,
+            jobCardId,
+            triggeredBy: 'job-card-completion'
+          }
+        }
+      );
+      
+      // Update work order stage
+      const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
+      if (workOrders.length > 0) {
+        const workOrder = workOrders[0];
+        await workOrderService.updateWorkOrder(workOrder._id, {
+          currentStage: 'post_checklist',
+          updatedAt: new Date().toISOString()
+        });
+      }
+      
+      showToast('Job Card completed! Moved to Post-Checklist stage.', 'success');
+    }
+  } catch (error) {
+    console.error('Error completing job card:', error);
+    showToast('Failed to complete job card', 'error');
+  }
+};
 
   const handleAutoTransitionNow = async (stage: string) => {
     if (!workOrder) return;
@@ -2101,6 +2706,269 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
       }
       return `Create ${stage.label}`;
     };
+
+    if (stage.stage === 'jobcard') {
+    const needsJobCard = jobCardStatus.needsJobCard;
+    const isAssigned = jobCards.length > 0 && jobCards.some(jc => jc.assignedTo);
+    
+    return (
+      <div
+        className={`p-6 rounded-xl border-2 transition-all duration-300 hover:shadow-lg ${
+          stage.isCurrent
+            ? needsJobCard 
+              ? 'border-yellow-500 bg-yellow-50 transform scale-[1.02] shadow-lg' 
+              : 'border-blue-500 bg-blue-50 transform scale-[1.02] shadow-lg'
+            : stage.completed
+            ? 'border-green-500 bg-green-50'
+            : 'border-gray-200 bg-gray-50'
+        }`}
+      >
+        <div className="flex items-start justify-between mb-4">
+          <div className={`p-3 rounded-lg ${
+            needsJobCard ? 'bg-yellow-100' : 'bg-blue-100'
+          }`}>
+            <Wrench className="h-6 w-6 text-blue-600" />
+          </div>
+          <div className="flex items-center gap-2">
+            {stage.isCurrent && needsJobCard && (
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+                <span className="text-xs font-medium text-yellow-600">ACTION REQUIRED</span>
+              </div>
+            )}
+            {stage.isCurrent && !needsJobCard && isAssigned && (
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                <span className="text-xs font-medium text-blue-600">IN PROGRESS</span>
+              </div>
+            )}
+            <span className={`text-sm font-medium px-3 py-1 rounded-full ${
+              needsJobCard 
+                ? 'bg-yellow-100 text-yellow-800'
+                : stage.isCurrent && isAssigned
+                ? 'bg-blue-100 text-blue-800'
+                : stage.completed
+                ? 'bg-green-100 text-green-800'
+                : 'bg-gray-100 text-gray-800'
+            }`}>
+              {needsJobCard ? 'Needs Setup' : 
+               stage.isCurrent && isAssigned ? 'In Progress' :
+               stage.completed ? 'Completed' : 
+               stage.statusLabel}
+            </span>
+          </div>
+        </div>
+        
+        <h4 className="text-lg font-semibold text-gray-900 mb-3">{stage.label}</h4>
+        <p className="text-sm text-gray-600 mb-4">
+          {needsJobCard 
+            ? 'Create job card with technician assignments'
+            : stage.description}
+        </p>
+        
+        {/* Job Card Status */}
+        <div className="space-y-3">
+          <div className="p-3 bg-white border border-gray-200 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">Job Card Status</span>
+              <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                needsJobCard 
+                  ? 'bg-yellow-100 text-yellow-800'
+                  : isAssigned
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-gray-100 text-gray-800'
+              }`}>
+                {needsJobCard ? 'Not Ready' : 
+                 isAssigned ? 'Assigned' : 
+                 'No Job Card'}
+              </span>
+            </div>
+            
+            {needsJobCard && (
+              <div className="text-xs text-yellow-600 mt-1">
+                {jobCardStatus.reason}
+              </div>
+            )}
+          </div>
+          
+          {/* Action buttons */}
+          <div className="pt-4 border-t border-gray-200">
+            <div className="flex flex-wrap gap-2">
+              {needsJobCard ? (
+                <button
+                  onClick={() => router.push(`/job-cards/create?workOrderId=${workOrder?._id}&opportunityId=${workOrder?.opportunityId}`)}
+                  className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Job Card
+                </button>
+              ) : jobCards.length > 0 ? (
+                <>
+                  <button
+                    onClick={() => router.push(`/job-cards/${jobCards[0]._id}`)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                  >
+                    <Eye className="h-4 w-4" />
+                    View Job Card
+                  </button>
+                  {stage.canTransition && (
+                    <button
+                      onClick={() => handleTransitionToNextStage(stage)}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                      Next Stage
+                    </button>
+                  )}
+                </>
+              ) : (
+                <button
+                  onClick={() => router.push(`/job-cards/create?workOrderId=${workOrder?._id}&opportunityId=${workOrder?.opportunityId}`)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Job Card
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage.stage === 'postchecklist') {
+    const needsPostChecklist = postChecklistStatus.needsPostChecklist;
+    const hasCompletePostChecklist = postChecklist && postChecklist.approved;
+    
+    return (
+      <div
+        className={`p-6 rounded-xl border-2 transition-all duration-300 hover:shadow-lg ${
+          stage.isCurrent
+            ? needsPostChecklist 
+              ? 'border-yellow-500 bg-yellow-50 transform scale-[1.02] shadow-lg' 
+              : 'border-purple-500 bg-purple-50 transform scale-[1.02] shadow-lg'
+            : stage.completed
+            ? 'border-green-500 bg-green-50'
+            : 'border-gray-200 bg-gray-50'
+        }`}
+      >
+        <div className="flex items-start justify-between mb-4">
+          <div className={`p-3 rounded-lg ${
+            needsPostChecklist ? 'bg-yellow-100' : 'bg-purple-100'
+          }`}>
+            <ClipboardList className="h-6 w-6 text-purple-600" />
+          </div>
+          <div className="flex items-center gap-2">
+            {stage.isCurrent && needsPostChecklist && (
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+                <span className="text-xs font-medium text-yellow-600">ACTION REQUIRED</span>
+              </div>
+            )}
+            {stage.isCurrent && !needsPostChecklist && postChecklist && (
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                <span className="text-xs font-medium text-purple-600">IN PROGRESS</span>
+              </div>
+            )}
+            <span className={`text-sm font-medium px-3 py-1 rounded-full ${
+              needsPostChecklist 
+                ? 'bg-yellow-100 text-yellow-800'
+                : stage.isCurrent && postChecklist
+                ? 'bg-purple-100 text-purple-800'
+                : stage.completed
+                ? 'bg-green-100 text-green-800'
+                : 'bg-gray-100 text-gray-800'
+            }`}>
+              {needsPostChecklist ? 'Needs Setup' : 
+               stage.isCurrent && postChecklist ? 'In Progress' :
+               stage.completed ? 'Completed' : 
+               stage.statusLabel}
+            </span>
+          </div>
+        </div>
+        
+        <h4 className="text-lg font-semibold text-gray-900 mb-3">{stage.label}</h4>
+        <p className="text-sm text-gray-600 mb-4">
+          {needsPostChecklist 
+            ? 'Create post-checklist for quality verification'
+            : stage.description}
+        </p>
+        
+        {/* Post-Checklist Status */}
+        <div className="space-y-3">
+          <div className="p-3 bg-white border border-gray-200 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">Post-Checklist Status</span>
+              <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                needsPostChecklist 
+                  ? 'bg-yellow-100 text-yellow-800'
+                  : postChecklist?.approved
+                  ? 'bg-green-100 text-green-800'
+                  : postChecklist
+                  ? 'bg-purple-100 text-purple-800'
+                  : 'bg-gray-100 text-gray-800'
+              }`}>
+                {needsPostChecklist ? 'Not Ready' : 
+                 postChecklist?.approved ? 'Approved' :
+                 postChecklist ? 'Pending Approval' : 
+                 'No Post-Checklist'}
+              </span>
+            </div>
+            
+            {needsPostChecklist && (
+              <div className="text-xs text-yellow-600 mt-1">
+                {postChecklistStatus.reason}
+              </div>
+            )}
+          </div>
+          
+          {/* Action buttons */}
+          <div className="pt-4 border-t border-gray-200">
+            <div className="flex flex-wrap gap-2">
+              {needsPostChecklist ? (
+                <button
+                  onClick={() => router.push(`/post-checklist/create?workOrderId=${workOrder?._id}&jobCardId=${jobCards[0]?._id}`)}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Post-Checklist
+                </button>
+              ) : postChecklist ? (
+                <>
+                  <button
+                    onClick={() => router.push(`/post-checklist/${postChecklist._id}`)}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                  >
+                    <Eye className="h-4 w-4" />
+                    View Post-Checklist
+                  </button>
+                  {stage.canTransition && (
+                    <button
+                      onClick={() => handleTransitionToNextStage(stage)}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                      Next Stage
+                    </button>
+                  )}
+                </>
+              ) : (
+                <button
+                  onClick={() => router.push(`/post-checklist/create?workOrderId=${workOrder?._id}&jobCardId=${jobCards[0]?._id}`)}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Post-Checklist
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
     
     return (
       <div
@@ -3673,33 +4541,26 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                   </div>
                   
                   <div className="flex items-center gap-3">
-                    {workOrder?.preChecklistId && (
+                    {workOrder?.preChecklistId ? (
                       <button
-                        onClick={() => router.push(`/pre-checklist/${workOrder.preChecklistId}`)}
+                        onClick={() => router.push(`/pre-checklist/${workOrder.preChecklistId}?workOrderId=${workOrder._id}`)}
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
                       >
                         <Eye className="h-4 w-4" />
-                        View Checklist
+                        {preChecklist?.approved ? 'View Approved' : 'View Checklist'}
                       </button>
-                    )}
-                    
-                    {!workOrder?.preChecklistId && (
+                    ) : (
                       <button
-                        onClick={() => handleCreateStageDocument('pre_checklist')}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                        onClick={handleCreatePreChecklistDirect}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                        disabled={isTransitioning}
                       >
-                        <Plus className="h-4 w-4" />
+                        {isTransitioning ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Plus className="h-4 w-4" />
+                        )}
                         Create Pre-Checklist
-                      </button>
-                    )}
-                    
-                    {workOrder?.preChecklistId && !preChecklist?.approved && (
-                      <button
-                        onClick={() => approvePreChecklist(workOrder.preChecklistId!)}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
-                      >
-                        <CheckCircle className="h-4 w-4" />
-                        Approve Checklist
                       </button>
                     )}
                   </div>
@@ -3757,7 +4618,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                         </div>
                         
                         {/* Auto-transition notice */}
-                        {preChecklist.approved && workflowStages.some(s => s.isCurrent && s.stage.includes('prechecklist')) && (
+                        {preChecklist.approved && (
                           <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                             <div className="flex items-start gap-3">
                               <Zap className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
@@ -3766,7 +4627,9 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                                   Ready for auto-transition to Job Card
                                 </p>
                                 <p className="text-xs text-green-700">
-                                  The system will automatically create a job card and move to next stage
+                                  {workflowStages.find(s => s.isCurrent)?.stage === 'jobcard' 
+                                    ? '✓ Already transitioned to Job Card stage'
+                                    : 'Will automatically create job card and move to next stage'}
                                 </p>
                               </div>
                             </div>
@@ -3778,7 +4641,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                     {/* Action Buttons */}
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={() => router.push(`/pre-checklist/${workOrder.preChecklistId}`)}
+                        onClick={() => router.push(`/pre-checklist/${workOrder.preChecklistId}?workOrderId=${workOrder._id}`)}
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
                       >
                         <Eye className="h-4 w-4" />
@@ -3787,11 +4650,27 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                       
                       {!preChecklist.approved && (
                         <button
-                          onClick={() => approvePreChecklist(workOrder.preChecklistId!)}
+                          onClick={async () => {
+                            try {
+                              const result = await lifecycleIntegrationService.autoTransitionOnPreChecklistComplete(
+                                workOrder.preChecklistId!,
+                                'current-user-id'
+                              );
+                              
+                              if (result.success) {
+                                showToast('Pre-checklist approved and workflow advanced', 'success');
+                                // Refresh all data
+                                await fetchWorkOrder();
+                                fetchStageOverview();
+                              }
+                            } catch (error) {
+                              showToast('Failed to approve checklist', 'error');
+                            }
+                          }}
                           className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
                         >
                           <CheckCircle className="h-4 w-4" />
-                          Approve Checklist
+                          Approve & Continue
                         </button>
                       )}
                       
@@ -3799,7 +4678,7 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                         <button
                           onClick={async () => {
                             const currentStage = workflowStages.find(s => s.isCurrent);
-                            if (currentStage) {
+                            if (currentStage && currentStage.stage === 'prechecklist') {
                               await handleTransitionToNextStage(currentStage);
                             }
                           }}
@@ -3821,19 +4700,16 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
                     
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                       <button
-                        onClick={() => handleCreateStageDocument('pre_checklist')}
+                        onClick={() => handleCreatePreChecklistDirect()}
                         className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                        disabled={isTransitioning}
                       >
-                        <Plus className="h-4 w-4" />
+                        {isTransitioning ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Plus className="h-4 w-4" />
+                        )}
                         Create Pre-Checklist
-                      </button>
-                      
-                      <button
-                        onClick={() => handleOneClickComplete('prechecklist')}
-                        className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 flex items-center gap-2"
-                      >
-                        <Zap className="h-4 w-4" />
-                        Auto-Create & Approve
                       </button>
                     </div>
                   </div>
@@ -3843,99 +4719,166 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
           )}
 
           {activeTab === 'job-cards' && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Job Cards</h3>
-                    <p className="text-sm text-gray-600">Detailed job tasks and technician assignments</p>
-                  </div>
-                  <button
-                    onClick={() => handleCreateStageDocument('job_card')}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Create Job Card
-                  </button>
-                </div>
+  <div className="space-y-6">
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Job Cards</h3>
+          <p className="text-sm text-gray-600">
+            {workOrder?.currentStage === 'job_card' 
+              ? 'Create and manage job cards for this work order'
+              : 'Job cards will be available in the Job Card stage'}
+          </p>
+        </div>
+        
+        {/* Show create button only when job card is needed */}
+        {workOrder?.currentStage === 'job_card' && jobCardStatus.needsJobCard && (
+          <button
+            onClick={() => router.push(`/job-cards/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}`)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Create Job Card
+          </button>
+        )}
+      </div>
 
-                {jobCards.length > 0 ? (
-                  <div className="space-y-4">
-                    {jobCards.map((jobCard) => (
-                      <div key={jobCard._id} className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-3">
-                              <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
-                                <Wrench className="h-5 w-5" />
-                              </div>
-                              <div>
-                                <h4 className="font-semibold text-gray-900">{jobCard.jobTitle || 'Job Card'}</h4>
-                                <p className="text-sm text-gray-600">Assigned to: {jobCard.assignedTo?.name || 'Unassigned'}</p>
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                              <div>
-                                <div className="text-sm text-gray-600">Status</div>
-                                <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                                  jobCard.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                  jobCard.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                                  'bg-gray-100 text-gray-800'
-                                }`}>
-                                  {jobCard.status === 'completed' ? 'Completed' :
-                                   jobCard.status === 'in_progress' ? 'In Progress' :
-                                   'Pending'}
-                                </div>
-                              </div>
-                              <div>
-                                <div className="text-sm text-gray-600">Priority</div>
-                                <div className="font-medium">{jobCard.priority || 'Medium'}</div>
-                              </div>
-                              <div>
-                                <div className="text-sm text-gray-600">Est. Hours</div>
-                                <div className="font-medium">{jobCard.estimatedHours || 0} hours</div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleViewStageDocument('job_card', jobCard._id)}
-                              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                            >
-                              View Details
-                            </button>
-                            <button
-                              onClick={() => handleEditStageDocument('job_card', jobCard._id)}
-                              className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
-                            >
-                              Edit
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-                    <Wrench className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h4 className="text-lg font-semibold text-gray-900 mb-2">No Job Cards Created</h4>
-                    <p className="text-gray-600 mb-6">
-                      Create job cards to assign specific tasks and track work progress.
-                    </p>
-                    <div className="flex items-center justify-center gap-3">
-                      <button
-                        onClick={() => handleCreateStageDocument('job_card')}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Create Job Card
-                      </button>
-                    </div>
-                  </div>
-                )}
+      {/* Show job card requirement message */}
+      {/* {workOrder?.currentStage === 'job_card' && jobCardStatus.needsJobCard && (
+        <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-200 rounded-xl p-6 mb-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white rounded-lg shadow-sm">
+              <AlertTriangle className="h-6 w-6 text-yellow-600" />
+            </div>
+            <div className="flex-1">
+              <h4 className="font-bold text-gray-900 mb-2">Job Card Required</h4>
+              <p className="text-gray-600 mb-4">
+                {jobCardStatus.reason}. Create a job card with technician assignments to proceed.
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => router.push(`/job-cards/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}`)}
+                  className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Job Card Now
+                </button>
+                
+                <button
+                  onClick={() => fetchJobCards()} // Refresh job cards
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Refresh Status
+                </button>
               </div>
             </div>
-          )}
+          </div>
+        </div>
+      )} */}
+
+      {/* Job Cards List - Only show if job cards exist and are assigned */}
+      {jobCards.length > 0 ? (
+        <div className="space-y-4">
+          {jobCards
+            .filter(jobCard => jobCard.assignedTo) // Only show assigned job cards
+            .map((jobCard) => (
+              <div key={jobCard._id} className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                        <Wrench className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{jobCard.jobTitle || 'Job Card'}</h4>
+                        <p className="text-sm text-gray-600">
+                          Assigned to: {jobCard.assignedTo?.name || jobCard.assignedTo || 'Unassigned'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      <div>
+                        <div className="text-sm text-gray-600">Status</div>
+                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                          jobCard.status === 'completed' ? 'bg-green-100 text-green-800' :
+                          jobCard.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {jobCard.status === 'completed' ? 'Completed' :
+                          jobCard.status === 'in_progress' ? 'In Progress' :
+                          'Pending'}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Priority</div>
+                        <div className="font-medium">{jobCard.priority || 'Medium'}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Est. Hours</div>
+                        <div className="font-medium">{jobCard.estimatedHours || 0} hours</div>
+                      </div>
+                    </div>
+                    
+                    {/* Complete Button */}
+                    {jobCard.status !== 'completed' && (
+                      <button
+                        onClick={() => handleCompleteJobCard(jobCard._id)}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                      >
+                        <CheckCircle className="h-4 w-4" />
+                        Mark as Completed
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => router.push(`/job-cards/${jobCard._id}`)}
+                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                    >
+                      View Details
+                    </button>
+                    <button
+                      onClick={() => router.push(`/job-cards/edit/${jobCard._id}`)}
+                      className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+        </div>
+      ) : workOrder?.currentStage === 'job_card' && !jobCardStatus.needsJobCard ? (
+        // No job cards but stage says we don't need them (shouldn't happen)
+        <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
+          <Wrench className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h4 className="text-lg font-semibold text-gray-900 mb-2">No Job Cards</h4>
+          <p className="text-gray-600 mb-6">
+            Job cards will appear here once created and assigned.
+          </p>
+          <button
+            onClick={() => router.push(`/job-cards/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}`)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 mx-auto"
+          >
+            <Plus className="h-4 w-4" />
+            Create Job Card
+          </button>
+        </div>
+      ) : workOrder?.currentStage !== 'job_card' ? (
+        <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
+          <Wrench className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h4 className="text-lg font-semibold text-gray-900 mb-2">Job Card Stage Not Active</h4>
+          <p className="text-gray-600 mb-6">
+            Complete the pre-checklist stage to unlock job card creation.
+          </p>
+        </div>
+      ) : null}
+    </div>
+  </div>
+)}
 
           {activeTab === 'delays' && (
             <div className="space-y-6">
