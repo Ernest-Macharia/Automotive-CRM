@@ -68,6 +68,7 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { lifecycleIntegrationService } from '@/services/lifecycleIntegrationService';
+import { lifecycleService } from '@/services/lifecycleService';
 
 interface PreChecklistCreatePageProps {
   mode?: 'create' | 'edit';
@@ -215,6 +216,25 @@ export default function HeadlightPreChecklistCreatePage({
       autoPopulateFromOpportunity();
     }
   }, [opportunity]);
+
+  // In your pre-checklist create page component
+  useEffect(() => {
+    const initializeWorkflow = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const opportunityId = urlParams.get('opportunityId');
+      
+      if (opportunityId) {
+        try {
+          // Initialize workflow only when creating the first pre-checklist
+          await lifecycleIntegrationService.initializeWorkOrderLifecycle(opportunityId);
+        } catch (error) {
+          console.log('Workflow may already be initialized');
+        }
+      }
+    };
+    
+    initializeWorkflow();
+  }, []);
 
   const clearSignature = (type: 'client' | 'inspector') => {
     if (type === 'client' && clientSigRef.current) {
@@ -721,13 +741,22 @@ export default function HeadlightPreChecklistCreatePage({
         side: item.side || 'both'
       }));
 
+      // Check if we can auto-approve based on inspection items
+      const hasFaults = submissionItems.some(item => item.status === 'fault');
+      const allItemsChecked = submissionItems.every(item => 
+        item.status === 'ok' || item.status === 'n/a' || item.status === 'fault'
+      );
+      
+      // Auto-approve if all items are checked and there are no faults
+      const shouldAutoApprove = allItemsChecked && !hasFaults;
+
       // Create submission data
       const submissionData = {
         opportunityId: formData.opportunityId,
         vehicleId: formData.vehicleId,
         inspectionItems: submissionItems,
         remarks: formData.remarks || '',
-        approved: false, // Start as not approved
+        approved: shouldAutoApprove, // Set initial approval status
         
         // Include headlight-specific data
         serviceType: formData.serviceType,
@@ -764,50 +793,65 @@ export default function HeadlightPreChecklistCreatePage({
           try {
             await workOrderService.updateWorkOrder(workOrderId, {
               preChecklistId: result._id,
-              currentStage: 'job_card' // Explicitly set current stage to job card
+              preChecklistStatus: shouldAutoApprove ? 'completed' : 'in_progress',
+              updatedAt: new Date().toISOString()
             });
           } catch (updateError) {
             console.error('Error updating work order:', updateError);
           }
         }
         
-        // AUTO-TRANSITION: Automatically approve and move to job card
-        try {
-        // Auto-approve the checklist
-        await preChecklistService.approvePreChecklist(result._id, userId);
-        
-        // Update the lifecycle stage
-        const opportunityId = result.opportunityId || formData.opportunityId;
-          if (opportunityId) {
-            // Use lifecycle integration service to transition
-            await lifecycleIntegrationService.transitionToStage(
-              opportunityId,
-              'jobcard',
-              {
-                skipValidation: true,
-                metadata: {
-                  autoTransition: true,
-                  checklistId: result._id,
-                  triggeredBy: 'pre-checklist-auto-approval'
-                }
-              }
-            );
+        // AUTO-APPROVE AND AUTO-TRANSITION
+        if (shouldAutoApprove) {
+          try {
+            // Step 1: Auto-approve the checklist
+            const approvedChecklist = await preChecklistService.approvePreChecklist(result._id, userId);
             
-            showToast('Pre-checklist auto-approved! Moved to Job Card stage.', 'success');
+            // Step 2: Auto-transition to Job Card stage using lifecycle service
+            const opportunityId = result.opportunityId || formData.opportunityId;
+            if (opportunityId) {
+              // Use lifecycle integration service for transition
+              await lifecycleIntegrationService.transitionToStage(
+                opportunityId,
+                'jobcard',
+                {
+                  skipValidation: true,
+                  metadata: {
+                    autoTransition: true,
+                    checklistId: result._id,
+                    triggeredBy: 'pre-checklist-auto-approval'
+                  }
+                }
+              );
+              
+              // Step 3: Update work order stage
+              if (workOrderId) {
+                await workOrderService.updateWorkOrder(workOrderId, {
+                  currentStage: 'job_card',
+                  updatedAt: new Date().toISOString()
+                });
+              }
+              
+              showToast('Pre-checklist auto-approved! Moved to Job Card stage.', 'success');
+            }
+          } catch (autoError) {
+            console.error('Auto-transition failed:', autoError);
+            showToast('Pre-checklist created and auto-approved, but transition failed.', 'warning');
           }
-        } catch (autoError) {
-          console.error('Auto-transition failed:', autoError);
-          // Don't fail the whole submission if auto-transition fails
-          showToast('Pre-checklist created, but auto-transition failed. Please manually transition to next stage.', 'warning');
+        } else {
+          showToast('Pre-checklist created. Please review and approve checklist to proceed.', 'info');
         }
       }
 
-      // Navigate based on source
-      if (source === 'workflow' && workOrderId) {
-        // Refresh the work order page to show updated stage
-        router.refresh();
+      // NAVIGATE BACK TO WORK ORDER DETAILS PAGE
+      if (workOrderId) {
+        // Redirect back to work order details
         router.push(`/orders/work-orders/${workOrderId}`);
+      } else if (source === 'opportunity' && formData.opportunityId) {
+        // If coming from opportunity, go to opportunity page
+        router.push(`/opportunities/${formData.opportunityId}`);
       } else if (result._id) {
+        // Fallback: Go to pre-checklist details
         router.push(`/pre-checklist/${result._id}`);
       } else {
         router.push('/prechecklists');
@@ -1034,7 +1078,7 @@ const PDFDownloadButton = () => (
     const worksheetData = [
       // Header
       ['EAGLE LIGHTS AUTOMOTIVE LTD', '', '', '', '', '', ''],
-      ['HEADLIGHT PRE-SERVICE INSPECTION CHECKLIST', '', '', '', '', '', ''],
+      ['PRE-SERVICE INSPECTION CHECKLIST', '', '', '', '', '', ''],
       ['', '', '', '', '', '', ''],
       ['INSPECTION INFORMATION', '', '', '', '', '', ''],
       ['Checklist ID:', existingChecklist?._id || 'NEW', '', 'Date:', new Date().toLocaleDateString(), '', ''],
@@ -1321,7 +1365,7 @@ const PDFDownloadButton = () => (
       <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-teal-50/30 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading headlight pre-checklist form...</p>
+          <p className="text-gray-600">Loading pre-checklist form...</p>
         </div>
       </div>
     );
@@ -1332,7 +1376,7 @@ const PDFDownloadButton = () => (
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-teal-50/30">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 via-blue-500 to-teal-600 text-white px-8 py-6 shadow-lg">
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-6 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
@@ -1344,12 +1388,12 @@ const PDFDownloadButton = () => (
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
                 <Lightbulb className="h-6 w-6" />
-                {mode === 'edit' ? 'Edit Headlight Pre-Checklist' : 'Headlight Pre-Service Inspection'}
+                {mode === 'edit' ? 'Edit Pre-Checklist' : 'Pre-Service Inspection'}
               </h1>
               <p className="text-blue-100">
                 {mode === 'edit' 
                   ? `Editing: Pre-Checklist #${existingChecklist?._id?.slice(-6) || ''}`
-                  : 'Automotive Lighting Pre-Service Inspection Checklist'
+                  : 'Automotive Pre-Service Inspection Checklist'
                 }
               </p>
             </div>
@@ -2627,47 +2671,71 @@ const PDFDownloadButton = () => (
             Previous
           </button>
           
-          <div className="flex gap-4">
+          <div className="flex justify-between gap-4 mt-6 pt-6 border-t border-gray-200">
+            {/* Cancel & Back Button */}
             <button
-              onClick={handleSaveAsDraft}
-              className="px-6 py-3 rounded-lg font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+              type="button"
+              onClick={() => {
+                if (workOrderId) {
+                  router.push(`/orders/work-orders/${workOrderId}`);
+                } else if (router.query.from) {
+                  router.back();
+                } else {
+                  router.push('/orders/work-orders');
+                }
+              }}
+              className="px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+              disabled={submitting}
             >
-              <Save className="h-5 w-5" />
-              Save as Draft
-              {draftSaved && (
-                <span className="text-xs text-green-600">
-                  ✓ Saved
-                </span>
-              )}
+              <ArrowLeft className="h-4 w-4" />
+              Cancel & Back to Work Order
             </button>
             
-            {currentStep < totalSteps ? (
+            {/* Action Buttons */}
+            <div className="flex gap-4">
               <button
-                onClick={() => setCurrentStep(currentStep + 1)}
-                className="px-6 py-3 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2"
-              >
-                Next
-                <ArrowRight className="h-5 w-5" />
-              </button>
-            ) : (
-              <button
-                onClick={handleSubmitWithAutoTransition}
+                onClick={handleSaveAsDraft}
+                className="px-6 py-3 rounded-lg font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                 disabled={submitting}
-                className="px-6 py-3 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
               >
-                {submitting ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-5 w-5" />
-                    {mode === 'edit' ? 'Update Checklist' : 'Create Pre-Checklist'}
-                  </>
+                <Save className="h-5 w-5" />
+                Save as Draft
+                {draftSaved && (
+                  <span className="text-xs text-green-600">
+                    ✓ Saved
+                  </span>
                 )}
               </button>
-            )}
+              
+              {currentStep < totalSteps ? (
+                <button
+                  onClick={() => setCurrentStep(currentStep + 1)}
+                  className="px-6 py-3 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2"
+                  disabled={submitting}
+                >
+                  Next
+                  <ArrowRight className="h-5 w-5" />
+                </button>
+              ) : (
+                <button
+                  onClick={handleSubmitWithAutoTransition}
+                  disabled={submitting}
+                  className="px-6 py-3 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      {mode === 'edit' ? 'Updating...' : 'Creating...'}
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-5 w-5" />
+                      {mode === 'edit' ? 'Update Checklist' : 'Create Pre-Checklist'}
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

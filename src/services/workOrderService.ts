@@ -115,6 +115,9 @@ export interface WorkOrder {
   invoicePaid?: boolean;
   invoicePaymentDate?: string;
   
+  // Add preChecklistStatus property
+  preChecklistStatus?: 'pending' | 'in_progress' | 'completed' | 'cancelled'; // ADD THIS
+  
   // Add stage approvals
   stageApprovals?: {
     pre_checklist?: {
@@ -211,6 +214,12 @@ export interface UpdateWorkOrderData {
   invoicePaid?: boolean;
   invoicePaymentDate?: string;
   
+  // Add the missing properties from the error
+  preChecklistStatus?: 'pending' | 'in_progress' | 'completed' | 'cancelled'; // ADD THIS
+  postChecklistId?: string; // Already exists
+  preChecklistId?: string; // Already exists
+  postChecklistStatus?: string;
+  
   // Add stage approvals object
   stageApprovals?: {
     pre_checklist?: {
@@ -264,8 +273,6 @@ export interface UpdateWorkOrderData {
   jobCardCompletionDate?: string;
   postChecklistCompletionDate?: string;
   invoiceCompletionDate?: string;
-  preChecklistId?: string;
-  postChecklistId?: string;
 }
 
 export interface AddNoteData {

@@ -26,6 +26,7 @@ import { lifecycleIntegrationService } from '@/services/lifecycleIntegrationServ
 
 interface FormData {
   opportunityId: string;
+  workOrderId?: string;
   jobTitle: string;
   jobDescription: string;
   assignedTo: string;
@@ -147,7 +148,7 @@ interface FormData {
   acceptDiagnosticCharges: boolean;
 }
 
-export default function JobCardCreate() {
+export default function JobCardCreate(mode = 'create',) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
@@ -657,65 +658,134 @@ export default function JobCardCreate() {
   const totals = calculateTotals();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  e.preventDefault();
+  
+  if (!validateForm()) return;
+  
+  try {
+    setSubmitting(true);
     
-    if (!validateForm()) return;
+    // Prepare job card data
+    const createData: CreateJobCardData = {
+      opportunityId: formData.opportunityId,
+      workOrderId: formData.workOrderId,
+      jobTitle: formData.jobTitle,
+      jobDescription: formData.jobDescription,
+      assignedTo: formData.assignedTo || undefined,
+      priority: formData.priority || 'medium',
+      estimatedHours: formData.estimatedHours || 0,
+      status: formData.status || 'pending'
+    };
     
-    try {
-      setSubmitting(true);
-      
-      // Prepare job card data
-      const createData: CreateJobCardData = {
-        opportunityId: formData.opportunityId,
-        jobTitle: formData.jobTitle,
-        jobDescription: formData.jobDescription,
-        assignedTo: formData.assignedTo || undefined,
-        status: formData.status
-      };
-      
-      // Create job card
-      const newJobCard = await jobCardService.createJobCard(createData);
-      showToast('Job card created successfully!', 'success');
-      
-      // Auto-transition to next stage if coming from workflow
-      if (source === 'workflow' && opportunityId) {
-        try {
+    console.log('Creating job card with data:', createData);
+    
+    // Create job card
+    const newJobCard = await jobCardService.createJobCard(createData);
+    showToast('Job card created successfully!', 'success');
+    
+    // Update work order with job card ID and mark job card stage as completed
+    if (workOrderId) {
+      try {
+        await workOrderService.updateWorkOrder(workOrderId, {
+          updatedAt: new Date().toISOString(),
+          // Add job card to work order's jobCards array if not already
+        });
+      } catch (updateError) {
+        console.error('Error updating work order:', updateError);
+      }
+    }
+    
+    // AUTO-TRANSITION TO POST-CHECKLIST STAGE (like pre-checklist does)
+    if (source === 'workflow' && opportunityId) {
+      try {
+        // Check current lifecycle stage
+        const lifecycle = await lifecycleIntegrationService.getLifecycleStatus(opportunityId);
+        
+        // Only transition if we're in jobcard stage
+        if (lifecycle.currentStage === 'jobcard') {
+          // Step 1: Mark jobcard stage as completed
+          await lifecycleIntegrationService.markStageAsCompleted(
+            opportunityId,
+            'jobcard',
+            {
+              documentId: newJobCard._id || newJobCard.id,
+              completedBy: 'system-auto',
+              notes: 'Job card created and assigned'
+            }
+          );
+          
+          // Step 2: Auto-transition to Post-Checklist stage
           await lifecycleIntegrationService.transitionToStage(
             opportunityId,
-            'completion',
+            'postchecklist',
             {
               skipValidation: true,
               metadata: {
                 autoTransition: true,
                 jobCardId: newJobCard._id || newJobCard.id,
-                triggeredBy: 'job-card-auto-creation'
+                triggeredBy: 'job-card-creation-auto'
               }
             }
           );
-          showToast('Job card created! Moved to Completion stage.', 'success');
-        } catch (autoError) {
-          console.error('Auto-transition failed:', autoError);
-          showToast('Job card created, but auto-transition failed.', 'warning');
+          
+          // Step 3: Update work order stage to post_checklist
+          if (workOrderId) {
+            await workOrderService.updateWorkOrder(workOrderId, {
+              currentStage: 'post_checklist',
+              updatedAt: new Date().toISOString()
+            });
+          }
+          
+          showToast('Job card created! Auto-transitioned to Post-Checklist stage.', 'success');
+        } else {
+          // If not in jobcard stage, just mark as complete
+          await lifecycleIntegrationService.markStageAsCompleted(
+            opportunityId,
+            lifecycle.currentStage,
+            {
+              documentId: newJobCard._id || newJobCard.id,
+              completedBy: 'system-auto',
+              notes: 'Job card created'
+            }
+          );
+          showToast('Job card created! Stage marked as completed.', 'success');
         }
+      } catch (autoError) {
+        console.error('Auto-transition failed:', autoError);
+        showToast('Job card created, but auto-transition failed.', 'warning');
       }
-      
-      // Navigate based on source
-      if (source === 'workflow' && workOrderId) {
-        router.push(`/orders/work-orders/${workOrderId}`);
+    }
+    
+    // NAVIGATE BACK TO WORK ORDER DETAILS PAGE
+    if (workOrderId) {
+      // Redirect back to work order details
+      router.push(`/orders/work-orders/${workOrderId}`);
+    } else if (source === 'workflow' && opportunityId) {
+      // If no workOrderId but have opportunityId, try to get work order
+      const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
+      if (workOrders.length > 0) {
+        router.push(`/orders/work-orders/${workOrders[0]._id}`);
       } else if (newJobCard._id || newJobCard.id) {
+        // Fallback: Go to job card details
         router.push(`/job-cards/${newJobCard._id || newJobCard.id}`);
       } else {
         router.push('/job-cards');
       }
-      
-    } catch (error: any) {
-      console.error('Error creating job card:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
-      showToast(`Failed to create job card: ${errorMessage}`, 'error');
-    } finally {
-      setSubmitting(false);
+    } else if (newJobCard._id || newJobCard.id) {
+      // Fallback: Go to job card details
+      router.push(`/job-cards/${newJobCard._id || newJobCard.id}`);
+    } else {
+      router.push('/job-cards');
     }
-  };
+    
+  } catch (error: any) {
+    console.error('Error creating job card:', error);
+    const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
+    showToast(`Failed to create job card: ${errorMessage}`, 'error');
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const handleCancel = () => {
     if (source === 'workflow' && workOrderId) {
@@ -783,19 +853,44 @@ export default function JobCardCreate() {
               </div>
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex justify-between items-center gap-4 mt-6 pt-6 border-t border-gray-200">
+              {/* Cancel & Back Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (workOrderId) {
+                    router.push(`/orders/work-orders/${workOrderId}`);
+                  } else if (router.query.from) {
+                    router.back();
+                  } else {
+                    router.push('/orders/work-orders');
+                  }
+                }}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+                disabled={submitting}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Cancel & Back to Work Order
+              </button>
+              
+              {/* Create Job Card Button */}
               <button
                 type="button"
                 onClick={handleSubmit}
                 disabled={submitting}
-                className="px-6 py-2 bg-white text-blue-600 font-semibold rounded-xl hover:bg-white/90 flex items-center gap-2 shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transition-all hover:shadow-xl"
+                className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transition-all hover:shadow-xl"
               >
                 {submitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
                 ) : (
-                  <CheckCircle className="h-4 w-4" />
+                  <>
+                    <CheckCircle className="h-4 w-4" />
+                    {mode === 'edit' ? 'Update Job Card' : 'Create Job Card'}
+                  </>
                 )}
-                {submitting ? 'Creating...' : 'Create Job Card'}
               </button>
             </div>
           </div>
