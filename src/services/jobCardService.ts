@@ -31,7 +31,7 @@ export interface JobCard {
   opportunityId: OpportunityRef | string;
   vehicleId: VehicleRef | string;
   createdBy: UserRef | string;
-  assignedTo?: string;
+  assignedTo?: UserRef | string | null;
   jobTitle: string;
   jobDescription?: string;
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
@@ -51,8 +51,6 @@ export interface JobCard {
   partsUsed?: any[];
   completedDate?: string;
 }
-
-// In your jobCardService.ts file, update the CreateJobCardData interface
 
 export interface CreateJobCardData {
   opportunityId: string;
@@ -75,6 +73,8 @@ export interface UpdateJobCardData {
   assignedTo?: string;
   active?: boolean;
   completedAt?: string;
+  completedDate?: string;
+  actualHours?: number;
 }
 
 export interface JobCardFilterParams {

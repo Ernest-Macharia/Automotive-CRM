@@ -128,6 +128,7 @@ export interface PostChecklist {
   diagnosticChargesAccepted?: boolean;
   serviceRating?: number;
   serviceComments?: string;
+  checklistType?: string;
 }
 
 export interface CreatePostChecklistDto {
@@ -170,7 +171,7 @@ export interface UpdatePostChecklistDto {
   approvedBy?: string;
   customerName?: string;
   dateTime?: string;
-  approvedAt: string;
+  approvedAt?: string;
   warrantyDuration?: string;
   beforePhotos?: string[];
   afterPhotos?: string[];
@@ -183,9 +184,10 @@ export interface UpdatePostChecklistDto {
   warrantyNotes?: string;
   productServiceNeeded?: string;
   acceptDiagnosticCharges?: boolean;
-  dditionalComments?: string;
+  additionalComments?: string;
   diagnosticChargesAccepted?: boolean;
   serviceRating?: number;
+  status?: string;
   serviceComments?: string;
 }
 

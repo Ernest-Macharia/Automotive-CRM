@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
-import PostChecklistCreatePage from '@/components/post-checklist/PostChecklistCreatePage';
+import DiamondRimsPostChecklistCreatePage from '@/components/post-checklist/DiamondRimsPostChecklistCreatePage';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
@@ -56,7 +56,7 @@ export default function PostChecklistCreateRoute() {
 
   return (
     <ProtectedRoute>
-      <PostChecklistCreatePage 
+      <DiamondRimsPostChecklistCreatePage
         mode={mode}
         checklistId={checklistId}
       />

@@ -92,6 +92,7 @@ export interface PreChecklist {
   clientSignature?: string;
   inspectorSignature?: string;
   uploadedImages?: string[];
+  checklistType?: string;
 }
 
 export interface CreatePreChecklistDto {
@@ -169,6 +170,7 @@ export interface UpdatePreChecklistDto {
   clientSignature?: string;
   inspectorSignature?: string;
   uploadedImages?: string[];
+  status?: string;
 }
 
 export interface PreChecklistStats {
