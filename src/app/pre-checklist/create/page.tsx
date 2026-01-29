@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
-import PreChecklistCreatePage from '@/components/pre-checklist/PreChecklistCreatePage';
+import DiamondRimsPreChecklistCreatePage from '@/components/pre-checklist/DiamondRimsPreChecklistCreatePage';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
@@ -50,7 +50,7 @@ export default function PreChecklistCreateRoute() {
 
   return (
     <ProtectedRoute>
-      <PreChecklistCreatePage 
+      <DiamondRimsPreChecklistCreatePage 
         mode={mode}
         checklistId={checklistId}
       />

@@ -695,68 +695,12 @@ export default function JobCardCreate(mode = 'create',) {
       }
     }
     
-    // AUTO-TRANSITION TO POST-CHECKLIST STAGE (like pre-checklist does)
-    if (source === 'workflow' && opportunityId) {
-      try {
-        // Check current lifecycle stage
-        const lifecycle = await lifecycleIntegrationService.getLifecycleStatus(opportunityId);
-        
-        // Only transition if we're in jobcard stage
-        if (lifecycle.currentStage === 'jobcard') {
-          // Step 1: Mark jobcard stage as completed
-          await lifecycleIntegrationService.markStageAsCompleted(
-            opportunityId,
-            'jobcard',
-            {
-              documentId: newJobCard._id || newJobCard.id,
-              completedBy: 'system-auto',
-              notes: 'Job card created and assigned'
-            }
-          );
-          
-          // Step 2: Auto-transition to Post-Checklist stage
-          await lifecycleIntegrationService.transitionToStage(
-            opportunityId,
-            'postchecklist',
-            {
-              skipValidation: true,
-              metadata: {
-                autoTransition: true,
-                jobCardId: newJobCard._id || newJobCard.id,
-                triggeredBy: 'job-card-creation-auto'
-              }
-            }
-          );
-          
-          // Step 3: Update work order stage to post_checklist
-          if (workOrderId) {
-            await workOrderService.updateWorkOrder(workOrderId, {
-              currentStage: 'post_checklist',
-              updatedAt: new Date().toISOString()
-            });
-          }
-          
-          showToast('Job card created! Auto-transitioned to Post-Checklist stage.', 'success');
-        } else {
-          // If not in jobcard stage, just mark as complete
-          await lifecycleIntegrationService.markStageAsCompleted(
-            opportunityId,
-            lifecycle.currentStage,
-            {
-              documentId: newJobCard._id || newJobCard.id,
-              completedBy: 'system-auto',
-              notes: 'Job card created'
-            }
-          );
-          showToast('Job card created! Stage marked as completed.', 'success');
-        }
-      } catch (autoError) {
-        console.error('Auto-transition failed:', autoError);
-        showToast('Job card created, but auto-transition failed.', 'warning');
-      }
-    }
-    
-    // NAVIGATE BACK TO WORK ORDER DETAILS PAGE
+        // IMPORTANT:
+    // We DO NOT auto-transition to Post-Checklist when a Job Card is created.
+    // The user must start and complete the Job Card explicitly, then we transition on completion
+    // (handled from JobCardDetail when status is marked as 'completed').
+
+// NAVIGATE BACK TO WORK ORDER DETAILS PAGE
     if (workOrderId) {
       // Redirect back to work order details
       router.push(`/orders/work-orders/${workOrderId}`);
@@ -860,8 +804,6 @@ export default function JobCardCreate(mode = 'create',) {
                 onClick={() => {
                   if (workOrderId) {
                     router.push(`/orders/work-orders/${workOrderId}`);
-                  } else if (router.query.from) {
-                    router.back();
                   } else {
                     router.push('/orders/work-orders');
                   }

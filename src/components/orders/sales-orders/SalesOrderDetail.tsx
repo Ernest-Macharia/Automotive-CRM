@@ -1,49 +1,54 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { 
-  ShoppingBag, ArrowLeft, Calendar, User, DollarSign, 
-  Edit, Printer, Download, MapPin, Phone, Mail,
-  Building, CheckCircle, Truck, Package, Clock,
-  Play, FileText, CreditCard, Loader2,
-  TrendingUp, ChevronDown, ChevronUp, FileSignature, Receipt,
-  ChevronRight, Share2, Copy, MoreVertical, AlertCircle,
-  BarChart3, History, MessageSquare, Star, EyeOff,
-  Users, Tag, Globe, Shield, Bell, Settings,
-  PlusCircle, MinusCircle, ExternalLink, Filter,
-  CopyCheck, QrCode, Lock, Unlock, BellOff,
-  Save, Upload, Trash2, Eye, Settings as SettingsIcon,
-  RefreshCw, ShieldAlert, Truck as TruckIcon, Package as PackageIcon,
-  CreditCard as CreditCardIcon, Receipt as ReceiptIcon,
-  ClipboardCheck, ClipboardList, Car, Layers, GitBranch,
-  Workflow, Zap, Target, Rocket, LineChart, PieChart,
-  ChevronLeft, ChevronsRight, FolderTree, GitPullRequest,
-  BarChart, Circle, CircleCheck, CircleDot, CircleEllipsis,
-  Clock4, FileCheck, FilePlus, FileX, ArrowRight,
-  X, Maximize2, Minimize2, AlertTriangle, HelpCircle,
-  MessageCircle, PhoneCall, Mail as MailIcon, UserCheck,
-  FileSearch, FileBarChart, FileImage, FileVideo,
-  Download as DownloadIcon, Upload as UploadIcon,
-  Activity,
-  Archive,
+import { useRouter } from 'next/navigation';
+import { format } from 'date-fns';
+import {
+  ArrowLeft,
+  CheckCircle,
+  Circle,
+  CircleDot,
+  Eye,
+  FileText,
+  Loader2,
+  MoreVertical,
+  Printer,
+  Receipt,
+  RefreshCw,
+  Share2,
   Link as LinkIcon,
+  Download,
+  Edit,
+  AlertCircle,
+  Package,
+  History,
+  MessageSquare,
+  Archive,
+  Truck,
+  Copy,
+  Send,
+  PackageCheck,
+  Calendar,
+  CreditCard,
 } from 'lucide-react';
+
 import { salesOrderService } from '@/services/salesOrderService';
 import { lifecycleIntegrationService, LifecycleStageUI } from '@/services/lifecycleIntegrationService';
-import { useToast } from '@/contexts/ToastContext';
-import { format } from 'date-fns';
-import { Quote, quoteService } from '@/services/quoteService';
+import { quoteService } from '@/services/quoteService';
 import { invoiceService } from '@/services/invoiceService';
+import { useToast } from '@/contexts/ToastContext';
 
 interface SalesOrderDetailPageProps {
   orderId: string;
 }
 
-interface WorkflowStage {
-  id: string;
-  stage: string;
+type TabId = 'overview' | 'quotation' | 'invoice' | 'items' | 'documents' | 'activity' | 'notes';
+
+type StageName = 'quote' | 'invoice';
+
+type WorkflowStage = {
+  stage: StageName;
   label: string;
   description?: string;
   completed: boolean;
@@ -51,1309 +56,515 @@ interface WorkflowStage {
   document?: any;
   documentId?: string;
   documentType?: string;
-  actions: Array<{ id: string; label: string; icon: React.ReactNode; variant: 'primary' | 'secondary' | 'success' | 'danger' | 'warning'; description?: string }>;
-  requirements?: string[];
-  completionDate?: string;
-  icon: React.ReactNode;
-  mandatory: boolean;
-  estimatedTime: string;
-  dependencies?: string[];
-  canSkip: boolean;
-  progress?: {
-    percentage: number;
-    completedSteps: number;
-    totalSteps: number;
-  };
-  steps?: Array<{
-    id: string;
-    label: string;
-    completed: boolean;
-    description?: string;
-    required?: boolean;
-    action?: () => void;
-  }>;
-}
-
-// Skeleton Loader Components
-const SkeletonLoader = {
-  // Header Skeleton
-  Header: () => (
-    <div className="animate-pulse">
-      <div className="bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-700 p-4 sm:p-6 shadow-lg">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/20 rounded-lg"></div>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-white/20 rounded-lg"></div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-48 h-6 bg-white/30 rounded"></div>
-                    <div className="w-20 h-6 bg-white/30 rounded-full"></div>
-                  </div>
-                  <div className="w-40 h-4 bg-white/30 rounded"></div>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="w-10 h-10 bg-white/20 rounded-lg"></div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  ),
-
-  // Tabs Navigation Skeleton
-  Tabs: () => (
-    <div className="animate-pulse border-b border-gray-200 bg-white">
-      <div className="px-6">
-        <div className="flex space-x-8">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex items-center gap-2 py-3 px-1">
-              <div className="w-4 h-4 bg-gray-200 rounded"></div>
-              <div className="w-16 h-4 bg-gray-200 rounded"></div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  ),
-
-  // Current Stage Focus Skeleton
-  CurrentStage: () => (
-    <div className="animate-pulse bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 p-6">
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-4">
-          <div className="w-14 h-14 bg-blue-100 rounded-lg"></div>
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="w-48 h-6 bg-blue-100 rounded"></div>
-              <div className="w-20 h-6 bg-blue-100 rounded-full"></div>
-            </div>
-            <div className="w-96 h-4 bg-blue-100 rounded"></div>
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-blue-100 rounded"></div>
-                <div className="w-24 h-4 bg-blue-100 rounded"></div>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-blue-100 rounded"></div>
-                <div className="w-32 h-4 bg-blue-100 rounded"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="w-40 h-10 bg-blue-200 rounded-lg"></div>
-      </div>
-    </div>
-  ),
-
-  // Workflow Progress Skeleton
-  WorkflowProgress: () => (
-    <div className="animate-pulse bg-white rounded-xl border border-gray-200 p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="space-y-2">
-          <div className="w-40 h-5 bg-gray-200 rounded"></div>
-          <div className="w-56 h-4 bg-gray-200 rounded"></div>
-        </div>
-        <div className="space-y-2 text-right">
-          <div className="w-24 h-4 bg-gray-200 rounded ml-auto"></div>
-          <div className="w-20 h-3 bg-gray-200 rounded ml-auto"></div>
-        </div>
-      </div>
-      
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-2">
-          <div className="w-32 h-4 bg-gray-200 rounded"></div>
-          <div className="w-12 h-5 bg-gray-200 rounded"></div>
-        </div>
-        <div className="h-3 bg-gray-200 rounded-full"></div>
-      </div>
-      
-      <div className="relative mb-8">
-        <div className="absolute left-0 right-0 top-6 h-0.5 bg-gray-200"></div>
-        <div className="relative flex justify-between">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex flex-col items-center">
-              <div className="w-12 h-12 bg-gray-200 rounded-full mb-3"></div>
-              <div className="text-center max-w-[120px] space-y-1">
-                <div className="w-20 h-3 bg-gray-200 rounded mx-auto"></div>
-                <div className="w-16 h-2 bg-gray-200 rounded mx-auto"></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-3 gap-4">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="text-center space-y-2">
-            <div className="w-16 h-7 bg-gray-200 rounded mx-auto"></div>
-            <div className="w-24 h-3 bg-gray-200 rounded mx-auto"></div>
-          </div>
-        ))}
-      </div>
-    </div>
-  ),
-
-  // Quick Actions Skeleton
-  QuickActions: () => (
-    <div className="animate-pulse bg-white rounded-xl border border-gray-200 p-6">
-      <div className="w-32 h-5 bg-gray-200 rounded mb-4"></div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="p-4 rounded-xl border-2 flex items-center gap-3">
-            <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
-            <div className="space-y-2 flex-1">
-              <div className="w-24 h-4 bg-gray-200 rounded"></div>
-              <div className="w-32 h-3 bg-gray-200 rounded"></div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  ),
-
-  // Order Details Skeleton
-  OrderDetails: () => (
-    <div className="animate-pulse space-y-6">
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="w-40 h-5 bg-gray-200 rounded mb-4"></div>
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <div className="w-24 h-4 bg-gray-200 rounded"></div>
-              <div className="w-32 h-5 bg-gray-200 rounded"></div>
-            </div>
-            <div className="space-y-2">
-              <div className="w-24 h-4 bg-gray-200 rounded"></div>
-              <div className="w-20 h-6 bg-gray-200 rounded-full"></div>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <div className="w-32 h-4 bg-gray-200 rounded"></div>
-              <div className="w-40 h-5 bg-gray-200 rounded"></div>
-            </div>
-            <div className="space-y-2">
-              <div className="w-32 h-4 bg-gray-200 rounded"></div>
-              <div className="w-28 h-5 bg-gray-200 rounded"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="w-40 h-5 bg-gray-200 rounded mb-4"></div>
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <div className="w-32 h-4 bg-gray-200 rounded"></div>
-              <div className="w-48 h-5 bg-gray-200 rounded"></div>
-            </div>
-            <div className="space-y-2">
-              <div className="w-32 h-4 bg-gray-200 rounded"></div>
-              <div className="w-36 h-5 bg-gray-200 rounded"></div>
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <div className="w-28 h-4 bg-gray-200 rounded"></div>
-            <div className="w-56 h-5 bg-gray-200 rounded"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  ),
-
-  // Documents Skeleton
-  Documents: () => (
-    <div className="animate-pulse space-y-6">
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="w-48 h-5 bg-gray-200 rounded mb-4"></div>
-        <div className="space-y-4">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-200 rounded-lg"></div>
-                <div className="space-y-2">
-                  <div className="w-32 h-4 bg-gray-200 rounded"></div>
-                  <div className="w-40 h-3 bg-gray-200 rounded"></div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-16 h-8 bg-gray-200 rounded"></div>
-                <div className="w-16 h-8 bg-gray-200 rounded"></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  ),
-
-  // Activity Skeleton
-  Activity: () => (
-    <div className="animate-pulse space-y-6">
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="w-40 h-5 bg-gray-200 rounded mb-4"></div>
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
-              <div className="flex-1 space-y-2">
-                <div className="w-3/4 h-4 bg-gray-200 rounded"></div>
-                <div className="w-32 h-3 bg-gray-200 rounded"></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  ),
-
-  // Notes Skeleton
-  Notes: () => (
-    <div className="animate-pulse space-y-6">
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="w-32 h-5 bg-gray-200 rounded mb-4"></div>
-        <div className="w-full h-24 bg-gray-200 rounded-lg mb-4"></div>
-        <div className="flex justify-end">
-          <div className="w-24 h-10 bg-gray-200 rounded-lg"></div>
-        </div>
-        
-        <div className="mt-6">
-          <div className="w-40 h-5 bg-gray-200 rounded mb-4"></div>
-          <div className="space-y-4">
-            <div className="p-4 bg-gray-200 rounded-lg space-y-2">
-              <div className="w-3/4 h-4 bg-gray-300 rounded"></div>
-              <div className="w-1/2 h-4 bg-gray-300 rounded"></div>
-            </div>
-            <div className="p-4 bg-gray-200 rounded-lg space-y-2">
-              <div className="w-2/3 h-4 bg-gray-300 rounded"></div>
-              <div className="w-1/3 h-4 bg-gray-300 rounded"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  ),
-
-  // Modal Skeleton
-  Modal: () => (
-    <>
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 animate-pulse" />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-          <div className="p-8 border-b border-gray-200">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-gray-200 rounded-2xl"></div>
-                <div className="space-y-2">
-                  <div className="w-64 h-7 bg-gray-200 rounded"></div>
-                  <div className="w-96 h-4 bg-gray-200 rounded"></div>
-                </div>
-              </div>
-              <div className="w-12 h-12 bg-gray-200 rounded-xl"></div>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="w-32 h-8 bg-gray-200 rounded-full"></div>
-              ))}
-            </div>
-          </div>
-
-          <div className="overflow-y-auto max-h-[calc(90vh-200px)] p-8">
-            <div className="mb-8">
-              <div className="w-40 h-6 bg-gray-200 rounded mb-4"></div>
-              <div className="flex items-center justify-between mb-6">
-                <div className="w-48 h-4 bg-gray-200 rounded"></div>
-                <div className="space-y-2 text-right">
-                  <div className="w-24 h-3 bg-gray-200 rounded ml-auto"></div>
-                  <div className="w-16 h-5 bg-gray-200 rounded ml-auto"></div>
-                </div>
-              </div>
-
-              <div className="relative space-y-8">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="flex items-start gap-4">
-                    <div className="w-16 h-16 bg-gray-200 rounded-full"></div>
-                    <div className="flex-1 p-6 bg-gray-100 rounded-2xl space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="w-48 h-5 bg-gray-300 rounded"></div>
-                        <div className="w-24 h-6 bg-gray-300 rounded-full"></div>
-                      </div>
-                      <div className="w-3/4 h-4 bg-gray-300 rounded"></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  ),
 };
 
-// Full Page Skeleton Loader
-const FullPageSkeleton = () => (
-  <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
-    <SkeletonLoader.Header />
-    <SkeletonLoader.Tabs />
-    <div className="p-6 space-y-6">
-      <SkeletonLoader.CurrentStage />
-      <SkeletonLoader.WorkflowProgress />
-      <SkeletonLoader.QuickActions />
-    </div>
-  </div>
-);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const formatCurrency = (amount?: number) =>
+  new Intl.NumberFormat('en-KE', {
+    style: 'currency',
+    currency: 'KES',
+    minimumFractionDigits: 2,
+  }).format(Number(amount || 0));
+
+const formatDate = (dateString?: string) => {
+  if (!dateString) return '—';
+  try {
+    return format(new Date(dateString), 'MMM dd, yyyy');
+  } catch {
+    return '—';
+  }
+};
+
+const getOpportunityId = (order: any): string | null => {
+  if (!order?.opportunityId) return null;
+  return typeof order.opportunityId === 'object' ? order.opportunityId._id : order.opportunityId;
+};
+
+const getId = (maybeObj: any) => (typeof maybeObj === 'object' ? maybeObj?._id : maybeObj);
+
+const getQuoteIdFromOrder = (order: any): string | null => {
+  const id = getId(order?.quoteId);
+  return id || null;
+};
+
+const getInvoiceIdFromOrder = (order: any): string | null => {
+  const id = getId(order?.invoiceId);
+  return id || null;
+};
+
+const getOrderStatusColor = (status: string) => {
+  switch (status?.toLowerCase()) {
+    case 'delivered': return 'text-green-700';
+    case 'shipped': return 'text-purple-700';
+    case 'processing': return 'text-yellow-700';
+    case 'confirmed': return 'text-blue-700';
+    case 'draft': return 'text-gray-700';
+    case 'cancelled': return 'text-red-700';
+    default: return 'text-gray-900';
+  }
+};
+
+function StagePill({ stage }: { stage: WorkflowStage }) {
+  const status =
+    stage.completed ? 'Completed' : stage.isCurrent ? 'In progress' : 'Pending';
+  const cls = stage.completed
+    ? 'bg-green-100 text-green-800'
+    : stage.isCurrent
+      ? 'bg-blue-100 text-blue-800'
+      : 'bg-gray-100 text-gray-700';
+
+  return (
+    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${cls}`}>
+      {status}
+    </span>
+  );
+}
+
+function StageDot({ stage }: { stage: WorkflowStage }) {
+  if (stage.completed) return <CheckCircle className="h-5 w-5 text-green-600" />;
+  if (stage.isCurrent) return <CircleDot className="h-5 w-5 text-blue-600" />;
+  return <Circle className="h-5 w-5 text-gray-400" />;
+}
+
+/**
+ * ✅ Rewritten Sales Order Detail page
+ * - Strictly follows backend lifecycle: Sales Order packageType uses stages ['quote','invoice']
+ * - Seamless CTA: "Accept Quote & Generate Invoice"
+ *   1) Approve quote
+ *   2) Transition lifecycle quote → invoice (backend creates invoice from quote)
+ *   3) Poll until invoiceId exists, then switch to Invoice tab
+ * - Stage completion rules aligned with backend intent:
+ *   - quote completed = quote.status === 'approved'
+ *   - invoice completed = invoice exists (payment is a status inside invoice, not stage completion)
+ */
 export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPageProps) {
   const router = useRouter();
   const { showToast } = useToast();
-  
-  const [salesOrder, setSalesOrder] = useState<any>(null);
+
   const [loading, setLoading] = useState(true);
-  const [workflowLoading, setWorkflowLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const [salesOrder, setSalesOrder] = useState<any>(null);
   const [lifecycle, setLifecycle] = useState<any>(null);
-  const [lifecycleLoading, setLifecycleLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
+
+  const [activeTab, setActiveTab] = useState<TabId>('overview');
+
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Optional placeholders (your existing code had these)
+  const [activityLog] = useState<any[]>([]);
+  const [attachments] = useState<any[]>([]);
   const [notes, setNotes] = useState('');
   const [addingNote, setAddingNote] = useState(false);
-  const [activityLog, setActivityLog] = useState<any[]>([]);
-  const [attachments, setAttachments] = useState<any[]>([]);
-  const [workflowStages, setWorkflowStages] = useState<WorkflowStage[]>([]);
-  const [workflowProgress, setWorkflowProgress] = useState({
-    percentage: 0,
-    completed: 0,
-    total: 0,
-    estimatedTime: '0 days'
-  });
-  const [canProceedToNextStage, setCanProceedToNextStage] = useState(false);
-  const [quote, setQuote] = useState<Quote | null>(null);
-  
-  // Modal state
-  const [modalStage, setModalStage] = useState<WorkflowStage | null>(null);
-  const [modalSteps, setModalSteps] = useState<any[]>([]);
-  const [modalCurrentStep, setModalCurrentStep] = useState(0);
-  const [modalLoading, setModalLoading] = useState(false);
 
-  // Additional states
-  const [isPrinting, setIsPrinting] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-  const [showActivityLog, setShowActivityLog] = useState(false);
-  const [showAttachments, setShowAttachments] = useState(false);
-  const [showNotes, setShowNotes] = useState(false);
-  const [showOrderDetails, setShowOrderDetails] = useState(false);
-  const [showCustomerDetails, setShowCustomerDetails] = useState(false);
-  const [showCostBreakdown, setShowCostBreakdown] = useState(false);
-
-  useEffect(() => {
-    fetchSalesOrder();
-  }, [orderId, refreshKey]);
-  
-
-  const fetchSalesOrder = async () => {
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const data = await salesOrderService.getSalesOrderById(orderId);
-      setSalesOrder(data);
-      
-      if (data.opportunityId) {
-        await fetchLifecycle(data);
-        
-        // Check if invoice should exist but doesn't
-        if (data.quoteId && !data.invoiceId) {
-          const currentStage = getCurrentStage();
-          if (currentStage?.stage === 'invoice') {
-            // Invoice might be in the process of being created
-            showToast('Creating invoice from quote...', 'info');
-            
-            // Wait a bit and check again
-            setTimeout(async () => {
-              const refreshedData = await salesOrderService.getSalesOrderById(orderId);
-              if (refreshedData.invoiceId) {
-                setSalesOrder(refreshedData);
-                showToast('Invoice created successfully!', 'success');
-              }
-            }, 2000);
-          }
-        }
+      const order = await salesOrderService.getSalesOrderById(orderId);
+      setSalesOrder(order);
+
+      const opportunityId = getOpportunityId(order);
+      if (opportunityId) {
+        const lifecycleUI = await lifecycleIntegrationService.getSalesOrderLifecycleUI(opportunityId);
+        setLifecycle(lifecycleUI);
       }
-    } catch (error) {
-      console.error('Error fetching sales order:', error);
+    } catch (e) {
+      console.error(e);
       showToast('Failed to load sales order details', 'error');
       router.push('/orders/sales-orders');
     } finally {
       setLoading(false);
     }
-  };
-
-  const fetchLifecycle = async (order: any) => {
-    try {
-      setLifecycleLoading(true);
-      const opportunityId = typeof order.opportunityId === 'object' 
-        ? order.opportunityId._id 
-        : order.opportunityId;
-      
-      if (!opportunityId) {
-        throw new Error('No opportunity ID found');
-      }
-      
-      const lifecycleData = await lifecycleIntegrationService.getSalesOrderLifecycleUI(opportunityId);
-      setLifecycle(lifecycleData);
-      
-      if (lifecycleData?.stages) {
-        const workflowStages = transformLifecycleToStages(lifecycleData.stages);
-        setWorkflowStages(workflowStages);
-        
-        const completed = lifecycleData.stages.filter((s: any) => s.completed).length;
-        const total = lifecycleData.stages.length;
-        
-        setWorkflowProgress({
-          percentage: Math.round((completed / total) * 100),
-          completed,
-          total,
-          estimatedTime: calculateEstimatedTime(lifecycleData.stages)
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching lifecycle:', error);
-    } finally {
-      setLifecycleLoading(false);
-    }
-  };
-
-  const transformLifecycleToStages = (stages: LifecycleStageUI[]): WorkflowStage[] => {
-    return stages.map((stage, index) => {
-      const actions = stage.actions?.map(action => {
-        let icon: React.ReactNode;
-        let variant: 'primary' | 'secondary' | 'success' | 'danger' | 'warning' = 'primary';
-        
-        switch (action.action) {
-          case 'create':
-            icon = <FilePlus className="h-4 w-4" />;
-            variant = 'primary';
-            break;
-          case 'view':
-            icon = <Eye className="h-4 w-4" />;
-            variant = 'secondary';
-            break;
-          case 'update':
-            icon = <Edit className="h-4 w-4" />;
-            variant = 'secondary';
-            break;
-          case 'complete':
-            icon = <CheckCircle className="h-4 w-4" />;
-            variant = 'success';
-            break;
-          case 'skip':
-            icon = <ArrowRight className="h-4 w-4" />;
-            variant = 'warning';
-            break;
-          case 'transition':
-            icon = <ArrowRight className="h-4 w-4" />;
-            variant = 'primary';
-            break;
-          case 'approve':
-            icon = <CheckCircle className="h-4 w-4" />;
-            variant = 'success';
-            break;
-          default:
-            icon = <Circle className="h-4 w-4" />;
-            variant = 'secondary';
-        }
-        
-        return {
-          id: action.action,
-          label: action.label,
-          icon,
-          variant,
-          description: action.description
-        };
-      }) || [];
-      
-      const steps = getStageSteps(stage);
-      
-      return {
-        id: `stage-${index}`,
-        stage: stage.stage,
-        label: stage.label,
-        description: stage.description,
-        completed: stage.completed,
-        isCurrent: stage.isCurrent,
-        document: stage.document,
-        documentId: stage.documentId,
-        documentType: stage.documentType,
-        icon: getStageIcon(stage.stage),
-        actions,
-        requirements: getStageRequirements(stage),
-        completionDate: stage.completedAt || stage.completionDate,
-        mandatory: stage.mandatory || stage.required || true,
-        estimatedTime: getStageTimeEstimate(stage.stage),
-        dependencies: stage.dependencies || [],
-        canSkip: stage.canSkip || stage.skippable || false,
-        steps,
-        progress: calculateStageProgress(stage, steps)
-      };
-    });
-  };
-
-  const getStageIcon = (stage: string) => {
-    const icons: Record<string, React.ReactNode> = {
-      'quote': <FileText className="h-5 w-5" />,
-      'invoice': <ReceiptIcon className="h-5 w-5" />,
-      'payment': <CreditCardIcon className="h-5 w-5" />,
-      'delivery': <TruckIcon className="h-5 w-5" />,
-      'completion': <CheckCircle className="h-5 w-5" />
-    };
-    return icons[stage] || <Circle className="h-5 w-5" />;
-  };
-
-  const getStageRequirements = (stage: LifecycleStageUI): string[] => {
-    const requirements: string[] = [];
-    
-    if (stage.requirements?.requiresCustomerApproval) {
-      requirements.push('Customer Approval Required');
-    }
-    if (stage.requirements?.requiresPayment) {
-      requirements.push('Payment Required');
-    }
-    if (stage.requirements?.requiresSignature) {
-      requirements.push('Digital Signature Required');
-    }
-    if (stage.requirements?.requiresAttachment) {
-      requirements.push('File Attachment Required');
-    }
-    
-    return requirements;
-  };
-
-  const getStageTimeEstimate = (stage: string): string => {
-    const stageEstimates: Record<string, string> = {
-      'quote': '30-60 min',
-      'invoice': '30 min',
-      'payment': 'Immediate',
-      'delivery': '1-2 days',
-      'completion': '15 min'
-    };
-    return stageEstimates[stage] || '30 min';
-  };
-
-  const getStageSteps = (stage: LifecycleStageUI): any[] => {
-    const baseSteps = [
-      { id: 'preparation', label: 'Preparation', description: 'Review requirements and gather resources', completed: false },
-      { id: 'documentation', label: 'Documentation', description: 'Create and prepare documents', completed: false },
-      { id: 'verification', label: 'Verification', description: 'Verify all requirements are met', completed: false },
-      { id: 'approval', label: 'Approval', description: 'Get necessary approvals', completed: false },
-      { id: 'completion', label: 'Completion', description: 'Mark stage as complete', completed: false }
-    ];
-
-    const markSteps = (steps: any[], stageObj: LifecycleStageUI) => {
-      if (stageObj.completed) {
-        return steps.map(step => ({ ...step, completed: true }));
-      }
-      
-      if (stageObj.document) {
-        const updatedSteps = [...steps];
-        if (stageObj.document._id) updatedSteps[0].completed = true;
-        if (stageObj.document.status === 'created') updatedSteps[1].completed = true;
-        if (stageObj.document.status === 'verified') updatedSteps[2].completed = true;
-        if (stageObj.document.approved) updatedSteps[3].completed = true;
-        return updatedSteps;
-      }
-      
-      return steps;
-    };
-
-    switch (stage.stage) {
-      case 'quote':
-        return markSteps([
-          { id: 'gather-info', label: 'Gather Information', description: 'Collect client and order details', completed: false },
-          { id: 'create-quote', label: 'Create Quote', description: 'Generate detailed quote document', completed: false },
-          { id: 'review-quote', label: 'Review Quote', description: 'Double-check all details and pricing', completed: false },
-          { id: 'send-quote', label: 'Send to Client', description: 'Deliver quote to client for approval', completed: false },
-          { id: 'get-approval', label: 'Get Approval', description: 'Receive client approval signature', completed: false }
-        ], stage);
-      
-      case 'invoice':
-        return markSteps([
-          { id: 'gather-costs', label: 'Gather Costs', description: 'Collect all item costs', completed: false },
-          { id: 'create-invoice', label: 'Create Invoice', description: 'Generate detailed invoice', completed: false },
-          { id: 'apply-discounts', label: 'Apply Discounts', description: 'Apply any applicable discounts', completed: false },
-          { id: 'review-invoice', label: 'Review Invoice', description: 'Verify all charges are accurate', completed: false },
-          { id: 'send-invoice', label: 'Send to Client', description: 'Deliver invoice to client', completed: false }
-        ], stage);
-      
-      case 'payment':
-        return markSteps([
-          { id: 'verify-amount', label: 'Verify Amount', description: 'Confirm payment amount', completed: false },
-          { id: 'process-payment', label: 'Process Payment', description: 'Collect payment from client', completed: false },
-          { id: 'confirm-receipt', label: 'Confirm Receipt', description: 'Verify payment was received', completed: false },
-          { id: 'issue-receipt', label: 'Issue Receipt', description: 'Send payment receipt to client', completed: false },
-          { id: 'update-records', label: 'Update Records', description: 'Record payment in system', completed: false }
-        ], stage);
-      
-      case 'delivery':
-        return markSteps([
-          { id: 'prepare-order', label: 'Prepare Order', description: 'Gather all items for shipment', completed: false },
-          { id: 'schedule-delivery', label: 'Schedule Delivery', description: 'Arrange delivery date and time', completed: false },
-          { id: 'dispatch', label: 'Dispatch Order', description: 'Send order for delivery', completed: false },
-          { id: 'track-shipment', label: 'Track Shipment', description: 'Monitor delivery progress', completed: false },
-          { id: 'confirm-delivery', label: 'Confirm Delivery', description: 'Verify order was delivered', completed: false }
-        ], stage);
-      
-      default:
-        return markSteps(baseSteps, stage);
-    }
-  };
-
-  const calculateStageProgress = (stage: LifecycleStageUI, steps: any[]): { percentage: number; completedSteps: number; totalSteps: number } => {
-    const totalSteps = steps.length;
-    const completedSteps = steps.filter(step => step.completed).length;
-    const percentage = Math.round((completedSteps / totalSteps) * 100);
-    
-    return {
-      percentage,
-      completedSteps,
-      totalSteps
-    };
-  };
-
-  const calculateEstimatedTime = (stages: LifecycleStageUI[]): string => {
-    const stageEstimates: Record<string, number> = {
-      'quote': 1,
-      'invoice': 0.5,
-      'payment': 0.5,
-      'delivery': 2, // Days
-      'completion': 0.25
-    };
-    
-    const totalDays = stages.reduce((total, stage) => {
-      return total + (stageEstimates[stage.stage] || 1);
-    }, 0);
-    
-    return `${totalDays} days`;
-  };
-
-  const getCurrentStage = (): WorkflowStage | undefined => {
-    return workflowStages.find(stage => stage.isCurrent);
-  };
-
-  const isStageCompleted = (stage: WorkflowStage): boolean => {
-    switch (stage.stage) {
-      case 'quote':
-        return stage.document?.status === 'approved';
-      
-      case 'invoice':
-        return stage.document?.status === 'paid' || stage.document?.status === 'sent';
-      
-      case 'payment':
-        return salesOrder?.paymentStatus === 'paid' || stage.document?.status === 'completed';
-      
-      case 'delivery':
-        return salesOrder?.status === 'delivered' || salesOrder?.status === 'shipped';
-      
-      default:
-        return stage.completed || false;
-    }
-  };
-
-  const canMoveToNextStage = (): boolean => {
-    const currentStage = getCurrentStage();
-    if (!currentStage) return false;
-    
-    const isCompleted = isStageCompleted(currentStage);
-    
-    return isCompleted;
-  };
+  }, [orderId, router, showToast]);
 
   useEffect(() => {
-    const canProceed = canMoveToNextStage();
-    setCanProceedToNextStage(canProceed);
-  }, [workflowStages, salesOrder]);
+    fetchAll();
+  }, [fetchAll]);
 
-  const handleStageModalClick = (stage: WorkflowStage) => {
-    setModalStage(stage);
-    setModalSteps(stage.steps || []);
-    setModalCurrentStep(stage.steps?.filter(s => s.completed).length || 0);
-  };
+  const stages: WorkflowStage[] = useMemo(() => {
+  const raw: LifecycleStageUI[] = lifecycle?.stages || [];
+  const filtered = raw.filter((s) => s.stage === 'quote' || s.stage === 'invoice');
 
-  const handleCloseModal = () => {
-    setModalStage(null);
-    setModalCurrentStep(0);
-  };
-
-  const handleModalNextStep = () => {
-    if (modalCurrentStep < modalSteps.length - 1) {
-      setModalCurrentStep(prev => prev + 1);
-    }
-  };
-
-  const handleModalPrevStep = () => {
-    if (modalCurrentStep > 0) {
-      setModalCurrentStep(prev => prev - 1);
-    }
-  };
-  
-
-  const handleCompleteStep = async (stepId: string) => {
-    if (!modalStage) return;
+  if (!filtered.length) {
+    const q = salesOrder?.quoteId;
+    const inv = salesOrder?.invoiceId;
+    const quoteApproved = typeof q === 'object' ? q?.status === 'approved' : false;
+    const invoiceExists = !!inv;
+    const invoicePaid = typeof inv === 'object' ? inv?.status === 'paid' : false;
+    const salesOrderCompleted = salesOrder?.status === 'delivered';
     
-    setModalLoading(true);
-    try {
-      const updatedSteps = modalSteps.map(step => 
-        step.id === stepId ? { ...step, completed: true } : step
-      );
-      setModalSteps(updatedSteps);
-      
-      const allCompleted = updatedSteps.every(step => step.completed);
-      if (allCompleted && modalStage && !modalStage.completed) {
-        await handleCompleteStageModal(modalStage);
-      }
-      
-      showToast('Step completed successfully', 'success');
-    } catch (error) {
-      showToast('Failed to complete step', 'error');
-    } finally {
-      setModalLoading(false);
+    // Determine current stage
+    let current: StageName;
+    if (salesOrderCompleted) {
+      current = 'invoice'; // Already completed
+    } else if (invoicePaid) {
+      current = 'invoice'; // Invoice paid, ready to complete
+    } else if (invoiceExists) {
+      current = 'invoice'; // Invoice created
+    } else if (quoteApproved) {
+      current = 'invoice'; // Quote approved, should have invoice
+    } else {
+      current = 'quote'; // Need to approve quote
     }
-  };
 
-  const handleCompleteStageModal = async (stage: WorkflowStage) => {
-    try {
-      const opportunityId = typeof salesOrder.opportunityId === 'object' 
-        ? salesOrder.opportunityId._id 
-        : salesOrder.opportunityId;
-      
-      if (!opportunityId) return;
-      
-      setModalLoading(true);
-      await lifecycleIntegrationService.markStageAsCompleted(
-        opportunityId, 
-        stage.stage,
-        { documentId: stage.documentId }
-      );
-      
-      showToast(`${stage.label} marked as completed`, 'success');
-      fetchSalesOrder();
-      handleCloseModal();
-    } catch (error: any) {
-      showToast(error.message || 'Failed to complete stage', 'error');
-    } finally {
-      setModalLoading(false);
-    }
-  };
+    return [
+      {
+        stage: 'quote',
+        label: 'Quote',
+        description: 'Approve the auto-generated quotation',
+        completed: quoteApproved,
+        isCurrent: current === 'quote',
+        document: typeof q === 'object' ? q : undefined,
+        documentId: getId(q),
+        documentType: 'Quote',
+      },
+      {
+        stage: 'invoice',
+        label: 'Invoice',
+        description: invoicePaid ? 'Ready to complete sales order' : 'Generated from approved quote',
+        completed: invoicePaid || salesOrderCompleted,
+        isCurrent: current === 'invoice',
+        document: typeof inv === 'object' ? inv : undefined,
+        documentId: getId(inv),
+        documentType: 'Invoice',
+      },
+    ];
+  }
 
-  const handleStageAction = async (stage: WorkflowStage, actionId: string) => {
-    try {
-      if (!salesOrder) return;
-      
-      const opportunityId = typeof salesOrder.opportunityId === 'object' 
-        ? salesOrder.opportunityId._id 
-        : salesOrder.opportunityId;
-      
-      if (!opportunityId) {
-        showToast('Cannot perform action: No opportunity found', 'error');
-        return;
-      }
-      
-      switch (actionId) {
-        case 'create':
-          await handleCreateDocument(stage.stage);
-          break;
-        case 'view':
-          if (stage.document && stage.document._id) {
-            await handleViewDocument(stage);
-          } else {
-            showToast('No document exists to view. Please create one first.', 'warning');
-          }
-          break;
-        case 'complete':
-          await handleCompleteStage(stage);
-          break;
-        case 'skip':
-          await handleSkipStage(stage);
-          break;
-        case 'update':
-          await handleUpdateDocument(stage);
-          break;
-        case 'transition':
-          await handleMoveToNextStage();
-          break;
-        case 'approve':
-          if (stage.stage === 'quote' && stage.documentId) {
-            await handleApproveQuote(stage.documentId);
-          }
-          break;
-        default:
-          showToast(`Action ${actionId} not implemented`, 'warning');
-          break;
-      }
-    } catch (error: any) {
-      showToast(error.message || 'Action failed', 'error');
-    }
-  };
+  const mapped: WorkflowStage[] = filtered.map((s) => ({
+    stage: s.stage as StageName,
+    label: s.label || (s.stage === 'quote' ? 'Quote' : 'Invoice'),
+    description: s.description,
+    completed: s.stage === 'quote'
+      ? s.document?.status === 'approved' || s.completed
+      : s.document?.status === 'paid' || !!s.document || !!s.documentId || !!getInvoiceIdFromOrder(salesOrder),
+    isCurrent: !!s.isCurrent,
+    document: s.document,
+    documentId: s.documentId,
+    documentType: s.documentType,
+  }));
 
-  const handleApproveQuote = async (quoteId: string) => {
-    try {
-      if (!quoteId) {
-        showToast('No quote ID provided', 'error');
-        return false;
-      }
-      
-      setWorkflowLoading(true);
-      
-      // First check if quote exists and get its status
-      const quote = await quoteService.getQuoteById(quoteId);
-      
-      if (quote.status === 'approved') {
-        showToast('Quote is already approved', 'info');
-        setWorkflowLoading(false);
-        return true;
-      }
-      
-      // Get user info
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const userId = user._id || user.id || 'system-auto';
-      const userRole = user.role || 'system';
-      
-      // Approve the quote
-      await quoteService.approveQuote(quoteId, userId, userRole);
-      showToast('Quote approved successfully!', 'success');
-      
-      // Refresh the sales order data to reflect the change
-      const updatedOrder = await salesOrderService.getSalesOrderById(orderId);
-      setSalesOrder(updatedOrder);
-      
-      // Refresh lifecycle data
-      if (updatedOrder.opportunityId) {
-        await fetchLifecycle(updatedOrder);
-      }
-      
-      setWorkflowLoading(false);
-      return true;
-      
-    } catch (error: any) {
-      console.error('Error approving quote:', error);
-      showToast(error.message || 'Failed to approve quote', 'error');
-      setWorkflowLoading(false);
-      return false;
-    }
-  };
+  const anyCurrent = mapped.some((m) => m.isCurrent);
+  if (!anyCurrent) {
+    const invExists = !!getInvoiceIdFromOrder(salesOrder);
+    const invPaid = typeof salesOrder.invoiceId === 'object' ? salesOrder.invoiceId.status === 'paid' : false;
+    const soCompleted = salesOrder.status === 'delivered';
+    
+    // If invoice is paid or sales order completed, current is invoice
+    // Otherwise, if invoice exists, current is invoice
+    // Otherwise, current is quote
+    const currentStage = soCompleted || invPaid || invExists ? 'invoice' : 'quote';
+    mapped.forEach((m) => (m.isCurrent = m.stage === currentStage));
+  }
 
-  const handleMoveToNextStage = async () => {
+  return mapped;
+}, [lifecycle?.stages, salesOrder]);
+
+  const currentStage = useMemo(() => stages.find((s) => s.isCurrent) || stages[0], [stages]);
+
+  const quoteId = useMemo(() => getQuoteIdFromOrder(salesOrder), [salesOrder]);
+  const invoiceId = useMemo(() => getInvoiceIdFromOrder(salesOrder), [salesOrder]);
+
+  const quoteStatus = useMemo(() => {
+    if (!salesOrder?.quoteId) return '—';
+    return typeof salesOrder.quoteId === 'object' ? salesOrder.quoteId.status : 'pending';
+  }, [salesOrder?.quoteId]);
+
+  const invoiceStatus = useMemo(() => {
+    if (!salesOrder?.invoiceId) return '—';
+    return typeof salesOrder.invoiceId === 'object' ? salesOrder.invoiceId.status : 'draft';
+  }, [salesOrder?.invoiceId]);
+
+  const handleAcceptQuoteAndGenerateInvoice = useCallback(async () => {
+  if (!salesOrder) return;
+
+  const opportunityId = getOpportunityId(salesOrder);
+  if (!opportunityId) {
+    showToast('Cannot continue: No opportunity linked', 'error');
+    return;
+  }
+
+  const qId = getQuoteIdFromOrder(salesOrder);
+  if (!qId) {
+    // NEW: Try to fetch quote directly from opportunity if not linked to sales order
     try {
-      if (!salesOrder || !canProceedToNextStage) return;
-      
-      setWorkflowLoading(true);
-      
-      const opportunityId = typeof salesOrder.opportunityId === 'object' 
-        ? salesOrder.opportunityId._id 
-        : salesOrder.opportunityId;
-      
-      if (!opportunityId) {
-        showToast('Cannot move to next stage: No opportunity linked', 'error');
-        setWorkflowLoading(false);
-        return;
-      }
-      
-      const result = await lifecycleIntegrationService.transitionToNextStage(opportunityId);
-      
-      if (result.success) {
-        showToast(`Successfully moved to ${result.currentStage} stage`, 'success');
-        await fetchSalesOrder();
+      // Get quotes by opportunity
+      const quotes = await quoteService.getQuotesByOpportunity(opportunityId);
+      if (quotes.length > 0) {
+        const quote = quotes[0];
+        // Update sales order with quote ID if not already linked
+        await salesOrderService.updateSalesOrder(
+          salesOrder._id || salesOrder.id,
+          { quoteId: quote._id || quote.id }
+        );
+        // Refresh the sales order data
+        await fetchAll();
+        // Use this quote ID
+        return handleAcceptQuoteAndGenerateInvoice(); // Recursive call
       } else {
-        showToast(result.message || 'Failed to move to next stage', 'error');
+        showToast('No quote found. Please ensure a quote is generated from the opportunity.', 'error');
+        return;
       }
-      
-    } catch (error: any) {
-      console.error('Stage transition error:', error);
-      showToast(error.message || 'Failed to move to next stage', 'error');
-    } finally {
-      setWorkflowLoading(false);
-    }
-  };
-
-  const handleUpdateDocument = async (stage: WorkflowStage) => {
-    if (!stage.documentId) {
-      await handleCreateDocument(stage.stage);
+    } catch (error) {
+      console.error('Error fetching quotes:', error);
+      showToast('Failed to find quote. Please check the opportunity has a quote.', 'error');
       return;
     }
-    
-    const route = stage.documentType === 'Quote' ? 'quotes' :
-                 stage.documentType === 'Invoice' ? 'invoices' :
-                 `${stage.documentType?.toLowerCase()}s`;
-    
-    router.push(`/${route}/${stage.documentId}/edit`);
-  };
+  }
 
-  const handleCreateDocument = async (stageType: string) => {
-    if (!salesOrder) return;
-    
-    const opportunityId = typeof salesOrder.opportunityId === 'object' 
-      ? salesOrder.opportunityId._id 
-      : salesOrder.opportunityId;
-    
-    switch (stageType) {
-      case 'quote':
-        router.push(`/quotes/create?opportunityId=${opportunityId}&salesOrderId=${salesOrder._id}`);
-        break;
-      case 'invoice':
-        router.push(`/invoices/create?opportunityId=${opportunityId}&salesOrderId=${salesOrder._id}`);
-        break;
-    }
-  };
-
-  const handleViewDocument = async (stage: WorkflowStage) => {
-    if (!stage.documentId) return;
-    
-    const route = stage.documentType === 'Quote' ? 'quotes' :
-                 stage.documentType === 'Invoice' ? 'invoices' :
-                 `${stage.documentType?.toLowerCase()}s`;
-    
-    router.push(`/${route}/${stage.documentId}`);
-  };
-
-  // Update handleCompleteStage to trigger invoice auto-creation
-  const handleCompleteStage = async (stage: WorkflowStage) => {
+  setBusy(true);
+  try {
+    // 1) Get quote
+    let quote;
     try {
-      const opportunityId = typeof salesOrder.opportunityId === 'object' 
-        ? salesOrder.opportunityId._id 
-        : salesOrder.opportunityId;
-      
-      if (!opportunityId) return;
-      
-      setWorkflowLoading(true);
-      
-      // Mark stage as completed - this should auto-create the invoice
-      await lifecycleIntegrationService.markStageAsCompleted(
-        opportunityId, 
-        stage.stage,
-        { 
-          documentId: stage.documentId,
-          completedBy: 'system-auto'
-        }
-      );
-      
-      showToast(`${stage.label} completed! Creating invoice...`, 'success');
-      
-      // Wait for invoice creation and refresh all data
-      setTimeout(async () => {
-        try {
-          // Refresh the sales order data
-          const refreshedOrder = await salesOrderService.getSalesOrderById(orderId);
-          setSalesOrder(refreshedOrder);
-          
-          // Refresh lifecycle data
-          if (refreshedOrder.opportunityId) {
-            await fetchLifecycle(refreshedOrder);
-          }
-          
-          // Check if invoice was created
-          if (refreshedOrder.invoiceId) {
-            showToast('Invoice created successfully!', 'success');
-            
-            // Also update the current stage in UI
-            const currentStageAfterUpdate = getCurrentStage();
-            if (currentStageAfterUpdate?.stage === 'invoice') {
-              showToast('Now on invoice stage. Please review and send invoice.', 'info');
-            }
-          } else {
-            showToast('Invoice creation may have failed. Please check or create manually.', 'warning');
-          }
-        } catch (error) {
-          console.error('Error refreshing data:', error);
-          showToast('Failed to refresh data. Please refresh the page.', 'error');
-        } finally {
-          setWorkflowLoading(false);
-        }
-      }, 3000); // Increased timeout to ensure invoice creation completes
-      
-    } catch (error: any) {
-      console.error('Error completing stage:', error);
-      showToast(error.message || 'Failed to complete stage', 'error');
-      setWorkflowLoading(false);
+      quote = await quoteService.getQuoteById(qId);
+    } catch (error) {
+      console.error('Error fetching quote:', error);
+      showToast('Quote not found. Please refresh and try again.', 'error');
+      return;
     }
-  };
 
-  useEffect(() => {
-    // If invoice is created and we're on overview tab, suggest switching to invoice tab
-    if (salesOrder?.invoiceId && activeTab === 'overview') {
-      const timer = setTimeout(() => {
-        showToast('Invoice created! Switching to invoice tab...', 'info');
-        setActiveTab('invoice');
-      }, 1000);
-      
-      return () => clearTimeout(timer);
+    // 2) Check quote status
+    if (!quote) {
+      showToast('Quote not found', 'error');
+      return;
     }
-  }, [salesOrder?.invoiceId, activeTab, showToast]);
 
-  const handleMarkInvoiceAsPaid = async () => {
-    try {
-      if (!salesOrder?.invoiceId) return;
-      
-      const invoiceId = typeof salesOrder.invoiceId === 'object' 
-        ? salesOrder.invoiceId._id 
-        : salesOrder.invoiceId;
-      
-      if (!invoiceId) return;
-      
-      // Mock payment - update invoice status
-      const paidInvoice = await invoiceService.markInvoiceAsPaid(
-        invoiceId,
-        undefined, // amount paid (full amount)
-        undefined, // payment date (now)
-        'mock_payment', // payment method
-        `MOCK-${Date.now().toString(36).toUpperCase()}` // mock reference
-      );
-      
-      // If we're in invoice stage, mark it as complete
-      if (currentStage?.stage === 'invoice') {
-        const opportunityId = typeof salesOrder.opportunityId === 'object' 
-          ? salesOrder.opportunityId._id 
-          : salesOrder.opportunityId;
+    // 3) Approve quote if not already approved
+    if (quote?.status !== 'approved') {
+      // Check if quote can be approved
+      if (quote.status === 'draft' || quote.status === 'sent') {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const userId = user._id || user.id || 'system-auto';
+        const userRole = user.role || 'system';
         
-        if (opportunityId) {
-          await lifecycleIntegrationService.markStageAsCompleted(opportunityId, 'invoice', {
-            documentId: invoiceId,
-            completedBy: 'system',
-            notes: 'Mock payment completed'
-          });
-          
-          // Complete the sales order lifecycle
-          await lifecycleIntegrationService.completeSalesOrder(opportunityId);
-        }
+        // Approve the quote
+        await quoteService.approveQuote(qId, userId, userRole);
+        showToast('Quote approved successfully', 'success');
+      } else if (quote.status === 'rejected' || quote.status === 'expired') {
+        showToast(`Quote cannot be approved. Current status: ${quote.status}`, 'error');
+        return;
+      } else {
+        showToast(`Quote is already ${quote.status}`, 'info');
       }
-      
-      showToast('Invoice marked as paid! Sales order completed.', 'success');
-      
-      // Refresh all data
-      setTimeout(() => {
-        setRefreshKey(prev => prev + 1);
-      }, 500);
-      
-    } catch (error: any) {
-      console.error('Error marking invoice as paid:', error);
-      showToast(error.message || 'Failed to mark invoice as paid', 'error');
     }
-  };
 
-  const validateStageCompletion = async (stage: WorkflowStage): Promise<boolean> => {
-    const stagesRequiringDocuments = ['quote', 'invoice'];
+    // 4) Mark quote stage as completed in lifecycle
+    showToast('Transitioning to invoice stage...', 'info');
     
-    if (stagesRequiringDocuments.includes(stage.stage) && !stage.document) {
-      showToast('Please create the document first', 'warning');
-      return false;
-    }
-    
-    // For delivery stage, check if sales order is delivered
-    if (stage.stage === 'delivery' && salesOrder?.status !== 'delivered') {
-      showToast('Please mark the sales order as delivered first', 'warning');
-      return false;
-    }
-    
-    return true;
-  };
+    // Use markStageAsCompleted to properly transition
+    const markStageResult = await lifecycleIntegrationService.markStageAsCompleted(
+      opportunityId, 
+      'quote',
+      {
+        documentId: qId,
+        completedBy: JSON.parse(localStorage.getItem('user') || '{}')?._id || 'system',
+        notes: 'Quote approved via sales order'
+      }
+    );
 
-  const handleSkipStage = async (stage: WorkflowStage) => {
-    try {
-      const opportunityId = typeof salesOrder.opportunityId === 'object' 
-        ? salesOrder.opportunityId._id 
-        : salesOrder.opportunityId;
+    if (!markStageResult.success) {
+      showToast(markStageResult.message || 'Failed to complete quote stage', 'error');
+      return;
+    }
+
+    // 5) Wait for invoice to be auto-generated
+    showToast('Generating invoice from quote…', 'info');
+    
+    // Poll for invoice creation
+    let invoiceId = null;
+    let attempts = 0;
+    const maxAttempts = 10;
+    const delayMs = 1000;
+
+    while (!invoiceId && attempts < maxAttempts) {
+      attempts++;
+      await sleep(delayMs);
       
-      if (!opportunityId) return;
+      // Refresh sales order to get updated invoice ID
+      const refreshedOrder = await salesOrderService.getSalesOrderById(orderId);
+      setSalesOrder(refreshedOrder);
       
-      setWorkflowLoading(true);
-      const result = await lifecycleIntegrationService.transitionToNextStage(opportunityId, {
-        skipValidation: true,
-        metadata: { skippedStage: stage.stage, reason: 'User skipped' }
+      invoiceId = getInvoiceIdFromOrder(refreshedOrder);
+      
+      if (!invoiceId && attempts === maxAttempts) {
+        showToast('Invoice is taking longer than expected. Please check the opportunity lifecycle.', 'warning');
+      }
+    }
+
+    if (invoiceId) {
+      // 6) Update sales order with invoice ID if not already linked
+      if (!salesOrder.invoiceId) {
+        await salesOrderService.updateSalesOrder(
+          salesOrder._id || salesOrder.id,
+          { invoiceId }
+        );
+      }
+
+      // 7) Refresh all data
+      await fetchAll();
+      
+      // 8) Refresh lifecycle UI
+      const lifecycleUI = await lifecycleIntegrationService.getSalesOrderLifecycleUI(opportunityId);
+      setLifecycle(lifecycleUI);
+
+      showToast('Invoice created successfully!', 'success');
+      setActiveTab('invoice');
+    } else {
+      showToast('Invoice not created. Please check the opportunity workflow.', 'error');
+    }
+  } catch (e: any) {
+    console.error('Error accepting quote:', e);
+    showToast(e?.message || 'Failed to accept quote / generate invoice', 'error');
+  } finally {
+    setBusy(false);
+  }
+}, [salesOrder, orderId, showToast, fetchAll]);
+
+
+const handleCompleteSalesOrder = useCallback(async () => {
+  if (!salesOrder) return;
+
+  const opportunityId = getOpportunityId(salesOrder);
+  if (!opportunityId) {
+    showToast('Cannot complete: No opportunity linked', 'error');
+    return;
+  }
+
+  setBusy(true);
+  try {
+    // Complete the sales order lifecycle
+    const result = await lifecycleIntegrationService.completeSalesOrder(opportunityId);
+    
+    if (result.success) {
+      // Update sales order status locally
+      const updatedOrder = await salesOrderService.updateSalesOrder(salesOrder._id || salesOrder.id, {
+        status: 'delivered',
+        actualDeliveryDate: new Date().toISOString()
       });
       
-      if (result.success) {
-        showToast(`${stage.label} stage skipped`, 'info');
-        fetchSalesOrder();
-      }
-    } catch (error: any) {
-      showToast(error.message || 'Failed to skip stage', 'error');
-    } finally {
-      setWorkflowLoading(false);
+      setSalesOrder(updatedOrder);
+      showToast('Sales order completed successfully!', 'success');
+      
+      // Trigger refresh in list page
+      localStorage.setItem('salesOrdersLastUpdate', Date.now().toString());
+    } else {
+      showToast(result.message || 'Failed to complete sales order', 'error');
     }
-  };
+  } catch (e: any) {
+    console.error('Error completing sales order:', e);
+    showToast(e?.message || 'Failed to complete sales order', 'error');
+  } finally {
+    setBusy(false);
+  }
+}, [salesOrder, showToast]);
 
-  const startWorkflow = async () => {
-    try {
-      setWorkflowLoading(true);
-      router.push(`/quotes/create?salesOrderId=${orderId}&source=sales-order`);
-    } catch (error) {
-      console.error('Error starting workflow:', error);
-      showToast('Failed to start workflow', 'error');
-    } finally {
-      setWorkflowLoading(false);
+const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
+  for (let i = 0; i < maxAttempts; i++) {
+    const refreshed = await salesOrderService.getSalesOrderById(orderId);
+    setSalesOrder(refreshed);
+
+    const invId = getInvoiceIdFromOrder(refreshed);
+    if (invId) {
+      console.log(`Invoice found after ${i + 1} attempts: ${invId}`);
+      return invId;
     }
-  };
+
+    console.log(`Waiting for invoice... attempt ${i + 1}/${maxAttempts}`);
+    await sleep(delayMs);
+  }
+  
+  console.log('Invoice not found after maximum attempts');
+  return null;
+}, [orderId]);
+
+  const handleMarkInvoiceAsPaid = useCallback(async () => {
+  if (!invoiceId) return;
+
+  setBusy(true);
+  try {
+    // 1) Mark invoice as paid
+    await invoiceService.markInvoiceAsPaid(
+      invoiceId,
+      undefined,
+      undefined,
+      'mock_payment',
+      `MOCK-${Date.now().toString(36).toUpperCase()}`
+    );
+
+    showToast('Invoice marked as paid', 'success');
+    
+    // 2) Refresh data
+    await fetchAll();
+    
+    // 3) Show option to complete sales order
+    showToast('Invoice paid! You can now complete the sales order.', 'success');
+    
+    // 4) Optionally auto-complete sales order after payment
+    // Uncomment below to auto-complete:
+    // await handleCompleteSalesOrder();
+    
+  } catch (e: any) {
+    console.error(e);
+    showToast(e?.message || 'Failed to mark invoice as paid', 'error');
+  } finally {
+    setBusy(false);
+  }
+}, [invoiceId, fetchAll, showToast]);
 
   const handlePrint = async () => {
     try {
-      setIsPrinting(true);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      setBusy(true);
+      await sleep(500);
       window.print();
-      showToast('Printing sales order...', 'info');
-    } catch (error) {
+      showToast('Printing…', 'info');
+    } catch {
       showToast('Failed to print', 'error');
     } finally {
-      setIsPrinting(false);
-    }
-  };
-
-  const handleExport = async (format: 'pdf' | 'csv' | 'excel') => {
-    try {
-      setIsExporting(true);
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      showToast(`Exported as ${format.toUpperCase()}`, 'success');
-    } catch (error) {
-      showToast('Export failed', 'error');
-    } finally {
-      setIsExporting(false);
+      setBusy(false);
     }
   };
 
   const handleShare = async (method: 'email' | 'link' | 'download') => {
     try {
       setShowShareMenu(false);
-      switch (method) {
-        case 'email':
-          showToast('Share via email', 'info');
-          break;
-        case 'link':
-          await navigator.clipboard.writeText(window.location.href);
-          showToast('Link copied to clipboard', 'success');
-          break;
-        case 'download':
-          handleExport('pdf');
-          break;
+      if (method === 'link') {
+        await navigator.clipboard.writeText(window.location.href);
+        showToast('Link copied to clipboard', 'success');
+        return;
       }
-    } catch (error) {
+      if (method === 'download') {
+        showToast('Export not implemented in this page yet', 'info');
+        return;
+      }
+      showToast('Share via email (not implemented)', 'info');
+    } catch {
       showToast('Share failed', 'error');
     }
   };
 
   const handleStatusChange = async (newStatus: string) => {
     try {
-      // Define valid sales order statuses
-      const validSalesOrderStatuses = ['draft', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'] as const;
-      
-      // Type guard to check if status is valid
-      const isValidSalesOrderStatus = (status: string): status is 'draft' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled' => {
-        return validSalesOrderStatuses.includes(status as any);
-      };
-      
-      if (!isValidSalesOrderStatus(newStatus)) {
-        showToast(`Invalid status: ${newStatus}`, 'error');
-        return;
-      }
-      
-      await salesOrderService.updateSalesOrder(orderId, { status: newStatus });
-      showToast(`Status changed to ${newStatus.replace('_', ' ')}`, 'success');
-      fetchSalesOrder();
-    } catch (error) {
-      console.error('Error updating sales order status:', error);
+      await salesOrderService.updateSalesOrder(orderId, { status: newStatus as any });
+      showToast(`Status changed to ${newStatus}`, 'success');
+      await fetchAll();
+    } catch (e) {
+      console.error(e);
       showToast('Failed to update status', 'error');
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-KE', {
-      style: 'currency',
-      currency: 'KES',
-      minimumFractionDigits: 2
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '—';
-    try {
-      return format(new Date(dateString), 'MMM dd, yyyy');
-    } catch (error) {
-      return 'Invalid date';
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const config: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
-      draft: { 
-        bg: 'bg-gray-100', 
-        text: 'text-gray-800',
-        icon: <EyeOff className="h-3 w-3" />
-      },
-      confirmed: { 
-        bg: 'bg-blue-100', 
-        text: 'text-blue-800',
-        icon: <CheckCircle className="h-3 w-3" />
-      },
-      processing: { 
-        bg: 'bg-yellow-100', 
-        text: 'text-yellow-800',
-        icon: <Clock className="h-3 w-3" />
-      },
-      shipped: { 
-        bg: 'bg-purple-100', 
-        text: 'text-purple-800',
-        icon: <Truck className="h-3 w-3" />
-      },
-      delivered: { 
-        bg: 'bg-green-100', 
-        text: 'text-green-800',
-        icon: <Package className="h-3 w-3" />
-      },
-      cancelled: { 
-        bg: 'bg-red-100', 
-        text: 'text-red-800',
-        icon: <AlertCircle className="h-3 w-3" />
-      },
-    };
-    return config[status] || config.draft;
-  };
-
-  const getStageStatusColor = (stage: WorkflowStage) => {
-    if (stage.completed) return 'text-green-600 bg-green-50 border-green-200';
-    if (stage.isCurrent) return 'text-blue-600 bg-blue-50 border-blue-200';
-    return 'text-gray-500 bg-gray-50 border-gray-200';
-  };
-
-  const getStageStatusIcon = (stage: WorkflowStage) => {
-    if (stage.completed) return <CheckCircle className="h-4 w-4 text-green-500" />;
-    if (stage.isCurrent) return <CircleDot className="h-4 w-4 text-blue-500 animate-pulse" />;
-    return <Circle className="h-4 w-4 text-gray-400" />;
-  };
-
-  const getStageCompletionRequirements = (stage: WorkflowStage): string => {
-    switch (stage.stage) {
-      case 'quote':
-        return 'Requires approval to proceed';
-      case 'invoice':
-        return 'Requires invoice generation';
-      case 'payment':
-        return 'Requires payment confirmation';
-      case 'delivery':
-        return 'Requires delivery confirmation';
-      default:
-        return 'Complete this stage to proceed';
-    }
-  };
-
-  // Show full page skeleton on initial load
   if (loading) {
-    return <FullPageSkeleton />;
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center">
+        <div className="flex items-center gap-3 text-gray-700">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Loading sales order…
+        </div>
+      </div>
+    );
   }
 
   if (!salesOrder) {
@@ -1362,7 +573,7 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
         <div className="text-center">
           <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Sales Order Not Found</h3>
-          <p className="text-gray-600 mb-6">The sales order you're looking for doesn't exist or has been removed.</p>
+          <p className="text-gray-600 mb-6">The sales order doesn’t exist or has been removed.</p>
           <button
             onClick={() => router.push('/orders/sales-orders')}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -1374,1384 +585,1139 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
     );
   }
 
-  const statusConfig = getStatusBadge(salesOrder.status);
-  const currentStage = getCurrentStage();
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
       {/* Header */}
-      {loading ? (
-        <SkeletonLoader.Header />
-      ) : (
-        <div className="bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-700 p-4 sm:p-6 shadow-lg relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10">
-            <div className="absolute -top-24 -right-24 w-64 h-64 bg-white rounded-full blur-3xl"></div>
-            <div className="absolute top-1/2 left-1/4 w-48 h-48 bg-purple-400 rounded-full blur-3xl"></div>
-            <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-400 rounded-full blur-3xl"></div>
-          </div>
-          
-          <div className="max-w-7xl mx-auto relative z-10">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-700 p-4 sm:p-6 shadow-lg relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10">
+          <div className="absolute -top-24 -right-24 w-64 h-64 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute top-1/2 left-1/4 w-48 h-48 bg-purple-400 rounded-full blur-3xl"></div>
+          <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-400 rounded-full blur-3xl"></div>
+        </div>
+
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.push('/orders/sales-orders')}
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors backdrop-blur-sm"
+              >
+                <ArrowLeft className="h-5 w-5 text-white" />
+              </button>
+
               <div className="flex items-center gap-3">
-                <button
-                  onClick={() => router.push('/orders/sales-orders')}
-                  className="p-2 hover:bg-white/20 rounded-lg transition-colors backdrop-blur-sm"
-                >
-                  <ArrowLeft className="h-5 w-5 text-white" />
-                </button>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-white/20 backdrop-blur-sm rounded-lg">
-                    <ShoppingBag className="h-6 w-6 text-white" />
+                <div className="p-2 bg-white/20 backdrop-blur-sm rounded-lg">
+                  <Receipt className="h-6 w-6 text-white" />
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl font-semibold text-white">{salesOrder.salesOrderNumber}</h1>
+                    <span className="inline-flex items-center px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white capitalize">
+                      {String(salesOrder.status || 'draft').replace('_', ' ')}
+                    </span>
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h1 className="text-xl font-semibold text-white">{salesOrder.salesOrderNumber}</h1>
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full">
-                        {statusConfig.icon}
-                        <span className="text-xs font-medium text-white capitalize">{salesOrder.status.replace('_', ' ')}</span>
-                      </div>
-                    </div>
-                    <p className="text-sm text-white/90">Sales Order • Created {formatDate(salesOrder.createdAt)}</p>
-                  </div>
+                  <p className="text-sm text-white/90">
+                    Sales Order • Created {formatDate(salesOrder.createdAt)}
+                  </p>
                 </div>
               </div>
-              
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handlePrint}
-                  disabled={isPrinting}
-                  className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors disabled:opacity-50"
-                  title="Print"
-                >
-                  {isPrinting ? <Loader2 className="h-5 w-5 text-white animate-spin" /> : <Printer className="h-5 w-5 text-white" />}
-                </button>
-                <button
-                  onClick={() => handleExport('pdf')}
-                  disabled={isExporting}
-                  className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors disabled:opacity-50"
-                  title="Export"
-                >
-                  {isExporting ? <Loader2 className="h-5 w-5 text-white animate-spin" /> : <Download className="h-5 w-5 text-white" />}
-                </button>
-                <Link
-                  href={`/orders/sales-orders/${salesOrder._id}/edit`}
-                  className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors"
-                  title="Edit"
-                >
-                  <Edit className="h-5 w-5 text-white" />
-                </Link>
-                <button
-                  onClick={() => setShowShareMenu(!showShareMenu)}
-                  className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors relative"
-                  title="Share"
-                >
-                  <Share2 className="h-5 w-5 text-white" />
-                  {showShareMenu && (
-                    <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
-                      <button
-                        onClick={() => handleShare('email')}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                      >
-                        <Mail className="h-4 w-4" />
-                        Share via Email
-                      </button>
-                      <button
-                        onClick={() => handleShare('link')}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                      >
-                        <LinkIcon className="h-4 w-4" />
-                        Copy Link
-                      </button>
-                      <button
-                        onClick={() => handleShare('download')}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                      >
-                        <Download className="h-4 w-4" />
-                        Download PDF
-                      </button>
-                    </div>
-                  )}
-                </button>
-                <button
-                  onClick={() => setShowActionsMenu(!showActionsMenu)}
-                  className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors relative"
-                  title="More actions"
-                >
-                  <MoreVertical className="h-5 w-5 text-white" />
-                  {showActionsMenu && (
-                    <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
-                      <button
-                        onClick={() => handleStatusChange('delivered')}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                      >
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        Mark as Delivered
-                      </button>
-                      <button
-                        onClick={() => handleStatusChange('shipped')}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                      >
-                        <Truck className="h-4 w-4 text-purple-600" />
-                        Mark as Shipped
-                      </button>
-                      <button
-                        onClick={() => handleStatusChange('cancelled')}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                      >
-                        <AlertCircle className="h-4 w-4 text-red-600" />
-                        Cancel Order
-                      </button>
-                      <div className="border-t border-gray-200 my-2"></div>
-                      <button
-                        onClick={() => router.push(`/orders/sales-orders/${salesOrder._id}/duplicate`)}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                      >
-                        <Copy className="h-4 w-4" />
-                        Duplicate Order
-                      </button>
-                      <div className="border-t border-gray-200 my-2"></div>
-                      <button
-                        onClick={() => router.push(`/orders/sales-orders/${salesOrder._id}/archive`)}
-                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2"
-                      >
-                        <Archive className="h-4 w-4" />
-                        Archive Order
-                      </button>
-                    </div>
-                  )}
-                </button>
-              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handlePrint}
+                disabled={busy}
+                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors disabled:opacity-50"
+                title="Print"
+              >
+                {busy ? <Loader2 className="h-5 w-5 text-white animate-spin" /> : <Printer className="h-5 w-5 text-white" />}
+              </button>
+
+              <button
+                onClick={() => showToast('Export not implemented in this page yet', 'info')}
+                disabled={busy}
+                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors disabled:opacity-50"
+                title="Export"
+              >
+                <Download className="h-5 w-5 text-white" />
+              </button>
+
+              <Link
+                href={`/orders/sales-orders/${salesOrder._id}/edit`}
+                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors"
+                title="Edit"
+              >
+                <Edit className="h-5 w-5 text-white" />
+              </Link>
+
+              <button
+                onClick={() => setShowShareMenu((v) => !v)}
+                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors relative"
+                title="Share"
+              >
+                <Share2 className="h-5 w-5 text-white" />
+                {showShareMenu && (
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
+                    <button
+                      onClick={() => handleShare('email')}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                    >
+                      <FileText className="h-4 w-4" />
+                      Share via Email
+                    </button>
+                    <button
+                      onClick={() => handleShare('link')}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                    >
+                      <LinkIcon className="h-4 w-4" />
+                      Copy Link
+                    </button>
+                    <button
+                      onClick={() => handleShare('download')}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download PDF
+                    </button>
+                  </div>
+                )}
+              </button>
+
+              <button
+                onClick={() => setShowActionsMenu((v) => !v)}
+                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors relative"
+                title="More actions"
+              >
+                <MoreVertical className="h-5 w-5 text-white" />
+                {showActionsMenu && (
+                  <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
+                    <button
+                      onClick={() => handleStatusChange('delivered')}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                    >
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      Mark as Delivered
+                    </button>
+                    <button
+                      onClick={() => handleStatusChange('shipped')}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                    >
+                      <Truck className="h-4 w-4 text-purple-600" />
+                      Mark as Shipped
+                    </button>
+                    <div className="border-t border-gray-200 my-2"></div>
+                    <button
+                      onClick={() => router.push(`/orders/sales-orders/${salesOrder._id}/duplicate`)}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                    >
+                      <Copy className="h-4 w-4" />
+                      Duplicate Order
+                    </button>
+                    <div className="border-t border-gray-200 my-2"></div>
+                    <button
+                      onClick={() => router.push(`/orders/sales-orders/${salesOrder._id}/archive`)}
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2"
+                    >
+                      <Archive className="h-4 w-4" />
+                      Archive Order
+                    </button>
+                  </div>
+                )}
+              </button>
+
+              <button
+                onClick={() => fetchAll()}
+                disabled={busy}
+                className="p-2 hover:bg-white/20 backdrop-blur-sm rounded-lg transition-colors disabled:opacity-50"
+                title="Refresh"
+              >
+                <RefreshCw className={`h-5 w-5 text-white ${busy ? 'animate-spin' : ''}`} />
+              </button>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Tabs Navigation - Updated with Quotation and Invoice tabs */}
-      {loading ? (
-        <SkeletonLoader.Tabs />
-      ) : (
-        <div className="border-b border-gray-200 bg-white">
-          <div className="px-6">
-            <nav className="flex space-x-8">
-              {[
-                { id: 'overview', label: 'Overview', icon: <BarChart3 className="h-4 w-4" /> },
-                { id: 'quotation', label: 'Quotation', icon: <FileText className="h-4 w-4" /> },
-                { id: 'invoice', label: 'Invoice', icon: <ReceiptIcon className="h-4 w-4" /> },
-                { id: 'items', label: 'Items', icon: <Package className="h-4 w-4" /> },
-                { id: 'documents', label: 'Documents', icon: <FileText className="h-4 w-4" /> },
-                { id: 'activity', label: 'Activity', icon: <History className="h-4 w-4" /> },
-                { id: 'notes', label: 'Notes', icon: <MessageSquare className="h-4 w-4" /> },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 py-3 px-1 border-b-2 text-sm font-medium transition-colors ${
-                    activeTab === tab.id
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  {tab.icon}
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
+      {/* Tabs */}
+      <div className="border-b border-gray-200 bg-white">
+        <div className="px-6">
+          <nav className="flex space-x-8">
+            {[
+              { id: 'overview', label: 'Overview', icon: <Receipt className="h-4 w-4" /> },
+              { id: 'quotation', label: 'Quotation', icon: <FileText className="h-4 w-4" /> },
+              { id: 'invoice', label: 'Invoice', icon: <Receipt className="h-4 w-4" /> },
+              { id: 'items', label: 'Items', icon: <Package className="h-4 w-4" /> },
+              { id: 'documents', label: 'Documents', icon: <FileText className="h-4 w-4" /> },
+              { id: 'activity', label: 'Activity', icon: <History className="h-4 w-4" /> },
+              { id: 'notes', label: 'Notes', icon: <MessageSquare className="h-4 w-4" /> },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as TabId)}
+                className={`flex items-center gap-2 py-3 px-1 border-b-2 text-sm font-medium transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </div>
+
+      {/* Main */}
+      <div className="p-6 max-w-7xl mx-auto">
+        {/* OVERVIEW */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            {/* Current stage focus */}
+            {currentStage && (
+  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 p-6">
+    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+      <div className="flex items-start gap-4">
+        <div className={`p-3 rounded-lg ${
+          salesOrder.status === 'delivered' 
+            ? 'bg-green-100' 
+            : currentStage.stage === 'quote' 
+              ? 'bg-blue-100' 
+              : 'bg-indigo-100'
+        }`}>
+          {salesOrder.status === 'delivered' ? (
+            <PackageCheck className="h-6 w-6 text-green-700" />
+          ) : currentStage.stage === 'quote' ? (
+            <FileText className="h-6 w-6 text-blue-700" />
+          ) : (
+            <Receipt className="h-6 w-6 text-indigo-700" />
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <h3 className="text-xl font-bold text-gray-900">
+              {salesOrder.status === 'delivered' 
+                ? 'Sales Order Completed' 
+                : currentStage.label}
+            </h3>
+            <StagePill stage={currentStage} />
+            {salesOrder.status === 'delivered' && (
+              <span className="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                <CheckCircle className="h-3 w-3 mr-1" />
+                Completed
+              </span>
+            )}
+          </div>
+
+          <p className="text-gray-600">
+            {salesOrder.status === 'delivered' 
+              ? 'The sales order has been completed and delivered to the customer.'
+              : currentStage.stage === 'quote'
+                ? 'Accept the quote to automatically generate the invoice.'
+                : invoiceStatus === 'paid'
+                  ? 'Invoice has been paid. Complete the sales order to finish.'
+                  : 'Invoice is ready. You can view it, edit it, or mark as paid.'}
+          </p>
+
+          <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+            {salesOrder.status === 'delivered' ? (
+              <>
+                <span className="inline-flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  Status: <span className="font-medium text-green-900">Completed & Delivered</span>
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-blue-600" />
+                  Completed: <span className="font-medium text-gray-900">
+                    {salesOrder.actualDeliveryDate ? formatDate(salesOrder.actualDeliveryDate) : formatDate(salesOrder.updatedAt)}
+                  </span>
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="inline-flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-blue-600" />
+                  Quote: <span className={`font-medium ${
+                    quoteStatus === 'approved' ? 'text-green-700' : 'text-gray-900'
+                  }`}>
+                    {quoteStatus === 'approved' ? '✓ Approved' : quoteStatus}
+                  </span>
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <Receipt className="h-4 w-4 text-indigo-600" />
+                  Invoice: <span className={`font-medium ${
+                    invoiceStatus === 'paid' ? 'text-green-700' : 'text-gray-900'
+                  }`}>
+                    {invoiceId 
+                      ? (invoiceStatus === 'paid' ? '✓ Paid' : 'Created') 
+                      : 'Not yet'}
+                  </span>
+                </span>
+                {salesOrder.status && salesOrder.status !== 'draft' && (
+                  <span className="inline-flex items-center gap-2">
+                    <Package className="h-4 w-4 text-purple-600" />
+                    Order: <span className={`font-medium ${getOrderStatusColor(salesOrder.status)}`}>
+                      {salesOrder.status}
+                    </span>
+                  </span>
+                )}
+              </>
+            )}
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Main Content */}
-      <div className="p-6">
-        {loading ? (
-          <div className="space-y-6">
-            <SkeletonLoader.CurrentStage />
-            <SkeletonLoader.WorkflowProgress />
-            <SkeletonLoader.QuickActions />
+      {/* Primary CTA */}
+      <div className="flex items-center gap-2">
+        {salesOrder.status === 'delivered' ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 px-4 py-3 bg-green-100 text-green-800 rounded-lg">
+              <CheckCircle className="h-5 w-5" />
+              <span className="font-medium">Sales Order Completed</span>
+            </div>
+            <Link
+              href={`/invoices/${invoiceId}`}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 text-sm"
+            >
+              <Eye className="h-4 w-4" />
+              View Invoice
+            </Link>
           </div>
-        ) : (
+        ) : currentStage.stage === 'quote' ? (
+          <button
+            onClick={handleAcceptQuoteAndGenerateInvoice}
+            disabled={busy || quoteStatus === 'approved'}
+            className="px-5 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 font-medium disabled:opacity-50 flex items-center gap-2"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+            {quoteStatus === 'approved' ? 'Already Accepted' : (busy ? 'Processing…' : 'Accept Quote & Generate Invoice')}
+          </button>
+        ) : currentStage.stage === 'invoice' && invoiceId ? (
           <>
-            {activeTab === 'overview' && (
-              <div className="space-y-6">
-                {/* Current Stage Focus */}
-                {currentStage && (
-                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-4">
-                        <div className="p-3 bg-blue-100 rounded-lg">
-                          {currentStage.icon}
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-xl font-bold text-gray-900">{currentStage.label}</h3>
-                            <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                              currentStage.completed 
-                                ? 'bg-green-100 text-green-800' 
-                                : currentStage.isCurrent 
-                                  ? 'bg-blue-100 text-blue-800' 
-                                  : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {currentStage.completed ? 'Completed' : currentStage.isCurrent ? 'In Progress' : 'Pending'}
-                            </div>
-                          </div>
-                          <p className="text-gray-600">{currentStage.description}</p>
-                          <div className="flex items-center gap-6">
-                            <div className="flex items-center gap-2">
-                              {currentStage.mandatory ? (
-                                <AlertCircle className="h-4 w-4 text-amber-500" />
-                              ) : (
-                                <CheckCircle className="h-4 w-4 text-green-500" />
-                              )}
-                              <span className="text-sm text-gray-600">
-                                {currentStage.mandatory ? 'Required' : 'Optional'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {currentStage.actions.map((action) => (
-                          <button
-                            key={action.id}
-                            onClick={() => handleStageAction(currentStage, action.id)}
-                            className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${
-                              action.variant === 'primary'
-                                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700'
-                                : action.variant === 'success'
-                                  ? 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700'
-                                  : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 hover:from-gray-200 hover:to-gray-300'
-                            }`}
-                          >
-                            {action.icon}
-                            {action.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Workflow Progress */}
-                {workflowStages.length > 0 && (
-                  <div className="bg-white rounded-xl border border-gray-200 p-6">
-                    <div className="flex items-center justify-between mb-6">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">Workflow Progress</h3>
-                        <p className="text-sm text-gray-600">Track your order through the workflow stages</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-600">Overall Progress</p>
-                        <p className="text-2xl font-bold text-blue-600">{workflowProgress.percentage}%</p>
-                      </div>
-                    </div>
-                    
-                    <div className="mb-8">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-700">
-                          {workflowProgress.completed} of {workflowProgress.total} stages completed
-                        </span>
-                        <span className="text-sm font-medium text-blue-600">{workflowProgress.percentage}%</span>
-                      </div>
-                      <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-500"
-                          style={{ width: `${workflowProgress.percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="relative mb-8">
-                      <div className="absolute left-0 right-0 top-6 h-0.5 bg-gray-200" />
-                      <div className="relative flex justify-between">
-                        {workflowStages.map((stage, index) => (
-                          <div key={stage.id} className="flex flex-col items-center">
-                            <button
-                              onClick={() => handleStageModalClick(stage)}
-                              className={`w-12 h-12 rounded-full flex items-center justify-center border-4 transition-all duration-300 ${
-                                stage.completed
-                                  ? 'bg-green-100 border-green-300 text-green-600 hover:bg-green-200'
-                                  : stage.isCurrent
-                                    ? 'bg-blue-100 border-blue-300 text-blue-600 hover:bg-blue-200 animate-pulse'
-                                    : 'bg-gray-100 border-gray-300 text-gray-400 hover:bg-gray-200'
-                              }`}
-                            >
-                              {getStageStatusIcon(stage)}
-                            </button>
-                            <div className="text-center max-w-[120px] mt-3">
-                              <p className="text-sm font-medium text-gray-900">{stage.label}</p>
-                              <p className="text-xs text-gray-500 mt-1">
-                                {stage.completed ? 'Completed' : stage.isCurrent ? 'Current' : 'Upcoming'}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-blue-600">
-                          {formatCurrency(salesOrder.totalAmount)}
-                        </div>
-                        <div className="text-sm text-gray-600">Order Total</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600">
-                          {formatDate(salesOrder.estimatedDeliveryDate || salesOrder.orderDate)}
-                        </div>
-                        <div className="text-sm text-gray-600">Estimated Delivery</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-purple-600">
-                          {salesOrder.lineItems?.length || 0}
-                        </div>
-                        <div className="text-sm text-gray-600">Items</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Quick Actions */}
-                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {salesOrder.quoteId && (
-                      <Link
-                        href={`/quotes/${typeof salesOrder.quoteId === 'object' ? salesOrder.quoteId._id : salesOrder.quoteId}`}
-                        className="p-4 rounded-xl border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-3"
-                      >
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          <FileText className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-gray-900">View Quote</h4>
-                          <p className="text-sm text-gray-600">Review the quotation details</p>
-                        </div>
-                      </Link>
-                    )}
-                    
-                    {salesOrder.invoiceId && (
-                      <Link
-                        href={`/invoices/${typeof salesOrder.invoiceId === 'object' ? salesOrder.invoiceId._id : salesOrder.invoiceId}`}
-                        className="p-4 rounded-xl border-2 border-green-200 bg-green-50 hover:bg-green-100 transition-colors flex items-center gap-3"
-                      >
-                        <div className="p-2 bg-green-100 rounded-lg">
-                          <Receipt className="h-5 w-5 text-green-600" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-gray-900">View Invoice</h4>
-                          <p className="text-sm text-gray-600">Check invoice details</p>
-                        </div>
-                      </Link>
-                    )}
-                    
-                    <button
-                      onClick={handlePrint}
-                      className="p-4 rounded-xl border-2 border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center gap-3"
-                    >
-                      <div className="p-2 bg-gray-100 rounded-lg">
-                        <Printer className="h-5 w-5 text-gray-600" />
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900">Print Order</h4>
-                        <p className="text-sm text-gray-600">Generate printable version</p>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Special Quote Completion Message */}
-                {currentStage?.stage === 'quote' && (
-                  <div className="mt-6">
-                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          <FileText className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-medium text-gray-900">Complete Quote to Auto-Create Invoice</h4>
-                          <p className="text-sm text-gray-600 mt-1">
-                            When you complete this quote stage, an invoice will be automatically generated from the quote data.
-                          </p>
-                          
-                          <div className="mt-3 flex items-center gap-3">
-                            <div className="flex-1 bg-white rounded-lg p-3 border">
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium text-gray-700">Current Quote</span>
-                                {salesOrder.quoteId && (
-                                  <Link 
-                                    href={`/quotes/${typeof salesOrder.quoteId === 'object' ? salesOrder.quoteId._id : salesOrder.quoteId}`}
-                                    className="text-blue-600 hover:underline text-sm"
-                                  >
-                                    View
-                                  </Link>
-                                )}
-                              </div>
-                              {salesOrder.quoteId && typeof salesOrder.quoteId === 'object' && (
-                                <p className="text-xs text-gray-500 mt-1">
-                                  {salesOrder.quoteId.quoteNumber} • {formatCurrency(salesOrder.quoteId.totalAmount)}
-                                </p>
-                              )}
-                            </div>
-                            
-                            <button
-                              onClick={() => handleCompleteStage(currentStage)}
-                              disabled={workflowLoading}
-                              className="px-5 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 font-medium disabled:opacity-50 flex items-center gap-2"
-                            >
-                              {workflowLoading ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <ArrowRight className="h-4 w-4" />
-                              )}
-                              {workflowLoading ? 'Processing...' : 'Complete & Create Invoice'}
-                            </button>
-                          </div>
-                          
-                          <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
-                            <div className="flex items-center gap-1.5">
-                              <AlertCircle className="h-3 w-3" />
-                              <span>Invoice will be auto-created with same items and amounts as quote</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+            <Link
+              href={`/invoices/${invoiceId}`}
+              className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2"
+            >
+              <Eye className="h-4 w-4" />
+              View Invoice
+            </Link>
+            
+            {invoiceStatus !== 'paid' && (
+              <button
+                onClick={handleMarkInvoiceAsPaid}
+                disabled={busy}
+                className="px-4 py-3 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 font-medium disabled:opacity-50 flex items-center gap-2"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                Mark as Paid
+              </button>
             )}
-
-            {/* Quotation Tab */}
-            {activeTab === 'quotation' && (
-              <div className="space-y-6">
-                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">Quotation Details</h3>
-                      <p className="text-sm text-gray-600">Associated quotation for this sales order</p>
-                    </div>
-                    {salesOrder.quoteId && (
-                      <Link
-                        href={`/quotes/${typeof salesOrder.quoteId === 'object' ? salesOrder.quoteId._id : salesOrder.quoteId}`}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                      >
-                        <Eye className="h-4 w-4" />
-                        View Quote
-                      </Link>
-                    )}
-                  </div>
-                  
-                  {salesOrder.quoteId ? (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Quote Number</label>
-                            <p className="text-gray-900 font-medium">
-                              {typeof salesOrder.quoteId === 'object' 
-                                ? salesOrder.quoteId.quoteNumber 
-                                : `Quote #${salesOrder.quoteId.slice(-8)}`
-                              }
-                            </p>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Quote Status</label>
-                            <p className="text-gray-900 font-medium">
-                              {typeof salesOrder.quoteId === 'object' 
-                                ? salesOrder.quoteId.status 
-                                : 'N/A'
-                              }
-                            </p>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="space-y-3">
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Quote Date</label>
-                              <p className="text-gray-900">
-                                {typeof salesOrder.quoteId === 'object' 
-                                  ? formatDate(salesOrder.quoteId.createdAt) 
-                                  : 'N/A'
-                                }
-                              </p>
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
-                              <p className="text-gray-900">
-                                {typeof salesOrder.quoteId === 'object' 
-                                  ? formatDate(salesOrder.quoteId.expiryDate) 
-                                  : 'N/A'
-                                }
-                              </p>
-                            </div>
-                          </div>
-                          <div className="space-y-3">
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Quote Amount</label>
-                              <p className="text-2xl font-bold text-blue-600">
-                                {typeof salesOrder.quoteId === 'object' 
-                                  ? formatCurrency(salesOrder.quoteId.totalAmount) 
-                                  : 'N/A'
-                                }
-                              </p>
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Valid Until</label>
-                              <p className="text-gray-900">
-                                {typeof salesOrder.quoteId === 'object' && salesOrder.quoteId.expiryDate 
-                                  ? `${Math.ceil((new Date(salesOrder.quoteId.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days remaining`
-                                  : 'N/A'
-                                }
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-12">
-                      <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">No Quotation Created</h3>
-                      <p className="text-gray-600 mb-6">Create a quotation to proceed with this sales order.</p>
-                      <button
-                        onClick={() => handleCreateDocument('quote')}
-                        className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 font-medium"
-                      >
-                        <FilePlus className="h-4 w-4 inline mr-2" />
-                        Create Quotation
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
+            
+            {invoiceStatus === 'paid' && salesOrder.status !== 'delivered' && (
+              <button
+                onClick={handleCompleteSalesOrder}
+                disabled={busy}
+                className="px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 font-medium disabled:opacity-50 flex items-center gap-2"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackageCheck className="h-4 w-4" />}
+                Complete Sales Order
+              </button>
             )}
-
-            {/* Invoice Tab */}
-
-            {activeTab === 'invoice' && (
-              <div className="space-y-6">
-                <div className="bg-white rounded-xl border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">Invoice Details</h3>
-                      <p className="text-sm text-gray-600">
-                        {salesOrder.invoiceId 
-                          ? 'Invoice created from approved quote' 
-                          : currentStage?.stage === 'quote'
-                            ? 'Complete quote stage to auto-create invoice'
-                            : 'Invoice will be created automatically'}
-                      </p>
-                    </div>
-                    
-                    {salesOrder.invoiceId ? (
-                      <div className="flex items-center gap-2">
-                        <Link
-                          href={`/invoices/${typeof salesOrder.invoiceId === 'object' ? salesOrder.invoiceId._id : salesOrder.invoiceId}`}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                        >
-                          <Eye className="h-4 w-4" />
-                          View Invoice
-                        </Link>
-                        
-                        <button
-                          onClick={() => router.push(`/invoices/${typeof salesOrder.invoiceId === 'object' ? salesOrder.invoiceId._id : salesOrder.invoiceId}/edit`)}
-                          className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
-                        >
-                          <Edit className="h-4 w-4" />
-                          Edit Invoice
-                        </button>
-                        
-                        <button
-                          onClick={handleMarkInvoiceAsPaid}
-                          className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 flex items-center gap-2"
-                        >
-                          <CheckCircle className="h-4 w-4" />
-                          Mark as Paid
-                        </button>
-                      </div>
-                    ) : currentStage?.stage === 'quote' ? (
-                      <button
-                        onClick={() => handleCompleteStage(currentStage)}
-                        disabled={workflowLoading}
-                        className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 font-medium disabled:opacity-50 flex items-center gap-2"
-                      >
-                        {workflowLoading ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Processing...
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle className="h-4 w-4" />
-                            Complete Quote & Create Invoice
-                          </>
-                        )}
-                      </button>
-                    ) : workflowLoading ? (
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-                        <span className="text-sm text-gray-600">Processing...</span>
-                      </div>
-                    ) : null}
-                  </div>
-                  
-                  {salesOrder.invoiceId ? (
-                    // SHOW THE CREATED INVOICE DETAILS
-                    <div className="space-y-6">
-                      {/* Invoice Header */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="p-4 bg-blue-50 rounded-lg">
-                          <p className="text-sm text-gray-600 mb-1">Invoice Number</p>
-                          <p className="font-semibold text-lg text-blue-700">
-                            {typeof salesOrder.invoiceId === 'object' 
-                              ? salesOrder.invoiceId.invoiceNumber 
-                              : 'INV-...'}
-                          </p>
-                        </div>
-                        
-                        <div className="p-4 bg-green-50 rounded-lg">
-                          <p className="text-sm text-gray-600 mb-1">Status</p>
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${
-                              (typeof salesOrder.invoiceId === 'object' ? salesOrder.invoiceId.status : 'draft') === 'paid' 
-                                ? 'bg-green-500' 
-                                : (typeof salesOrder.invoiceId === 'object' ? salesOrder.invoiceId.status : 'draft') === 'sent'
-                                  ? 'bg-blue-500'
-                                  : 'bg-gray-500'
-                            }`} />
-                            <p className="font-semibold text-lg text-green-700 capitalize">
-                              {typeof salesOrder.invoiceId === 'object' 
-                                ? salesOrder.invoiceId.status 
-                                : 'draft'}
-                            </p>
-                          </div>
-                        </div>
-                        
-                        <div className="p-4 bg-purple-50 rounded-lg">
-                          <p className="text-sm text-gray-600 mb-1">Total Amount</p>
-                          <p className="font-semibold text-lg text-purple-700">
-                            {typeof salesOrder.invoiceId === 'object' 
-                              ? formatCurrency(salesOrder.invoiceId.totalAmount)
-                              : formatCurrency(salesOrder.totalAmount)}
-                          </p>
-                        </div>
-                        
-                        <div className="p-4 bg-amber-50 rounded-lg">
-                          <p className="text-sm text-gray-600 mb-1">Due Date</p>
-                          <p className="font-semibold text-lg text-amber-700">
-                            {typeof salesOrder.invoiceId === 'object' && salesOrder.invoiceId.dueDate
-                              ? formatDate(salesOrder.invoiceId.dueDate)
-                              : formatDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString())}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      {/* Invoice Items */}
-                      <div>
-                        <h4 className="font-medium text-gray-900 mb-3">Invoice Items</h4>
-                        <div className="overflow-x-auto border border-gray-200 rounded-lg">
-                          <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit Price</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                              {/* Show invoice items if available, otherwise show sales order items */}
-                              {((typeof salesOrder.invoiceId === 'object' && salesOrder.invoiceId.items) || salesOrder.lineItems)?.map((item: any, index: number) => (
-                                <tr key={index} className="hover:bg-gray-50">
-                                  <td className="px-4 py-3 text-sm text-gray-900">{item.description}</td>
-                                  <td className="px-4 py-3 text-sm text-gray-900">{item.quantity}</td>
-                                  <td className="px-4 py-3 text-sm text-gray-900">{formatCurrency(item.unitPrice)}</td>
-                                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{formatCurrency(item.total)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                            <tfoot className="bg-gray-50">
-                              <tr>
-                                <td colSpan={3} className="px-4 py-3 text-right text-sm font-medium text-gray-700">
-                                  Total
-                                </td>
-                                <td className="px-4 py-3 text-right text-sm font-bold text-blue-600">
-                                  {typeof salesOrder.invoiceId === 'object' 
-                                    ? formatCurrency(salesOrder.invoiceId.totalAmount)
-                                    : formatCurrency(salesOrder.totalAmount)}
-                                </td>
-                              </tr>
-                            </tfoot>
-                          </table>
-                        </div>
-                      </div>
-                      
-                      {/* Invoice Status Message */}
-                      {typeof salesOrder.invoiceId === 'object' && salesOrder.invoiceId.status === 'draft' && (
-                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <AlertCircle className="h-5 w-5 text-amber-600" />
-                            <div>
-                              <p className="font-medium text-amber-800">Invoice is in draft status</p>
-                              <p className="text-sm text-amber-700">
-                                Review the invoice and mark it as sent to notify the customer.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : currentStage?.stage === 'quote' ? (
-                    <div className="text-center py-12">
-                      <ReceiptIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Invoice Not Created Yet</h3>
-                      <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                        Complete the quote stage to automatically generate an invoice from the approved quote.
-                        The invoice will include all items and pricing from the quote.
-                      </p>
-                      <button
-                        onClick={() => handleCompleteStage(currentStage)}
-                        disabled={workflowLoading}
-                        className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 font-medium disabled:opacity-50"
-                      >
-                        {workflowLoading ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
-                            Creating Invoice...
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle className="h-4 w-4 inline mr-2" />
-                            Complete Quote & Create Invoice
-                          </>
-                        )}
-                      </button>
-                      
-                      {workflowLoading && (
-                        <div className="mt-4 text-sm text-gray-500">
-                          This may take a few seconds. The page will refresh automatically.
-                        </div>
-                      )}
-                    </div>
-                  ) : currentStage?.stage === 'invoice' ? (
-                    <div className="text-center py-12">
-                      <div className="flex flex-col items-center">
-                        <Loader2 className="h-12 w-12 animate-spin text-blue-600 mb-4" />
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">Invoice Stage Active</h3>
-                        <p className="text-gray-600 mb-4">
-                          You're currently on the invoice stage. An invoice should have been created.
-                        </p>
-                        <button
-                          onClick={() => fetchSalesOrder()}
-                          className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                          Check for Invoice
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-12">
-                      <Clock className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                      <p className="text-gray-600">
-                        Complete the current stage to proceed to invoice creation.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Items Tab */}
-            {activeTab === 'items' && salesOrder.lineItems && (
-              <div className="space-y-6">
-                {workflowLoading ? (
-                  <SkeletonLoader.OrderDetails />
-                ) : (
-                  <>
-                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                      <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
-                        <div className="flex items-center justify-between">
-                          <h2 className="text-lg font-semibold text-gray-900">Order Items</h2>
-                          <span className="text-sm text-gray-600">
-                            {salesOrder.lineItems.length} item{salesOrder.lineItems.length !== 1 ? 's' : ''}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
-                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price</th>
-                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200">
-                            {salesOrder.lineItems.map((item: any, index: number) => (
-                              <tr key={index} className="hover:bg-gray-50">
-                                <td className="px-5 py-4 whitespace-nowrap">
-                                  <div className="text-sm font-medium text-gray-900">{item.productName}</div>
-                                </td>
-                                <td className="px-5 py-4">
-                                  <div className="text-sm text-gray-600">{item.description}</div>
-                                </td>
-                                <td className="px-5 py-4 whitespace-nowrap">
-                                  <div className="text-sm text-gray-900">{item.quantity}</div>
-                                </td>
-                                <td className="px-5 py-4 whitespace-nowrap">
-                                  <div className="text-sm text-gray-900">{formatCurrency(item.unitPrice)}</div>
-                                </td>
-                                <td className="px-5 py-4 whitespace-nowrap">
-                                  <div className="text-sm font-medium text-gray-900">{formatCurrency(item.total)}</div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot className="bg-gray-50">
-                            <tr>
-                              <td colSpan={4} className="px-5 py-3 text-right text-sm font-medium text-gray-700">
-                                Total
-                              </td>
-                              <td className="px-5 py-3 text-right text-sm font-bold text-blue-600">
-                                {formatCurrency(salesOrder.totalAmount)}
-                              </td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-white rounded-xl border border-gray-200 p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Customer Details</h3>
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
-                            <p className="text-gray-900">{salesOrder.customer?.name || 'N/A'}</p>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Contact Phone</label>
-                            <p className="text-gray-900">{salesOrder.customer?.phone || 'N/A'}</p>
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                          <p className="text-gray-900">{salesOrder.customer?.email || 'N/A'}</p>
-                        </div>
-                        
-                        {salesOrder.customer?.address && (
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                            <p className="text-gray-900">{salesOrder.customer.address}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Documents Tab */}
-            {activeTab === 'documents' && (
-              <div className="space-y-6">
-                {workflowLoading ? (
-                  <SkeletonLoader.Documents />
-                ) : (
-                  <div className="bg-white rounded-xl border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Workflow Documents</h3>
-                    <div className="space-y-4">
-                      {workflowStages.map((stage) => (
-                        <div key={stage.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg ${
-                              stage.completed 
-                                ? 'bg-green-100 text-green-600' 
-                                : stage.isCurrent 
-                                  ? 'bg-blue-100 text-blue-600' 
-                                  : 'bg-gray-100 text-gray-400'
-                            }`}>
-                              {stage.icon}
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-gray-900">{stage.label}</h4>
-                              <p className="text-sm text-gray-600">{stage.documentType || 'No document yet'}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {stage.document && stage.document._id ? (
-                              <>
-                                <button
-                                  onClick={() => handleViewDocument(stage)}
-                                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                                >
-                                  View
-                                </button>
-                                <button
-                                  onClick={() => handleUpdateDocument(stage)}
-                                  className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700"
-                                >
-                                  Edit
-                                </button>
-                              </>
-                            ) : (
-                              <button
-                                onClick={() => handleCreateDocument(stage.stage)}
-                                className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
-                              >
-                                Create
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {/* Additional Documents Section */}
-                    <div className="mt-8 pt-8 border-t border-gray-200">
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Additional Documents</h4>
-                      {attachments.length > 0 ? (
-                        <div className="space-y-3">
-                          {attachments.map((attachment, index) => (
-                            <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                              <div className="flex items-center gap-3">
-                                <FileText className="h-5 w-5 text-gray-500" />
-                                <div>
-                                  <p className="font-medium text-gray-900">{attachment.name}</p>
-                                  <p className="text-xs text-gray-500">{attachment.type} • {formatDate(attachment.uploadedAt)}</p>
-                                </div>
-                              </div>
-                              <button
-                                onClick={() => window.open(attachment.url, '_blank')}
-                                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                              >
-                                Download
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-gray-500 text-sm">No additional documents attached.</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Activity Tab */}
-            {activeTab === 'activity' && (
-              <div className="space-y-6">
-                {workflowLoading ? (
-                  <SkeletonLoader.Activity />
-                ) : (
-                  <div className="bg-white rounded-xl border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
-                    <div className="space-y-4">
-                      {activityLog.length > 0 ? (
-                        activityLog.map((activity, index) => (
-                          <div key={index} className="flex items-start gap-3">
-                            <div className="flex-shrink-0">
-                              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                                {activity.type === 'status_change' ? (
-                                  <RefreshCw className="h-4 w-4 text-blue-600" />
-                                ) : activity.type === 'note_added' ? (
-                                  <MessageSquare className="h-4 w-4 text-blue-600" />
-                                ) : activity.type === 'assignment' ? (
-                                  <User className="h-4 w-4 text-blue-600" />
-                                ) : (
-                                  <Activity className="h-4 w-4 text-blue-600" />
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-sm text-gray-700">{activity.description}</p>
-                              <p className="text-xs text-gray-500 mt-1">{formatDate(activity.timestamp)}</p>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-8">
-                          <History className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                          <p className="text-gray-500">No activity recorded yet.</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Notes Tab */}
-            {activeTab === 'notes' && (
-              <div className="space-y-6">
-                {workflowLoading ? (
-                  <SkeletonLoader.Notes />
-                ) : (
-                  <div className="bg-white rounded-xl border border-gray-200 p-6">
-                    <div className="mb-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Note</h3>
-                      <textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="Add a note about this sales order..."
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        rows={3}
-                      />
-                      <div className="flex justify-end mt-2">
-                        <button
-                          onClick={() => {
-                            setAddingNote(true);
-                            setTimeout(() => {
-                              setAddingNote(false);
-                              setNotes('');
-                              showToast('Note added successfully', 'success');
-                            }, 1000);
-                          }}
-                          disabled={addingNote || !notes.trim()}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {addingNote ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
-                              Adding...
-                            </>
-                          ) : (
-                            'Add Note'
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Notes</h3>
-                    <div className="space-y-4">
-                      {notes.length > 0 ? (
-                        <div className="p-4 bg-gray-50 rounded-lg">
-                          <p className="text-gray-700">Your new note will appear here...</p>
-                        </div>
-                      ) : (
-                        <div className="text-center py-8">
-                          <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                          <p className="text-gray-500">No notes yet. Add your first note above.</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+            
+            {invoiceStatus === 'paid' && salesOrder.status === 'delivered' && (
+              <div className="flex items-center gap-2 px-4 py-3 bg-green-100 text-green-800 rounded-lg">
+                <PackageCheck className="h-5 w-5" />
+                <span className="font-medium">Order Completed</span>
               </div>
             )}
           </>
-        )}
+        ) : null}
       </div>
+    </div>
+  </div>
+)}
 
-      {/* Stage Details Modal */}
-      {modalStage && (
-        <>
-          <div 
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50"
-            onClick={handleCloseModal}
-          />
-          
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-              {/* Modal Header */}
-              <div className="p-8 border-b border-gray-200">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-4">
-                    <div className={`p-4 rounded-2xl ${
-                      modalStage.completed 
-                        ? 'bg-gradient-to-br from-green-100 to-green-200' 
-                        : modalStage.isCurrent 
-                          ? 'bg-gradient-to-br from-blue-100 to-indigo-100' 
-                          : 'bg-gradient-to-br from-gray-100 to-gray-200'
-                    }`}>
-                      {modalStage.icon}
-                    </div>
-                    <div>
-                      <h2 className="text-3xl font-bold text-gray-900">{modalStage.label}</h2>
-                      <p className="text-gray-600">{modalStage.description}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleCloseModal}
-                    className="p-3 hover:bg-gray-100 rounded-xl transition-colors"
-                  >
-                    <X className="h-6 w-6 text-gray-600" />
-                  </button>
+            {/* Workflow progress (2-step timeline) */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Workflow</h3>
+                  <p className="text-sm text-gray-600">Sales Order lifecycle: Quote → Invoice</p>
                 </div>
-                
-                {/* Stage Status Badges */}
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className={`px-4 py-2 rounded-full font-semibold ${
-                    modalStage.completed 
-                      ? 'bg-gradient-to-r from-green-100 to-green-200 text-green-800' 
-                      : modalStage.isCurrent 
-                        ? 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800' 
-                        : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800'
-                  }`}>
-                    {modalStage.completed ? 'Completed' : modalStage.isCurrent ? 'In Progress' : 'Pending'}
-                  </div>
-                  <div className="px-4 py-2 bg-gradient-to-r from-amber-50 to-amber-100 text-amber-800 rounded-full font-semibold">
-                    {modalStage.estimatedTime}
-                  </div>
-                  {!modalStage.mandatory && (
-                    <div className="px-4 py-2 bg-gradient-to-r from-purple-50 to-purple-100 text-purple-800 rounded-full font-semibold">
-                      Optional Stage
-                    </div>
-                  )}
-                  {modalStage.mandatory && (
-                    <div className="px-4 py-2 bg-gradient-to-r from-blue-50 to-blue-100 text-blue-800 rounded-full font-semibold">
-                      Required
-                    </div>
-                  )}
+                <div className="text-right">
+                  <p className="text-sm text-gray-600">Current</p>
+                  <p className="text-lg font-semibold text-blue-700 capitalize">{currentStage?.stage}</p>
                 </div>
               </div>
 
-              {/* Modal Content */}
-              <div className="overflow-y-auto max-h-[calc(90vh-200px)] p-8">
-                {/* Stepper Header */}
-                <div className="mb-8">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">Stage Steps</h3>
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <p className="text-gray-700">Complete each step to finish this stage</p>
+              <div className="relative">
+                <div className="absolute left-6 right-6 top-6 h-0.5 bg-gray-200" />
+                <div className="relative flex justify-between">
+                  {stages.map((s) => (
+                    <div key={s.stage} className="flex flex-col items-center">
+                      <div
+                        className={`w-12 h-12 rounded-full border-4 flex items-center justify-center ${
+                          s.completed
+                            ? 'bg-green-50 border-green-200'
+                            : s.isCurrent
+                              ? 'bg-blue-50 border-blue-200'
+                              : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <StageDot stage={s} />
+                      </div>
+                      <div className="mt-3 text-center">
+                        <p className="text-sm font-medium text-gray-900">{s.label}</p>
+                        <p className="text-xs text-gray-500">{s.completed ? 'Completed' : s.isCurrent ? 'In progress' : 'Pending'}</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm text-gray-600">Progress</p>
-                      <p className="text-2xl font-bold text-blue-600">
-                        {Math.round((modalSteps.filter(s => s.completed).length / modalSteps.length) * 100)}%
+                  ))}
+                </div>
+              </div>
+
+              {/* Summary cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-1">Order Total</p>
+                  <p className="text-lg font-bold text-blue-700">{formatCurrency(salesOrder.totalAmount)}</p>
+                </div>
+                <div className="p-4 bg-green-50 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-1">Quote</p>
+                  <p className="text-lg font-bold text-green-700">{quoteId ? 'Exists' : 'Missing'}</p>
+                </div>
+                <div className="p-4 bg-purple-50 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-1">Invoice</p>
+                  <p className="text-lg font-bold text-purple-700">{invoiceId ? 'Created' : 'Not yet'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {quoteId && (
+                  <Link
+                    href={`/quotes/${quoteId}`}
+                    className="p-4 rounded-xl border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-3"
+                  >
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <FileText className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-gray-900">View Quote</h4>
+                      <p className="text-sm text-gray-600">Review quotation details</p>
+                    </div>
+                  </Link>
+                )}
+
+                {invoiceId && (
+                  <Link
+                    href={`/invoices/${invoiceId}`}
+                    className="p-4 rounded-xl border-2 border-green-200 bg-green-50 hover:bg-green-100 transition-colors flex items-center gap-3"
+                  >
+                    <div className="p-2 bg-green-100 rounded-lg">
+                      <Receipt className="h-5 w-5 text-green-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-gray-900">View Invoice</h4>
+                      <p className="text-sm text-gray-600">Check invoice details</p>
+                    </div>
+                  </Link>
+                )}
+
+                <button
+                  onClick={handlePrint}
+                  disabled={busy}
+                  className="p-4 rounded-xl border-2 border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center gap-3 disabled:opacity-50"
+                >
+                  <div className="p-2 bg-gray-100 rounded-lg">
+                    <Printer className="h-5 w-5 text-gray-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-gray-900">Print</h4>
+                    <p className="text-sm text-gray-600">Generate printable view</p>
+                  </div>
+                </button>
+              </div>
+
+              {/* Guidance message */}
+              {currentStage?.stage === 'quote' && (
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <FileText className="h-5 w-5 text-blue-700 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-blue-900">Quote Approval Required</p>
+                      <p className="text-sm text-blue-800">
+                        A quote has been auto-generated from the opportunity. Approve it to automatically generate an invoice. Once the invoice is paid, you can complete the sales order.
                       </p>
+                      <div className="mt-2 text-xs text-blue-700">
+                        <p>• Quote is auto-generated from opportunity</p>
+                        <p>• Approve quote to generate invoice</p>
+                        <p>• Mark invoice as paid when payment is received</p>
+                        <p>• Complete sales order to finish the workflow</p>
+                      </div>
                     </div>
                   </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
-                  {/* Stepper */}
-                  <div className="relative">
-                    <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-200 z-0" />
+        {/* QUOTATION */}
+        {activeTab === 'quotation' && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Quotation</h3>
+                <p className="text-sm text-gray-600">
+                  {quoteStatus === 'approved' 
+                    ? 'Quote has been approved. Invoice has been generated.'
+                    : 'Approve the quote to automatically generate an invoice.'}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {quoteId && (
+                  <Link
+                    href={`/quotes/${quoteId}`}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                  >
+                    <Eye className="h-4 w-4" />
+                    View Quote
+                  </Link>
+                )}
+
+                {/* Only show Accept button if quote is not already approved */}
+                {quoteStatus !== 'approved' && (
+                  <button
+                    onClick={handleAcceptQuoteAndGenerateInvoice}
+                    disabled={!quoteId || busy || quoteStatus === 'approved'}
+                    className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 font-medium disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                    {quoteStatus === 'approved' ? 'Already Approved' : 'Accept & Generate Invoice'}
+                  </button>
+                )}
+
+                {/* Show success message if invoice was generated */}
+                {quoteStatus === 'approved' && invoiceId && (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-lg">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="text-sm font-medium">Invoice Generated</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {quoteId ? (
+              <div className="space-y-6">
+                {/* Quote Details */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 bg-gray-50 rounded-lg border">
+                    <p className="text-sm text-gray-600">Quote ID</p>
+                    <p className="text-sm font-medium text-gray-900 break-all">{quoteId}</p>
+                  </div>
+                  <div className="p-4 rounded-lg border relative overflow-hidden">
+                    <div className={`absolute top-0 left-0 w-1 h-full ${
+                      quoteStatus === 'approved' ? 'bg-green-500' :
+                      quoteStatus === 'sent' ? 'bg-blue-500' :
+                      quoteStatus === 'draft' ? 'bg-gray-500' :
+                      'bg-red-500'
+                    }`} />
+                    <div className="ml-2">
+                      <p className="text-sm text-gray-600">Status</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-sm font-medium text-gray-900 capitalize">{quoteStatus}</p>
+                        {quoteStatus === 'approved' && (
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-lg border">
+                    <p className="text-sm text-gray-600">Total</p>
+                    <p className="text-sm font-bold text-blue-700">
+                      {typeof salesOrder.quoteId === 'object'
+                        ? formatCurrency(salesOrder.quoteId.totalAmount)
+                        : formatCurrency(salesOrder.totalAmount)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Quote Flow Status */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <FileText className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-blue-900">Quote Status Flow</h4>
+                      <p className="text-sm text-blue-700">Current stage in the quotation process</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="text-center">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2 ${
+                        quoteStatus === 'draft' || quoteStatus === 'sent' || quoteStatus === 'approved'
+                          ? 'bg-blue-100 border-2 border-blue-500'
+                          : 'bg-gray-100 border-2 border-gray-300'
+                      }`}>
+                        <FileText className={`h-5 w-5 ${
+                          quoteStatus === 'draft' || quoteStatus === 'sent' || quoteStatus === 'approved'
+                            ? 'text-blue-600'
+                            : 'text-gray-400'
+                        }`} />
+                      </div>
+                      <p className="text-xs font-medium">Created</p>
+                    </div>
                     
-                    {/* Steps */}
-                    <div className="space-y-8 relative z-10">
-                      {modalSteps.map((step, index) => (
-                        <div key={step.id} className="flex items-start gap-4">
-                          {/* Step Number */}
-                          <div className={`flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold border-4 ${
-                            step.completed
-                              ? 'bg-gradient-to-br from-green-500 to-green-600 border-green-600 text-white'
-                              : index === modalCurrentStep
-                                ? 'bg-gradient-to-br from-blue-500 to-indigo-600 border-blue-600 text-white animate-pulse'
-                                : 'bg-white border-gray-300 text-gray-500'
-                          }`}>
-                            {step.completed ? (
-                              <CheckCircle className="h-6 w-6" />
-                            ) : (
-                              index + 1
-                            )}
-                          </div>
-                          
-                          {/* Step Content */}
-                          <div className={`flex-1 p-6 rounded-2xl transition-all duration-300 ${
-                            index === modalCurrentStep
-                              ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 shadow-lg'
-                              : step.completed
-                                ? 'bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200'
-                                : 'bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200'
-                          }`}>
-                            <div className="flex items-center justify-between mb-3">
-                              <h4 className={`text-lg font-semibold ${
-                                index === modalCurrentStep
-                                  ? 'text-blue-900'
-                                  : step.completed
-                                    ? 'text-green-900'
-                                    : 'text-gray-900'
-                              }`}>
-                                {step.label}
-                              </h4>
-                              {step.completed ? (
-                                <span className="px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">
-                                  Completed
-                                </span>
-                              ) : index === modalCurrentStep ? (
-                                <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
-                                  Current Step
-                                </span>
-                              ) : null}
-                            </div>
-                            <p className="text-gray-700 mb-4">{step.description}</p>
-                            
-                            {index === modalCurrentStep && !step.completed && (
-                              <div className="mt-4 flex items-center gap-3">
-                                <button
-                                  onClick={() => handleCompleteStep(step.id)}
-                                  disabled={modalLoading}
-                                  className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl hover:from-green-600 hover:to-green-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  {modalLoading ? (
-                                    <>
-                                      <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
-                                      Processing...
-                                    </>
-                                  ) : (
-                                    'Mark as Complete'
-                                  )}
-                                </button>
-                                {step.required && (
-                                  <span className="px-3 py-1 bg-red-50 text-red-700 text-sm font-medium rounded-full">
-                                    Required
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                    <div className="flex-1 h-0.5 mx-2 bg-gray-200" />
+                    
+                    <div className="text-center">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2 ${
+                        quoteStatus === 'sent' || quoteStatus === 'approved'
+                          ? 'bg-blue-100 border-2 border-blue-500'
+                          : 'bg-gray-100 border-2 border-gray-300'
+                      }`}>
+                        <Send className={`h-5 w-5 ${
+                          quoteStatus === 'sent' || quoteStatus === 'approved'
+                            ? 'text-blue-600'
+                            : 'text-gray-400'
+                        }`} />
+                      </div>
+                      <p className="text-xs font-medium">Sent</p>
+                    </div>
+                    
+                    <div className="flex-1 h-0.5 mx-2 bg-gray-200" />
+                    
+                    <div className="text-center">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2 ${
+                        quoteStatus === 'approved'
+                          ? 'bg-green-100 border-2 border-green-500'
+                          : 'bg-gray-100 border-2 border-gray-300'
+                      }`}>
+                        {quoteStatus === 'approved' ? (
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                        ) : (
+                          <CheckCircle className="h-5 w-5 text-gray-400" />
+                        )}
+                      </div>
+                      <p className="text-xs font-medium">Approved</p>
                     </div>
                   </div>
                 </div>
 
-                {/* Stage Requirements */}
-                {modalStage.requirements && modalStage.requirements.length > 0 && (
-                  <div className="mt-12">
-                    <h3 className="text-xl font-bold text-gray-900 mb-4">Requirements</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {modalStage.requirements.map((req, idx) => (
-                        <div key={idx} className="p-4 bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl">
-                          <div className="flex items-center gap-3">
-                            <AlertCircle className="h-5 w-5 text-amber-600" />
-                            <span className="font-medium text-amber-900">{req}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Document Status */}
-                {modalStage.documentType && (
-                  <div className="mt-12">
-                    <h3 className="text-xl font-bold text-gray-900 mb-4">Document</h3>
-                    <div className={`p-6 rounded-2xl ${
-                      modalStage.document && modalStage.document._id
-                        ? 'bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200' 
-                        : 'bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-200'
-                    }`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className={`p-4 rounded-xl ${
-                            modalStage.document && modalStage.document._id
-                              ? 'bg-gradient-to-br from-green-100 to-green-200' 
-                              : 'bg-gradient-to-br from-gray-100 to-gray-200'
-                          }`}>
-                            {modalStage.document && modalStage.document._id 
-                              ? <FileCheck className="h-8 w-8 text-green-600" /> 
-                              : <FileX className="h-8 w-8 text-gray-500" />
-                            }
-                          </div>
-                          <div>
-                            <p className="text-xl font-bold text-gray-900">
-                              {modalStage.documentType}
-                            </p>
-                            <p className="text-gray-600">
-                              {modalStage.document && modalStage.document._id
-                                ? 'Document created and ready' 
-                                : 'Document not created yet'
-                              }
-                            </p>
-                          </div>
-                        </div>
-                        {modalStage.document && modalStage.document._id && (
+                {/* Action Required Message */}
+                {quoteStatus !== 'approved' && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-amber-900">Action Required</p>
+                        <p className="text-sm text-amber-800 mt-1">
+                          {quoteStatus === 'draft' 
+                            ? 'This quote is still in draft. It needs to be sent to the customer for approval.'
+                            : quoteStatus === 'sent'
+                            ? 'This quote has been sent to the customer. Once they approve it, you can accept it here.'
+                            : 'Approve this quote to generate an invoice and continue with the sales order.'}
+                        </p>
+                        {quoteStatus === 'draft' && (
                           <button
-                            onClick={() => handleViewDocument(modalStage)}
-                            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 font-semibold"
+                            onClick={() => showToast('Send quote functionality not implemented in this view', 'info')}
+                            className="mt-2 px-3 py-1.5 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 flex items-center gap-1"
                           >
-                            View Document
+                            <Send className="h-3.5 w-3.5" />
+                            Send Quote to Customer
                           </button>
                         )}
                       </div>
                     </div>
                   </div>
                 )}
-              </div>
 
-              {/* Modal Footer */}
-              <div className="p-8 border-t border-gray-200 bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <button
-                      onClick={handleModalPrevStep}
-                      disabled={modalCurrentStep === 0}
-                      className={`px-6 py-3 rounded-xl font-semibold ${
-                        modalCurrentStep === 0
-                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 hover:from-gray-200 hover:to-gray-300'
-                      }`}
-                    >
-                      <ChevronLeft className="h-4 w-4 inline mr-2" />
-                      Previous Step
-                    </button>
-                    <button
-                      onClick={handleModalNextStep}
-                      disabled={modalCurrentStep === modalSteps.length - 1}
-                      className={`px-6 py-3 rounded-xl font-semibold ${
-                        modalCurrentStep === modalSteps.length - 1
-                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700'
-                      }`}
-                    >
-                      Next Step
-                      <ChevronRight className="h-4 w-4 inline ml-2" />
-                    </button>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm text-gray-600">Step {modalCurrentStep + 1} of {modalSteps.length}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-300"
-                          style={{ width: `${((modalCurrentStep + 1) / modalSteps.length) * 100}%` }}
-                        />
+                {/* Success Message if Approved */}
+                {quoteStatus === 'approved' && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-green-900">Quote Approved ✓</p>
+                        <p className="text-sm text-green-800 mt-1">
+                          This quote has been approved. {invoiceId 
+                            ? 'An invoice has been automatically generated from this quote.' 
+                            : 'Invoice generation is in progress...'}
+                        </p>
+                        {invoiceId && (
+                          <div className="mt-3 flex items-center gap-2">
+                            <Link
+                              href={`/invoices/${invoiceId}`}
+                              className="px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 flex items-center gap-1"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              View Generated Invoice
+                            </Link>
+                            <button
+                              onClick={() => setActiveTab('invoice')}
+                              className="px-3 py-1.5 border border-green-600 text-green-600 text-sm rounded hover:bg-green-50 flex items-center gap-1"
+                            >
+                              Go to Invoice Tab
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      <span className="text-sm font-medium text-blue-600">
-                        {Math.round(((modalCurrentStep + 1) / modalSteps.length) * 100)}%
-                      </span>
                     </div>
                   </div>
-                </div>
-                
-                {/* Stage Actions */}
-                <div className="mt-6 pt-6 border-t border-gray-300">
-                  <h4 className="font-semibold text-gray-900 mb-3">Stage Actions</h4>
-                  <div className="flex items-center gap-3">
-                    {modalStage.actions.map((action) => (
-                      <button
-                        key={action.id}
-                        onClick={() => handleStageAction(modalStage, action.id)}
-                        className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${
-                          action.variant === 'primary'
-                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700'
-                            : action.variant === 'secondary'
-                              ? 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 hover:from-gray-200 hover:to-gray-300'
-                              : action.variant === 'success'
-                                ? 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700'
-                                : action.variant === 'warning'
-                                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700'
-                                  : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700'
-                        }`}
-                      >
-                        {action.icon}
-                        {action.label}
-                      </button>
-                    ))}
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Quotation Found</h3>
+                <p className="text-gray-600 mb-6">
+                  This sales order should have a quote created automatically from the opportunity lifecycle.
+                </p>
+                {/* <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <button
+                    onClick={() => showToast('Quote should be auto-generated from opportunity', 'info')}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Check Opportunity
+                  </button>
+                  <button
+                    onClick={handleCreateQuote}
+                    disabled={creatingQuote}
+                    className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2 justify-center"
+                  >
+                    {creatingQuote ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4" />
+                        Create Quotation
+                      </>
+                    )}
+                  </button>
+                </div> */}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* INVOICE */}
+        {activeTab === 'invoice' && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Invoice</h3>
+                <p className="text-sm text-gray-600">
+                  {invoiceId ? 'Generated from the accepted quote.' : 'Invoice will be generated after quote acceptance.'}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {invoiceId ? (
+                  <>
+                    <Link
+                      href={`/invoices/${invoiceId}`}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                    >
+                      <Eye className="h-4 w-4" />
+                      View Invoice
+                    </Link>
+
+                    <Link
+                      href={`/invoices/${invoiceId}/edit`}
+                      className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
+                    >
+                      <Edit className="h-4 w-4" />
+                      Edit
+                    </Link>
+
+                    <button
+                      onClick={handleMarkInvoiceAsPaid}
+                      disabled={busy}
+                      className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                      Mark as Paid
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={handleAcceptQuoteAndGenerateInvoice}
+                    disabled={!quoteId || busy}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 font-medium disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                    Generate Invoice
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {invoiceId ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Invoice Number</p>
+                    <p className="font-semibold text-lg text-blue-700">
+                      {typeof salesOrder.invoiceId === 'object' ? salesOrder.invoiceId.invoiceNumber : 'INV-…'}
+                    </p>
                   </div>
+                  <div className="p-4 bg-green-50 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Status</p>
+                    <p className="font-semibold text-lg text-green-700 capitalize">{invoiceStatus}</p>
+                  </div>
+                  <div className="p-4 bg-purple-50 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Total</p>
+                    <p className="font-semibold text-lg text-purple-700">
+                      {typeof salesOrder.invoiceId === 'object'
+                        ? formatCurrency(salesOrder.invoiceId.totalAmount ?? salesOrder.invoiceId.total)
+                        : formatCurrency(salesOrder.totalAmount)}
+                    </p>
+                  </div>
+                  <div className="p-4 bg-amber-50 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Created</p>
+                    <p className="font-semibold text-lg text-amber-700">
+                      {typeof salesOrder.invoiceId === 'object'
+                        ? formatDate(salesOrder.invoiceId.createdAt)
+                        : '—'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Items */}
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3">Invoice Items</h4>
+                  <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit Price</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {(
+                          (typeof salesOrder.invoiceId === 'object' && (salesOrder.invoiceId.items || salesOrder.invoiceId.lineItems)) ||
+                          salesOrder.lineItems ||
+                          []
+                        ).map((item: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm text-gray-900">{item.description || item.productName || '—'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{item.quantity ?? '—'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{formatCurrency(item.unitPrice)}</td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{formatCurrency(item.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-gray-50">
+                        <tr>
+                          <td colSpan={3} className="px-4 py-3 text-right text-sm font-medium text-gray-700">
+                            Total
+                          </td>
+                          <td className="px-4 py-3 text-right text-sm font-bold text-blue-600">
+                            {typeof salesOrder.invoiceId === 'object'
+                              ? formatCurrency(salesOrder.invoiceId.totalAmount ?? salesOrder.invoiceId.total)
+                              : formatCurrency(salesOrder.totalAmount)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                {typeof salesOrder.invoiceId === 'object' && salesOrder.invoiceId.status === 'draft' && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="h-5 w-5 text-amber-700 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-amber-900">Invoice is in draft</p>
+                        <p className="text-sm text-amber-800">
+                          You can edit and send it to the customer.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <Receipt className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Invoice Not Created Yet</h3>
+                <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                  Accept the quote to automatically generate the invoice from quote items and totals.
+                </p>
+                <button
+                  onClick={handleAcceptQuoteAndGenerateInvoice}
+                  disabled={!quoteId || busy}
+                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 font-medium disabled:opacity-50"
+                >
+                  {busy ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                      Generating…
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4 inline mr-2" />
+                      Accept Quote & Generate Invoice
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ITEMS */}
+        {activeTab === 'items' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">Order Items</h2>
+                <span className="text-sm text-gray-600">
+                  {(salesOrder.lineItems?.length || 0)} item{(salesOrder.lineItems?.length || 0) !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit</th>
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {(salesOrder.lineItems || []).map((item: any, idx: number) => (
+                      <tr key={idx} className="hover:bg-gray-50">
+                        <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {item.productName || '—'}
+                        </td>
+                        <td className="px-5 py-4 text-sm text-gray-600">{item.description || '—'}</td>
+                        <td className="px-5 py-4 whitespace-nowrap text-sm text-gray-900">{item.quantity ?? '—'}</td>
+                        <td className="px-5 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(item.unitPrice)}</td>
+                        <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{formatCurrency(item.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-50">
+                    <tr>
+                      <td colSpan={4} className="px-5 py-3 text-right text-sm font-medium text-gray-700">
+                        Total
+                      </td>
+                      <td className="px-5 py-3 text-right text-sm font-bold text-blue-600">
+                        {formatCurrency(salesOrder.totalAmount)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Customer</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-600">Name</p>
+                  <p className="font-medium text-gray-900">{salesOrder.customer?.name || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Phone</p>
+                  <p className="font-medium text-gray-900">{salesOrder.customer?.phone || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Email</p>
+                  <p className="font-medium text-gray-900">{salesOrder.customer?.email || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Address</p>
+                  <p className="font-medium text-gray-900">{salesOrder.customer?.address || '—'}</p>
                 </div>
               </div>
             </div>
           </div>
-        </>
-      )}
+        )}
+
+        {/* DOCUMENTS */}
+        {activeTab === 'documents' && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Workflow Documents</h3>
+
+            <div className="space-y-3">
+              {/* Quote */}
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-blue-50 text-blue-700">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">Quote</p>
+                    <p className="text-sm text-gray-600">{quoteId ? 'Created' : 'Missing'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {quoteId ? (
+                    <Link href={`/quotes/${quoteId}`} className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                      View
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={() => showToast('Create quote flow not wired in this rewrite', 'info')}
+                      className="px-3 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+                    >
+                      Create
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Invoice */}
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-green-50 text-green-700">
+                    <Receipt className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">Invoice</p>
+                    <p className="text-sm text-gray-600">{invoiceId ? 'Created' : 'Not yet'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {invoiceId ? (
+                    <>
+                      <Link href={`/invoices/${invoiceId}`} className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                        View
+                      </Link>
+                      <Link href={`/invoices/${invoiceId}/edit`} className="px-3 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700">
+                        Edit
+                      </Link>
+                    </>
+                  ) : (
+                    <button
+                      onClick={handleAcceptQuoteAndGenerateInvoice}
+                      disabled={!quoteId || busy}
+                      className="px-3 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      Generate
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Attachments (optional placeholder) */}
+            <div className="mt-8 pt-8 border-t border-gray-200">
+              <h4 className="text-lg font-semibold text-gray-900 mb-4">Additional Documents</h4>
+              {attachments.length ? (
+                <div className="space-y-2">
+                  {attachments.map((a, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-medium text-gray-900">{a.name}</p>
+                        <p className="text-xs text-gray-500">{a.type} • {formatDate(a.uploadedAt)}</p>
+                      </div>
+                      <button
+                        onClick={() => window.open(a.url, '_blank')}
+                        className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                      >
+                        Download
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No additional documents attached.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ACTIVITY */}
+        {activeTab === 'activity' && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
+            {activityLog.length ? (
+              <div className="space-y-3">
+                {activityLog.map((a, idx) => (
+                  <div key={idx} className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                      <RefreshCw className="h-4 w-4 text-blue-700" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-700">{a.description}</p>
+                      <p className="text-xs text-gray-500">{formatDate(a.timestamp)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-10 text-gray-500">
+                <History className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+                No activity recorded yet.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* NOTES */}
+        {activeTab === 'notes' && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Notes</h3>
+
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add a note about this sales order…"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              rows={3}
+            />
+
+            <div className="flex justify-end mt-2">
+              <button
+                onClick={() => {
+                  setAddingNote(true);
+                  setTimeout(() => {
+                    setAddingNote(false);
+                    setNotes('');
+                    showToast('Note added successfully', 'success');
+                  }, 800);
+                }}
+                disabled={addingNote || !notes.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {addingNote ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                    Adding…
+                  </>
+                ) : (
+                  'Add Note'
+                )}
+              </button>
+            </div>
+
+            <div className="mt-8 text-sm text-gray-500">
+              (This rewrite keeps the notes UI placeholder. Wire it to your backend when ready.)
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

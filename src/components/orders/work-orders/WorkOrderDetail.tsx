@@ -41,7 +41,8 @@ import {
   Rocket,
   Bolt,
   Users,
-  CheckCheck
+  CheckCheck,
+  Clock4
 } from 'lucide-react';
 import { workOrderService, WorkOrder, TechnicianNote, DelayInfo } from '@/services/workOrderService';
 import { useToast } from '@/contexts/ToastContext';
@@ -404,11 +405,12 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
         
         if (check.shouldRedirect && check.workOrderId) {
           setShouldCreateJobCard(true);
-          setJobCardRedirectUrl(`/job-cards/create?workOrderId=${check.workOrderId}&opportunityId=${opportunityId}&autoRedirect=true`);
+          const url = `/job-cards/create?workOrderId=${check.workOrderId}&opportunityId=${opportunityId}&autoRedirect=true`;
+            setJobCardRedirectUrl(url);
           
           // Optionally auto-redirect after a delay
           setTimeout(() => {
-            router.push(jobCardRedirectUrl);
+            router.push(url);
           }, 2000); // 2 second delay to show message
         }
       } catch (error) {
@@ -421,40 +423,40 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     }
   }, [workOrder]);
 
-  useEffect(() => {
-  const checkJobCardStatus = async () => {
-    if (!workOrder) return;
+//   useEffect(() => {
+//   const checkJobCardStatus = async () => {
+//     if (!workOrder) return;
     
-    const opportunityId = typeof workOrder.opportunityId === 'object' 
-      ? workOrder.opportunityId._id 
-      : workOrder.opportunityId;
+//     const opportunityId = typeof workOrder.opportunityId === 'object' 
+//       ? workOrder.opportunityId._id 
+//       : workOrder.opportunityId;
     
-    try {
-      setJobCardStatus(prev => ({ ...prev, checking: true }));
+//     try {
+//       setJobCardStatus(prev => ({ ...prev, checking: true }));
       
-      const check = await lifecycleIntegrationService.checkJobCardCreationNeeded(opportunityId);
+//       const check = await lifecycleIntegrationService.checkJobCardCreationNeeded(opportunityId);
       
-      setJobCardStatus({
-        needsJobCard: check.needsJobCard,
-        reason: check.reason,
-        checking: false
-      });
+//       setJobCardStatus({
+//         needsJobCard: check.needsJobCard,
+//         reason: check.reason,
+//         checking: false
+//       });
       
-    } catch (error) {
-      console.error('Error checking job card status:', error);
-      setJobCardStatus({
-        needsJobCard: false,
-        reason: 'Error checking job card status',
-        checking: false
-      });
-    }
-  };
+//     } catch (error) {
+//       console.error('Error checking job card status:', error);
+//       setJobCardStatus({
+//         needsJobCard: false,
+//         reason: 'Error checking job card status',
+//         checking: false
+//       });
+//     }
+//   };
   
-  // Check when work order changes or when we're on job-cards tab
-  if (workOrder && (activeTab === 'job-cards' || activeTab === 'overview' || activeTab === 'stages')) {
-    checkJobCardStatus();
-  }
-}, [workOrder, activeTab]);
+//   // Check when work order changes or when we're on job-cards tab
+//   if (workOrder && (activeTab === 'job-cards' || activeTab === 'overview' || activeTab === 'stages')) {
+//     checkJobCardStatus();
+//   }
+// }, [workOrder, activeTab]);
 
 useEffect(() => {
   const checkStageRequirements = async () => {
@@ -1535,20 +1537,93 @@ useEffect(() => {
   };
 
   const buildStageActionsFromEnhanced = (stage: any, order: WorkOrder) => {
-    const actions: any[] = [];
-    
+    let actions: any[] = [];
+
     // Map enhanced actions to our component actions
     if (stage.actions && Array.isArray(stage.actions)) {
       stage.actions.forEach((enhancedAction: any) => {
         const action = mapEnhancedAction(enhancedAction, stage, order);
-        if (action) {
-          actions.push(action);
-        }
+        if (action) actions.push(action);
       });
     }
-    
+
+    // Pre/Post checklists are signed by the client on the form, so we should NOT show a manual "Approve" action.
+    if (stage.stage === 'prechecklist' || stage.stage === 'postchecklist') {
+      actions = actions.filter((a) => a.id !== 'approve');
+    }
+
+    // Job Card stage is special: the lifecycle can transition here (and allocate an ID) before the job card form is created.
+    // We enrich actions to make the technician flow obvious.
+    if (stage.stage === 'jobcard') {
+      const jobCardId = stage.documentId || stage.document?._id || stage.document?.id;
+      const status = (stage.document?.status || '').toLowerCase();
+
+      // Ensure we have a create action when no job card document exists yet
+      if (!jobCardId) {
+        if (!actions.some((a) => a.id === 'create')) {
+          actions.unshift({
+            id: 'create',
+            label: 'Create Job Card',
+            icon: <FilePlus className="h-4 w-4" />,
+            variant: 'primary',
+            description: 'Create the job card from a form',
+            // action: () => handleCreateDocumentForStage('jobcard')
+          });
+        }
+        return actions;
+      }
+
+      // Ensure view action exists
+      if (!actions.some((a) => a.id === 'view')) {
+        actions.unshift({
+          id: 'view',
+          label: 'View Job Card',
+          icon: <Eye className="h-4 w-4" />,
+          variant: 'secondary',
+          description: 'Open job card details',
+          action: () => router.push(`/job-cards/${jobCardId}`)
+        });
+      }
+
+      // Start job
+      if (['draft', 'created', 'pending', ''].includes(status) && !actions.some((a) => a.id === 'start_job')) {
+        actions.push({
+          id: 'start_job',
+          label: 'Start Job',
+          icon: <Play className="h-4 w-4" />,
+          variant: 'primary',
+          description: 'Technician starts the job',
+          action: () => router.push(`/job-cards/${jobCardId}`)
+        });
+      }
+
+      // Delay / Complete actions (handled inside Job Card detail page for now)
+      if (['in_progress', 'started', 'delayed'].includes(status) || status) {
+        if (!actions.some((a) => a.id === 'add_delay')) {
+          actions.push({
+            id: 'add_delay',
+            label: 'Add Delay',
+            icon: <Clock4 className="h-4 w-4" />,
+            variant: 'warning',
+            description: 'Record a delay and reason',
+            action: () => router.push(`/job-cards/${jobCardId}`)
+          });
+        }
+        if (!actions.some((a) => a.id === 'complete_job')) {
+          actions.push({
+            id: 'complete_job',
+            label: 'Complete Job',
+            icon: <CheckCircle className="h-4 w-4" />,
+            variant: 'success',
+            description: 'Mark job as completed',
+            action: () => router.push(`/job-cards/${jobCardId}`)
+          });
+        }
+      }
+    }
+
     return actions;
-  };
+  };;
 
   const mapEnhancedAction = (enhancedAction: any, stage: any, order: WorkOrder) => {
     const actionMap: Record<string, any> = {
@@ -2603,14 +2678,23 @@ const handleCompleteJobCard = async (jobCardId: string) => {
     const currentStage = workflowStages.find(stage => stage.isCurrent);
     
     if (!currentStage) return null;
+    // Don't show one-click completion when the current stage still requires manual document creation/setup
+    const stageId = currentStage.stage;
+    if ((stageId === 'jobcard' || stageId === 'job_card') && jobCardStatus.needsJobCard) {
+      return null;
+    }
+    if ((stageId === 'postchecklist' || stageId === 'post_checklist') && postChecklistStatus.needsPostChecklist) {
+      return null;
+    }
+
     
     const getOneClickAction = () => {
       switch (currentStage.stage) {
         case 'prechecklist':
         case 'pre_checklist':
           return {
-            label: 'Approve Pre-Checklist & Create Job Card',
-            description: 'Automatically approve checklist and create job card',
+            label: 'Approve Pre-Checklist & Move to Job Card Stage',
+            description: 'Approve checklist (if eligible) and move workflow to Job Card stage',
             action: () => handleOneClickComplete('prechecklist'),
             icon: <ClipboardCheck className="h-5 w-5" />,
             color: 'from-green-500 to-emerald-600'
@@ -2618,8 +2702,8 @@ const handleCompleteJobCard = async (jobCardId: string) => {
         case 'jobcard':
         case 'job_card':
           return {
-            label: 'Complete Job Card & Create Post-Checklist',
-            description: 'Mark job as complete and create post-service checklist',
+            label: 'Complete Job Card & Move to Post-Checklist Stage',
+            description: 'Mark job card as completed and move workflow to Post-Checklist stage',
             action: () => handleOneClickComplete('jobcard'),
             icon: <Wrench className="h-5 w-5" />,
             color: 'from-blue-500 to-cyan-600'
@@ -2627,8 +2711,8 @@ const handleCompleteJobCard = async (jobCardId: string) => {
         case 'postchecklist':
         case 'post_checklist':
           return {
-            label: 'Approve Post-Checklist & Create Invoice',
-            description: 'Approve quality check and generate invoice',
+            label: 'Approve Post-Checklist & Move to Invoice Stage',
+            description: 'Approve quality check and move to Invoice stage (invoice auto-creates)',
             action: () => handleOneClickComplete('postchecklist'),
             icon: <ClipboardList className="h-5 w-5" />,
             color: 'from-purple-500 to-violet-600'
@@ -3869,6 +3953,8 @@ const handleCompleteJobCard = async (jobCardId: string) => {
             showToast(`Auto-transitioned to ${result.nextStage}`, 'info');
           }, 500);
         }
+      } else {
+        showToast(result.message || 'Action could not be completed', 'warning');
       }
     } catch (error) {
       console.error('One-click completion error:', error);
@@ -4296,14 +4382,6 @@ const handleCompleteJobCard = async (jobCardId: string) => {
                   </div>
                 </div>
               )} */}
-
-
-              {/* Stage Cards Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {workflowStages.map((stage) => (
-                  <StageCard key={stage.id} stage={stage} />
-                ))}
-              </div>
 
               {/* Quick Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

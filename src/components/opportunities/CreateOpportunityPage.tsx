@@ -72,7 +72,6 @@ interface OpportunityFormData {
   assignedTo?: string;
 }
 
-// Add these interfaces near your other interfaces in CreateOpportunityPage.tsx
 interface User {
   id: string;
   _id?: string;
@@ -146,7 +145,6 @@ const vehicleFuelTypes = [
   'Petrol', 'Diesel', 'Electric', 'Hybrid', 'CNG', 'LPG', 'Other'
 ];
 
-// Simplified transmission options
 const vehicleTransmissions = [
   'Manual', 'Automatic'
 ];
@@ -157,7 +155,6 @@ const vehicleBodyTypes = [
   'Other'
 ];
 
-// Service suggestions with pre-filled descriptions
 const serviceSuggestions = [
   {
     title: 'Oil Change Service',
@@ -229,7 +226,6 @@ const serviceSuggestions = [
   }
 ];
 
-// Product suggestions with pre-filled descriptions
 const productSuggestions = [
   {
     title: 'Engine Oil',
@@ -371,7 +367,6 @@ export default function CreateOpportunityPage() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdOpportunity, setCreatedOpportunity] = useState<Opportunity | null>(null);
   
-  // Dropdown states
   const [showMakeDropdown, setShowMakeDropdown] = useState<number | null>(null);
   const [showModelDropdown, setShowModelDropdown] = useState<number | null>(null);
   const [showFuelDropdown, setShowFuelDropdown] = useState<number | null>(null);
@@ -385,7 +380,6 @@ export default function CreateOpportunityPage() {
   const [transmissionSearch, setTransmissionSearch] = useState('');
   const [bodyTypeSearch, setBodyTypeSearch] = useState('');
   const [serviceProductSearch, setServiceProductSearch] = useState('');
-  // Add this to your state declarations
   const [users, setUsers] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [showUsersDropdown, setShowUsersDropdown] = useState(false);
@@ -414,7 +408,6 @@ export default function CreateOpportunityPage() {
 
   const totalSteps = 3;
 
-  // Refs for dropdown click outside detection
   const makeDropdownRef = useRef<HTMLDivElement | null>(null);
   const modelDropdownRef = useRef<HTMLDivElement | null>(null);
   const fuelDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -435,7 +428,6 @@ export default function CreateOpportunityPage() {
     return false;
   };
 
-  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (makeDropdownRef.current && !makeDropdownRef.current.contains(event.target as Node)) {
@@ -527,11 +519,11 @@ export default function CreateOpportunityPage() {
 
     fetchCountries();
   }, []);
+
   useEffect(() => {
     const fetchUsers = async () => {
       try {
         setLoadingUsers(true);
-        // userService.getAllUsers() returns User[] directly
         const usersData = await userService.getAllUsers();
         const salesPeople = usersData.filter(user => isSalesPerson(user));
         setUsers(salesPeople || []);
@@ -547,15 +539,14 @@ export default function CreateOpportunityPage() {
   }, [showToast]);
 
   const getUserRoleName = (user: User): string => {
-  if (typeof user.role === 'string') {
-    return user.role;
-  } else if (user.role && typeof user.role === 'object') {
-    return user.role.name || 'User';
-  }
-  return 'User';
-};
+    if (typeof user.role === 'string') {
+      return user.role;
+    } else if (user.role && typeof user.role === 'object') {
+      return user.role.name || 'User';
+    }
+    return 'User';
+  };
 
-// Helper function to get user display info
   const getUserDisplayInfo = (user: User) => {
     const roleInfo = getUserRoleName(user);
     return {
@@ -567,7 +558,6 @@ export default function CreateOpportunityPage() {
     };
   };
 
-  // Save preferences to localStorage
   const savePreferences = (prefs: UserPreferences) => {
     setUserPreferences(prefs);
     if (typeof window !== 'undefined') {
@@ -576,7 +566,6 @@ export default function CreateOpportunityPage() {
     showToast('Preferences saved!', 'success', 2000);
   };
 
-  // Toggle dropdowns preference
   const toggleDropdownsPreference = () => {
     const newPrefs = { ...userPreferences, useDropdowns: !userPreferences.useDropdowns };
     savePreferences(newPrefs);
@@ -593,7 +582,6 @@ export default function CreateOpportunityPage() {
     const updatedVehicles = [...formData.vehicles];
     updatedVehicles[index] = { ...updatedVehicles[index], [field]: value };
     
-    // If make changes, reset model
     if (field === 'make') {
       updatedVehicles[index].model = '';
     }
@@ -605,7 +593,6 @@ export default function CreateOpportunityPage() {
     const updatedServicesProducts = [...formData.servicesProducts];
     const item = { ...updatedServicesProducts[index], [field]: value };
     
-    // Recalculate totals if quantity, unitPrice, or discount changes
     if (field === 'quantity' || field === 'unitPrice' || field === 'discount') {
       const subtotal = (item.quantity || 0) * (item.unitPrice || 0);
       const discountAmount = subtotal * ((item.discount || 0) / 100);
@@ -617,7 +604,6 @@ export default function CreateOpportunityPage() {
     setFormData(prev => ({ ...prev, servicesProducts: updatedServicesProducts }));
   };
 
-  // Updated to include pre-filled description
   const selectServiceProductSuggestion = (index: number, suggestion: { title: string; description: string }) => {
     const updatedServicesProducts = [...formData.servicesProducts];
     updatedServicesProducts[index].title = suggestion.title;
@@ -724,7 +710,6 @@ export default function CreateOpportunityPage() {
     country.code.toLowerCase().includes(countrySearch.toLowerCase())
   );
 
-  // Filtered dropdown options
   const filteredMakes = vehicleMakes.filter(make =>
     make.toLowerCase().includes(makeSearch.toLowerCase())
   );
@@ -764,10 +749,10 @@ export default function CreateOpportunityPage() {
       } else if (formData.accountType === 'organization') {
         if (!formData.companyName.trim()) newErrors.companyName = 'Company name is required';
         if (!formData.contactPersonName?.trim()) newErrors.contactPersonName = 'Contact person name is required';
-        if (!formData.contactPersonEmail?.trim()) newErrors.contactPersonEmail = 'Contact person email is required';
+        // if (!formData.contactPersonEmail?.trim()) newErrors.contactPersonEmail = 'Contact person email is required';
       }
       
-      if (!formData.email.trim()) newErrors.email = 'Email is required';
+      // if (!formData.email.trim()) newErrors.email = 'Email is required';
       if (!formData.phone.trim()) newErrors.phone = 'Phone is required';
       
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -775,9 +760,9 @@ export default function CreateOpportunityPage() {
         newErrors.email = 'Please enter a valid email address';
       }
       
-      if (formData.contactPersonEmail && !emailRegex.test(formData.contactPersonEmail)) {
-        newErrors.contactPersonEmail = 'Please enter a valid email address for contact person';
-      }
+      // if (formData.contactPersonEmail && !emailRegex.test(formData.contactPersonEmail)) {
+      //   newErrors.contactPersonEmail = 'Please enter a valid email address for contact person';
+      // }
       
       const phoneRegex = /^\d+$/;
       if (formData.phone && !phoneRegex.test(formData.phone)) {
@@ -785,14 +770,14 @@ export default function CreateOpportunityPage() {
       }
     }
 
-    if (step === 2) {
-      const hasValidVehicle = formData.vehicles.some(vehicle => 
-        vehicle.make.trim() && vehicle.model.trim()
-      );
-      if (!hasValidVehicle) {
-        newErrors.vehicles = 'At least one vehicle with make and model is required';
-      }
-    }
+    // if (step === 2) {
+    //   const hasValidVehicle = formData.vehicles.some(vehicle => 
+    //     vehicle.make.trim() && vehicle.model.trim()
+    //   );
+    //   if (!hasValidVehicle) {
+    //     newErrors.vehicles = 'At least one vehicle with make and model is required';
+    //   }
+    // }
 
     if (step === 3) {
       if (formData.servicesProducts.length === 0) {
@@ -848,17 +833,13 @@ export default function CreateOpportunityPage() {
         ? `${formData.firstName} ${formData.lastName}'s ${formData.opportunityType.toLowerCase()} request`
         : `${formData.companyName}'s ${formData.opportunityType.toLowerCase()} request`;
 
-      // Calculate financials
       const subtotal = calculateSubtotal();
       const totalDiscount = calculateTotalDiscount();
       const total = calculateTotal();
 
-      // Determine the package type based on opportunity type
       const packageType = formData.opportunityType === 'SERVICE' ? 'work_order' : 'sales_order';
 
-      // Map service products to match the expected type
       const mappedServicesProducts = formData.servicesProducts.map(item => {
-        // Map opportunity types to service/product types
         let mappedType: 'SERVICE' | 'PRODUCT' | 'PART' | 'LABOR';
         
         switch (formData.opportunityType) {
@@ -903,7 +884,6 @@ export default function CreateOpportunityPage() {
           email: formData.email || undefined,
           phone: `${formData.phoneCode}${formData.phone}` || undefined,
           companyName: !isIndividual ? formData.companyName : undefined,
-          // Include contact person details for organizations
           ...(formData.accountType === 'organization' && {
             contactPersonName: formData.contactPersonName || undefined,
             contactPersonEmail: formData.contactPersonEmail || undefined,
@@ -959,7 +939,6 @@ export default function CreateOpportunityPage() {
     transmission: v.transmission || undefined,
     bodyType: v.bodyType || undefined,
   });
-
 
   const handleCreateOpportunityError = (error: any) => {
     console.error('Create opportunity error:', error);
@@ -1067,7 +1046,6 @@ export default function CreateOpportunityPage() {
     'Select services, products, and create quotes'
   ];
 
-  // Render dropdown or regular input based on user preference
   const renderVehicleFieldWithDropdown = (
     index: number,
     field: keyof Vehicle,
@@ -1167,7 +1145,6 @@ export default function CreateOpportunityPage() {
   return (
     <>
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        {/* Header */}
         <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6 shadow-lg">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-between">
@@ -1183,7 +1160,6 @@ export default function CreateOpportunityPage() {
               </div>
               
               <div className="flex items-center gap-2">
-                {/* Settings Button */}
                 <div className="relative" ref={preferencesRef}>
                   <button
                     onClick={() => setShowPreferences(!showPreferences)}
@@ -1233,7 +1209,6 @@ export default function CreateOpportunityPage() {
               </div>
             </div>
             
-            {/* Progress Steps */}
             <div className="mt-8">
               <div className="flex items-center justify-between">
                 {[1, 2, 3].map((stepNumber) => (
@@ -1273,16 +1248,13 @@ export default function CreateOpportunityPage() {
           </div>
         </div>
 
-        {/* Form Content */}
         <div className="max-w-7xl mx-auto p-4 md:p-6">
           <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-            {/* Current Step Content */}
             <div className="p-6 md:p-8">
               {step === 1 && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-bold text-gray-800 mb-6">Account Information</h2>
                   
-                  {/* Account Type Selection */}
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-3">
                       Account Type *
@@ -1318,7 +1290,6 @@ export default function CreateOpportunityPage() {
                     </div>
                   </div>
 
-                  {/* Source Selection */}
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-3">
                       Where did this opportunity come from?
@@ -1341,7 +1312,6 @@ export default function CreateOpportunityPage() {
                     </div>
                   </div>
 
-                  {/* Personal/Company Information */}
                   <div className="space-y-4">
                     {formData.accountType === 'individual' ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1408,7 +1378,6 @@ export default function CreateOpportunityPage() {
                           )}
                         </div>
 
-                        {/* Contact Person Details Section */}
                         <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100">
                           <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                             <Contact className="h-5 w-5 text-blue-600" />
@@ -1455,7 +1424,7 @@ export default function CreateOpportunityPage() {
                             
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Contact Person Email *
+                                Contact Person Email
                               </label>
                               <div className="relative">
                                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -1497,11 +1466,10 @@ export default function CreateOpportunityPage() {
                       </div>
                     )}
 
-                    {/* Email and Phone (common to both account types) */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          {formData.accountType === 'individual' ? 'Email *' : 'Company Email *'}
+                          {formData.accountType === 'individual' ? 'Email' : 'Company Email'}
                         </label>
                         <div className="relative">
                           <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -1734,7 +1702,6 @@ export default function CreateOpportunityPage() {
                         )}
                       </div>
                       
-                      {/* Selected user preview */}
                       {formData.assignedTo && (
                         <div className="mt-2 p-2 rounded-lg bg-blue-50 border border-blue-100">
                           <div className="flex items-center justify-between">
@@ -1777,7 +1744,6 @@ export default function CreateOpportunityPage() {
                     </div>
                   )}
 
-                  {/* Vehicles Section */}
                   <div className="space-y-4">
                     {formData.vehicles.map((vehicle, index) => (
                       <div key={vehicle.id} className="p-4 rounded-xl border border-gray-200 bg-gradient-to-r from-blue-50/50 to-purple-50/50">
@@ -1824,11 +1790,10 @@ export default function CreateOpportunityPage() {
                             />
                           </div>
                           
-                          {/* Make with dropdown/regular input */}
                           {renderVehicleFieldWithDropdown(
                             index,
                             'make',
-                            'Make *',
+                            'Make',
                             'Type or select vehicle make',
                             vehicleMakes,
                             showMakeDropdown,
@@ -1839,11 +1804,10 @@ export default function CreateOpportunityPage() {
                             makeDropdownRef
                           )}
                           
-                          {/* Model with dropdown/regular input */}
                           {userPreferences.useDropdowns ? (
                             <div className="relative" ref={modelDropdownRef}>
                               <label className="block text-xs font-medium text-gray-600 mb-1">
-                                Model *
+                                Model
                               </label>
                               <div className="relative">
                                 <input
@@ -1910,7 +1874,7 @@ export default function CreateOpportunityPage() {
                           ) : (
                             <div>
                               <label className="block text-xs font-medium text-gray-600 mb-1">
-                                Model *
+                                Model
                               </label>
                               <input
                                 type="text"
@@ -1936,8 +1900,6 @@ export default function CreateOpportunityPage() {
                               className="pl-3 pr-3 py-2 w-full rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-sm transition-colors"
                             />
                           </div>
-                          
-                          {/* Color Code with dropdown/regular input */}
                           
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -1966,7 +1928,6 @@ export default function CreateOpportunityPage() {
                             />
                           </div>
 
-                          {/* Fuel Type with dropdown/regular input */}
                           {renderVehicleFieldWithDropdown(
                             index,
                             'fuelType',
@@ -1981,7 +1942,6 @@ export default function CreateOpportunityPage() {
                             fuelDropdownRef
                           )}
 
-                          {/* Transmission with simplified options */}
                           {userPreferences.useDropdowns ? (
                             <div className="relative" ref={transmissionDropdownRef}>
                               <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -2073,7 +2033,6 @@ export default function CreateOpportunityPage() {
                             />
                           </div>
 
-                          {/* Body Type with dropdown/regular input */}
                           {renderVehicleFieldWithDropdown(
                             index,
                             'bodyType',
@@ -2108,7 +2067,6 @@ export default function CreateOpportunityPage() {
                   <h2 className="text-xl font-bold text-gray-800 mb-6">Services & Products</h2>
                   <p className="text-gray-500 text-sm mb-6">Select services or products and create quotes</p>
 
-                  {/* Opportunity Type Selection */}
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-3">
                       Opportunity Type *
@@ -2122,7 +2080,6 @@ export default function CreateOpportunityPage() {
                             type="button"
                             onClick={() => {
                               handleInputChange('opportunityType', type.value as 'SERVICE' | 'SALE' | 'REPAIR' | 'MAINTENANCE' | 'INSPECTION');
-                              // Update all items to match the selected type
                               const updatedItems = formData.servicesProducts.map(item => ({
                                 ...item,
                                 type: type.value as 'SERVICE' | 'SALE' | 'REPAIR' | 'MAINTENANCE' | 'INSPECTION'
@@ -2145,7 +2102,6 @@ export default function CreateOpportunityPage() {
                     </div>
                   </div>
 
-                  {/* Opportunity Type Display */}
                   <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -2174,9 +2130,7 @@ export default function CreateOpportunityPage() {
                     </div>
                   </div>
 
-                  {/* Services/Products Section */}
                   <div>
-                    {/* Empty State */}
                     {formData.servicesProducts.length === 0 && (
                       <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-xl bg-gradient-to-r from-gray-50/50 to-gray-100/50">
                         <div className="max-w-md mx-auto">
@@ -2241,7 +2195,6 @@ export default function CreateOpportunityPage() {
                           </div>
 
                           <div className="space-y-4">
-                            {/* Title with suggestions dropdown */}
                             <div className="relative" ref={serviceProductDropdownRef}>
                               <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Title/Description *
@@ -2325,7 +2278,6 @@ export default function CreateOpportunityPage() {
                               />
                             </div>
                             
-                            {/* Pricing Section in one row */}
                             <div className="p-4 rounded-lg bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200">
                               <h4 className="text-sm font-medium text-gray-700 mb-3">Pricing Details</h4>
                               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -2398,7 +2350,6 @@ export default function CreateOpportunityPage() {
                               </div>
                             </div>
                             
-                            {/* Line Item Total */}
                             <div className="p-3 rounded-lg bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100">
                               <div className="flex items-center justify-between">
                                 <div>
@@ -2426,7 +2377,6 @@ export default function CreateOpportunityPage() {
                       ))}
                     </div>
 
-                    {/* Add Item Button moved to bottom */}
                     <div className="mt-6 flex justify-center">
                       <button
                         type="button"
@@ -2439,7 +2389,6 @@ export default function CreateOpportunityPage() {
                     </div>
                   </div>
 
-                  {/* Overall Totals Section */}
                   {formData.servicesProducts.length > 0 && (
                     <div className="p-6 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 border border-green-100">
                       <h3 className="text-lg font-semibold text-gray-800 mb-4">Overall Totals</h3>
@@ -2483,7 +2432,6 @@ export default function CreateOpportunityPage() {
                     </div>
                   )}
 
-                  {/* Notes Section */}
                   <div>
                     <h3 className="text-lg font-semibold text-gray-800 mb-4">Additional Notes</h3>
                     <textarea
@@ -2495,7 +2443,6 @@ export default function CreateOpportunityPage() {
                     />
                   </div>
 
-                  {/* Summary Section */}
                   <div className="p-6 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100">
                     <h3 className="text-lg font-semibold text-gray-800 mb-4">Opportunity Summary</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2571,7 +2518,6 @@ export default function CreateOpportunityPage() {
               )}
             </div>
 
-            {/* Footer */}
             <div className="border-t border-gray-200 p-6 bg-gradient-to-r from-blue-50/50 to-purple-50/50">
               <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
@@ -2646,7 +2592,6 @@ export default function CreateOpportunityPage() {
         </div>
       </div>
 
-      {/* Success Modal */}
       <SuccessModal
         isOpen={showSuccessModal}
         onClose={handleCloseSuccessModal}

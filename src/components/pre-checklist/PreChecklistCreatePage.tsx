@@ -2678,8 +2678,6 @@ const PDFDownloadButton = () => (
               onClick={() => {
                 if (workOrderId) {
                   router.push(`/orders/work-orders/${workOrderId}`);
-                } else if (router.query.from) {
-                  router.back();
                 } else {
                   router.push('/orders/work-orders');
                 }

@@ -106,6 +106,7 @@ export interface UpdateInvoiceData {
   notes?: string;
   active?: boolean;
   paidAt?: string;
+  sentAt?: string;
 }
 
 export interface InvoiceFilterParams {

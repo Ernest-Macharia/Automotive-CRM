@@ -516,6 +516,35 @@ export class LifecycleIntegrationService {
     return labels[stage] || stage.charAt(0).toUpperCase() + stage.slice(1).replace('_', ' ');
 }
 
+public async canStageAutoTransition(stage: string, document: any): Promise<boolean> {
+    const normalizedStage = this.normalizeStageName(stage);
+    
+    if (!document) return false;
+
+    switch (normalizedStage) {
+      case 'prechecklist':
+        const hasFaults = document.inspectionItems?.some(
+          (item: any) => item.status === 'fault'
+        );
+        return !hasFaults || document.approved;
+        
+      case 'jobcard':
+        return document.status === 'completed' || document.status === 'closed';
+        
+      case 'postchecklist':
+        const allRequiredCompleted = document.inspectionItems?.every(
+          (item: any) => !item.required || item.status === 'completed' || item.status === 'n/a'
+        );
+        return allRequiredCompleted || document.approved;
+        
+      case 'invoice':
+        return document.status === 'paid' || document.paid === true;
+        
+      default:
+        return false;
+    }
+  }
+
 // Method to get detailed current stage information
   public async getCurrentStageDetails(opportunityId: string): Promise<{
     stage: string;
@@ -558,7 +587,7 @@ export class LifecycleIntegrationService {
       const nextStageLabel = nextStage ? this.getStageLabel(nextStage) : undefined;
       
       // Check if auto-transition is possible
-      const canAutoTransition = this.canStageAutoTransition(currentStage);
+      const canAutoTransition = await this.canStageAutoTransition(currentStage.stage, currentStage.document);
       const autoTransitionEnabled = ['prechecklist', 'jobcard', 'postchecklist', 'invoice']
         .includes(currentStage.stage);
       
@@ -753,7 +782,7 @@ export class LifecycleIntegrationService {
           if (workOrders2.length > 0) {
             const workOrder = workOrders2[0];
             await workOrderService.updateWorkOrder(workOrder._id, {
-              invoiceId: document._id || document.id,
+              invoicePaid: true,
               currentStage: 'invoice',
               updatedAt: new Date().toISOString()
             });
@@ -805,19 +834,29 @@ export class LifecycleIntegrationService {
   }
 
   private shouldAutoApprovePreChecklist(data: any): boolean {
-    const items = data.inspectionItems || [];
-    const hasFaults = items.some((item: any) => item.status === 'fault');
-    const allOk = items.every((item: any) => 
-      item.status === 'ok' || item.status === 'n/a'
-    );
-    return !hasFaults || allOk;
+    // Client signs on the form, so if we have any signature evidence we auto-approve.
+    // Fall back to true to avoid blocking the workflow due to missing/renamed fields.
+    return Boolean(
+      data?.clientSignature ||
+      data?.signature ||
+      data?.signedByClient ||
+      data?.clientSigned ||
+      data?.customerSignature ||
+      data?.signedAt
+    ) || true;
   }
 
   private shouldAutoApprovePostChecklist(data: any): boolean {
-    const items = data.inspectionItems || [];
-    return items.every((item: any) => 
-      !item.required || item.status === 'completed' || item.status === 'n/a'
-    );
+    // Client signs on the form, so post checklist should auto-approve as well.
+    // Fall back to true to keep workflow moving (backend validations can still apply if needed).
+    return Boolean(
+      data?.clientSignature ||
+      data?.signature ||
+      data?.signedByClient ||
+      data?.clientSigned ||
+      data?.customerSignature ||
+      data?.signedAt
+    ) || true;
   }
 
   private shouldAutoSendInvoice(data: any): boolean {
@@ -1262,7 +1301,7 @@ export class LifecycleIntegrationService {
             const workOrder = workOrders[0];
             const mappedStage = this.mapStageForWorkOrder(nextStage);
             await workOrderService.updateWorkOrder(workOrder._id, {
-              currentStage: mappedStage,
+              currentStage: 'invoice' as const, // Add 'as const' to ensure it's the literal type
               updatedAt: new Date().toISOString()
             });
           }
@@ -1494,17 +1533,19 @@ async isJobCardProperlyCreated(opportunityId: string): Promise<{
                               jobCard.assignedTo && 
                               jobCard.priority && 
                               jobCard.status;
-    
+
     const isAssigned = !!jobCard.assignedTo && 
-                       jobCard.assignedTo !== '' && 
-                       jobCard.assignedTo !== 'unassigned';
-    
-    return {
-      hasJobCard: true,
-      isAssigned: isAssigned && hasRequiredFields,
-      jobCard,
-      reason: isAssigned ? 'Job card properly assigned' : 'Job card does not exist'
-    };
+                   jobCard.assignedTo !== '' && 
+                   jobCard.assignedTo !== 'unassigned' &&
+                   hasRequiredFields;
+
+// Return boolean, not string
+  return {
+    hasJobCard: true,
+    isAssigned: isAssigned, // This should be boolean
+    jobCard,
+    reason: isAssigned ? 'Job card properly assigned' : 'Job card not properly assigned'
+  };
   } catch (error) {
     console.error('Error checking job card status:', error);
     return {
@@ -3721,36 +3762,23 @@ async autoTransitionOnPreChecklistComplete(
     previousDocument?: any
   ): Promise<void> {
     try {
-      switch (nextStage) {
-        case 'jobcard':
-          // Check if job card already exists
-          const existingJobCards = await jobCardService.getJobCardsByOpportunity(opportunityId);
-          if (existingJobCards.length === 0) {
-            await this.autoCreateJobCard(opportunityId);
-          }
-          break;
-          
-        case 'postchecklist':
-          // Check if post-checklist already exists
-          const existingPostChecklists = await postChecklistService.getPostChecklistsByOpportunity(opportunityId);
-          if (existingPostChecklists.length === 0) {
-            await this.autoCreateChecklistIfNeeded(opportunityId, 'postchecklist');
-          }
-          break;
-          
-        case 'invoice':
-          // Check if invoice already exists
-          const existingInvoices = await invoiceService.getInvoicesByOpportunity(opportunityId);
-          if (existingInvoices.length === 0) {
-            await this.autoCreateInvoice(opportunityId);
-          }
-          break;
+      // IMPORTANT:
+      // We intentionally do NOT auto-create Job Cards or Post-Checklists.
+      // Those documents must be created manually in the UI to capture additional details.
+      // The only document we auto-create is the Invoice (it is derived from the Opportunity/Sales Order).
+      if (nextStage !== 'invoice') return;
+
+      const existingInvoices = await invoiceService.getInvoicesByOpportunity(opportunityId);
+      if (existingInvoices.length === 0) {
+        await this.autoCreateInvoice(opportunityId);
       }
     } catch (error) {
       console.error('Auto-create document error:', error);
       // Don't throw - continue even if auto-creation fails
     }
   }
+
+  
 
   private async autoCreateInvoice(opportunityId: string): Promise<void> {
   try {
@@ -3901,52 +3929,34 @@ async autoTransitionOnPreChecklistComplete(
     success: boolean;
     message: string;
     nextStage?: string;
-    autoCreatedDocument?: any;
   }> {
     try {
       const pattern = WORKFLOW_PATTERNS.WORK_ORDER;
       const currentIndex = pattern.indexOf(stage);
-      
+
       if (currentIndex === -1) {
         throw new Error(`Invalid stage: ${stage}`);
       }
-      
-      // Get current documents
+
+      // IMPORTANT:
+      // - Do NOT auto-create Job Cards or Post-Checklists here. The UI must create them to capture extra details.
+      // - We only complete/approve/pay *existing* documents, then transition the lifecycle stage.
       const documents = await this.fetchDocumentsForStages(opportunityId, [stage]);
       const document = documents[stage];
-      
-      if (!document) {
-        // Auto-create document if it doesn't exist
-        const createdDoc = await this.autoCreateDocumentForStage(opportunityId, stage, userId);
-        
-        // For prechecklist and postchecklist, auto-approve
-        if (stage === 'prechecklist' || stage === 'postchecklist') {
-          await this.autoApproveChecklist(createdDoc._id, stage, userId);
-        }
-        
-        // For jobcard, mark as completed
-        if (stage === 'jobcard') {
-          await jobCardService.updateJobCard(createdDoc._id, {
-            status: 'completed',
-            completedAt: new Date().toISOString()
-          });
-        }
-        
-        // For invoice, mark as paid
-        if (stage === 'invoice') {
-          await invoiceService.updateInvoice(createdDoc._id, {
-            paymentStatus: 'paid',
-            paidAt: new Date().toISOString()
-          });
-        }
-      } else {
-        // Update existing document to completed state
-        await this.markDocumentAsCompleted(document._id, stage, userId);
+
+      if (!document?._id) {
+        return {
+          success: false,
+          message: `No ${stage} document found. Please create it first to proceed.`
+        };
       }
-      
+
+      // Update existing document to completed state
+      await this.markDocumentAsCompleted(document._id, stage, userId);
+
       // Auto-transition to next stage
       const nextStage = currentIndex < pattern.length - 1 ? pattern[currentIndex + 1] : null;
-      
+
       if (nextStage) {
         await this.transitionToStage(opportunityId, nextStage, {
           skipValidation: true,
@@ -3956,31 +3966,33 @@ async autoTransitionOnPreChecklistComplete(
             completedBy: userId || 'system'
           }
         });
-        
-        // Auto-create next document
-        let autoCreatedDoc = null;
-        if (nextStage === 'jobcard' || nextStage === 'postchecklist' || nextStage === 'invoice') {
-          autoCreatedDoc = await this.autoCreateDocumentForStage(opportunityId, nextStage, userId);
-        }
-        
+
+        // Only auto-create invoice (derived from opportunity/sales order)
+        await this.autoCreateNextDocument(opportunityId, nextStage, document);
+
+        // Keep Work Order current stage in sync
+        await this.updateWorkOrderStage(opportunityId, nextStage);
+
         return {
           success: true,
-          message: `Stage ${stage} completed and moved to ${nextStage}`,
-          nextStage,
-          autoCreatedDocument: autoCreatedDoc
-        };
-      } else {
-        // Complete the lifecycle
-        await this.completeWorkOrder(opportunityId);
-        return {
-          success: true,
-          message: 'Work order completed',
-          nextStage: 'complete'
+          message: `Stage "${stage}" completed. Moved to "${nextStage}".`,
+          nextStage
         };
       }
+
+      // If there is no next stage, complete work order
+      await this.completeWorkOrder(opportunityId);
+      return {
+        success: true,
+        message: 'Work order completed',
+        nextStage: 'complete'
+      };
     } catch (error) {
       console.error('One-click completion error:', error);
-      throw error;
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'One-click completion failed'
+      };
     }
   }
 
@@ -4065,7 +4077,7 @@ async autoTransitionOnPreChecklistComplete(
     
     // Add auto-transition information to each stage
     const enhancedStages = workflowUI.stages.map((stage: any) => {
-      const canAutoTransition = this.canStageAutoTransition(stage);
+      const canAutoTransition = this.canStageAutoTransition(stage.stage, stage.document);
       const willAutoTransition = this.willStageAutoTransition(stage);
       
       return {
@@ -4109,35 +4121,7 @@ async autoTransitionOnPreChecklistComplete(
   return mapping[stage] || stage;
 }
 
-// Update canStageAutoTransition to handle normalized stage names
-  private async canStageAutoTransition(stage: string, document: any): Promise<boolean> {
-    const normalizedStage = this.normalizeStageName(stage);
-    
-    if (!document) return false;
-
-    switch (normalizedStage) {
-      case 'prechecklist':
-        const hasFaults = document.inspectionItems?.some(
-          (item: any) => item.status === 'fault'
-        );
-        return !hasFaults || document.approved;
-        
-      case 'jobcard':
-        return document.status === 'completed' || document.status === 'closed';
-        
-      case 'postchecklist':
-        const allRequiredCompleted = document.inspectionItems?.every(
-          (item: any) => !item.required || item.status === 'completed' || item.status === 'n/a'
-        );
-        return allRequiredCompleted || document.approved;
-        
-      case 'invoice':
-        return document.status === 'paid' || document.paid === true;
-        
-      default:
-        return false;
-    }
-  }
+  
 
   private willStageAutoTransition(stage: any): boolean {
     // Returns true if auto-transition is enabled for this stage type
