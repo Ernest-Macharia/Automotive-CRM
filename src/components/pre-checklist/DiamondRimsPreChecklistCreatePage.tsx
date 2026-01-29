@@ -116,10 +116,6 @@ export default function DiamondRimsPreChecklistCreatePage({
   const [draftSaved, setDraftSaved] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
 
-  // Remove step-by-step wizard state
-  // const [currentStep, setCurrentStep] = useState(1);
-  // const totalSteps = 5;
-  
   // DIAMOND RIMS FORM STATE
   const [formData, setFormData] = useState({
     checklistType: 'diamond_rims',
@@ -150,6 +146,10 @@ export default function DiamondRimsPreChecklistCreatePage({
       mileage: '',
       yearOfManufacture: '',
       licensePlate: '',
+      vehicleType: '',
+      color: '',
+      engineSize: '',
+      fuelType: '',
     },
     
     services: {
@@ -300,8 +300,7 @@ export default function DiamondRimsPreChecklistCreatePage({
       autoPopulateFromOpportunity();
     }
   }, [opportunity]);
-
-  const toId = (v: any): string => {
+const toId = (v: any): string => {
   if (!v) return '';
   return typeof v === 'string' ? v : (v._id ?? '');
 };
@@ -416,17 +415,15 @@ const toISODate = (d: any): string => {
       if (mode === 'edit' && checklistId) {
         const checklist = await preChecklistService.getPreChecklistById(checklistId);
         setExistingChecklist(checklist);
-
-        // hydrate form safely (no direct setFormData(checklist))
+        
         if (checklist?.checklistType === 'diamond_rims') {
           setFormData(mapChecklistToForm(checklist));
         }
-
-        // set opportunity/vehicle objects for display (optional)
-        if (typeof checklist?.opportunityId === 'object' && checklist.opportunityId?._id) {
+        
+        if (typeof checklist.opportunityId === 'object') {
           setOpportunity(checklist.opportunityId);
         }
-        if (typeof checklist?.vehicleId === 'object' && checklist.vehicleId?._id) {
+        if (typeof checklist.vehicleId === 'object') {
           setVehicle(checklist.vehicleId);
         }
       }
@@ -436,25 +433,53 @@ const toISODate = (d: any): string => {
         try {
           const opp = await opportunityService.getOpportunityById(opportunityId, false);
           setOpportunity(opp);
-
-          if (opp?.vehicles && opp.vehicles.length > 0) {
+          
+          // Try to get detailed vehicle information
+          if (opp.vehicles && opp.vehicles.length > 0) {
             const primaryVehicle = opp.vehicles[0];
-            setVehicle(primaryVehicle);
-
-            setFormData(prev => ({
-              ...prev,
-              opportunityId: opportunityId, // string
-              vehicleId: primaryVehicle?._id || vehicleId || '', // string
-            }));
+            
+            // If vehicle has an ID, try to fetch detailed vehicle info
+            if (primaryVehicle._id) {
+              try {
+                const detailedVehicle = await vehicleService.getVehicleById(primaryVehicle._id);
+                setVehicle(detailedVehicle);
+                
+                setFormData(prev => ({
+                  ...prev,
+                  opportunityId,
+                  vehicleId: primaryVehicle._id || vehicleId || ''
+                }));
+              } catch (vehError) {
+                console.warn('Could not fetch detailed vehicle:', vehError);
+                // Use the vehicle data from opportunity
+                setVehicle(primaryVehicle);
+                
+                setFormData(prev => ({
+                  ...prev,
+                  opportunityId,
+                  vehicleId: primaryVehicle._id || vehicleId || ''
+                }));
+              }
+            } else {
+              // Use the vehicle data from opportunity
+              setVehicle(primaryVehicle);
+              
+              setFormData(prev => ({
+                ...prev,
+                opportunityId,
+                vehicleId: vehicleId || ''
+              }));
+            }
           } else if (vehicleId) {
+            // Fallback to vehicleId parameter
             try {
               const veh = await vehicleService.getVehicleById(vehicleId);
               setVehicle(veh);
-
+              
               setFormData(prev => ({
                 ...prev,
-                opportunityId: opportunityId, // string
-                vehicleId: vehicleId, // string
+                opportunityId,
+                vehicleId
               }));
             } catch (vehError) {
               console.error('Error loading vehicle:', vehError);
@@ -471,23 +496,16 @@ const toISODate = (d: any): string => {
         try {
           const wo = await workOrderService.getWorkOrderById(workOrderId);
           setWorkOrder(wo);
-
-          // Always store workOrderId string in formData if your form expects it
-          setFormData(prev => ({
-            ...prev,
-            workOrderId: workOrderId,
-          }));
-
-          if (wo?.opportunityId) {
-            const oppId = toId(wo.opportunityId); // normalize populated vs string
-
-            if (!opportunityId && oppId) {
+          
+          if (wo.opportunityId) {
+            const oppId = typeof wo.opportunityId === 'object' ? wo.opportunityId._id : wo.opportunityId;
+            if (!opportunityId) {
               const opp = await opportunityService.getOpportunityById(oppId);
               setOpportunity(opp);
-
+              
               setFormData(prev => ({
                 ...prev,
-                opportunityId: oppId, // string
+                opportunityId: oppId
               }));
             }
           }
@@ -496,6 +514,7 @@ const toISODate = (d: any): string => {
           showToast('Could not load work order details', 'warning');
         }
       }
+
     } catch (error) {
       console.error('Error loading related data:', error);
       showToast('Failed to load related information', 'error');
@@ -510,25 +529,32 @@ const toISODate = (d: any): string => {
     try {
       console.log('Auto-populating from opportunity:', opportunity);
       
+      // Extract customer information
       const customerName = opportunity.customer?.name || '';
       const [firstName, ...lastNameParts] = customerName.split(' ');
       const lastName = lastNameParts.join(' ') || '';
 
-      const primaryVehicle = opportunity.vehicles?.[0] || {};
+      // Get vehicle details from opportunity or loaded vehicle
+      const primaryVehicle = opportunity.vehicles?.[0] || vehicle || {};
       
+      // Helper function to get registration number from vehicle object
       const getRegistrationNumber = (vehicle: any) => {
         if (!vehicle) return '';
         
+        // Check common field names for registration/plate number
         const fields = [
           'registrationNumber',
           'regNumber',
           'regNo',
           'licensePlate',
-          'plateNumber'
+          'plateNumber',
+          'plate',
+          'numberPlate'
         ];
         
         for (const field of fields) {
           if (vehicle[field]) {
+            console.log(`Found registration in field "${field}":`, vehicle[field]);
             return vehicle[field];
           }
         }
@@ -537,7 +563,22 @@ const toISODate = (d: any): string => {
       };
       
       const licensePlate = getRegistrationNumber(primaryVehicle);
+      
+      // Extract other vehicle details
+      const carMake = primaryVehicle.make || primaryVehicle.manufacturer || '';
+      const carModel = primaryVehicle.model || '';
+      const yearOfManufacture = (primaryVehicle.year || primaryVehicle.yearOfManufacture)?.toString() || '';
+      const mileage = primaryVehicle.mileage || primaryVehicle.odometer || '';
+      const vehicleType = primaryVehicle.type || primaryVehicle.vehicleType || '';
+      const color = primaryVehicle.color || primaryVehicle.colour || '';
+      const engineSize = primaryVehicle.engineSize || primaryVehicle.engineCapacity || '';
+      const fuelType = primaryVehicle.fuelType || primaryVehicle.fuel || '';
+      
+      // Get total price from opportunity
       let totalPrice = opportunity.total || 0;
+      if (opportunity.lineItems && opportunity.lineItems.length > 0) {
+        totalPrice = opportunity.lineItems.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
+      }
 
       setFormData(prev => ({
         ...prev,
@@ -552,10 +593,14 @@ const toISODate = (d: any): string => {
         carDetails: {
           ...prev.carDetails,
           licensePlate: licensePlate || '',
-          carMake: primaryVehicle.make || vehicle?.make || '',
-          carModel: primaryVehicle.model || vehicle?.model || '',
-          yearOfManufacture: (primaryVehicle.year || vehicle?.year)?.toString() || '',
-          mileage: primaryVehicle.mileage || ''
+          carMake: carMake,
+          carModel: carModel,
+          yearOfManufacture: yearOfManufacture,
+          mileage: mileage,
+          vehicleType: vehicleType,
+          color: color,
+          engineSize: engineSize,
+          fuelType: fuelType
         },
         agreedAmount: {
           ...prev.agreedAmount,
@@ -570,6 +615,7 @@ const toISODate = (d: any): string => {
       }));
       
       setAutoPopulated(true);
+      showToast('Vehicle data loaded from opportunity', 'success');
       
     } catch (error) {
       console.error('Error auto-populating from opportunity:', error);
@@ -653,43 +699,47 @@ const toISODate = (d: any): string => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     try {
       setSubmitting(true);
 
       // Validate required fields
-      if (
-        !formData.customerDetails.firstName ||
-        !formData.customerDetails.lastName ||
-        !formData.customerDetails.mobile ||
-        !formData.customerDetails.email
-      ) {
+      if (!formData.customerDetails.firstName || 
+          !formData.customerDetails.lastName ||
+          !formData.customerDetails.mobile ||
+          !formData.customerDetails.email) {
         showToast('Please fill in all required customer details', 'error');
+        setSubmitting(false);
         return;
       }
-
+      
       if (formData.services.actualService.length === 0) {
         showToast('Please select at least one service', 'error');
+        setSubmitting(false);
         return;
       }
-
+      
       if (!formData.deliveryMode) {
         showToast('Please select delivery mode', 'error');
+        setSubmitting(false);
         return;
       }
-
+      
       if (formData.preServiceInspection.condition.length === 0) {
         showToast('Please select at least one condition', 'error');
+        setSubmitting(false);
         return;
       }
-
+      
       if (!formData.mustKnowAccepted) {
         showToast('Please acknowledge the MUST KNOW section', 'error');
+        setSubmitting(false);
         return;
       }
-
+      
       if (!formData.acceptTerms) {
         showToast('Please accept the terms and conditions', 'error');
+        setSubmitting(false);
         return;
       }
 
@@ -707,62 +757,65 @@ const toISODate = (d: any): string => {
       console.log('Submitting diamond rims pre-checklist:', normalizedSubmissionData);
 
       let result: any;
-
+      
       if (mode === 'edit' && checklistId) {
         result = await preChecklistService.updatePreChecklist(checklistId, normalizedSubmissionData as any);
         showToast('Diamond Rims pre-checklist updated successfully', 'success');
       } else {
         const userId = sessionStorage.getItem('userId') || undefined;
-
         result = await preChecklistService.createPreChecklist(normalizedSubmissionData as any, userId);
         showToast('Diamond Rims pre-checklist created successfully', 'success');
-
+        
         // Update work order with pre-checklist ID if needed
-        if (workOrderId && result?._id) {
+        if (workOrderId && result._id) {
           try {
             await workOrderService.updateWorkOrder(workOrderId, {
-              preChecklistId: result._id,
+              preChecklistId: result._id
             });
           } catch (updateError) {
             console.error('Error updating work order:', updateError);
           }
         }
-
-        // Auto-transition if applicable (you compute this but don't use it; leaving intact)
-        const hasSeriousIssues = formData.preServiceInspection.condition.some(cond =>
+        
+        // Auto-transition if applicable
+        const hasSeriousIssues = formData.preServiceInspection.condition.some(cond => 
           ['Cracks', 'Bends', 'Previously Welded'].includes(cond)
         );
-        void hasSeriousIssues;
-
+        
         try {
           // Client signs on the form, so we auto-approve immediately
           const approvedChecklist = await preChecklistService.approvePreChecklist(result._id, userId);
 
-          // IMPORTANT: oppId must be string (result.opportunityId could be object)
-          const oppId = toId(result?.opportunityId) || toId(formData.opportunityId);
-
+          const oppId = result.opportunityId || formData.opportunityId;
           if (oppId) {
-            await lifecycleIntegrationService.transitionToStage(oppId, 'jobcard', {
-              documentId: approvedChecklist?._id || result._id,
-              completedBy: userId,
-              notes: 'Auto-approved (client signed on form)',
-            });
+            await lifecycleIntegrationService.transitionToStage(
+              oppId,
+              'jobcard',
+              {
+                documentId: approvedChecklist?._id || result._id,
+                completedBy: userId,
+                notes: 'Auto-approved (client signed on form)'
+              }
+            );
           }
         } catch (approvalError) {
           console.warn('Auto-approval/transition failed:', approvalError);
         }
       }
 
-      // Redirects
       if (workOrderId) {
+        // Redirect back to work order details
         router.push(`/orders/work-orders/${workOrderId}`);
       } else if (source === 'opportunity' && formData.opportunityId) {
-        router.push(`/opportunities/${toId(formData.opportunityId)}`);
-      } else if (result?._id) {
+        // If coming from opportunity, go to opportunity page
+        router.push(`/opportunities/${formData.opportunityId}`);
+      } else if (result._id) {
+        // Fallback: Go to pre-checklist details
         router.push(`/pre-checklist/${result._id}`);
       } else {
         router.push('/prechecklists');
       }
+
     } catch (error: any) {
       console.error('Error submitting pre-checklist:', error);
       showToast(error.message || 'Failed to save pre-checklist', 'error');
@@ -840,7 +893,8 @@ const toISODate = (d: any): string => {
         ['CAR DETAILS', '', '', '', '', '', ''],
         ['Car Make:', formData.carDetails.carMake, '', 'Car Model:', formData.carDetails.carModel, '', ''],
         ['Mileage:', formData.carDetails.mileage, '', 'Year:', formData.carDetails.yearOfManufacture, '', ''],
-        ['License Plate:', formData.carDetails.licensePlate, '', '', '', '', ''],
+        ['License Plate:', formData.carDetails.licensePlate, '', 'Color:', formData.carDetails.color, '', ''],
+        ['Fuel Type:', formData.carDetails.fuelType, '', '', '', '', ''],
         ['', '', '', '', '', '', ''],
         ['SERVICES', '', '', '', '', '', ''],
         ['Actual Services:', formData.services.actualService.join(', '), '', '', '', '', ''],
@@ -914,12 +968,32 @@ const toISODate = (d: any): string => {
     }
   };
 
+  // Helper function to extract vehicle info
+  const getVehicleInfo = () => {
+    if (!vehicle) return null;
+    
+    return {
+      make: vehicle.make || vehicle.manufacturer || '',
+      model: vehicle.model || '',
+      year: vehicle.year || vehicle.yearOfManufacture || '',
+      licensePlate: vehicle.registrationNumber || vehicle.regNumber || vehicle.licensePlate || '',
+      color: vehicle.color || vehicle.colour || '',
+      mileage: vehicle.mileage || vehicle.odometer || '',
+      vin: vehicle.vin || vehicle.chassisNumber || '',
+      engineSize: vehicle.engineSize || vehicle.engineCapacity || '',
+      fuelType: vehicle.fuelType || vehicle.fuel || ''
+    };
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-teal-50/30 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">Loading Diamond Rims pre-checklist form...</p>
+          {opportunityId && (
+            <p className="text-sm text-gray-500 mt-2">Loading opportunity and vehicle data...</p>
+          )}
         </div>
       </div>
     );
@@ -972,6 +1046,53 @@ const toISODate = (d: any): string => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-8 py-8">
+        {/* Opportunity Info Banner */}
+        {opportunity && (
+          <div className="mb-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-gray-800">Opportunity Information</h3>
+                <p className="text-sm text-gray-600">
+                  {opportunity.subject} • {opportunity.customer?.name}
+                  {opportunity.customer?.companyName && ` • ${opportunity.customer.companyName}`}
+                </p>
+                {vehicle && (
+                  <div className="mt-2 flex items-center gap-4 text-sm">
+                    <span className="text-gray-700">
+                      <Car className="h-4 w-4 inline mr-1" />
+                      {getVehicleInfo()?.make} {getVehicleInfo()?.model} • {getVehicleInfo()?.licensePlate}
+                    </span>
+                    {getVehicleInfo()?.year && (
+                      <span className="text-gray-600">Year: {getVehicleInfo()?.year}</span>
+                    )}
+                    {getVehicleInfo()?.color && (
+                      <span className="text-gray-600">Color: {getVehicleInfo()?.color}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-1 rounded-md text-xs font-medium ${
+                  opportunity.status === 'won' ? 'bg-green-100 text-green-800' :
+                  opportunity.status === 'lost' ? 'bg-red-100 text-red-800' :
+                  opportunity.status === 'new' ? 'bg-blue-100 text-blue-800' :
+                  'bg-yellow-100 text-yellow-800'
+                }`}>
+                  {opportunity.status?.replace(/_/g, ' ')}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRefreshFromOpportunity}
+                  className="inline-flex items-center gap-2 px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  Refresh Data
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Form Content - All sections in one form */}
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="bg-white rounded-2xl shadow-xl border p-6 md:p-8">
@@ -1263,6 +1384,42 @@ const toISODate = (d: any): string => {
                   />
                 </div>
               </div>
+
+              {/* Vehicle Information Preview */}
+              {vehicle && (
+                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="font-medium text-blue-800 mb-2 flex items-center gap-2">
+                    <Info className="h-4 w-4" />
+                    Vehicle Information from Opportunity
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+                    {getVehicleInfo()?.make && (
+                      <div>
+                        <span className="text-gray-600">Make:</span>
+                        <span className="ml-2 font-medium">{getVehicleInfo()?.make}</span>
+                      </div>
+                    )}
+                    {getVehicleInfo()?.model && (
+                      <div>
+                        <span className="text-gray-600">Model:</span>
+                        <span className="ml-2 font-medium">{getVehicleInfo()?.model}</span>
+                      </div>
+                    )}
+                    {getVehicleInfo()?.year && (
+                      <div>
+                        <span className="text-gray-600">Year:</span>
+                        <span className="ml-2 font-medium">{getVehicleInfo()?.year}</span>
+                      </div>
+                    )}
+                    {getVehicleInfo()?.licensePlate && (
+                      <div>
+                        <span className="text-gray-600">License Plate:</span>
+                        <span className="ml-2 font-medium">{getVehicleInfo()?.licensePlate}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Pre-Service Inspection */}
