@@ -42,7 +42,8 @@ import {
   File,
   Eye,
   Trash2,
-  Plus
+  Plus,
+  Wrench
 } from 'lucide-react';
 import { postChecklistService, ChecklistItem, ChecklistItemStatus } from '@/services/postChecklistService';
 import { workOrderService } from '@/services/workOrderService';
@@ -87,9 +88,10 @@ export default function HeadlightPostChecklistCreatePage({
   const [vehicle, setVehicle] = useState<any>(null);
   const [preChecklist, setPreChecklist] = useState<any>(null);
   const [existingChecklist, setExistingChecklist] = useState<any>(null);
-  const [autoPopulated, setAutoPopulated] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
   const [selectedBeforeFiles, setSelectedBeforeFiles] = useState<File[]>([]);
   const [selectedAfterFiles, setSelectedAfterFiles] = useState<File[]>([]);
+  const [inspectorName, setInspectorName] = useState('');
 
   // Step-by-step wizard state
   const [currentStep, setCurrentStep] = useState(1);
@@ -121,11 +123,26 @@ export default function HeadlightPostChecklistCreatePage({
     inspectedBy: sessionStorage.getItem('userId') || '',
     dateTime: new Date().toISOString(),
     
-    // Customer details
+    // Customer details - will be populated from opportunity/pre-checklist
     customerDetails: {
       firstName: '',
       lastName: '',
       email: '',
+      phone: '',
+    },
+    
+    // Vehicle details - will be populated from opportunity/pre-checklist
+    vehicleDetails: {
+      regNo: '',
+      make: '',
+      model: '',
+      year: '',
+    },
+    
+    // Service details - will be populated from opportunity/pre-checklist
+    serviceDetails: {
+      productServiceNeeded: '',
+      productPrice: 0,
     },
     
     // Headlight inspection items with working status
@@ -172,7 +189,9 @@ export default function HeadlightPostChecklistCreatePage({
     
     // Additional fields
     serviceRating: 5,
-    serviceComments: ''
+    serviceComments: '',
+    inspectorName: '',
+    additionalComments: ''
   });
 
   const [selectedTemplate, setSelectedTemplate] = useState('headlight_comprehensive');
@@ -189,49 +208,11 @@ export default function HeadlightPostChecklistCreatePage({
     loadRelatedData();
   }, [opportunityId, workOrderId, vehicleId, preChecklistId, checklistId, mode]);
 
-  useEffect(() => {
-    if (opportunity && !autoPopulated) {
-      autoPopulateFromOpportunity();
-    }
-  }, [opportunity]);
-
-  const autoPopulateFromOpportunity = () => {
-    if (!opportunity || autoPopulated) return;
-
-    try {
-      const customerName = opportunity.customer?.name || '';
-      const [firstName, ...lastNameParts] = customerName.split(' ');
-      const lastName = lastNameParts.join(' ') || '';
-
-      setFormData(prev => ({
-        ...prev,
-        customerDetails: {
-          ...prev.customerDetails,
-          firstName: firstName || '',
-          lastName: lastName || '',
-          email: opportunity.customer?.email || '',
-        }
-      }));
-
-      setAutoPopulated(true);
-      
-    } catch (error) {
-      console.error('Error auto-populating from opportunity:', error);
-      showToast('Error loading customer details from opportunity', 'warning');
-    }
-  };
-
-  const handleRefreshFromOpportunity = () => {
-    if (opportunity) {
-      autoPopulateFromOpportunity();
-      showToast('Refreshed data from opportunity', 'info');
-    }
-  };
-
   const loadRelatedData = async () => {
     try {
       setLoading(true);
 
+      // Load existing checklist if in edit mode
       if (mode === 'edit' && checklistId) {
         const checklist = await postChecklistService.getPostChecklistById(checklistId);
         setExistingChecklist(checklist);
@@ -248,23 +229,44 @@ export default function HeadlightPostChecklistCreatePage({
           firstName: '',
           lastName: '',
           email: '',
+          phone: '',
         };
         
-        if (checklist.customerDetails && typeof checklist.customerDetails === 'object') {
+        let vehicleDetails = {
+          regNo: '',
+          make: '',
+          model: '',
+          year: '',
+        };
+        
+        let serviceDetails = {
+          productServiceNeeded: '',
+          productPrice: 0,
+        };
+        
+        // Load from checklist data
+        if (checklist.customerDetails !== null && typeof checklist.customerDetails === 'object') {
           customerDetails = {
             firstName: checklist.customerDetails.firstName || '',
             lastName: checklist.customerDetails.lastName || '',
             email: checklist.customerDetails.email || '',
+            phone: checklist.customerDetails.phone || '',
           };
-        } else if (checklist.customerName) {
-          const customerName = checklist.customerName || '';
-          const [firstName, ...lastNameParts] = customerName.split(' ');
-          const lastName = lastNameParts.join(' ') || '';
-          
-          customerDetails = {
-            firstName,
-            lastName,
-            email: '',
+        }
+        
+        if (checklist.vehicleDetails && typeof checklist.vehicleDetails === 'object') {
+          vehicleDetails = {
+            regNo: checklist.vehicleDetails.regNo || '',
+            make: checklist.vehicleDetails.make || '',
+            model: checklist.vehicleDetails.model || '',
+            year: checklist.vehicleDetails.year || '',
+          };
+        }
+        
+        if (checklist.serviceDetails && typeof checklist.serviceDetails === 'object') {
+          serviceDetails = {
+            productServiceNeeded: checklist.serviceDetails.productServiceNeeded || '',
+            productPrice: checklist.serviceDetails.productPrice || 0,
           };
         }
         
@@ -285,7 +287,9 @@ export default function HeadlightPostChecklistCreatePage({
                 : checklist.inspectedBy)
             : sessionStorage.getItem('userId') || '',
           dateTime: checklist.dateTime || new Date().toISOString(),
-          customerDetails: customerDetails,
+          customerDetails,
+          vehicleDetails,
+          serviceDetails,
           inspectionItems: transformedInspectionItems,
           warrantyDuration: checklist.warrantyDuration || '12 months',
           beforePhotos: checklist.beforePhotos || [],
@@ -298,8 +302,18 @@ export default function HeadlightPostChecklistCreatePage({
           comments: checklist.comments || '',
           customerSignature: checklist.customerSignature || '',
           serviceRating: checklist.serviceRating || 5,
-          serviceComments: checklist.serviceComments || ''
+          serviceComments: checklist.serviceComments || '',
+          inspectorName: checklist.inspectorName || '',
+          additionalComments: checklist.additionalComments || ''
         });
+
+        // Set inspector name from session
+        const userName = sessionStorage.getItem('userName') || 'Inspector';
+        setInspectorName(userName);
+        setFormData(prev => ({
+          ...prev,
+          inspectorName: userName
+        }));
 
         if (typeof checklist.opportunityId === 'object') {
           setOpportunity(checklist.opportunityId);
@@ -307,62 +321,168 @@ export default function HeadlightPostChecklistCreatePage({
         if (typeof checklist.vehicleId === 'object') {
           setVehicle(checklist.vehicleId);
         }
-      }
-
-      if (preChecklistId) {
-        try {
-          const preChecklist = await preChecklistService.getPreChecklistById(preChecklistId);
-          setPreChecklist(preChecklist);
-          
-          if (preChecklist.customerDetails && typeof preChecklist.customerDetails === 'object') {
-            setFormData(prev => ({
-              ...prev,
-              customerDetails: {
-                firstName: preChecklist.customerDetails.firstName || '',
-                lastName: preChecklist.customerDetails.lastName || '',
-                email: preChecklist.customerDetails.email || '',
-              }
-            }));
-          }
-        } catch (error) {
-          console.error('Error loading pre-checklist:', error);
-          showToast('Could not load pre-checklist details', 'warning');
-        }
-      }
-
-      if (opportunityId) {
-        try {
-          const opp = await opportunityService.getOpportunityById(opportunityId);
-          setOpportunity(opp);
-          
-          setFormData(prev => ({
-            ...prev,
-            opportunityId
-          }));
-        } catch (error) {
-          console.error('Error loading opportunity:', error);
-          showToast('Could not load opportunity details', 'warning');
-        }
-      }
-
-      if (vehicleId) {
-        try {
-          const veh = await vehicleService.getVehicleById(vehicleId);
-          setVehicle(veh);
-          
-          setFormData(prev => ({
-            ...prev,
-            vehicleId
-          }));
-        } catch (error) {
-          console.error('Error loading vehicle:', error);
-          showToast('Could not load vehicle details', 'warning');
-        }
+        
+        setDataLoaded(true);
+      } else {
+        // For create mode, load data from opportunity and pre-checklist
+        await loadDataFromSources();
       }
 
     } catch (error) {
       console.error('Error loading related data:', error);
       showToast('Failed to load related information', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadDataFromSources = async () => {
+    try {
+      let customerDetails = {
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+      };
+      
+      let vehicleDetails = {
+        regNo: '',
+        make: '',
+        model: '',
+        year: '',
+      };
+      
+      let serviceDetails = {
+        productServiceNeeded: '',
+        productPrice: 0,
+      };
+
+      // 1. First try to load from pre-checklist (if provided)
+      if (preChecklistId) {
+        try {
+          const preChecklistData = await preChecklistService.getPreChecklistById(preChecklistId);
+          setPreChecklist(preChecklistData);
+          
+          if (preChecklistData.customerDetails && typeof preChecklistData.customerDetails === 'object') {
+            customerDetails = {
+              firstName: preChecklistData.customerDetails.firstName || '',
+              lastName: preChecklistData.customerDetails.lastName || '',
+              email: preChecklistData.customerDetails.email || '',
+              phone: preChecklistData.customerDetails.phone || '',
+            };
+          }
+          
+          if (preChecklistData.carDetails && typeof preChecklistData.carDetails === 'object') {
+            vehicleDetails = {
+              regNo: preChecklistData.carDetails.regNo || '',
+              make: preChecklistData.carDetails.make || '',
+              model: preChecklistData.carDetails.model || '',
+              year: preChecklistData.carDetails.year || '',
+            };
+          }
+          
+          serviceDetails = {
+            productServiceNeeded: preChecklistData.productServiceNeeded || '',
+            productPrice: preChecklistData.productPrice || 0,
+          };
+          
+          showToast('Data loaded from pre-checklist', 'success');
+        } catch (error) {
+          console.error('Error loading from pre-checklist:', error);
+        }
+      }
+
+      // 2. If no pre-checklist or missing data, load from opportunity
+      if ((!customerDetails.firstName || !vehicleDetails.regNo) && opportunityId) {
+        try {
+          const opp = await opportunityService.getOpportunityById(opportunityId);
+          setOpportunity(opp);
+          
+          // Extract customer name
+          const customerName = opp.customer?.name || '';
+          const [firstName, ...lastNameParts] = customerName.split(' ');
+          const lastName = lastNameParts.join(' ') || '';
+          
+          if (!customerDetails.firstName) {
+            customerDetails = {
+              firstName: firstName || '',
+              lastName: lastName || '',
+              email: opp.customer?.email || customerDetails.email,
+              phone: opp.customer?.phone || customerDetails.phone,
+            };
+          }
+          
+          // Get vehicle from opportunity
+          if (!vehicleDetails.regNo && opp.vehicles && opp.vehicles.length > 0) {
+            const primaryVehicle = opp.vehicles[0];
+            const vehicleId = typeof primaryVehicle === 'object' ? primaryVehicle._id : primaryVehicle;
+            
+            try {
+              const veh = await vehicleService.getVehicleById(vehicleId);
+              setVehicle(veh);
+              
+              vehicleDetails = {
+                regNo: veh.registrationNumber || '',
+                make: veh.make || '',
+                model: veh.model || '',
+                year: veh.year?.toString() || '',
+              };
+            } catch (vehError) {
+              console.error('Error loading vehicle:', vehError);
+            }
+          }
+          
+          // Get service details from opportunity
+          if (!serviceDetails.productServiceNeeded) {
+            serviceDetails = {
+              productServiceNeeded: opp.subject || 'Headlight Service',
+              productPrice: opp.total || 0,
+            };
+          }
+          
+          if (preChecklistId) {
+            showToast('Missing data supplemented from opportunity', 'info');
+          } else {
+            showToast('Data loaded from opportunity', 'success');
+          }
+        } catch (error) {
+          console.error('Error loading from opportunity:', error);
+        }
+      }
+
+      // 3. Set inspector name
+      const userName = sessionStorage.getItem('userName') || 'Inspector';
+      setInspectorName(userName);
+
+      // 4. Update form data with loaded information
+      setFormData(prev => ({
+        ...prev,
+        customerDetails,
+        vehicleDetails,
+        serviceDetails,
+        inspectorName: userName,
+        opportunityId: opportunityId || prev.opportunityId,
+        vehicleId: vehicleId || prev.vehicleId,
+        preChecklistId: preChecklistId || prev.preChecklistId,
+        jobCardId: jobCardId || prev.jobCardId,
+      }));
+
+      setDataLoaded(true);
+      
+    } catch (error) {
+      console.error('Error loading data from sources:', error);
+      showToast('Failed to load source data', 'error');
+    }
+  };
+
+  const handleRefreshData = async () => {
+    try {
+      setLoading(true);
+      await loadDataFromSources();
+      showToast('Data refreshed successfully', 'success');
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      showToast('Failed to refresh data', 'error');
     } finally {
       setLoading(false);
     }
@@ -380,6 +500,16 @@ export default function HeadlightPostChecklistCreatePage({
       ...prev,
       customerDetails: {
         ...prev.customerDetails,
+        [field]: value
+      }
+    }));
+  };
+
+  const handleVehicleDetailChange = (field: keyof typeof formData.vehicleDetails, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      vehicleDetails: {
+        ...prev.vehicleDetails,
         [field]: value
       }
     }));
@@ -472,6 +602,13 @@ export default function HeadlightPostChecklistCreatePage({
         return;
       }
 
+      if (!formData.vehicleDetails.regNo.trim()) {
+        showToast('Vehicle registration number is required', 'error');
+        setCurrentStep(1);
+        setSubmitting(false);
+        return;
+      }
+
       if (!formData.productHandoverConfirmed) {
         showToast('Please confirm product handover', 'error');
         setCurrentStep(4);
@@ -512,8 +649,11 @@ export default function HeadlightPostChecklistCreatePage({
         jobCardId: formData.jobCardId,
         workOrderId: workOrderId,
         inspectedBy: formData.inspectedBy,
+        inspectorName: formData.inspectorName,
         dateTime: formData.dateTime,
         customerDetails: formData.customerDetails,
+        vehicleDetails: formData.vehicleDetails,
+        serviceDetails: formData.serviceDetails,
         inspectionItems: apiInspectionItems,
         warrantyDuration: formData.warrantyDuration,
         beforePhotos: formData.beforePhotos,
@@ -527,6 +667,7 @@ export default function HeadlightPostChecklistCreatePage({
         customerSignature: formData.customerSignature,
         serviceRating: formData.serviceRating,
         serviceComments: formData.serviceComments,
+        additionalComments: formData.additionalComments,
         approved: allItemsCompleted
       };
 
@@ -671,11 +812,6 @@ export default function HeadlightPostChecklistCreatePage({
         ? prev.filter(i => i !== index)
         : [...prev, index]
     );
-  };
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '—';
-    return format(new Date(dateString), 'dd-MMM-yyyy HH:mm a');
   };
 
   const handleSaveAsDraft = () => {
@@ -877,15 +1013,13 @@ export default function HeadlightPostChecklistCreatePage({
                     <UserType className="h-5 w-5 text-green-600" />
                     CUSTOMER DETAILS
                   </h2>
-                  {opportunity && (
-                    <button
-                      onClick={handleRefreshFromOpportunity}
-                      className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
-                    >
-                      <Sparkles className="h-4 w-4" />
-                      Refresh from Opportunity
-                    </button>
-                  )}
+                  <button
+                    onClick={handleRefreshData}
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Refresh Data from Sources
+                  </button>
                 </div>
                 
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
@@ -893,8 +1027,43 @@ export default function HeadlightPostChecklistCreatePage({
                     <Info className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="text-sm text-green-700">
-                        Customer details are automatically populated from the connected opportunity. 
+                        Customer, vehicle, and service details are automatically populated from the opportunity and pre-checklist.
                       </p>
+                      <div className="mt-2 text-xs text-green-800 space-y-1">
+                        {preChecklist && <div>✓ Data loaded from Pre-Checklist</div>}
+                        {opportunity && <div>✓ Data loaded from Opportunity</div>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Inspector Information */}
+                <div className="mb-6 p-4 border border-gray-200 rounded-lg">
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">Inspector Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Inspector Name
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.inspectorName}
+                        onChange={(e) => handleInputChange('inspectorName', e.target.value)}
+                        placeholder="Enter inspector name"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Inspection Date
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={formData.dateTime.split('.')[0]}
+                        onChange={(e) => handleInputChange('dateTime', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        required
+                      />
                     </div>
                   </div>
                 </div>
@@ -923,32 +1092,102 @@ export default function HeadlightPostChecklistCreatePage({
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email
+                      Contact Information
                     </label>
-                    <input
-                      type="email"
-                      value={formData.customerDetails.email}
-                      onChange={(e) => handleCustomerDetailChange('email', e.target.value)}
-                      placeholder="Email"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                    />
+                    <div className="space-y-3">
+                      <input
+                        type="email"
+                        value={formData.customerDetails.email}
+                        onChange={(e) => handleCustomerDetailChange('email', e.target.value)}
+                        placeholder="Email"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      />
+                      <input
+                        type="tel"
+                        value={formData.customerDetails.phone}
+                        onChange={(e) => handleCustomerDetailChange('phone', e.target.value)}
+                        placeholder="Phone"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div className="mt-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    DATE-TIME *Required
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={formData.dateTime.split('.')[0]}
-                    onChange={(e) => handleInputChange('dateTime', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                    required
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Format: dd-MMM-yyyy HH:MM AM/PM
-                  </p>
+                {/* Vehicle Information */}
+                <div className="mt-8 pt-6 border-t border-gray-200">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Vehicle Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Registration Number
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.vehicleDetails.regNo}
+                        onChange={(e) => handleVehicleDetailChange('regNo', e.target.value)}
+                        placeholder="Reg No"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Make & Model
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <input
+                          type="text"
+                          value={formData.vehicleDetails.make}
+                          onChange={(e) => handleVehicleDetailChange('make', e.target.value)}
+                          placeholder="Make"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        />
+                        <input
+                          type="text"
+                          value={formData.vehicleDetails.model}
+                          onChange={(e) => handleVehicleDetailChange('model', e.target.value)}
+                          placeholder="Model"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Service Information */}
+                <div className="mt-8 pt-6 border-t border-gray-200">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Service Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Service Description
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.serviceDetails.productServiceNeeded}
+                        onChange={(e) => handleInputChange('serviceDetails', {
+                          ...formData.serviceDetails,
+                          productServiceNeeded: e.target.value
+                        })}
+                        placeholder="Service Description"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Service Price (KES)
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.serviceDetails.productPrice}
+                        onChange={(e) => handleInputChange('serviceDetails', {
+                          ...formData.serviceDetails,
+                          productPrice: parseFloat(e.target.value) || 0
+                        })}
+                        placeholder="Price"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="mt-6">
@@ -966,6 +1205,19 @@ export default function HeadlightPostChecklistCreatePage({
                     <option value="24 months">24 Months</option>
                     <option value="36 months">36 Months</option>
                   </select>
+                </div>
+
+                <div className="mt-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Additional Comments
+                  </label>
+                  <textarea
+                    value={formData.additionalComments}
+                    onChange={(e) => handleInputChange('additionalComments', e.target.value)}
+                    placeholder="Any additional notes or comments..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    rows={3}
+                  />
                 </div>
               </div>
             </div>

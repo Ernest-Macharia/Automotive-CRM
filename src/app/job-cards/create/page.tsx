@@ -1,12 +1,12 @@
 'use client';
 
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import JobCardCreate from '@/components/job-cards/JobCardCreate';
+import DiamondRimsJobCardCreate from '@/components/job-cards/DiamondRimsJobCardCreate';
 
 export default function CreateJobCardPage() {
   return (
     <ProtectedRoute>
-      <JobCardCreate />
+      <DiamondRimsJobCardCreate />
     </ProtectedRoute>
   );
 }

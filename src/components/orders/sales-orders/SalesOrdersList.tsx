@@ -6,7 +6,8 @@ import {
   ShoppingBag, Plus, Search, Filter, Download, 
   TrendingUp, DollarSign, Clock, Users, CheckCircle,
   Calendar, FileText, CreditCard, RefreshCw, ChevronRight,
-  Eye, Edit, Trash2, Play, MoreVertical, Loader2
+  Eye, Edit, Trash2, Play, MoreVertical, Loader2,
+  PackageCheck, Receipt
 } from 'lucide-react';
 import { salesOrderService } from '@/services/salesOrderService';
 import { useToast } from '@/contexts/ToastContext';
@@ -82,6 +83,7 @@ export default function SalesOrdersList() {
   const [processingOrder, setProcessingOrder] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [lastRefresh, setLastRefresh] = useState<number>(Date.now());
 
   const statusOptions = [
     { value: 'all', label: 'All Status' },
@@ -126,6 +128,7 @@ export default function SalesOrdersList() {
     try {
       setRefreshing(true);
       await Promise.all([fetchSalesOrders(), fetchStats()]);
+      setLastRefresh(Date.now());
       showToast('Sales orders refreshed', 'success');
     } catch (error) {
       console.error('Error refreshing:', error);
@@ -134,10 +137,36 @@ export default function SalesOrdersList() {
     }
   };
 
+  // Check for updates periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchSalesOrders();
+      fetchStats();
+    }, 30000); // Refresh every 30 seconds
+    
+    return () => clearInterval(interval);
+  }, [fetchSalesOrders, fetchStats]);
+
   useEffect(() => {
     fetchSalesOrders();
     fetchStats();
   }, [fetchSalesOrders, fetchStats]);
+
+  // Listen for refresh events from other pages
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const lastUpdate = localStorage.getItem('salesOrdersLastUpdate');
+      if (lastUpdate) {
+        const lastUpdateTime = parseInt(lastUpdate, 10);
+        if (lastUpdateTime > lastRefresh) {
+          handleRefresh();
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [lastRefresh]);
 
   const startWorkflow = async (orderId: string) => {
     try {
@@ -174,6 +203,60 @@ export default function SalesOrdersList() {
     }
   };
 
+  const getStatusIcon = (order: any) => {
+    // Check if invoice is paid
+    if (order.invoiceId) {
+      const invoice = typeof order.invoiceId === 'object' ? order.invoiceId : null;
+      if (invoice?.status === 'paid') {
+        return <PackageCheck className="h-4 w-4 text-green-600" />;
+      }
+    }
+    
+    // Check if quote exists
+    if (order.quoteId) {
+      const quote = typeof order.quoteId === 'object' ? order.quoteId : null;
+      if (quote?.status === 'approved') {
+        return <CheckCircle className="h-4 w-4 text-blue-600" />;
+      }
+    }
+    
+    return null;
+  };
+
+  const getWorkflowStatus = (order: any) => {
+    // If invoice is paid, show completed workflow
+    if (order.invoiceId) {
+      const invoice = typeof order.invoiceId === 'object' ? order.invoiceId : null;
+      if (invoice?.status === 'paid') {
+        return (
+          <div className="flex items-center gap-1">
+            <span className={`px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800`}>
+              Completed
+            </span>
+            <PackageCheck className="h-4 w-4 text-green-600" />
+          </div>
+        );
+      }
+    }
+    
+    // If quote is approved, show invoice pending
+    if (order.quoteId) {
+      const quote = typeof order.quoteId === 'object' ? order.quoteId : null;
+      if (quote?.status === 'approved') {
+        return (
+          <div className="flex items-center gap-1">
+            <span className={`px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800`}>
+              Invoice Pending
+            </span>
+            <Receipt className="h-4 w-4 text-blue-600" />
+          </div>
+        );
+      }
+    }
+    
+    return null;
+  };
+
   // ✨ Improved rendering below — only UI changes
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
@@ -190,7 +273,7 @@ export default function SalesOrdersList() {
             </div>
           </div>
           
-          {/* <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <button
               onClick={handleRefresh}
               disabled={refreshing || loading}
@@ -210,7 +293,7 @@ export default function SalesOrdersList() {
               <Plus className="h-5 w-5" />
               <span className="hidden sm:inline">New Order</span>
             </Link>
-          </div> */}
+          </div>
         </div>
       </div>
 
@@ -223,7 +306,7 @@ export default function SalesOrdersList() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {[
               { label: 'Total Orders', value: stats.total, icon: ShoppingBag, color: 'text-blue-600', bg: 'bg-blue-50' },
-              { label: 'Confirmed', value: stats.byStatus?.find((s: any) => s._id === 'confirmed')?.count || 0, icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50' },
+              { label: 'Completed', value: stats.byStatus?.find((s: any) => s._id === 'delivered')?.count || 0, icon: PackageCheck, color: 'text-green-600', bg: 'bg-green-50' },
               { label: 'Total Revenue', value: formatCurrency(stats.totalRevenue || 0), icon: DollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50' },
               { label: 'Avg Order Value', value: formatCurrency(stats.avgOrderValue || 0), icon: TrendingUp, color: 'text-teal-600', bg: 'bg-teal-50' },
             ].map((item, i) => (
@@ -285,6 +368,7 @@ export default function SalesOrdersList() {
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Workflow</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
@@ -344,7 +428,10 @@ export default function SalesOrdersList() {
                       }}
                     >
                       <td className="py-4 px-4">
-                        <p className="font-medium text-gray-900">{order.salesOrderNumber}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-900">{order.salesOrderNumber}</p>
+                          {getStatusIcon(order)}
+                        </div>
                         <p className="text-xs text-gray-500">{formatDate(order.createdAt)}</p>
                       </td>
 
@@ -411,23 +498,50 @@ export default function SalesOrdersList() {
                                   View Details
                                 </Link>
 
-                                {/* <Link
-                                  href={`/quotes/create?orderId=${order._id}`}
-                                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
-                                  onClick={() => setExpandedRow(null)}
-                                >
-                                  <FileText className="h-4 w-4" />
-                                  Create Quote
-                                </Link> */}
+                                {/* Show quote actions if needed */}
+                                {!order.quoteId && (
+                                  <Link
+                                    href={`/quotes/create?orderId=${order._id}`}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                                    onClick={() => setExpandedRow(null)}
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                    Create Quote
+                                  </Link>
+                                )}
 
-                                <Link
-                                  href={`/invoices/create?orderId=${order._id}`}
+                                {/* Show invoice link if quote is approved */}
+                                {order.quoteId && typeof order.quoteId === 'object' && order.quoteId.status === 'approved' && (
+                                  <Link
+                                    href={`/invoices/create?orderId=${order._id}&quoteId=${order.quoteId._id}`}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                                    onClick={() => setExpandedRow(null)}
+                                  >
+                                    <CreditCard className="h-4 w-4" />
+                                    Create Invoice
+                                  </Link>
+                                )}
+
+                                {/* Refresh this order */}
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    try {
+                                      const updatedOrder = await salesOrderService.getSalesOrderById(order._id);
+                                      setSalesOrders(prev => prev.map(o => 
+                                        o._id === order._id ? updatedOrder : o
+                                      ));
+                                      setExpandedRow(null);
+                                      showToast('Order refreshed', 'success');
+                                    } catch (error) {
+                                      showToast('Failed to refresh order', 'error');
+                                    }
+                                  }}
                                   className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
-                                  onClick={() => setExpandedRow(null)}
                                 >
-                                  <CreditCard className="h-4 w-4" />
-                                  Create Invoice
-                                </Link>
+                                  <RefreshCw className="h-4 w-4" />
+                                  Refresh Status
+                                </button>
                               </div>
                             </>
                           )}
@@ -444,12 +558,31 @@ export default function SalesOrdersList() {
         {/* Status Summary */}
         {!statsLoading && stats?.byStatus && (
           <div className="mt-6 bg-white border border-gray-200 rounded-2xl p-4 sm:p-6">
-            <h3 className="font-semibold text-gray-900 text-sm uppercase tracking-wider mb-4">Status Overview</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900 text-sm uppercase tracking-wider">Status Overview</h3>
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+              >
+                <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {stats.byStatus.map((status: any) => (
-                <div key={status._id} className="p-3 bg-gray-50 rounded-lg text-center">
-                  <div className="text-xs text-gray-600 capitalize mb-1">{status._id}</div>
-                  <div className="text-lg font-bold text-gray-900">{status.count}</div>
+                <div key={status._id} className={`p-3 rounded-lg text-center ${
+                  status._id === 'delivered' ? 'bg-green-50 border border-green-100' : 'bg-gray-50'
+                }`}>
+                  <div className="text-xs text-gray-600 capitalize mb-1 flex items-center justify-center gap-1">
+                    {status._id}
+                    {status._id === 'delivered' && <CheckCircle className="h-3 w-3 text-green-600" />}
+                  </div>
+                  <div className={`text-lg font-bold ${
+                    status._id === 'delivered' ? 'text-green-700' : 'text-gray-900'
+                  }`}>
+                    {status.count}
+                  </div>
                   <div className="text-xs text-gray-500 mt-1">
                     {formatCurrency(status.totalAmount || 0)}
                   </div>
@@ -458,6 +591,40 @@ export default function SalesOrdersList() {
             </div>
           </div>
         )}
+
+        {/* Instructions */}
+        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-2xl p-4 sm:p-6">
+          <h3 className="font-semibold text-gray-900 text-sm uppercase tracking-wider mb-3">Workflow Status Guide</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <FileText className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-900 text-sm">Quote Pending</p>
+                <p className="text-xs text-gray-600">Awaiting quote creation and approval</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Receipt className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-900 text-sm">Invoice Pending</p>
+                <p className="text-xs text-gray-600">Quote approved, invoice to be created</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <PackageCheck className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-900 text-sm">Completed</p>
+                <p className="text-xs text-gray-600">Invoice paid, sales order delivered</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

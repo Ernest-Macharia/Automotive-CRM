@@ -31,7 +31,7 @@ export interface JobCard {
   opportunityId: OpportunityRef | string;
   vehicleId: VehicleRef | string;
   createdBy: UserRef | string;
-  assignedTo?: UserRef | string;
+  assignedTo?: string;
   jobTitle: string;
   jobDescription?: string;
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';

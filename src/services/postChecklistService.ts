@@ -23,12 +23,34 @@ export interface ChecklistItem {
   checkedAt?: Date | string;
 }
 
+export type CustomerDetails = {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+};
+
+export type VehicleDetails = {
+  regNo?: string;
+  make?: string;
+  model?: string;
+  year?: string;
+};
+
+export type ServiceDetails = {
+  productServiceNeeded?: string;
+  productPrice?: number;
+};
+
 export interface PostChecklist {
   _id: string;
   id: string;
   opportunityId: string | {
     _id: string;
     subject?: string;
+    escription?: string;
+    amount?: number;
+    productPrice?: number;
     customer?: {
       name: string;
       email?: string;
@@ -41,6 +63,8 @@ export interface PostChecklist {
     model?: string;
     year?: number;
     licensePlate?: string;
+    regNo?: string;
+    registrationNumber?: string; 
     vin?: string;
     color?: string;
   };
@@ -80,7 +104,13 @@ export interface PostChecklist {
   updatedAt: Date | string;
   
   customerName?: string;
-  customerDetails?: string;
+  customerDetails?: CustomerDetails | null;
+  vehicleDetails?: VehicleDetails | null;
+  serviceDetails?: ServiceDetails | null;
+  productHandoverConfirmed?: boolean;
+  productSatisfactory?: boolean;
+  issuesNoted?: string;
+  inspectorName?: string;
   dateTime?: string;
   warrantyDuration?: string;
   beforePhotos?: string[];

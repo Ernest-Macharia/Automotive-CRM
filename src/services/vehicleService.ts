@@ -13,10 +13,10 @@ export interface Vehicle {
   _id?: string;
   id?: string;
   vin: string;
-  registrationNumber: string;
-  make: string;
-  model: string;
-  year: number;
+  registrationNumber?: string;
+  make?: string;
+  model?: string;
+  year?: number;
   color: string;
   mileage?: number;
   fuelType?: 'petrol' | 'diesel' | 'electric' | 'hybrid' | 'cng' | 'lpg';
@@ -24,7 +24,7 @@ export interface Vehicle {
   engineSize?: string;
   condition?: 'new' | 'used' | 'reconditioned';
   status?: 'available' | 'sold' | 'reserved' | 'in_service' | 'awaiting_parts';
-  images: VehicleImage[];
+  images?: VehicleImage[];
   opportunityId?: string;
   customerId?: string;
   ownerId?: string;

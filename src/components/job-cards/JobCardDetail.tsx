@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 import { jobCardService, JobCard } from '@/services/jobCardService';
+import { lifecycleIntegrationService } from '@/services/lifecycleIntegrationService';
 import { opportunityService, Opportunity } from '@/services/opportunityService';
 import { vehicleService, Vehicle } from '@/services/vehicleService';
 import { useToast } from '@/contexts/ToastContext';
@@ -80,8 +81,8 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
   };
 
   const handleStatusUpdate = async (status: string) => {
-    const validStatuses = ['pending', 'in_progress', 'completed', 'cancelled'];
-    if (!validStatuses.includes(status)) {
+    const validStatuses = ['pending', 'in_progress', 'completed', 'cancelled'] as const;
+    if (!validStatuses.includes(status as any)) {
       showToast('Invalid status', 'error');
       return;
     }
@@ -89,20 +90,29 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
     try {
       setUpdating(true);
 
-      await jobCardService.updateJobCard(jobCardId, {
+      const payload: Partial<JobCard> & { status: any } = {
         status: status as any,
-        ...(status === 'completed' && {
-          completedDate: new Date().toISOString(),
-          // no modal/form now — fall back to existing actualHours, else estimatedHours, else 2
-          actualHours: jobCard?.actualHours || jobCard?.estimatedHours || 2,
-        }),
-      });
+      };
+
+      if (status === 'completed') {
+        payload.completedDate = new Date().toISOString();
+        // If you don’t collect actual hours via modal, fall back safely
+        payload.actualHours = jobCard?.actualHours || jobCard?.estimatedHours || 2;
+      }
+
+      await jobCardService.updateJobCard(jobCardId, payload);
 
       showToast(`Job card marked as ${status.replace('_', ' ')}`, 'success');
-      fetchJobCard();
+
+      // Refresh local screen state
+      await fetchJobCard();
+
+      // Optional: if you want to bounce user back to work order when completed
+      // (ONLY if you have workOrderId in query params or stored somewhere)
+      // if (status === 'completed') router.push(`/orders/work-orders/${workOrderId}`);
     } catch (error) {
       console.error('Error updating status:', error);
-      showToast('Failed to update status', 'error');
+      showToast('Failed to update job card status', 'error');
     } finally {
       setUpdating(false);
     }
