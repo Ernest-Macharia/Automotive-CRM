@@ -823,39 +823,87 @@ class WorkOrderService {
   async autoApproveAndTransition(
     workOrderId: string,
     checklistType: 'prechecklist' | 'postchecklist',
-    approvedBy?: string
-  ) {
+    userId?: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    nextStage?: string;
+  }> {
     try {
+      // Get work order
       const workOrder = await this.getWorkOrderById(workOrderId);
       
-      // Get the checklist ID based on type
+      // Get checklist ID
       const checklistId = checklistType === 'prechecklist' 
         ? workOrder.preChecklistId 
         : workOrder.postChecklistId;
       
       if (!checklistId) {
-        throw new Error(`${checklistType} not found for work order`);
+        return { 
+          success: false, 
+          message: `${checklistType} not found` 
+        };
       }
       
-      // Use lifecycle integration service
-      const result = await lifecycleIntegrationService.autoTransitionOnApproval(
-        checklistId,
-        checklistType,
-        approvedBy
-      );
-      
-      if (result.success && result.transition) {
-        // Update work order with new stage
-        await this.updateWorkOrder(workOrderId, {
-          currentStage: result.transition.toStage,
-          updatedAt: new Date().toISOString()
+      // Auto-approve the checklist
+      if (checklistType === 'prechecklist') {
+        await preChecklistService.updatePreChecklist(checklistId, {
+          approved: true,
+          approvedBy: userId || 'system-auto',
+          approvedAt: new Date().toISOString(),
+          status: 'completed'
+        });
+      } else {
+        await postChecklistService.updatePostChecklist(checklistId, {
+          approved: true,
+          approvedBy: userId || 'system-auto',
+          approvedAt: new Date().toISOString(),
+          status: 'completed'
         });
       }
       
-      return result;
+      // Get opportunity ID
+      const opportunityId = typeof workOrder.opportunityId === 'object' 
+        ? workOrder.opportunityId._id 
+        : workOrder.opportunityId;
+      
+      // Auto-transition to next stage
+      let nextStage: string;
+      if (checklistType === 'prechecklist') {
+        nextStage = 'jobcard';
+        await this.updateWorkOrder(workOrderId, {
+          currentStage: 'job_card'
+        });
+      } else {
+        nextStage = 'invoice';
+        await this.updateWorkOrder(workOrderId, {
+          currentStage: 'invoice'
+        });
+      }
+      
+      // Update lifecycle
+      await lifecycleIntegrationService.transitionToStage(opportunityId, nextStage, {
+        skipValidation: true,
+        metadata: {
+          autoApproved: true,
+          checklistType,
+          checklistId,
+          triggeredBy: userId || 'system'
+        }
+      });
+      
+      return {
+        success: true,
+        message: `${checklistType} auto-approved and moved to ${nextStage}`,
+        nextStage
+      };
+      
     } catch (error) {
-      console.error('Error in auto-approve and transition:', error);
-      throw error;
+      console.error('Auto-approval error:', error);
+      return {
+        success: false,
+        message: `Failed to auto-approve ${checklistType}`
+      };
     }
   }
 

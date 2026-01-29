@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Wrench,
@@ -14,12 +14,13 @@ import {
   Loader2,
 } from 'lucide-react';
 
-import { jobCardService, JobCard } from '@/services/jobCardService';
+import { jobCardService, JobCard, type UpdateJobCardData, type UserRef } from '@/services/jobCardService';
 import { lifecycleIntegrationService } from '@/services/lifecycleIntegrationService';
 import { opportunityService, Opportunity } from '@/services/opportunityService';
 import { vehicleService, Vehicle } from '@/services/vehicleService';
 import { useToast } from '@/contexts/ToastContext';
 import { format } from 'date-fns';
+import { workOrderService } from '@/services/workOrderService';
 
 interface JobCardDetailProps {
   jobCardId: string;
@@ -27,6 +28,9 @@ interface JobCardDetailProps {
 
 export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const workOrderId = searchParams.get('workOrderId');
+  const source = searchParams.get('source');
   const { showToast } = useToast();
 
   const [jobCard, setJobCard] = useState<JobCard | null>(null);
@@ -80,6 +84,9 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
     }
   };
 
+  const getUserId = (u?: string | UserRef | null) =>
+    typeof u === 'string' ? u : (u?._id ?? u?.id ?? '');
+
   const handleStatusUpdate = async (status: string) => {
     const validStatuses = ['pending', 'in_progress', 'completed', 'cancelled'] as const;
     if (!validStatuses.includes(status as any)) {
@@ -90,31 +97,71 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
     try {
       setUpdating(true);
 
-      const payload: Partial<JobCard> & { status: any } = {
+      const payload: UpdateJobCardData = {
         status: status as any,
       };
 
       if (status === 'completed') {
         payload.completedDate = new Date().toISOString();
-        // If you don’t collect actual hours via modal, fall back safely
         payload.actualHours = jobCard?.actualHours || jobCard?.estimatedHours || 2;
       }
 
-      await jobCardService.updateJobCard(jobCardId, payload);
+      // Update the job card
+      const updatedJobCard = await jobCardService.updateJobCard(jobCardId, payload);
 
       showToast(`Job card marked as ${status.replace('_', ' ')}`, 'success');
+
+      // If job card was completed, handle workflow transition
+      if (status === 'completed') {
+        if (workOrderId) {
+          try {
+            // Update work order stage (optional, keep your current logic)
+            await workOrderService.updateWorkOrder(workOrderId, {
+              currentStage: 'post_checklist',
+              updatedAt: new Date().toISOString(),
+            });
+
+            showToast('Job completed! Ready for post-checklist quality verification.', 'success');
+
+            setTimeout(() => {
+              if (window.confirm('Create post-checklist for quality verification?')) {
+                router.push(`/post-checklist/create?workOrderId=${workOrderId}&jobCardId=${jobCardId}`);
+              } else {
+                // ✅ redirect back to work order it came from
+                router.push(`/orders/work-orders/${workOrderId}`);
+              }
+            }, 700);
+
+          } catch (workflowError) {
+            console.error('Workflow transition error:', workflowError);
+            showToast('Job completed!', 'success');
+
+            // ✅ even if workflow update fails, go back to work order
+            router.push(`/orders/work-orders/${workOrderId}`);
+          }
+        } else {
+          // fallback: if no workOrderId in URL
+          showToast('Job completed!', 'success');
+          router.push('/job-cards');
+        }
+      }
 
       // Refresh local screen state
       await fetchJobCard();
 
-      // Optional: if you want to bounce user back to work order when completed
-      // (ONLY if you have workOrderId in query params or stored somewhere)
-      // if (status === 'completed') router.push(`/orders/work-orders/${workOrderId}`);
     } catch (error) {
       console.error('Error updating status:', error);
       showToast('Failed to update job card status', 'error');
     } finally {
       setUpdating(false);
+    }
+  };
+  
+  const handleBackToWorkOrder = () => {
+    if (workOrderId) {
+      router.push(`/orders/work-orders/${workOrderId}`);
+    } else {
+      router.push('/job-cards');
     }
   };
 
@@ -212,6 +259,13 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
             >
               <Edit className="h-5 w-5 text-white" />
             </Link>
+            <button
+              onClick={handleBackToWorkOrder}
+              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+            >
+              Go to Work Order
+            </button>
+
           </div>
         </div>
       </div>

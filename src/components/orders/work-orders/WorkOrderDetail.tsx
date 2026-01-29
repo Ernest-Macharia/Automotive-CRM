@@ -1411,8 +1411,6 @@ useEffect(() => {
     }
   };
 
-  // Enhanced workflow transformation using the integrated service
-  // Replace the existing transformWorkOrderToStages function with this enhanced version
   const transformWorkOrderToStages = async (order: WorkOrder) => {
     if (!order) {
       setWorkflowStages([]);
@@ -1425,74 +1423,75 @@ useEffect(() => {
         : order.opportunityId;
       
       if (!opportunityId) {
-        console.error('No opportunity ID found for work order');
         fallbackTransform(order);
         return;
       }
       
-      // First, check if we have a pre-checklist (this triggers workflow)
+      // Get workflow UI
       let workflowUI;
       try {
         workflowUI = await lifecycleIntegrationService.getEnhancedWorkflowUI(opportunityId);
       } catch (error) {
-        console.log('Workflow not found, will create one:', error);
-        
-        // If we have a pre-checklist ID but no workflow, auto-initialize
+        // If no workflow exists but we have a pre-checklist, initialize it
         if (order.preChecklistId) {
-          try {
-            console.log('Auto-initializing workflow...');
-            await lifecycleIntegrationService.initializeWorkOrderWorkflow(opportunityId);
-            
-            // Try getting workflow UI again
-            workflowUI = await lifecycleIntegrationService.getEnhancedWorkflowUI(opportunityId);
-          } catch (initError) {
-            console.error('Failed to auto-initialize workflow:', initError);
-            fallbackTransform(order);
-            return;
-          }
+          await lifecycleIntegrationService.initializeWorkOrderWorkflow(opportunityId);
+          workflowUI = await lifecycleIntegrationService.getEnhancedWorkflowUI(opportunityId);
         } else {
-          // No pre-checklist yet, use fallback
           fallbackTransform(order);
           return;
         }
       }
       
-      // If we got workflow UI but it has no stages, use fallback
-      if (!workflowUI || !workflowUI.stages || workflowUI.stages.length === 0) {
-        console.log('No stages in workflow UI, using fallback');
-        fallbackTransform(order);
-        return;
-      }
-      
       const stages = workflowUI.stages.map((stage: any, index: number) => {
-        // Normalize stage names
-        const stageName = stage.stage === 'pre_checklist' ? 'prechecklist' :
-                        stage.stage === 'job_card' ? 'jobcard' :
-                        stage.stage === 'post_checklist' ? 'postchecklist' : stage.stage;
+        // Determine correct status based on document
+        let status: StageStatus = 'not_started';
+        let completed = false;
         
-        const status = mapEnhancedStatusToStageStatus(stage.status, stage.isCurrent, stage.completed);
+        switch (stage.stage) {
+          case 'prechecklist':
+            // Auto-approved when created (client signs form)
+            status = stage.document?.approved ? 'approved' : 'in_progress';
+            completed = !!stage.document;
+            break;
+            
+          case 'jobcard':
+            // Status depends on job card state
+            if (stage.document?.status === 'completed') {
+              status = 'completed';
+              completed = true;
+            } else if (stage.document?.status === 'in_progress') {
+              status = 'in_progress';
+            } else if (stage.document) {
+              status = 'in_progress'; // Created but not started
+            }
+            break;
+            
+          case 'postchecklist':
+            // Auto-approved when created (client signs form)
+            status = stage.document?.approved ? 'approved' : 'in_progress';
+            completed = !!stage.document;
+            break;
+            
+          case 'invoice':
+            status = stage.document?.status === 'paid' ? 'completed' : 
+                    stage.document ? 'in_progress' : 'not_started';
+            completed = stage.document?.status === 'paid';
+            break;
+        }
+        
         const statusDisplay = getStageStatusDisplay(status);
         
-        // Get correct stage label
-        const stageLabel = stageName === 'prechecklist' ? 'Pre-Checklist' :
-                          stageName === 'jobcard' ? 'Job Card' :
-                          stageName === 'postchecklist' ? 'Post-Checklist' :
-                          stageName === 'invoice' ? 'Invoice' : stage.label;
-        
-        // Get correct icon
-        const stageIcon = getStageIcon(stageName);
-        
-        // Build actions from enhanced stage
+        // Build actions
         const actions = buildStageActionsFromEnhanced(stage, order);
         
         return {
-          id: `stage-${stageName}`,
-          stage: stageName,
-          label: stageLabel,
+          id: `stage-${stage.stage}`,
+          stage: stage.stage,
+          label: stage.label,
           description: stage.description,
           status,
-          completed: stage.completed || false,
-          isCurrent: stage.isCurrent || false,
+          completed,
+          isCurrent: stage.isCurrent,
           document: stage.document,
           documentId: stage.documentId,
           documentType: stage.documentType,
@@ -1501,10 +1500,10 @@ useEffect(() => {
           statusColor: statusDisplay.color,
           bgColor: statusDisplay.bgColor,
           statusIcon: statusDisplay.icon,
-          icon: stageIcon,
-          mandatory: stage.mandatory || stage.required || true,
-          estimatedTime: getStageEstimatedTime(stageName),
-          canSkip: stage.skippable || false,
+          icon: getStageIcon(stage.stage),
+          mandatory: true,
+          estimatedTime: getStageEstimatedTime(stage.stage),
+          canSkip: false,
           progress: stage.progress || 0,
           validation: stage.validation,
           nextAction: stage.nextAction
@@ -1547,18 +1546,17 @@ useEffect(() => {
       });
     }
 
-    // Pre/Post checklists are signed by the client on the form, so we should NOT show a manual "Approve" action.
+    // Remove manual approve actions for checklists (they auto-approve)
     if (stage.stage === 'prechecklist' || stage.stage === 'postchecklist') {
       actions = actions.filter((a) => a.id !== 'approve');
     }
 
-    // Job Card stage is special: the lifecycle can transition here (and allocate an ID) before the job card form is created.
-    // We enrich actions to make the technician flow obvious.
+    // Enhance job card stage actions
     if (stage.stage === 'jobcard') {
       const jobCardId = stage.documentId || stage.document?._id || stage.document?.id;
       const status = (stage.document?.status || '').toLowerCase();
 
-      // Ensure we have a create action when no job card document exists yet
+      // Create job card if doesn't exist
       if (!jobCardId) {
         if (!actions.some((a) => a.id === 'create')) {
           actions.unshift({
@@ -1570,60 +1568,43 @@ useEffect(() => {
             // action: () => handleCreateDocumentForStage('jobcard')
           });
         }
-        return actions;
-      }
-
-      // Ensure view action exists
-      if (!actions.some((a) => a.id === 'view')) {
-        actions.unshift({
-          id: 'view',
-          label: 'View Job Card',
-          icon: <Eye className="h-4 w-4" />,
-          variant: 'secondary',
-          description: 'Open job card details',
-          action: () => router.push(`/job-cards/${jobCardId}`)
-        });
-      }
-
-      // Start job
-      if (['draft', 'created', 'pending', ''].includes(status) && !actions.some((a) => a.id === 'start_job')) {
-        actions.push({
-          id: 'start_job',
-          label: 'Start Job',
-          icon: <Play className="h-4 w-4" />,
-          variant: 'primary',
-          description: 'Technician starts the job',
-          action: () => router.push(`/job-cards/${jobCardId}`)
-        });
-      }
-
-      // Delay / Complete actions (handled inside Job Card detail page for now)
-      if (['in_progress', 'started', 'delayed'].includes(status) || status) {
-        if (!actions.some((a) => a.id === 'add_delay')) {
+      } else {
+        // Add technician flow actions
+        if (['draft', 'created', 'pending'].includes(status)) {
+          actions.push({
+            id: 'start_job',
+            label: 'Start Job',
+            icon: <Play className="h-4 w-4" />,
+            variant: 'primary',
+            description: 'Technician starts the job',
+            action: () => router.push(`/job-cards/${jobCardId}?action=start`)
+          });
+        }
+        
+        if (['in_progress', 'started'].includes(status)) {
           actions.push({
             id: 'add_delay',
             label: 'Add Delay',
-            icon: <Clock4 className="h-4 w-4" />,
+            icon: <Clock className="h-4 w-4" />,
             variant: 'warning',
             description: 'Record a delay and reason',
-            action: () => router.push(`/job-cards/${jobCardId}`)
+            action: () => router.push(`/job-cards/${jobCardId}?action=delay`)
           });
-        }
-        if (!actions.some((a) => a.id === 'complete_job')) {
+          
           actions.push({
             id: 'complete_job',
             label: 'Complete Job',
             icon: <CheckCircle className="h-4 w-4" />,
             variant: 'success',
             description: 'Mark job as completed',
-            action: () => router.push(`/job-cards/${jobCardId}`)
+            action: () => router.push(`/job-cards/${jobCardId}?action=complete`)
           });
         }
       }
     }
 
     return actions;
-  };;
+  };
 
   const mapEnhancedAction = (enhancedAction: any, stage: any, order: WorkOrder) => {
     const actionMap: Record<string, any> = {
