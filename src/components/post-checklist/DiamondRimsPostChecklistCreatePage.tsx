@@ -113,27 +113,8 @@ export default function DiamondRimsPostChecklistCreatePage({
   const [draftSaved, setDraftSaved] = useState(false);
 
   const [showTermsModal, setShowTermsModal] = useState(false);
-  // Step-by-step wizard state - Updated to match pre-checklist
-  const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 5; // Changed from 4 to 5 to match pre-checklist pattern
-  
-  const stepTitles = [
-    'Service Verification',
-    'Vehicle & Contact Details',
-    'Final Checks & Tire Details',
-    'Quality Assurance',
-    'Signatures & Documentation'
-  ];
-  
-  const stepDescriptions = [
-    'Verify completed services and update information',
-    'Confirm vehicle and contact details',
-    'Perform final inspections and record tire specifications',
-    'Confirm quality standards and operational checks',
-    'Sign off and upload completion documentation'
-  ];
 
-  // POST CHECKLIST FORM STATE - Enhanced to match pre-checklist structure
+  // POST CHECKLIST FORM STATE
   const [formData, setFormData] = useState({
     checklistType: 'diamond_rims_post',
     opportunityId: opportunityId || '',
@@ -148,11 +129,11 @@ export default function DiamondRimsPostChecklistCreatePage({
       completionTime: new Date().toISOString().split('T')[1]?.substring(0, 5) || '',
     },
     
-    // Basic Information - Matched to pre-checklist structure
+    // Basic Information
     inspectedBy: sessionStorage.getItem('userId') || '',
     inspectorName: sessionStorage.getItem('userName') || '',
     
-    // Contact Information - Matched to pre-checklist structure
+    // Contact Information
     customerDetails: {
       name: '',
       firstName: '',
@@ -161,7 +142,7 @@ export default function DiamondRimsPostChecklistCreatePage({
       email: '',
     },
     
-    // Vehicle Information - Matched to pre-checklist structure
+    // Vehicle Information
     carDetails: {
       carMake: '',
       carModel: '',
@@ -170,12 +151,12 @@ export default function DiamondRimsPostChecklistCreatePage({
       yearOfManufacture: '',
     },
     
-    // SERVICES (completed) - Matched to pre-checklist structure
+    // SERVICES (completed)
     services: {
       actualService: [] as string[],
     },
     
-    // FINAL CHECKS - Enhanced with more detailed fields
+    // FINAL CHECKS
     finalChecks: {
       tpmsSensorsFitted: false,
       lockNuts: false,
@@ -193,7 +174,7 @@ export default function DiamondRimsPostChecklistCreatePage({
       diamondCuttingQuality: '',
     },
     
-    // Tire Specifications - Enhanced
+    // Tire Specifications
     tireSpecifications: {
       brand: '',
       inflationPSI: '',
@@ -209,10 +190,10 @@ export default function DiamondRimsPostChecklistCreatePage({
       coverage: '',
     },
     
-    // Additional Information - Matched to pre-checklist
+    // Additional Information
     additionalInformation: '',
     
-    // Quality Assurance - Enhanced
+    // Quality Assurance
     qualityAssurance: {
       leadTechnicianConfirmation: false,
       operationsCounterCheck: false,
@@ -220,7 +201,7 @@ export default function DiamondRimsPostChecklistCreatePage({
       customerReadyForCollection: false,
     },
     
-    // AGENT DETAILS - Added to match pre-checklist
+    // AGENT DETAILS
     agentDetails: {
       firstName: '',
       lastName: '',
@@ -235,13 +216,13 @@ export default function DiamondRimsPostChecklistCreatePage({
       collectedBy: '',
     },
     
-    // Terms acceptance - Matched to pre-checklist
+    // Terms acceptance
     mustKnowAccepted: false,
     acceptTerms: false,
     clientSignature: '',
     inspectorSignature: '',
     
-    // Uploads - Matched to pre-checklist
+    // Uploads
     uploadedImages: [] as string[],
     remarks: '',
     
@@ -258,7 +239,7 @@ export default function DiamondRimsPostChecklistCreatePage({
   const clientSigRef = useRef<SignatureCanvas>(null);
   const inspectorSigRef = useRef<SignatureCanvas>(null);
 
-  // Service options for Post Checklist - Enhanced to match pre-checklist
+  // Service options for Post Checklist
   const serviceOptions = [
     { id: 'balancing', label: 'Wheel Balancing', icon: <Gauge className="h-4 w-4" /> },
     { id: 'diamond_cutting', label: 'Diamond Cutting', icon: <Sparkles className="h-4 w-4" /> },
@@ -269,7 +250,7 @@ export default function DiamondRimsPostChecklistCreatePage({
     { id: 'welding', label: 'Welding', icon: <Zap className="h-4 w-4" /> }
   ];
 
-  // Tire Condition options - Enhanced
+  // Tire Condition options
   const tireConditionOptions = [
     'Excellent - Like new, no wear',
     'Good - Minor wear, still safe',
@@ -297,7 +278,7 @@ export default function DiamondRimsPostChecklistCreatePage({
     'Poor'
   ];
 
-  // RAL Colors options (matching pre-checklist)
+  // RAL Colors options
   const ralColors = [
     'RAL 9010 (Pure White)',
     'RAL 9005 (Jet Black)',
@@ -317,7 +298,7 @@ export default function DiamondRimsPostChecklistCreatePage({
     'Custom Color'
   ];
 
-  // Delivery mode options (matching pre-checklist)
+  // Delivery mode options
   const deliveryModeOptions = [
     { id: 'customer_pickup', label: 'Customer Pickup', icon: <Home className="h-5 w-5" /> },
     { id: 'courier_delivery', label: 'Courier Delivery', icon: <Truck className="h-5 w-5" /> },
@@ -345,24 +326,20 @@ export default function DiamondRimsPostChecklistCreatePage({
     return isNaN(dt.getTime()) ? new Date().toISOString() : dt.toISOString();
   };
 
-  // Your formData type is a strict object (not PostChecklist).
-  // This mapper ensures ALL required fields exist + IDs are strings.
   const mapPostChecklistToForm = (checklist: any) => {
     const userId = sessionStorage.getItem('userId') || '';
 
     return {
-      ...formData, // keep your initialized defaults (important!)
+      ...formData,
       ...checklist,
 
       checklistType: 'diamond_rims_post',
 
-      // normalize relational fields to string (kills union type errors)
       opportunityId: toId(checklist?.opportunityId) || formData.opportunityId,
       vehicleId: toId(checklist?.vehicleId) || formData.vehicleId,
       workOrderId: toId(checklist?.workOrderId) || formData.workOrderId,
       preChecklistId: toId(checklist?.preChecklistId) || formData.preChecklistId,
 
-      // if your form has serviceCompletion/completionDate fields (as TS error shows)
       serviceCompletion: {
         date: checklist?.serviceCompletion?.date
           ? toISODate(checklist.serviceCompletion.date)
@@ -375,7 +352,6 @@ export default function DiamondRimsPostChecklistCreatePage({
         ? toISODate(checklist.completionDate)
         : formData.completionDate,
 
-      // Ensure these required nested blocks always exist
       customerDetails: {
         ...formData.customerDetails,
         ...(checklist?.customerDetails ?? {}),
@@ -404,14 +380,12 @@ export default function DiamondRimsPostChecklistCreatePage({
         ...(checklist?.qualityAssurance ?? {}),
       },
 
-      // signatures + flags
       mustKnowAccepted: !!checklist?.mustKnowAccepted,
       acceptTerms: !!checklist?.acceptTerms,
       clientSignature: checklist?.clientSignature ?? formData.clientSignature,
     };
   };
 
-  // -------------------- loadRelatedData (POST) --------------------
   const loadRelatedData = async () => {
     try {
       setLoading(true);
@@ -420,15 +394,11 @@ export default function DiamondRimsPostChecklistCreatePage({
       if (mode === 'edit' && checklistId) {
         const checklist = await postChecklistService.getPostChecklistById(checklistId);
         setExistingChecklist(checklist);
-
-        // FIX: never setFormData({...checklist}) (missing required form fields)
         setFormData(mapPostChecklistToForm(checklist));
 
-        // set populated objects for display (optional)
         if (typeof checklist.opportunityId === 'object') setOpportunity(checklist.opportunityId);
         if (typeof checklist.vehicleId === 'object') setVehicle(checklist.vehicleId);
 
-        // FIX: preChecklistId can be null -> normalize + guard
         const preId = toId(checklist.preChecklistId);
         if (preId) {
           try {
@@ -458,7 +428,6 @@ export default function DiamondRimsPostChecklistCreatePage({
             setVehicle(veh);
           }
 
-          // FIX: store string IDs only in form
           setFormData(prev => ({
             ...prev,
             opportunityId: toId(preCheck?.opportunityId) || prev.opportunityId,
@@ -480,7 +449,6 @@ export default function DiamondRimsPostChecklistCreatePage({
             setVehicle(opp.vehicles[0]);
           }
 
-          // ensure form has oppId/vehicleId string if not already set
           setFormData(prev => ({
             ...prev,
             opportunityId: prev.opportunityId || opportunityId,
@@ -533,48 +501,25 @@ export default function DiamondRimsPostChecklistCreatePage({
     try {
       console.log('Auto-populating from pre-checklist:', preChecklist);
       
-      // Use pre-checklist data first, fall back to opportunity
       const sourceData = preChecklist || opportunity;
-      
-      // Extract customer details from pre-checklist
       const customerDetails = preChecklist?.customerDetails || opportunity?.customer || {};
       const customerName = customerDetails.name || `${customerDetails.firstName || ''} ${customerDetails.lastName || ''}`.trim();
       const [firstName, ...lastNameParts] = customerName.split(' ');
       const lastName = lastNameParts.join(' ') || '';
 
-      // Extract vehicle details from pre-checklist
       const carDetails = preChecklist?.carDetails || vehicle || {};
-      
-      // Extract services from pre-checklist
       const services = preChecklist?.services || { actualService: [] };
-      
-      // Extract powder coating details
       const powderCoating = preChecklist?.powderCoating || { colourRAL: '' };
-      
-      // Extract delivery mode
       const deliveryMode = preChecklist?.deliveryMode || '';
-      
-      // Extract TPMS sensors
       const tpmsSensorsFitted = preChecklist?.tpmsSensorsFitted || false;
-      
-      // Extract wheel nuts and lock nuts
       const wheelNutsTotal = preChecklist?.wheelNutsTotal || 4;
       const lockNutsTotal = preChecklist?.lockNutsTotal || 0;
       const nozzleCapsTotal = preChecklist?.nozzleCapsTotal || 0;
       const nozzleCapsType = preChecklist?.nozzleCapsType || '';
       const centerCaps = preChecklist?.centerCaps || '';
-      
-      // Extract tire brands and DOT
       const tireBrands = preChecklist?.tireBrands || { fr: '', fl: '', br: '', bl: '', spare: '' };
       const tireDOT = preChecklist?.tireDOT || { fr: '', fl: '', br: '', bl: '', spare: '' };
-      
-      // Extract suitability
-      const suitability = preChecklist?.suitability || { skimming: '', powderCoating: '', straightening: '' };
-      
-      // Extract agent details
       const agentDetails = preChecklist?.agentDetails || { firstName: '', lastName: '', idNumber: '' };
-      
-      // Extract additional information
       const additionalInformation = preChecklist?.additionalInformation || '';
 
       setFormData(prev => ({
@@ -629,7 +574,6 @@ export default function DiamondRimsPostChecklistCreatePage({
         inspectorSignature: preChecklist?.inspectorSignature || ''
       }));
       
-      // Set signature states
       if (preChecklist?.clientSignature) {
         setClientSignature(preChecklist.clientSignature);
       }
@@ -720,7 +664,7 @@ export default function DiamondRimsPostChecklistCreatePage({
     try {
       setSubmitting(true);
 
-      // -------------------- validations (same as yours) --------------------
+      // Validations
       if (
         !formData.customerDetails.firstName ||
         !formData.customerDetails.lastName ||
@@ -728,86 +672,66 @@ export default function DiamondRimsPostChecklistCreatePage({
         !formData.customerDetails.email
       ) {
         showToast('Please fill in all required customer details', 'error');
-        setCurrentStep(2);
         return;
       }
 
       if (!formData.carDetails.licensePlate) {
         showToast('License plate is required', 'error');
-        setCurrentStep(2);
         return;
       }
 
       if (formData.services.actualService.length === 0) {
         showToast('Please select at least one service', 'error');
-        setCurrentStep(1);
         return;
       }
 
       if (!formData.finalChecks.tireCondition) {
         showToast('Tire condition is required', 'error');
-        setCurrentStep(3);
         return;
       }
 
       if (!formData.qualityAssurance.leadTechnicianConfirmation) {
         showToast('Lead technician confirmation is required', 'error');
-        setCurrentStep(4);
         return;
       }
 
       if (!formData.qualityAssurance.operationsCounterCheck) {
         showToast('Operations counter check is required', 'error');
-        setCurrentStep(4);
         return;
       }
 
       if (!formData.mustKnowAccepted) {
         showToast('Please acknowledge the MUST KNOW section', 'error');
-        setCurrentStep(4);
         return;
       }
 
       if (!formData.acceptTerms) {
         showToast('Please accept the terms and conditions', 'error');
-        setCurrentStep(5);
         return;
       }
 
       if (!formData.clientSignature) {
         showToast('Client signature is required', 'error');
-        setCurrentStep(5);
         return;
       }
 
       const userId = sessionStorage.getItem('userId') || undefined;
 
-      // -------------------- build DTO safely --------------------
-      // IMPORTANT: CreatePostChecklistDto expects strings for ids.
-      // If your page formData includes many extra fields, it’s OK to cast,
-      // but ensure required ids are correct.
       const createDto = {
         ...formData,
         checklistType: 'diamond_rims_post',
         opportunityId: toId(formData.opportunityId),
         vehicleId: toId(formData.vehicleId),
-        preChecklistId: toId(formData.preChecklistId) || undefined,
         jobCardId: toId((formData as any).jobCardId) || undefined,
-
         approved: false,
         completed: true,
         completionDate: new Date().toISOString(),
       } as any;
 
-      console.log('Submitting diamond rims post-checklist:', createDto);
-
       let result: any;
 
       if (mode === 'edit' && checklistId) {
-        // For update, UpdatePostChecklistDto is narrow. Only send fields it knows.
-        // Easiest is to send the safe subset + include approvedAt if you keep it required.
         const updateDto: any = {
-          // include only what UpdatePostChecklistDto supports (adjust if your backend expects more)
           inspectionItems: (formData as any).inspectionItems,
           notes: (formData as any).notes,
           overallCondition: (formData as any).overallCondition,
@@ -830,9 +754,6 @@ export default function DiamondRimsPostChecklistCreatePage({
           diagnosticChargesAccepted: (formData as any).diagnosticChargesAccepted,
           serviceRating: (formData as any).serviceRating,
           serviceComments: (formData as any).serviceComments,
-
-          // If you didn't make approvedAt optional, uncomment:
-          // approvedAt: new Date().toISOString(),
         };
 
         result = await postChecklistService.updatePostChecklist(checklistId, updateDto, userId);
@@ -840,75 +761,32 @@ export default function DiamondRimsPostChecklistCreatePage({
       } else {
         result = await postChecklistService.createPostChecklist(createDto, userId);
 
-        // Client signs on the form, so we auto-approve immediately
         try {
-          // FIX: remove autoApproved (not in DTO) + include approvedAt if required
-          await postChecklistService.updatePostChecklist(
+          const transitionResult = await lifecycleIntegrationService.handlePostChecklistCompletion(
             result._id,
-            {
-              status: 'approved',
-              approved: true,
-              approvedBy: userId,
-              approvedAt: new Date().toISOString(),
-            } as any,
             userId
           );
-        } catch (autoApproveErr) {
-          console.warn('Post-checklist auto-approval failed:', autoApproveErr);
-        }
-
-        // Mark stage completed and transition
-        const oppId = toId(formData.opportunityId) || opportunityId;
-        if (oppId) {
-          try {
-            await lifecycleIntegrationService.markStageAsCompleted(oppId, 'postchecklist', {
-              documentId: result._id,
-              completedBy: userId,
-              notes: 'Auto-approved (client signed on form)',
-            });
-            await lifecycleIntegrationService.transitionToNextStage(oppId);
-          } catch (workflowErr) {
-            console.warn('Workflow transition after post-checklist failed:', workflowErr);
+          
+          if (transitionResult.transitioned) {
+            showToast(transitionResult.message, 'success');
           }
+        } catch (transitionError) {
+          console.warn('Auto-transition warning:', transitionError);
+          showToast('Post-checklist created, but transition had issues', 'warning');
         }
 
-        showToast('Diamond Rims post-checklist created successfully', 'success');
-
-        // Update work order with post-checklist ID if needed
+        // Update work order
         if (workOrderId && result._id) {
-          try {
-            await workOrderService.updateWorkOrder(workOrderId, {
-              postChecklistId: result._id,
-              postChecklistStatus: 'completed',
-              updatedAt: new Date().toISOString(),
-            });
-          } catch (updateError) {
-            console.error('Error updating work order:', updateError);
-          }
-        }
-
-        // Update pre-checklist status
-        if (preChecklistId && result._id) {
-          try {
-            await preChecklistService.updatePreChecklist(preChecklistId, {
-              postChecklistId: result._id,
-              postChecklistCompleted: true,
-            } as any);
-          } catch (preUpdateError) {
-            console.error('Error updating pre-checklist:', preUpdateError);
-          }
+          await workOrderService.updateWorkOrder(workOrderId, {
+            postChecklistId: result._id,
+            updatedAt: new Date().toISOString(),
+          });
         }
       }
 
-      // Navigate based on source
+      // Redirect based on source
       if (source === 'workflow' && workOrderId) {
         router.push(`/orders/work-orders/${workOrderId}`);
-      } else if (source === 'prechecklist' && preChecklistId) {
-        router.push(`/pre-checklist/diamond-rims/${preChecklistId}`);
-      } else if (result?._id) {
-        router.push(`/post-checklist/diamond-rims/${result._id}`);
-      } else {
-        router.push('/postchecklists/diamond-rims');
       }
     } catch (error: any) {
       console.error('Error submitting post-checklist:', error);
@@ -976,7 +854,7 @@ export default function DiamondRimsPostChecklistCreatePage({
 
   const downloadExcel = () => {
     try {
-      // Create worksheet data matching pre-checklist structure
+      // Create worksheet data
       const data = [
         ['DIAMOND RIMZ LTD', '', '', '', '', '', ''],
         ['POST-SERVICE COMPLETION FORM', '', '', '', '', '', ''],
@@ -1061,43 +939,6 @@ export default function DiamondRimsPostChecklistCreatePage({
     }
   };
 
-  const renderProgressStepper = () => (
-    <div className="mb-8">
-      <div className="flex items-center justify-between">
-        {[1, 2, 3, 4, 5].map((stepNumber) => (
-          <div key={stepNumber} className="flex items-center">
-            <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-300 ${
-              currentStep === stepNumber 
-                ? 'bg-purple-600 border-purple-600 text-white scale-110 shadow-lg' 
-                : currentStep > stepNumber 
-                  ? 'bg-green-100 border-green-500 text-green-600'
-                  : 'bg-transparent border-gray-300 text-gray-500'
-            }`}>
-              {currentStep > stepNumber ? <Check className="h-5 w-5" /> : stepNumber}
-            </div>
-            <div className="ml-3">
-              <div className={`text-sm font-medium transition-all ${
-                currentStep >= stepNumber ? 'text-gray-900' : 'text-gray-500'
-              }`}>
-                {stepTitles[stepNumber - 1]}
-              </div>
-              <div className={`text-xs transition-all ${
-                currentStep >= stepNumber ? 'text-gray-600' : 'text-gray-400'
-              }`}>
-                {stepDescriptions[stepNumber - 1]}
-              </div>
-            </div>
-            {stepNumber < 5 && (
-              <div className={`h-0.5 w-16 md:w-24 mx-4 transition-all ${
-                currentStep > stepNumber ? 'bg-green-500' : 'bg-gray-300'
-              }`} />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50/30 via-white to-indigo-50/30 flex items-center justify-center">
@@ -1111,7 +952,7 @@ export default function DiamondRimsPostChecklistCreatePage({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50/30 via-white to-indigo-50/30">
-      {/* Header - Matching pre-checklist styling */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-6 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -1154,1554 +995,1476 @@ export default function DiamondRimsPostChecklistCreatePage({
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content - Single Page Form */}
       <div className="max-w-7xl mx-auto px-8 py-8">
-        {/* Progress Stepper */}
-        {renderProgressStepper()}
-        
-        {/* Step Content - Following pre-checklist structure */}
-        <div className="bg-white rounded-2xl shadow-xl border p-6 md:p-8">
-          {currentStep === 1 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">{stepTitles[0]}</h2>
-              <p className="text-gray-600 mb-6">{stepDescriptions[0]}</p>
+        {/* Opportunity Info Banner */}
+        {opportunity && (
+          <div className="mb-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-gray-800">Opportunity Information</h3>
+                <p className="text-sm text-gray-600">
+                  {opportunity.subject} • {opportunity.customer?.name}
+                  {opportunity.customer?.companyName && ` • ${opportunity.customer.companyName}`}
+                </p>
+                {vehicle && (
+                  <div className="mt-2 flex items-center gap-4 text-sm">
+                    <span className="text-gray-700">
+                      <Car className="h-4 w-4 inline mr-1" />
+                      {vehicle.make} {vehicle.model} • {vehicle.registrationNumber}
+                    </span>
+                    {vehicle.year && (
+                      <span className="text-gray-600">Year: {vehicle.year}</span>
+                    )}
+                    {vehicle.color && (
+                      <span className="text-gray-600">Color: {vehicle.color}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-1 rounded-md text-xs font-medium ${
+                  opportunity.status === 'won' ? 'bg-green-100 text-green-800' :
+                  opportunity.status === 'lost' ? 'bg-red-100 text-red-800' :
+                  opportunity.status === 'new' ? 'bg-blue-100 text-blue-800' :
+                  'bg-yellow-100 text-yellow-800'
+                }`}>
+                  {opportunity.status?.replace(/_/g, ' ')}
+                </span>
+                {preChecklist && (
+                  <button
+                    type="button"
+                    onClick={handleRefreshFromPreChecklist}
+                    className="inline-flex items-center gap-2 px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Refresh from Pre-Checklist
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Form Content - All in one page */}
+        <form onSubmit={handleSubmit} className="space-y-8">
+          <div className="bg-white rounded-2xl shadow-xl border p-6 md:p-8 space-y-8">
+            
+            {/* Service Completion Details */}
+            <div className="border-b pb-8">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <Settings className="h-5 w-5 text-purple-600" />
+                  Service Completion Details
+                </h2>
+                {preChecklist && (
+                  <button
+                    type="button"
+                    onClick={handleRefreshFromPreChecklist}
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh from Pre-Checklist
+                  </button>
+                )}
+              </div>
               
-              <div className="bg-white rounded-2xl shadow-xl border p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                    <Settings className="h-5 w-5 text-purple-600" />
-                    Service Completion Details
-                  </h2>
-                  {preChecklist && (
-                    <button
-                      onClick={handleRefreshFromPreChecklist}
-                      className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      Refresh from Pre-Checklist
-                    </button>
-                  )}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    DATE
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.serviceCompletion.date}
+                    onChange={(e) => handleNestedInputChange('serviceCompletion', 'date', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  />
                 </div>
-                
-                {/* Service Completion Information */}
-                <div className="mb-8">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">SERVICE COMPLETION</h3>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    COMPLETED BY
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.serviceCompletion.completedBy}
+                    onChange={(e) => handleNestedInputChange('serviceCompletion', 'completedBy', e.target.value)}
+                    placeholder="Technician name"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    COMPLETION TIME
+                  </label>
+                  <input
+                    type="time"
+                    value={formData.serviceCompletion.completionTime}
+                    onChange={(e) => handleNestedInputChange('serviceCompletion', 'completionTime', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  />
+                </div>
+              </div>
+
+              {/* Services Completed */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-4">
+                  Services Completed *Required
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {serviceOptions.map((service) => (
+                    <div key={service.id} className="flex items-center p-3 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors">
+                      <input
+                        type="checkbox"
+                        id={`post-service-${service.id}`}
+                        checked={formData.services.actualService.includes(service.label)}
+                        onChange={(e) => handleServiceSelect(service.id, e.target.checked)}
+                        className="h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                      />
+                      <label
+                        htmlFor={`post-service-${service.id}`}
+                        className="ml-3 flex items-center gap-2 text-gray-700 cursor-pointer flex-1"
+                      >
+                        {service.icon}
+                        <span>{service.label}</span>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                {formData.services.actualService.length === 0 && (
+                  <p className="mt-2 text-sm text-red-600">Please select at least one service</p>
+                )}
+              </div>
+
+              {/* Powder Coating Details */}
+              {formData.services.actualService.includes('Powder Coating') && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">POWDER COATING DETAILS</h3>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        DATE
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.serviceCompletion.date}
-                        onChange={(e) => handleNestedInputChange('serviceCompletion', 'date', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        COMPLETED BY
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.serviceCompletion.completedBy}
-                        onChange={(e) => handleNestedInputChange('serviceCompletion', 'completedBy', e.target.value)}
-                        placeholder="Technician name"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        COMPLETION TIME
-                      </label>
-                      <input
-                        type="time"
-                        value={formData.serviceCompletion.completionTime}
-                        onChange={(e) => handleNestedInputChange('serviceCompletion', 'completionTime', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Services Completed */}
-                <div className="mb-8">
-                  <label className="block text-sm font-medium text-gray-700 mb-4">
-                    Services Completed *Required
-                  </label>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {serviceOptions.map((service) => (
-                      <div key={service.id} className="flex items-center p-3 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors">
-                        <input
-                          type="checkbox"
-                          id={`post-service-${service.id}`}
-                          checked={formData.services.actualService.includes(service.label)}
-                          onChange={(e) => handleServiceSelect(service.id, e.target.checked)}
-                          className="h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-                        />
-                        <label
-                          htmlFor={`post-service-${service.id}`}
-                          className="ml-3 flex items-center gap-2 text-gray-700 cursor-pointer flex-1"
-                        >
-                          {service.icon}
-                          <span>{service.label}</span>
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                  {formData.services.actualService.length === 0 && (
-                    <p className="mt-2 text-sm text-red-600">Please select at least one service</p>
-                  )}
-                </div>
-
-                {/* Powder Coating Details */}
-                {formData.services.actualService.includes('Powder Coating') && (
-                  <div className="mb-8">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">POWDER COATING DETAILS</h3>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Colour (RAL)
-                        </label>
-                        <select
-                          value={formData.powderCoating.colourRAL}
-                          onChange={(e) => handleNestedInputChange('powderCoating', 'colourRAL', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        >
-                          <option value="">Select RAL Colour</option>
-                          {ralColors.map((color) => (
-                            <option key={color} value={color}>{color}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Finish Quality
-                        </label>
-                        <select
-                          value={formData.powderCoating.finishQuality}
-                          onChange={(e) => handleNestedInputChange('powderCoating', 'finishQuality', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        >
-                          <option value="">Select Quality</option>
-                          {qualityOptions.map((quality) => (
-                            <option key={quality} value={quality}>{quality}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Coverage
-                        </label>
-                        <select
-                          value={formData.powderCoating.coverage}
-                          onChange={(e) => handleNestedInputChange('powderCoating', 'coverage', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        >
-                          <option value="">Select Coverage</option>
-                          <option value="Full">Full Coverage</option>
-                          <option value="Partial">Partial Coverage</option>
-                          <option value="Uneven">Uneven Coverage</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {currentStep === 2 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">{stepTitles[1]}</h2>
-              <p className="text-gray-600 mb-6">{stepDescriptions[1]}</p>
-              
-              <div className="bg-white rounded-2xl shadow-xl border p-6 space-y-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                    <UserType className="h-5 w-5 text-purple-600" />
-                    Customer & Vehicle Details
-                  </h2>
-                  {preChecklist && (
-                    <button
-                      onClick={handleRefreshFromPreChecklist}
-                      className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      Refresh from Pre-Checklist
-                    </button>
-                  )}
-                </div>
-                
-                {/* Customer Details */}
-                <div className="border-b pb-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">CUSTOMER DETAILS</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        First Name *Required
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.customerDetails.firstName}
-                        onChange={(e) => handleNestedInputChange('customerDetails', 'firstName', e.target.value)}
-                        placeholder="First name"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Last Name *Required
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.customerDetails.lastName}
-                        onChange={(e) => handleNestedInputChange('customerDetails', 'lastName', e.target.value)}
-                        placeholder="Last name"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Mobile *Required
-                      </label>
-                      <input
-                        type="tel"
-                        value={formData.customerDetails.mobile}
-                        onChange={(e) => handleNestedInputChange('customerDetails', 'mobile', e.target.value)}
-                        placeholder="+254 712 345 678"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Email *Required
-                      </label>
-                      <input
-                        type="email"
-                        value={formData.customerDetails.email}
-                        onChange={(e) => handleNestedInputChange('customerDetails', 'email', e.target.value)}
-                        placeholder="customer@example.com"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Vehicle Details */}
-                <div className="pt-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">CAR DETAILS</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Car Make
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.carDetails.carMake}
-                        onChange={(e) => handleNestedInputChange('carDetails', 'carMake', e.target.value)}
-                        placeholder="e.g., Toyota, BMW"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Car Model
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.carDetails.carModel}
-                        onChange={(e) => handleNestedInputChange('carDetails', 'carModel', e.target.value)}
-                        placeholder="e.g., Land Cruiser, X5"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Mileage
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.carDetails.mileage}
-                        onChange={(e) => handleNestedInputChange('carDetails', 'mileage', e.target.value)}
-                        placeholder="e.g., 45,000 km"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Year of Manufacture
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.carDetails.yearOfManufacture}
-                        onChange={(e) => handleNestedInputChange('carDetails', 'yearOfManufacture', e.target.value)}
-                        placeholder="e.g., 2020"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        License Plate *Required
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.carDetails.licensePlate}
-                        onChange={(e) => handleNestedInputChange('carDetails', 'licensePlate', e.target.value)}
-                        placeholder="e.g., KAA 123A"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Agent Details */}
-                <div className="pt-6 border-t">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">AGENT DETAILS</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        First Name
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.agentDetails.firstName}
-                        onChange={(e) => handleNestedInputChange('agentDetails', 'firstName', e.target.value)}
-                        placeholder="Agent first name"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Last Name
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.agentDetails.lastName}
-                        onChange={(e) => handleNestedInputChange('agentDetails', 'lastName', e.target.value)}
-                        placeholder="Agent last name"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        ID Number
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.agentDetails.idNumber}
-                        onChange={(e) => handleNestedInputChange('agentDetails', 'idNumber', e.target.value)}
-                        placeholder="National ID/Passport"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {currentStep === 3 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">{stepTitles[2]}</h2>
-              <p className="text-gray-600 mb-6">{stepDescriptions[2]}</p>
-              
-              <div className="bg-white rounded-2xl shadow-xl border p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                  <ClipboardCheck className="h-5 w-5 text-purple-600" />
-                  Final Inspection & Tire Details
-                </h2>
-                
-                {/* FINAL CHECKS */}
-                <div className="mb-8">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">FINAL CHECKS</h3>
-                  
-                  <div className="space-y-6">
-                    {/* TPMS Sensors */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        TPMS Sensors Fitted *Required
-                      </label>
-                      <div className="flex gap-6">
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="tpmsSensors"
-                            checked={formData.finalChecks.tpmsSensorsFitted === true}
-                            onChange={() => handleNestedInputChange('finalChecks', 'tpmsSensorsFitted', true)}
-                            className="text-purple-600"
-                            required
-                          />
-                          <span>Yes</span>
-                        </label>
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="tpmsSensors"
-                            checked={formData.finalChecks.tpmsSensorsFitted === false}
-                            onChange={() => handleNestedInputChange('finalChecks', 'tpmsSensorsFitted', false)}
-                            className="text-purple-600"
-                            required
-                          />
-                          <span>No</span>
-                        </label>
-                      </div>
-                    </div>
-                    
-                    {/* Lock Nuts */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Lock Nuts Fitted *Required
-                      </label>
-                      <div className="flex gap-6">
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="lockNuts"
-                            checked={formData.finalChecks.lockNuts === true}
-                            onChange={() => handleNestedInputChange('finalChecks', 'lockNuts', true)}
-                            className="text-purple-600"
-                            required
-                          />
-                          <span>Yes</span>
-                        </label>
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="lockNuts"
-                            checked={formData.finalChecks.lockNuts === false}
-                            onChange={() => handleNestedInputChange('finalChecks', 'lockNuts', false)}
-                            className="text-purple-600"
-                            required
-                          />
-                          <span>No</span>
-                        </label>
-                      </div>
-                      
-                      {formData.finalChecks.lockNuts && (
-                        <div className="mt-4">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Number of Lock Nuts
-                          </label>
-                          <input
-                            type="number"
-                            value={formData.finalChecks.numberOfLockNuts}
-                            onChange={(e) => handleNestedInputChange('finalChecks', 'numberOfLockNuts', parseInt(e.target.value) || 0)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                            min="0"
-                          />
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Nozzle Caps */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Nozzle Caps Fitted *Required
-                      </label>
-                      <div className="flex gap-6">
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="nozzleCaps"
-                            checked={formData.finalChecks.nozzleCaps === true}
-                            onChange={() => handleNestedInputChange('finalChecks', 'nozzleCaps', true)}
-                            className="text-purple-600"
-                            required
-                          />
-                          <span>Yes</span>
-                        </label>
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="nozzleCaps"
-                            checked={formData.finalChecks.nozzleCaps === false}
-                            onChange={() => handleNestedInputChange('finalChecks', 'nozzleCaps', false)}
-                            className="text-purple-600"
-                            required
-                          />
-                          <span>No</span>
-                        </label>
-                      </div>
-                      
-                      {formData.finalChecks.nozzleCaps && (
-                        <div className="mt-4">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Nozzle Caps Type
-                          </label>
-                          <input
-                            type="text"
-                            value={formData.finalChecks.nozzleCapsType}
-                            onChange={(e) => handleNestedInputChange('finalChecks', 'nozzleCapsType', e.target.value)}
-                            placeholder="e.g., Metal, Plastic, Rubber"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                          />
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Center Caps */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Center Caps
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.finalChecks.centerCaps}
-                        onChange={(e) => handleNestedInputChange('finalChecks', 'centerCaps', e.target.value)}
-                        placeholder="e.g., BMW logo, Mercedes star, Missing"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      />
-                    </div>
-                    
-                    {/* Tires */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Tires Fitted *Required
-                      </label>
-                      <div className="flex gap-6">
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="tires"
-                            checked={formData.finalChecks.tires === true}
-                            onChange={() => handleNestedInputChange('finalChecks', 'tires', true)}
-                            className="text-purple-600"
-                            required
-                          />
-                          <span>Yes</span>
-                        </label>
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="tires"
-                            checked={formData.finalChecks.tires === false}
-                            onChange={() => handleNestedInputChange('finalChecks', 'tires', false)}
-                            className="text-purple-600"
-                            required
-                          />
-                          <span>No</span>
-                        </label>
-                      </div>
-                    </div>
-                    
-                    {/* Tire Condition */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Tire Condition *Required
+                        Colour (RAL)
                       </label>
                       <select
-                        value={formData.finalChecks.tireCondition}
-                        onChange={(e) => handleNestedInputChange('finalChecks', 'tireCondition', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        required
-                      >
-                        <option value="">Select Condition</option>
-                        {tireConditionOptions.map((condition) => (
-                          <option key={condition} value={condition}>{condition}</option>
-                        ))}
-                      </select>
-                      {!formData.finalChecks.tireCondition && (
-                        <p className="mt-1 text-sm text-red-600">Tire condition is required</p>
-                      )}
-                    </div>
-                    
-                    {/* Wheel Balanced */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Wheel Balanced *Required
-                      </label>
-                      <div className="flex gap-6">
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="wheelBalanced"
-                            value="yes"
-                            checked={formData.finalChecks.wheelBalanced === true}
-                            onChange={() => handleNestedInputChange('finalChecks', 'wheelBalanced', true)}
-                            className="text-purple-600"
-                            required
-                          />
-                          <span>Yes</span>
-                        </label>
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="wheelBalanced"
-                            value="no"
-                            checked={formData.finalChecks.wheelBalanced === false}
-                            onChange={() => handleNestedInputChange('finalChecks', 'wheelBalanced', false)}
-                            className="text-purple-600"
-                            required
-                          />
-                          <span>No</span>
-                        </label>
-                      </div>
-                    </div>
-                    
-                    {/* Checked For Puncture */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Checked For Puncture *Required
-                      </label>
-                      <div className="flex gap-6">
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="checkedForPuncture"
-                            value="yes"
-                            checked={formData.finalChecks.checkedForPuncture === true}
-                            onChange={() => handleNestedInputChange('finalChecks', 'checkedForPuncture', true)}
-                            className="text-purple-600"
-                            required
-                          />
-                          <span>Yes</span>
-                        </label>
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="checkedForPuncture"
-                            value="no"
-                            checked={formData.finalChecks.checkedForPuncture === false}
-                            onChange={() => handleNestedInputChange('finalChecks', 'checkedForPuncture', false)}
-                            className="text-purple-600"
-                            required
-                          />
-                          <span>No</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Service Quality Checks */}
-                    {formData.services.actualService.includes('Rim Straightening') && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Rim Straightness Quality
-                        </label>
-                        <select
-                          value={formData.finalChecks.rimStraightness}
-                          onChange={(e) => handleNestedInputChange('finalChecks', 'rimStraightness', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        >
-                          <option value="">Select Quality</option>
-                          {qualityOptions.map((quality) => (
-                            <option key={quality} value={quality}>{quality}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {formData.services.actualService.includes('Welding') && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Welding Quality
-                        </label>
-                        <select
-                          value={formData.finalChecks.weldingQuality}
-                          onChange={(e) => handleNestedInputChange('finalChecks', 'weldingQuality', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        >
-                          <option value="">Select Quality</option>
-                          {qualityOptions.map((quality) => (
-                            <option key={quality} value={quality}>{quality}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {formData.services.actualService.includes('Diamond Cutting') && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Diamond Cutting Quality
-                        </label>
-                        <select
-                          value={formData.finalChecks.diamondCuttingQuality}
-                          onChange={(e) => handleNestedInputChange('finalChecks', 'diamondCuttingQuality', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        >
-                          <option value="">Select Quality</option>
-                          {qualityOptions.map((quality) => (
-                            <option key={quality} value={quality}>{quality}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                {/* TIRE SPECIFICATIONS */}
-                <div className="mb-8">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">TIRE SPECIFICATIONS</h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Tire Brand
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.tireSpecifications.brand}
-                        onChange={(e) => handleNestedInputChange('tireSpecifications', 'brand', e.target.value)}
-                        placeholder="e.g., Michelin, Bridgestone"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Inflation PSI
-                      </label>
-                      <select
-                        value={formData.tireSpecifications.inflationPSI}
-                        onChange={(e) => handleNestedInputChange('tireSpecifications', 'inflationPSI', e.target.value)}
+                        value={formData.powderCoating.colourRAL}
+                        onChange={(e) => handleNestedInputChange('powderCoating', 'colourRAL', e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                       >
-                        <option value="">Select PSI Range</option>
-                        {psiOptions.map((psi) => (
-                          <option key={psi} value={psi}>{psi}</option>
+                        <option value="">Select RAL Colour</option>
+                        {ralColors.map((color) => (
+                          <option key={color} value={color}>{color}</option>
                         ))}
                       </select>
                     </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Tire DOT
+                        Finish Quality
                       </label>
-                      <input
-                        type="text"
-                        value={formData.tireSpecifications.dot}
-                        onChange={(e) => handleNestedInputChange('tireSpecifications', 'dot', e.target.value)}
-                        placeholder="e.g., DOT XXXX"
+                      <select
+                        value={formData.powderCoating.finishQuality}
+                        onChange={(e) => handleNestedInputChange('powderCoating', 'finishQuality', e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      />
+                      >
+                        <option value="">Select Quality</option>
+                        {qualityOptions.map((quality) => (
+                          <option key={quality} value={quality}>{quality}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Tread Depth (mm)
+                        Coverage
                       </label>
-                      <input
-                        type="text"
-                        value={formData.tireSpecifications.treadDepth}
-                        onChange={(e) => handleNestedInputChange('tireSpecifications', 'treadDepth', e.target.value)}
-                        placeholder="e.g., 6.5"
+                      <select
+                        value={formData.powderCoating.coverage}
+                        onChange={(e) => handleNestedInputChange('powderCoating', 'coverage', e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Manufacturing Date
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.tireSpecifications.manufacturingDate}
-                        onChange={(e) => handleNestedInputChange('tireSpecifications', 'manufacturingDate', e.target.value)}
-                        placeholder="e.g., Week 24, 2023"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      />
+                      >
+                        <option value="">Select Coverage</option>
+                        <option value="Full">Full Coverage</option>
+                        <option value="Partial">Partial Coverage</option>
+                        <option value="Uneven">Uneven Coverage</option>
+                      </select>
                     </div>
                   </div>
                 </div>
-                
-                {/* Delivery Information */}
-                <div className="mb-8">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">DELIVERY INFORMATION</h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Delivery Mode
-                      </label>
-                      <div className="grid grid-cols-1 gap-4">
-                        {deliveryModeOptions.map((mode) => (
-                          <button
-                            key={mode.id}
-                            type="button"
-                            onClick={() => handleNestedInputChange('deliveryInformation', 'mode', mode.label)}
-                            className={`p-3 border-2 rounded-lg text-left transition-all flex items-center gap-2 ${
-                              formData.deliveryInformation.mode === mode.label
-                                ? 'border-purple-500 bg-purple-50 text-purple-700'
-                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                            }`}
-                          >
-                            {mode.icon}
-                            <div className="font-medium">{mode.label}</div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Collection Date
-                        </label>
-                        <input
-                          type="date"
-                          value={formData.deliveryInformation.collectionDate}
-                          onChange={(e) => handleNestedInputChange('deliveryInformation', 'collectionDate', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Collection Time
-                        </label>
-                        <input
-                          type="time"
-                          value={formData.deliveryInformation.collectionTime}
-                          onChange={(e) => handleNestedInputChange('deliveryInformation', 'collectionTime', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-4">
+              )}
+            </div>
+
+            {/* Customer & Vehicle Details */}
+            <div className="border-b pb-8">
+              <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                <UserType className="h-5 w-5 text-purple-600" />
+                Customer & Vehicle Details
+              </h2>
+              
+              {/* Customer Details */}
+              <div className="mb-8">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">CUSTOMER DETAILS</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Collected By
+                      First Name *Required
                     </label>
                     <input
                       type="text"
-                      value={formData.deliveryInformation.collectedBy}
-                      onChange={(e) => handleNestedInputChange('deliveryInformation', 'collectedBy', e.target.value)}
-                      placeholder="Name of person collecting"
+                      value={formData.customerDetails.firstName}
+                      onChange={(e) => handleNestedInputChange('customerDetails', 'firstName', e.target.value)}
+                      placeholder="First name"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Last Name *Required
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.customerDetails.lastName}
+                      onChange={(e) => handleNestedInputChange('customerDetails', 'lastName', e.target.value)}
+                      placeholder="Last name"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Mobile *Required
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.customerDetails.mobile}
+                      onChange={(e) => handleNestedInputChange('customerDetails', 'mobile', e.target.value)}
+                      placeholder="+254 712 345 678"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Email *Required
+                    </label>
+                    <input
+                      type="email"
+                      value={formData.customerDetails.email}
+                      onChange={(e) => handleNestedInputChange('customerDetails', 'email', e.target.value)}
+                      placeholder="customer@example.com"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Vehicle Details */}
+              <div className="mb-8">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">CAR DETAILS</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Car Make
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.carDetails.carMake}
+                      onChange={(e) => handleNestedInputChange('carDetails', 'carMake', e.target.value)}
+                      placeholder="e.g., Toyota, BMW"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Car Model
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.carDetails.carModel}
+                      onChange={(e) => handleNestedInputChange('carDetails', 'carModel', e.target.value)}
+                      placeholder="e.g., Land Cruiser, X5"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                     />
                   </div>
                 </div>
                 
-                {/* Additional Information */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Additional Information / Notes
-                  </label>
-                  <textarea
-                    value={formData.additionalInformation}
-                    onChange={(e) => handleInputChange('additionalInformation', e.target.value)}
-                    placeholder="Any additional notes, observations, or special instructions..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    rows={4}
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Mileage
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.carDetails.mileage}
+                      onChange={(e) => handleNestedInputChange('carDetails', 'mileage', e.target.value)}
+                      placeholder="e.g., 45,000 km"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Year of Manufacture
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.carDetails.yearOfManufacture}
+                      onChange={(e) => handleNestedInputChange('carDetails', 'yearOfManufacture', e.target.value)}
+                      placeholder="e.g., 2020"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      License Plate *Required
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.carDetails.licensePlate}
+                      onChange={(e) => handleNestedInputChange('carDetails', 'licensePlate', e.target.value)}
+                      placeholder="e.g., KAA 123A"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Agent Details */}
+              <div>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">AGENT DETAILS</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      First Name
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.agentDetails.firstName}
+                      onChange={(e) => handleNestedInputChange('agentDetails', 'firstName', e.target.value)}
+                      placeholder="Agent first name"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Last Name
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.agentDetails.lastName}
+                      onChange={(e) => handleNestedInputChange('agentDetails', 'lastName', e.target.value)}
+                      placeholder="Agent last name"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      ID Number
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.agentDetails.idNumber}
+                      onChange={(e) => handleNestedInputChange('agentDetails', 'idNumber', e.target.value)}
+                      placeholder="National ID/Passport"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-          )}
 
-          {currentStep === 4 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">{stepTitles[3]}</h2>
-              <p className="text-gray-600 mb-6">{stepDescriptions[3]}</p>
+            {/* Final Checks & Tire Details */}
+            <div className="border-b pb-8">
+              <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                <ClipboardCheck className="h-5 w-5 text-purple-600" />
+                Final Inspection & Tire Details
+              </h2>
               
-              <div className="bg-white rounded-2xl shadow-xl border p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-purple-600" />
-                  Quality Assurance & Compliance
-                </h2>
+              {/* FINAL CHECKS */}
+              <div className="mb-8">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">FINAL CHECKS</h3>
                 
-                <div className="space-y-8">
-                  {/* MUST KNOW Section - Matching pre-checklist */}
-                  <div className="mb-8">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">MUST KNOW</h3>
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                      <ul className="space-y-2 text-sm text-gray-700">
+                <div className="space-y-6">
+                  {/* TPMS Sensors */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      TPMS Sensors Fitted *Required
+                    </label>
+                    <div className="flex gap-6">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="tpmsSensors"
+                          checked={formData.finalChecks.tpmsSensorsFitted === true}
+                          onChange={() => handleNestedInputChange('finalChecks', 'tpmsSensorsFitted', true)}
+                          className="text-purple-600"
+                          required
+                        />
+                        <span>Yes</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="tpmsSensors"
+                          checked={formData.finalChecks.tpmsSensorsFitted === false}
+                          onChange={() => handleNestedInputChange('finalChecks', 'tpmsSensorsFitted', false)}
+                          className="text-purple-600"
+                          required
+                        />
+                        <span>No</span>
+                      </label>
+                    </div>
+                  </div>
+                  
+                  {/* Lock Nuts */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Lock Nuts Fitted *Required
+                    </label>
+                    <div className="flex gap-6">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="lockNuts"
+                          checked={formData.finalChecks.lockNuts === true}
+                          onChange={() => handleNestedInputChange('finalChecks', 'lockNuts', true)}
+                          className="text-purple-600"
+                          required
+                        />
+                        <span>Yes</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="lockNuts"
+                          checked={formData.finalChecks.lockNuts === false}
+                          onChange={() => handleNestedInputChange('finalChecks', 'lockNuts', false)}
+                          className="text-purple-600"
+                          required
+                        />
+                        <span>No</span>
+                      </label>
+                    </div>
+                    
+                    {formData.finalChecks.lockNuts && (
+                      <div className="mt-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Number of Lock Nuts
+                        </label>
+                        <input
+                          type="number"
+                          value={formData.finalChecks.numberOfLockNuts}
+                          onChange={(e) => handleNestedInputChange('finalChecks', 'numberOfLockNuts', parseInt(e.target.value) || 0)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          min="0"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Nozzle Caps */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Nozzle Caps Fitted *Required
+                    </label>
+                    <div className="flex gap-6">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="nozzleCaps"
+                          checked={formData.finalChecks.nozzleCaps === true}
+                          onChange={() => handleNestedInputChange('finalChecks', 'nozzleCaps', true)}
+                          className="text-purple-600"
+                          required
+                        />
+                        <span>Yes</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="nozzleCaps"
+                          checked={formData.finalChecks.nozzleCaps === false}
+                          onChange={() => handleNestedInputChange('finalChecks', 'nozzleCaps', false)}
+                          className="text-purple-600"
+                          required
+                        />
+                        <span>No</span>
+                      </label>
+                    </div>
+                    
+                    {formData.finalChecks.nozzleCaps && (
+                      <div className="mt-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Nozzle Caps Type
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.finalChecks.nozzleCapsType}
+                          onChange={(e) => handleNestedInputChange('finalChecks', 'nozzleCapsType', e.target.value)}
+                          placeholder="e.g., Metal, Plastic, Rubber"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Center Caps */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Center Caps
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.finalChecks.centerCaps}
+                      onChange={(e) => handleNestedInputChange('finalChecks', 'centerCaps', e.target.value)}
+                      placeholder="e.g., BMW logo, Mercedes star, Missing"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                  </div>
+                  
+                  {/* Tires */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tires Fitted *Required
+                    </label>
+                    <div className="flex gap-6">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="tires"
+                          checked={formData.finalChecks.tires === true}
+                          onChange={() => handleNestedInputChange('finalChecks', 'tires', true)}
+                          className="text-purple-600"
+                          required
+                        />
+                        <span>Yes</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="tires"
+                          checked={formData.finalChecks.tires === false}
+                          onChange={() => handleNestedInputChange('finalChecks', 'tires', false)}
+                          className="text-purple-600"
+                          required
+                        />
+                        <span>No</span>
+                      </label>
+                    </div>
+                  </div>
+                  
+                  {/* Tire Condition */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tire Condition *Required
+                    </label>
+                    <select
+                      value={formData.finalChecks.tireCondition}
+                      onChange={(e) => handleNestedInputChange('finalChecks', 'tireCondition', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      required
+                    >
+                      <option value="">Select Condition</option>
+                      {tireConditionOptions.map((condition) => (
+                        <option key={condition} value={condition}>{condition}</option>
+                      ))}
+                    </select>
+                    {!formData.finalChecks.tireCondition && (
+                      <p className="mt-1 text-sm text-red-600">Tire condition is required</p>
+                    )}
+                  </div>
+                  
+                  {/* Wheel Balanced */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Wheel Balanced *Required
+                    </label>
+                    <div className="flex gap-6">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="wheelBalanced"
+                          value="yes"
+                          checked={formData.finalChecks.wheelBalanced === true}
+                          onChange={() => handleNestedInputChange('finalChecks', 'wheelBalanced', true)}
+                          className="text-purple-600"
+                          required
+                        />
+                        <span>Yes</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="wheelBalanced"
+                          value="no"
+                          checked={formData.finalChecks.wheelBalanced === false}
+                          onChange={() => handleNestedInputChange('finalChecks', 'wheelBalanced', false)}
+                          className="text-purple-600"
+                          required
+                        />
+                        <span>No</span>
+                      </label>
+                    </div>
+                  </div>
+                  
+                  {/* Checked For Puncture */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Checked For Puncture *Required
+                    </label>
+                    <div className="flex gap-6">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="checkedForPuncture"
+                          value="yes"
+                          checked={formData.finalChecks.checkedForPuncture === true}
+                          onChange={() => handleNestedInputChange('finalChecks', 'checkedForPuncture', true)}
+                          className="text-purple-600"
+                          required
+                        />
+                        <span>Yes</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="checkedForPuncture"
+                          value="no"
+                          checked={formData.finalChecks.checkedForPuncture === false}
+                          onChange={() => handleNestedInputChange('finalChecks', 'checkedForPuncture', false)}
+                          className="text-purple-600"
+                          required
+                        />
+                        <span>No</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Service Quality Checks */}
+                  {formData.services.actualService.includes('Rim Straightening') && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Rim Straightness Quality
+                      </label>
+                      <select
+                        value={formData.finalChecks.rimStraightness}
+                        onChange={(e) => handleNestedInputChange('finalChecks', 'rimStraightness', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      >
+                        <option value="">Select Quality</option>
+                        {qualityOptions.map((quality) => (
+                          <option key={quality} value={quality}>{quality}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {formData.services.actualService.includes('Welding') && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Welding Quality
+                      </label>
+                      <select
+                        value={formData.finalChecks.weldingQuality}
+                        onChange={(e) => handleNestedInputChange('finalChecks', 'weldingQuality', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      >
+                        <option value="">Select Quality</option>
+                        {qualityOptions.map((quality) => (
+                          <option key={quality} value={quality}>{quality}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {formData.services.actualService.includes('Diamond Cutting') && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Diamond Cutting Quality
+                      </label>
+                      <select
+                        value={formData.finalChecks.diamondCuttingQuality}
+                        onChange={(e) => handleNestedInputChange('finalChecks', 'diamondCuttingQuality', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      >
+                        <option value="">Select Quality</option>
+                        {qualityOptions.map((quality) => (
+                          <option key={quality} value={quality}>{quality}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* TIRE SPECIFICATIONS */}
+              <div className="mb-8">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">TIRE SPECIFICATIONS</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tire Brand
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.tireSpecifications.brand}
+                      onChange={(e) => handleNestedInputChange('tireSpecifications', 'brand', e.target.value)}
+                      placeholder="e.g., Michelin, Bridgestone"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Inflation PSI
+                    </label>
+                    <select
+                      value={formData.tireSpecifications.inflationPSI}
+                      onChange={(e) => handleNestedInputChange('tireSpecifications', 'inflationPSI', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    >
+                      <option value="">Select PSI Range</option>
+                      {psiOptions.map((psi) => (
+                        <option key={psi} value={psi}>{psi}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tire DOT
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.tireSpecifications.dot}
+                      onChange={(e) => handleNestedInputChange('tireSpecifications', 'dot', e.target.value)}
+                      placeholder="e.g., DOT XXXX"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tread Depth (mm)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.tireSpecifications.treadDepth}
+                      onChange={(e) => handleNestedInputChange('tireSpecifications', 'treadDepth', e.target.value)}
+                      placeholder="e.g., 6.5"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Manufacturing Date
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.tireSpecifications.manufacturingDate}
+                      onChange={(e) => handleNestedInputChange('tireSpecifications', 'manufacturingDate', e.target.value)}
+                      placeholder="e.g., Week 24, 2023"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Delivery Information */}
+              <div>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">DELIVERY INFORMATION</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Delivery Mode
+                    </label>
+                    <div className="grid grid-cols-1 gap-4">
+                      {deliveryModeOptions.map((mode) => (
+                        <button
+                          key={mode.id}
+                          type="button"
+                          onClick={() => handleNestedInputChange('deliveryInformation', 'mode', mode.label)}
+                          className={`p-3 border-2 rounded-lg text-left transition-all flex items-center gap-2 ${
+                            formData.deliveryInformation.mode === mode.label
+                              ? 'border-purple-500 bg-purple-50 text-purple-700'
+                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {mode.icon}
+                          <div className="font-medium">{mode.label}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Collection Date
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.deliveryInformation.collectionDate}
+                        onChange={(e) => handleNestedInputChange('deliveryInformation', 'collectionDate', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Collection Time
+                      </label>
+                      <input
+                        type="time"
+                        value={formData.deliveryInformation.collectionTime}
+                        onChange={(e) => handleNestedInputChange('deliveryInformation', 'collectionTime', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Collected By
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.deliveryInformation.collectedBy}
+                    onChange={(e) => handleNestedInputChange('deliveryInformation', 'collectedBy', e.target.value)}
+                    placeholder="Name of person collecting"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  />
+                </div>
+              </div>
+              
+              {/* Additional Information */}
+              <div className="mt-8">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Additional Information / Notes
+                </label>
+                <textarea
+                  value={formData.additionalInformation}
+                  onChange={(e) => handleInputChange('additionalInformation', e.target.value)}
+                  placeholder="Any additional notes, observations, or special instructions..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  rows={4}
+                />
+              </div>
+            </div>
+
+            {/* Quality Assurance */}
+            <div className="border-b pb-8">
+              <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-purple-600" />
+                Quality Assurance & Compliance
+              </h2>
+              
+              <div className="space-y-8">
+                {/* MUST KNOW Section */}
+                <div className="mb-8">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">MUST KNOW</h3>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <ul className="space-y-2 text-sm text-gray-700">
+                      <li className="flex items-start gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                        <span>All services have been completed as per Diamond Rimz quality standards.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                        <span>Tyres, caps, locknuts, sensors, and other items have been inspected and confirmed.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                        <span>Vehicle/rims have been cleaned and prepared for customer collection.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                        <span>All safety checks have been completed and verified.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                        <span>Workmanship warranty applies as per service agreement.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                        <span>Customer has been notified of completion and collection details.</span>
+                      </li>
+                    </ul>
+                  </div>
+                  
+                  <div className="flex items-start gap-3 mt-4">
+                    <input
+                      type="checkbox"
+                      id="mustKnowAccepted"
+                      checked={formData.mustKnowAccepted}
+                      onChange={(e) => handleInputChange('mustKnowAccepted', e.target.checked)}
+                      className="mt-1 h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                      required
+                    />
+                    <label htmlFor="mustKnowAccepted" className="text-sm text-gray-700">
+                      I acknowledge and understand all the above points *
+                    </label>
+                  </div>
+                  {!formData.mustKnowAccepted && (
+                    <p className="mt-2 text-sm text-red-600">Please acknowledge the MUST KNOW section</p>
+                  )}
+                </div>
+                
+                {/* Lead Technician Confirmation */}
+                <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="p-2 bg-green-100 rounded-lg">
+                      <Award className="h-6 w-6 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900">Lead Technician Confirmation</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Confirm that all services have been completed to Diamond Rimz quality standards
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="leadTechnicianConfirmation"
+                      checked={formData.qualityAssurance.leadTechnicianConfirmation}
+                      onChange={(e) => handleNestedInputChange('qualityAssurance', 'leadTechnicianConfirmation', e.target.checked)}
+                      className="h-5 w-5 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                      required
+                    />
+                    <label htmlFor="leadTechnicianConfirmation" className="text-sm text-gray-700">
+                      I confirm that all services have been completed as per Diamond Rimz quality standards and specifications *
+                    </label>
+                  </div>
+                  {!formData.qualityAssurance.leadTechnicianConfirmation && (
+                    <p className="mt-2 text-sm text-red-600">Lead technician confirmation is required</p>
+                  )}
+                </div>
+                
+                {/* Operations Counter Check */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Users className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900">Operations Counter Check</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Final verification by operations team before customer handover
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="operationsCounterCheck"
+                      checked={formData.qualityAssurance.operationsCounterCheck}
+                      onChange={(e) => handleNestedInputChange('qualityAssurance', 'operationsCounterCheck', e.target.checked)}
+                      className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      required
+                    />
+                    <label htmlFor="operationsCounterCheck" className="text-sm text-gray-700">
+                      I confirm that all operations checks have been completed and the vehicle is ready for customer collection *
+                    </label>
+                  </div>
+                  {!formData.qualityAssurance.operationsCounterCheck && (
+                    <p className="mt-2 text-sm text-red-600">Operations counter check is required</p>
+                  )}
+                </div>
+
+                {/* Final Inspection */}
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="p-2 bg-purple-100 rounded-lg">
+                      <Eye className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900">Final Inspection</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Final quality inspection and approval
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="finalInspectionPassed"
+                      checked={formData.qualityAssurance.finalInspectionPassed}
+                      onChange={(e) => handleNestedInputChange('qualityAssurance', 'finalInspectionPassed', e.target.checked)}
+                      className="h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                    />
+                    <label htmlFor="finalInspectionPassed" className="text-sm text-gray-700">
+                      Final inspection passed - All quality checks completed successfully
+                    </label>
+                  </div>
+                </div>
+
+                {/* Customer Ready for Collection */}
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="p-2 bg-amber-100 rounded-lg">
+                      <CheckCircle className="h-6 w-6 text-amber-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900">Customer Collection Status</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Confirm readiness for customer collection
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="customerReadyForCollection"
+                      checked={formData.qualityAssurance.customerReadyForCollection}
+                      onChange={(e) => handleNestedInputChange('qualityAssurance', 'customerReadyForCollection', e.target.checked)}
+                      className="h-5 w-5 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+                    />
+                    <label htmlFor="customerReadyForCollection" className="text-sm text-gray-700">
+                      Vehicle/rims are cleaned, packed, and ready for customer collection
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Signatures, Terms & Documentation */}
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                <FileSignature className="h-5 w-5 text-purple-600" />
+                Signatures, Terms & Documentation
+              </h2>
+              
+              {/* Terms and Conditions */}
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">TERMS AND CONDITIONS</h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowTermsModal(true)}
+                    className="text-sm text-purple-600 hover:text-purple-800 font-medium flex items-center gap-1"
+                  >
+                    View Complete Terms
+                    <ExternalLink className="h-4 w-4" />
+                  </button>
+                </div>
+                
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                  <div className="space-y-4">
+                    {/* Terms Preview Card */}
+                    <button
+                      type="button"
+                      onClick={() => setShowTermsModal(true)}
+                      className="w-full p-4 border border-purple-200 bg-purple-50 rounded-lg text-left hover:bg-purple-100 transition-colors group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-white rounded-lg">
+                            <FileText className="h-5 w-5 text-purple-600" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900">Diamond Rimz Service Completion Agreement</div>
+                            <div className="text-sm text-gray-600">Complete terms and conditions document</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500 group-hover:text-purple-600 transition-colors">
+                            Click to view
+                          </span>
+                          <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-purple-600 transition-colors" />
+                        </div>
+                      </div>
+                    </button>
+                    
+                    {/* Quick Summary */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <h5 className="font-medium text-gray-900 mb-3">Key Points Summary:</h5>
+                      <ul className="text-sm text-gray-600 space-y-2">
                         <li className="flex items-start gap-2">
-                          <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                          <span>All services have been completed as per Diamond Rimz quality standards.</span>
+                          <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                          <span>Workmanship warranty period varies by service type (6-12 months)</span>
                         </li>
                         <li className="flex items-start gap-2">
-                          <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                          <span>Tyres, caps, locknuts, sensors, and other items have been inspected and confirmed.</span>
+                          <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                          <span>No liability for personal items left with vehicle/rims</span>
                         </li>
                         <li className="flex items-start gap-2">
-                          <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                          <span>Vehicle/rims have been cleaned and prepared for customer collection.</span>
+                          <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                          <span>Storage fees: KES 500/day per part after 5 days</span>
                         </li>
                         <li className="flex items-start gap-2">
-                          <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                          <span>All safety checks have been completed and verified.</span>
+                          <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                          <span>Full payment required before collection</span>
                         </li>
                         <li className="flex items-start gap-2">
-                          <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                          <span>Workmanship warranty applies as per service agreement.</span>
+                          <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                          <span>Customer accepts inherent risks of rim services</span>
                         </li>
                         <li className="flex items-start gap-2">
-                          <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                          <span>Customer has been notified of completion and collection details.</span>
+                          <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                          <span>Collection signifies acceptance of completed work</span>
                         </li>
                       </ul>
                     </div>
                     
-                    <div className="flex items-start gap-3 mt-4">
+                    {/* Download Section */}
+                    <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="p-2 bg-white rounded-lg">
+                        <Download className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-blue-900">Need a copy for your records?</p>
+                        <p className="text-xs text-blue-700">Download the complete PDF document</p>
+                      </div>
+                      <a
+                        href="/api/documents/terms?filename=Diamond-Rimz-Terms-Conditions.pdf"
+                        download="Diamond-Rimz-Terms-Conditions.pdf"
+                        className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors flex items-center gap-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Download className="h-4 w-4" />
+                        Download PDF
+                      </a>
+                    </div>
+                  </div>
+                  
+                  {/* Terms Acceptance */}
+                  <div className="mt-6 pt-6 border-t border-gray-200">
+                    <div className="flex items-start gap-3">
                       <input
                         type="checkbox"
-                        id="mustKnowAccepted"
-                        checked={formData.mustKnowAccepted}
-                        onChange={(e) => handleInputChange('mustKnowAccepted', e.target.checked)}
+                        id="acceptTermsPost"
+                        checked={formData.acceptTerms}
+                        onChange={(e) => handleInputChange('acceptTerms', e.target.checked)}
                         className="mt-1 h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
                         required
                       />
-                      <label htmlFor="mustKnowAccepted" className="text-sm text-gray-700">
-                        I acknowledge and understand all the above points *
-                      </label>
-                    </div>
-                    {!formData.mustKnowAccepted && (
-                      <p className="mt-2 text-sm text-red-600">Please acknowledge the MUST KNOW section</p>
-                    )}
-                  </div>
-                  
-                  {/* Lead Technician Confirmation */}
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-                    <div className="flex items-start gap-3 mb-4">
-                      <div className="p-2 bg-green-100 rounded-lg">
-                        <Award className="h-6 w-6 text-green-600" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-medium text-gray-900">Lead Technician Confirmation</h3>
-                        <p className="text-sm text-gray-600 mt-1">
-                          Confirm that all services have been completed to Diamond Rimz quality standards
+                      <div className="flex-1">
+                        <label htmlFor="acceptTermsPost" className="text-sm font-medium text-gray-700">
+                          I HAVE READ, UNDERSTOOD, AND ACCEPT THE TERMS AND CONDITIONS OF DIAMOND RIMZ *
+                        </label>
+                        <p className="text-xs text-gray-500 mt-1">
+                          By checking this box, you acknowledge that you have reviewed the complete terms and agree to be bound by all provisions. 
+                          You confirm you have had opportunity to ask questions and seek clarification.
                         </p>
                       </div>
                     </div>
-                    
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        id="leadTechnicianConfirmation"
-                        checked={formData.qualityAssurance.leadTechnicianConfirmation}
-                        onChange={(e) => handleNestedInputChange('qualityAssurance', 'leadTechnicianConfirmation', e.target.checked)}
-                        className="h-5 w-5 text-green-600 border-gray-300 rounded focus:ring-green-500"
-                        required
-                      />
-                      <label htmlFor="leadTechnicianConfirmation" className="text-sm text-gray-700">
-                        I confirm that all services have been completed as per Diamond Rimz quality standards and specifications *
-                      </label>
-                    </div>
-                    {!formData.qualityAssurance.leadTechnicianConfirmation && (
-                      <p className="mt-2 text-sm text-red-600">Lead technician confirmation is required</p>
-                    )}
-                  </div>
-                  
-                  {/* Operations Counter Check */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                    <div className="flex items-start gap-3 mb-4">
-                      <div className="p-2 bg-blue-100 rounded-lg">
-                        <Users className="h-6 w-6 text-blue-600" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-medium text-gray-900">Operations Counter Check</h3>
-                        <p className="text-sm text-gray-600 mt-1">
-                          Final verification by operations team before customer handover
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        id="operationsCounterCheck"
-                        checked={formData.qualityAssurance.operationsCounterCheck}
-                        onChange={(e) => handleNestedInputChange('qualityAssurance', 'operationsCounterCheck', e.target.checked)}
-                        className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        required
-                      />
-                      <label htmlFor="operationsCounterCheck" className="text-sm text-gray-700">
-                        I confirm that all operations checks have been completed and the vehicle is ready for customer collection *
-                      </label>
-                    </div>
-                    {!formData.qualityAssurance.operationsCounterCheck && (
-                      <p className="mt-2 text-sm text-red-600">Operations counter check is required</p>
-                    )}
-                  </div>
-
-                  {/* Final Inspection */}
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-                    <div className="flex items-start gap-3 mb-4">
-                      <div className="p-2 bg-purple-100 rounded-lg">
-                        <Eye className="h-6 w-6 text-purple-600" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-medium text-gray-900">Final Inspection</h3>
-                        <p className="text-sm text-gray-600 mt-1">
-                          Final quality inspection and approval
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        id="finalInspectionPassed"
-                        checked={formData.qualityAssurance.finalInspectionPassed}
-                        onChange={(e) => handleNestedInputChange('qualityAssurance', 'finalInspectionPassed', e.target.checked)}
-                        className="h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-                      />
-                      <label htmlFor="finalInspectionPassed" className="text-sm text-gray-700">
-                        Final inspection passed - All quality checks completed successfully
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Customer Ready for Collection */}
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
-                    <div className="flex items-start gap-3 mb-4">
-                      <div className="p-2 bg-amber-100 rounded-lg">
-                        <CheckCircle className="h-6 w-6 text-amber-600" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-medium text-gray-900">Customer Collection Status</h3>
-                        <p className="text-sm text-gray-600 mt-1">
-                          Confirm readiness for customer collection
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        id="customerReadyForCollection"
-                        checked={formData.qualityAssurance.customerReadyForCollection}
-                        onChange={(e) => handleNestedInputChange('qualityAssurance', 'customerReadyForCollection', e.target.checked)}
-                        className="h-5 w-5 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
-                      />
-                      <label htmlFor="customerReadyForCollection" className="text-sm text-gray-700">
-                        Vehicle/rims are cleaned, packed, and ready for customer collection
-                      </label>
-                    </div>
-                  </div>
-                  
-                  {/* Summary Section */}
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Quality Summary</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Services Completed</h4>
-                        <div className="space-y-1">
-                          {formData.services.actualService.length > 0 ? (
-                            formData.services.actualService.map((service, index) => (
-                              <div key={index} className="flex items-center gap-2">
-                                <Check className="h-4 w-4 text-green-500" />
-                                <span className="text-sm text-gray-600">{service}</span>
-                              </div>
-                            ))
-                          ) : (
-                            <p className="text-sm text-gray-500">No services selected</p>
-                          )}
+                    {!formData.acceptTerms && (
+                      <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="flex items-center gap-2 text-sm text-red-700">
+                          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                          <span>You must accept the terms and conditions to proceed with service completion</span>
                         </div>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Critical Checks</h4>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600">Wheel Balanced</span>
-                            <span className={`text-sm font-medium ${formData.finalChecks.wheelBalanced ? 'text-green-600' : 'text-red-600'}`}>
-                              {formData.finalChecks.wheelBalanced ? '✓ Yes' : '✗ No'}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600">Puncture Check</span>
-                            <span className={`text-sm font-medium ${formData.finalChecks.checkedForPuncture ? 'text-green-600' : 'text-red-600'}`}>
-                              {formData.finalChecks.checkedForPuncture ? '✓ Yes' : '✗ No'}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600">Tire Condition</span>
-                            <span className={`text-sm font-medium ${
-                              ['Excellent - Like new, no wear', 'Good - Minor wear, still safe'].includes(formData.finalChecks.tireCondition) ? 'text-green-600' : 
-                              formData.finalChecks.tireCondition === 'Fair - Moderate wear, monitor closely' ? 'text-yellow-600' : 'text-red-600'
-                            }`}>
-                              {formData.finalChecks.tireCondition ? formData.finalChecks.tireCondition.split(' - ')[0] : 'Not set'}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600">TPMS Sensors</span>
-                            <span className={`text-sm font-medium ${formData.finalChecks.tpmsSensorsFitted ? 'text-green-600' : 'text-gray-600'}`}>
-                              {formData.finalChecks.tpmsSensorsFitted ? '✓ Fitted' : '✗ Not fitted'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
-            </div>
-          )}
-
-          {currentStep === 5 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">{stepTitles[4]}</h2>
-              <p className="text-gray-600 mb-6">{stepDescriptions[4]}</p>
               
-              <div className="bg-white rounded-2xl shadow-xl border p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                  <FileSignature className="h-5 w-5 text-purple-600" />
-                  Signatures, Terms & Documentation
-                </h2>
-                
-                {/* Terms and Conditions - Matching pre-checklist */}
-                <div className="mb-8">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-medium text-gray-900">TERMS AND CONDITIONS</h3>
-                    <button
-                      type="button"
-                      onClick={() => setShowTermsModal(true)}
-                      className="text-sm text-purple-600 hover:text-purple-800 font-medium flex items-center gap-1"
-                    >
-                      View Complete Terms
-                      <ExternalLink className="h-4 w-4" />
-                    </button>
-                  </div>
-                  
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-                    <div className="space-y-4">
-                      {/* Terms Preview Card */}
+              {/* Signatures */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                {/* Client Signature */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Client Signature *Required
+                    </label>
+                    {clientSignature && (
                       <button
                         type="button"
-                        onClick={() => setShowTermsModal(true)}
-                        className="w-full p-4 border border-purple-200 bg-purple-50 rounded-lg text-left hover:bg-purple-100 transition-colors group"
+                        onClick={() => clearSignature('client')}
+                        className="text-xs text-red-600 hover:text-red-800"
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-white rounded-lg">
-                              <FileText className="h-5 w-5 text-purple-600" />
-                            </div>
-                            <div>
-                              <div className="font-medium text-gray-900">Diamond Rimz Service Completion Agreement</div>
-                              <div className="text-sm text-gray-600">Complete terms and conditions document</div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-500 group-hover:text-purple-600 transition-colors">
-                              Click to view
-                            </span>
-                            <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-purple-600 transition-colors" />
-                          </div>
-                        </div>
+                        Clear
                       </button>
-                      
-                      {/* Quick Summary */}
-                      <div className="bg-white border border-gray-200 rounded-lg p-4">
-                        <h5 className="font-medium text-gray-900 mb-3">Key Points Summary:</h5>
-                        <ul className="text-sm text-gray-600 space-y-2">
-                          <li className="flex items-start gap-2">
-                            <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                            <span>Workmanship warranty period varies by service type (6-12 months)</span>
-                          </li>
-                          <li className="flex items-start gap-2">
-                            <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                            <span>No liability for personal items left with vehicle/rims</span>
-                          </li>
-                          <li className="flex items-start gap-2">
-                            <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                            <span>Storage fees: KES 500/day per part after 5 days</span>
-                          </li>
-                          <li className="flex items-start gap-2">
-                            <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                            <span>Full payment required before collection</span>
-                          </li>
-                          <li className="flex items-start gap-2">
-                            <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                            <span>Customer accepts inherent risks of rim services</span>
-                          </li>
-                          <li className="flex items-start gap-2">
-                            <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                            <span>Collection signifies acceptance of completed work</span>
-                          </li>
-                        </ul>
-                      </div>
-                      
-                      {/* Download Section */}
-                      <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div className="p-2 bg-white rounded-lg">
-                          <Download className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-blue-900">Need a copy for your records?</p>
-                          <p className="text-xs text-blue-700">Download the complete PDF document</p>
-                        </div>
-                        <a
-                          href="/api/documents/terms?filename=Diamond-Rimz-Terms-Conditions.pdf"
-                          download="Diamond-Rimz-Terms-Conditions.pdf"
-                          className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors flex items-center gap-2"
-                          onClick={(e) => e.stopPropagation()} // Prevent modal opening
-                        >
-                          <Download className="h-4 w-4" />
-                          Download PDF
-                        </a>
-                      </div>
-                    </div>
-                    
-                    {/* Terms Acceptance */}
-                    <div className="mt-6 pt-6 border-t border-gray-200">
-                      <div className="flex items-start gap-3">
-                        <input
-                          type="checkbox"
-                          id="acceptTermsPost"
-                          checked={formData.acceptTerms}
-                          onChange={(e) => handleInputChange('acceptTerms', e.target.checked)}
-                          className="mt-1 h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-                          required
-                        />
-                        <div className="flex-1">
-                          <label htmlFor="acceptTermsPost" className="text-sm font-medium text-gray-700">
-                            I HAVE READ, UNDERSTOOD, AND ACCEPT THE TERMS AND CONDITIONS OF DIAMOND RIMZ *
-                          </label>
-                          <p className="text-xs text-gray-500 mt-1">
-                            By checking this box, you acknowledge that you have reviewed the complete terms and agree to be bound by all provisions. 
-                            You confirm you have had opportunity to ask questions and seek clarification.
-                          </p>
-                        </div>
-                      </div>
-                      {!formData.acceptTerms && (
-                        <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                          <div className="flex items-center gap-2 text-sm text-red-700">
-                            <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                            <span>You must accept the terms and conditions to proceed with service completion</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Signatures - Matching pre-checklist structure */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                  {/* Client Signature */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Client Signature *Required
-                      </label>
-                      {clientSignature && (
-                        <button
-                          type="button"
-                          onClick={() => clearSignature('client')}
-                          className="text-xs text-red-600 hover:text-red-800"
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                    
-                    {showClientSignature ? (
-                      <div className="space-y-3">
-                        <div className="border border-gray-300 rounded-lg bg-white p-2">
-                          <SignatureCanvas
-                            ref={clientSigRef}
-                            penColor="black"
-                            canvasProps={{
-                              width: 400,
-                              height: 150,
-                              className: 'w-full h-32 border rounded bg-white'
-                            }}
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => saveSignature('client')}
-                            className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                          >
-                            Save Signature
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowClientSignature(false)}
-                            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        onClick={() => setShowClientSignature(true)}
-                        className="h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors"
-                      >
-                        {clientSignature ? (
-                          <div className="text-center p-2">
-                            <img 
-                              src={clientSignature} 
-                              alt="Client Signature" 
-                              className="h-20 mx-auto object-contain"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">Click to change signature</p>
-                          </div>
-                        ) : (
-                          <div className="text-center">
-                            <FileSignature className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                            <p className="text-sm text-gray-600">Click to sign</p>
-                            <p className="text-xs text-gray-500">Draw your signature</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {!formData.clientSignature && (
-                      <p className="mt-1 text-sm text-red-600">Client signature is required</p>
                     )}
                   </div>
                   
-                  {/* Inspector Signature */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Inspector / Technician Signature
-                      </label>
-                      {inspectorSignature && (
+                  {showClientSignature ? (
+                    <div className="space-y-3">
+                      <div className="border border-gray-300 rounded-lg bg-white p-2">
+                        <SignatureCanvas
+                          ref={clientSigRef}
+                          penColor="black"
+                          canvasProps={{
+                            width: 400,
+                            height: 150,
+                            className: 'w-full h-32 border rounded bg-white'
+                          }}
+                        />
+                      </div>
+                      <div className="flex gap-2">
                         <button
                           type="button"
-                          onClick={() => clearSignature('inspector')}
-                          className="text-xs text-red-600 hover:text-red-800"
+                          onClick={() => saveSignature('client')}
+                          className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
                         >
-                          Clear
+                          Save Signature
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowClientSignature(false)}
+                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => setShowClientSignature(true)}
+                      className="h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors"
+                    >
+                      {clientSignature ? (
+                        <div className="text-center p-2">
+                          <img 
+                            src={clientSignature} 
+                            alt="Client Signature" 
+                            className="h-20 mx-auto object-contain"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Click to change signature</p>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <FileSignature className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                          <p className="text-sm text-gray-600">Click to sign</p>
+                          <p className="text-xs text-gray-500">Draw your signature</p>
+                        </div>
                       )}
                     </div>
-                    
-                    {showInspectorSignature ? (
-                      <div className="space-y-3">
-                        <div className="border border-gray-300 rounded-lg bg-white p-2">
-                          <SignatureCanvas
-                            ref={inspectorSigRef}
-                            penColor="black"
-                            canvasProps={{
-                              width: 400,
-                              height: 150,
-                              className: 'w-full h-32 border rounded bg-white'
-                            }}
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => saveSignature('inspector')}
-                            className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                          >
-                            Save Signature
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowInspectorSignature(false)}
-                            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        onClick={() => setShowInspectorSignature(true)}
-                        className="h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors"
+                  )}
+                  {!formData.clientSignature && (
+                    <p className="mt-1 text-sm text-red-600">Client signature is required</p>
+                  )}
+                </div>
+                
+                {/* Inspector Signature */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Inspector / Technician Signature
+                    </label>
+                    {inspectorSignature && (
+                      <button
+                        type="button"
+                        onClick={() => clearSignature('inspector')}
+                        className="text-xs text-red-600 hover:text-red-800"
                       >
-                        {inspectorSignature ? (
-                          <div className="text-center p-2">
-                            <img 
-                              src={inspectorSignature} 
-                              alt="Inspector Signature" 
-                              className="h-20 mx-auto object-contain"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">Click to change signature</p>
-                          </div>
-                        ) : (
-                          <div className="text-center">
-                            <FileSignature className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                            <p className="text-sm text-gray-600">Click to sign</p>
-                            <p className="text-xs text-gray-500">Draw your signature</p>
-                          </div>
-                        )}
-                      </div>
+                        Clear
+                      </button>
                     )}
                   </div>
-                </div>
-                
-                {/* Remarks */}
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Final Remarks / Notes
-                  </label>
-                  <textarea
-                    value={formData.remarks}
-                    onChange={(e) => handleInputChange('remarks', e.target.value)}
-                    placeholder="Any final notes, observations, or feedback..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    rows={3}
-                  />
-                </div>
-                
-                {/* Image Upload */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Upload Completion Photos (Optional)
-                  </label>
-                  <div 
-                    className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors"
-                    onClick={() => document.getElementById('post-checklist-file-input')?.click()}
-                  >
-                    <input
-                      id="post-checklist-file-input"
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => {
-                        const files = e.target.files;
-                        if (!files) return;
-                        
-                        const newFiles = Array.from(files);
-                        setSelectedFiles(prev => [...prev, ...newFiles]);
-                        
-                        // Preview images
-                        newFiles.forEach(file => {
-                          if (file.type.startsWith('image/')) {
-                            const reader = new FileReader();
-                            reader.onload = (e) => {
-                              const result = e.target?.result as string;
-                              setFormData(prev => ({
-                                ...prev,
-                                uploadedImages: [...prev.uploadedImages, result]
-                              }));
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        });
-                        
-                        showToast(`${newFiles.length} image(s) selected`, 'info');
-                      }}
-                      className="hidden"
-                    />
-                    <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-600 mb-1">Click to upload completion photos</p>
-                    <p className="text-xs text-gray-500">Upload final images of completed work (before & after)</p>
-                  </div>
-
-                  {/* Uploaded Images Preview */}
-                  {formData.uploadedImages.length > 0 && (
-                    <div className="mt-4">
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">
-                        Uploaded Images ({formData.uploadedImages.length})
-                      </h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {formData.uploadedImages.map((image, index) => (
-                          <div key={index} className="relative group">
-                            <div className="aspect-square rounded-lg overflow-hidden border border-gray-200">
-                              <img
-                                src={image}
-                                alt={`Completion Image ${index + 1}`}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setFormData(prev => ({
-                                  ...prev,
-                                  uploadedImages: prev.uploadedImages.filter((_, i) => i !== index)
-                                }));
-                              }}
-                              className="absolute -top-2 -right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-                        ))}
+                  
+                  {showInspectorSignature ? (
+                    <div className="space-y-3">
+                      <div className="border border-gray-300 rounded-lg bg-white p-2">
+                        <SignatureCanvas
+                          ref={inspectorSigRef}
+                          penColor="black"
+                          canvasProps={{
+                            width: 400,
+                            height: 150,
+                            className: 'w-full h-32 border rounded bg-white'
+                          }}
+                        />
                       </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => saveSignature('inspector')}
+                          className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                        >
+                          Save Signature
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowInspectorSignature(false)}
+                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => setShowInspectorSignature(true)}
+                      className="h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors"
+                    >
+                      {inspectorSignature ? (
+                        <div className="text-center p-2">
+                          <img 
+                            src={inspectorSignature} 
+                            alt="Inspector Signature" 
+                            className="h-20 mx-auto object-contain"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Click to change signature</p>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <FileSignature className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                          <p className="text-sm text-gray-600">Click to sign</p>
+                          <p className="text-xs text-gray-500">Draw your signature</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-        
-        {/* Navigation Buttons - Matching pre-checklist */}
-        <div className="mt-8 flex justify-between">
-          <button
-            onClick={() => currentStep > 1 && setCurrentStep(currentStep - 1)}
-            disabled={currentStep === 1}
-            className={`px-6 py-3 rounded-lg font-medium flex items-center gap-2 ${
-              currentStep === 1
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            <ChevronLeft className="h-5 w-5" />
-            Previous
-          </button>
-          
-          <div className="flex justify-between gap-4">
-            {/* Cancel & Back Button */}
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
-              disabled={submitting}
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Cancel & Back
-            </button>
-            
-            {/* Action Buttons */}
-            <div className="flex gap-4">
-              <button
-                onClick={handleSaveAsDraft}
-                className="px-6 py-3 rounded-lg font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                disabled={submitting}
-              >
-                <Save className="h-5 w-5" />
-                Save as Draft
-                {draftSaved && (
-                  <span className="text-xs text-green-600">
-                    ✓ Saved
-                  </span>
-                )}
-              </button>
               
-              {currentStep < totalSteps ? (
+              {/* Remarks */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Final Remarks / Notes
+                </label>
+                <textarea
+                  value={formData.remarks}
+                  onChange={(e) => handleInputChange('remarks', e.target.value)}
+                  placeholder="Any final notes, observations, or feedback..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  rows={3}
+                />
+              </div>
+              
+              {/* Image Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Upload Completion Photos (Optional)
+                </label>
+                <div 
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors"
+                  onClick={() => document.getElementById('post-checklist-file-input')?.click()}
+                >
+                  <input
+                    id="post-checklist-file-input"
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={(e) => {
+                      const files = e.target.files;
+                      if (!files) return;
+                      
+                      const newFiles = Array.from(files);
+                      setSelectedFiles(prev => [...prev, ...newFiles]);
+                      
+                      newFiles.forEach(file => {
+                        if (file.type.startsWith('image/')) {
+                          const reader = new FileReader();
+                          reader.onload = (e) => {
+                            const result = e.target?.result as string;
+                            setFormData(prev => ({
+                              ...prev,
+                              uploadedImages: [...prev.uploadedImages, result]
+                            }));
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      });
+                      
+                      showToast(`${newFiles.length} image(s) selected`, 'info');
+                    }}
+                    className="hidden"
+                  />
+                  <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-600 mb-1">Click to upload completion photos</p>
+                  <p className="text-xs text-gray-500">Upload final images of completed work (before & after)</p>
+                </div>
+
+                {/* Uploaded Images Preview */}
+                {formData.uploadedImages.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">
+                      Uploaded Images ({formData.uploadedImages.length})
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {formData.uploadedImages.map((image, index) => (
+                        <div key={index} className="relative group">
+                          <div className="aspect-square rounded-lg overflow-hidden border border-gray-200">
+                            <img
+                              src={image}
+                              alt={`Completion Image ${index + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                uploadedImages: prev.uploadedImages.filter((_, i) => i !== index)
+                              }));
+                            }}
+                            className="absolute -top-2 -right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Form Actions */}
+            <div className="pt-6 border-t border-gray-200">
+              <div className="flex justify-between">
                 <button
-                  onClick={() => setCurrentStep(currentStep + 1)}
-                  className="px-6 py-3 rounded-lg font-medium bg-purple-600 text-white hover:bg-purple-700 flex items-center gap-2"
+                  type="button"
+                  onClick={handleCancel}
+                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors"
                   disabled={submitting}
                 >
-                  Next
-                  <ChevronRight className="h-5 w-5" />
+                  Cancel
                 </button>
-              ) : (
-                <button
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                  className="px-6 py-3 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      {mode === 'edit' ? 'Updating...' : 'Creating...'}
-                    </>
-                  ) : (
-                    <>
-                      <CircleCheck className="h-5 w-5" />
-                      {mode === 'edit' ? 'Update Post-Checklist' : 'Complete & Submit'}
-                    </>
-                  )}
-                </button>
-              )}
+                
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={handleSaveAsDraft}
+                    className="px-6 py-3 rounded-lg font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    disabled={submitting}
+                  >
+                    <Save className="h-5 w-5" />
+                    Save as Draft
+                    {draftSaved && (
+                      <span className="text-xs text-green-600">
+                        ✓ Saved
+                      </span>
+                    )}
+                  </button>
+                  
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="px-8 py-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-700 text-white font-semibold rounded-xl hover:from-purple-700 hover:via-indigo-700 hover:to-blue-800 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        {mode === 'edit' ? 'Updating...' : 'Creating...'}
+                      </>
+                    ) : (
+                      <>
+                        <CircleCheck className="h-4 w-4" />
+                        {mode === 'edit' ? 'Update Post-Checklist' : 'Complete & Submit'}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </form>
       </div>
       <TermsModal 
         isOpen={showTermsModal} 

@@ -16,9 +16,13 @@ import {
   Users,
   Plus,
   AlertTriangle,
-  CreditCard
+  CreditCard,
+  Wrench,
+  ShoppingBag
 } from 'lucide-react';
 import { Opportunity } from '@/services/opportunityService';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 interface SuccessModalProps {
   isOpen: boolean;
@@ -37,6 +41,8 @@ export default function SuccessModal({
   onCreateAnother,
   onAssignToTeam 
 }: SuccessModalProps) {
+  const router = useRouter();
+
   if (!isOpen) return null;
 
   if (!opportunity) {
@@ -136,6 +142,63 @@ export default function SuccessModal({
     }
   };
 
+  // Check if opportunity is a service type
+  const isServiceOpportunity = () => {
+    const serviceTypes = ['SERVICE', 'REPAIR', 'MAINTENANCE', 'INSPECTION'];
+    return serviceTypes.includes(opportunity.opportunityType || '');
+  };
+
+  // Check if opportunity is a sale/product type
+  const isSalesOpportunity = () => {
+    return opportunity.opportunityType === 'SALE';
+  };
+
+  // Get the appropriate action button text and icon
+  const getActionButtonInfo = () => {
+    if (isServiceOpportunity()) {
+      return {
+        text: 'Go to Work Order',
+        icon: Wrench,
+        color: 'from-blue-500 to-blue-600',
+        hoverColor: 'from-blue-600 to-blue-700',
+        description: 'Create and manage work orders for this service opportunity'
+      };
+    } else if (isSalesOpportunity()) {
+      return {
+        text: 'Go to Sales Order',
+        icon: ShoppingBag,
+        color: 'from-green-500 to-green-600',
+        hoverColor: 'from-green-600 to-green-700',
+        description: 'Create and manage sales orders for this product opportunity'
+      };
+    } else {
+      return {
+        text: 'View Opportunity Details',
+        icon: FileText,
+        color: 'from-blue-500 to-purple-600',
+        hoverColor: 'from-blue-600 to-purple-700',
+        description: 'See complete opportunity information'
+      };
+    }
+  };
+
+  const handleActionButtonClick = () => {
+    if (isServiceOpportunity()) {
+      // Navigate to work order creation/management
+      router.push(`/opportunities/${opportunity._id}/work-order`);
+    } else if (isSalesOpportunity()) {
+      // Navigate to sales order creation/management
+      router.push(`/opportunities/${opportunity._id}/sales-order`);
+    } else {
+      // Default to view details
+      onViewDetails?.();
+    }
+    onClose();
+  };
+
+  const actionButtonInfo = getActionButtonInfo();
+  const ActionIcon = actionButtonInfo.icon;
+
   return (
     <div className="fixed inset-0 z-[100] overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
@@ -232,8 +295,16 @@ export default function SuccessModal({
                   {opportunity.opportunityType && (
                     <div>
                       <div className="text-sm text-gray-600 mb-1">Opportunity Type</div>
-                      <div className="px-3 py-1.5 rounded-lg text-sm font-medium inline-flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-200">
-                        <FileText className="h-4 w-4" />
+                      <div className={`px-3 py-1.5 rounded-lg text-sm font-medium inline-flex items-center gap-2 ${
+                        isServiceOpportunity() 
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                          : 'bg-green-50 text-green-700 border border-green-200'
+                      }`}>
+                        {isServiceOpportunity() ? (
+                          <Wrench className="h-4 w-4" />
+                        ) : (
+                          <ShoppingBag className="h-4 w-4" />
+                        )}
                         {getOpportunityTypeDisplay()}
                       </div>
                     </div>
@@ -382,14 +453,24 @@ export default function SuccessModal({
                   )}
                   
                   {opportunity.total !== undefined && (
-                    <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/30 p-4">
+                    <div className={`rounded-xl border ${
+                      isServiceOpportunity() 
+                        ? 'border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/30'
+                        : 'border-green-200 bg-gradient-to-br from-green-50 to-green-100/30'
+                    } p-4`}>
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
+                        <div className={`p-2 ${
+                          isServiceOpportunity() 
+                            ? 'bg-blue-100 text-blue-600'
+                            : 'bg-green-100 text-green-600'
+                        } rounded-lg`}>
                           <CreditCard className="h-4 w-4" />
                         </div>
                         <div>
                           <div className="text-sm text-gray-600">Grand Total</div>
-                          <div className="text-xl font-bold text-blue-600">
+                          <div className={`text-xl font-bold ${
+                            isServiceOpportunity() ? 'text-blue-600' : 'text-green-600'
+                          }`}>
                             KES {opportunity.total?.toLocaleString() || '0'}
                           </div>
                         </div>
@@ -447,19 +528,20 @@ export default function SuccessModal({
               <h3 className="text-lg font-semibold text-gray-800 mb-4">Next Steps</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 <button
-                  onClick={() => {
-                    onViewDetails?.();
-                    onClose();
-                  }}
+                  onClick={handleActionButtonClick}
                   className="p-4 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group text-left"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-blue-100 text-blue-600 group-hover:bg-blue-200 transition-colors">
-                      <FileText className="h-5 w-5" />
+                    <div className={`p-2 rounded-lg ${
+                      isServiceOpportunity() 
+                        ? 'bg-blue-100 text-blue-600 group-hover:bg-blue-200' 
+                        : 'bg-green-100 text-green-600 group-hover:bg-green-200'
+                    } transition-colors`}>
+                      <ActionIcon className="h-5 w-5" />
                     </div>
                     <div className="flex-1">
-                      <div className="font-medium text-gray-800">View Full Details</div>
-                      <div className="text-sm text-gray-500">See complete opportunity information</div>
+                      <div className="font-medium text-gray-800">{actionButtonInfo.text}</div>
+                      <div className="text-sm text-gray-500">{actionButtonInfo.description}</div>
                     </div>
                     <ArrowRight className="h-4 w-4 text-gray-400 ml-auto group-hover:text-blue-500 transition-colors" />
                   </div>
@@ -525,13 +607,10 @@ export default function SuccessModal({
                 </button>
                 
                 <button
-                  onClick={() => {
-                    onViewDetails?.();
-                    onClose();
-                  }}
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 text-sm font-medium shadow-sm transition-all flex items-center gap-2"
+                  onClick={handleActionButtonClick}
+                  className={`px-6 py-2.5 rounded-xl bg-gradient-to-r ${actionButtonInfo.color} text-white hover:${actionButtonInfo.hoverColor} text-sm font-medium shadow-sm transition-all flex items-center gap-2`}
                 >
-                  View Opportunity Details
+                  {actionButtonInfo.text}
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </div>

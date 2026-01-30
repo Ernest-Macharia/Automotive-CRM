@@ -31,6 +31,8 @@ import {
   PackageCheck,
   Calendar,
   CreditCard,
+  DollarSign,
+  Clock,
 } from 'lucide-react';
 
 import { salesOrderService } from '@/services/salesOrderService';
@@ -182,85 +184,64 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+  
 
   const stages: WorkflowStage[] = useMemo(() => {
-  const raw: LifecycleStageUI[] = lifecycle?.stages || [];
-  const filtered = raw.filter((s) => s.stage === 'quote' || s.stage === 'invoice');
+    const raw: LifecycleStageUI[] = lifecycle?.stages || [];
+    const filtered = raw.filter((s) => s.stage === 'quote' || s.stage === 'invoice');
 
-  if (!filtered.length) {
-    const q = salesOrder?.quoteId;
-    const inv = salesOrder?.invoiceId;
-    const quoteApproved = typeof q === 'object' ? q?.status === 'approved' : false;
-    const invoiceExists = !!inv;
-    const invoicePaid = typeof inv === 'object' ? inv?.status === 'paid' : false;
-    const salesOrderCompleted = salesOrder?.status === 'delivered';
-    
-    // Determine current stage
-    let current: StageName;
-    if (salesOrderCompleted) {
-      current = 'invoice'; // Already completed
-    } else if (invoicePaid) {
-      current = 'invoice'; // Invoice paid, ready to complete
-    } else if (invoiceExists) {
-      current = 'invoice'; // Invoice created
-    } else if (quoteApproved) {
-      current = 'invoice'; // Quote approved, should have invoice
-    } else {
-      current = 'quote'; // Need to approve quote
+    if (!filtered.length) {
+      const q = salesOrder?.quoteId;
+      const inv = salesOrder?.invoiceId;
+      const quoteApproved = typeof q === 'object' ? q?.status === 'approved' : false;
+      const invoiceExists = !!inv;
+      const invoicePaid = typeof inv === 'object' ? inv?.status === 'paid' : false;
+      const salesOrderCompleted = salesOrder?.status === 'delivered';
+      
+      // SIMPLIFIED: When invoice is paid, both stages are complete
+      return [
+        {
+          stage: 'quote',
+          label: 'Quote',
+          description: 'Approve the auto-generated quotation',
+          completed: quoteApproved,
+          isCurrent: !quoteApproved, // Current only if not approved yet
+          document: typeof q === 'object' ? q : undefined,
+          documentId: getId(q),
+          documentType: 'Quote',
+        },
+        {
+          stage: 'invoice',
+          label: 'Invoice',
+          description: invoicePaid 
+            ? 'Payment received ✓' 
+            : invoiceExists
+              ? 'Invoice ready for payment'
+              : 'Generated from approved quote',
+          completed: invoicePaid || salesOrderCompleted,
+          isCurrent: quoteApproved && !invoicePaid, // Current if quote approved but invoice not paid
+          document: typeof inv === 'object' ? inv : undefined,
+          documentId: getId(inv),
+          documentType: 'Invoice',
+        },
+      ];
     }
 
-    return [
-      {
-        stage: 'quote',
-        label: 'Quote',
-        description: 'Approve the auto-generated quotation',
-        completed: quoteApproved,
-        isCurrent: current === 'quote',
-        document: typeof q === 'object' ? q : undefined,
-        documentId: getId(q),
-        documentType: 'Quote',
-      },
-      {
-        stage: 'invoice',
-        label: 'Invoice',
-        description: invoicePaid ? 'Ready to complete sales order' : 'Generated from approved quote',
-        completed: invoicePaid || salesOrderCompleted,
-        isCurrent: current === 'invoice',
-        document: typeof inv === 'object' ? inv : undefined,
-        documentId: getId(inv),
-        documentType: 'Invoice',
-      },
-    ];
-  }
+    const mapped: WorkflowStage[] = filtered.map((s) => ({
+      stage: s.stage as StageName,
+      label: s.label || (s.stage === 'quote' ? 'Quote' : 'Invoice'),
+      description: s.description,
+      completed: s.stage === 'quote'
+        ? s.document?.status === 'approved' || s.completed
+        : s.document?.status === 'paid' || salesOrder?.status === 'delivered',
+      isCurrent: !!s.isCurrent,
+      document: s.document,
+      documentId: s.documentId,
+      documentType: s.documentType,
+    }));
 
-  const mapped: WorkflowStage[] = filtered.map((s) => ({
-    stage: s.stage as StageName,
-    label: s.label || (s.stage === 'quote' ? 'Quote' : 'Invoice'),
-    description: s.description,
-    completed: s.stage === 'quote'
-      ? s.document?.status === 'approved' || s.completed
-      : s.document?.status === 'paid' || !!s.document || !!s.documentId || !!getInvoiceIdFromOrder(salesOrder),
-    isCurrent: !!s.isCurrent,
-    document: s.document,
-    documentId: s.documentId,
-    documentType: s.documentType,
-  }));
-
-  const anyCurrent = mapped.some((m) => m.isCurrent);
-  if (!anyCurrent) {
-    const invExists = !!getInvoiceIdFromOrder(salesOrder);
-    const invPaid = typeof salesOrder.invoiceId === 'object' ? salesOrder.invoiceId.status === 'paid' : false;
-    const soCompleted = salesOrder.status === 'delivered';
-    
-    // If invoice is paid or sales order completed, current is invoice
-    // Otherwise, if invoice exists, current is invoice
-    // Otherwise, current is quote
-    const currentStage = soCompleted || invPaid || invExists ? 'invoice' : 'quote';
-    mapped.forEach((m) => (m.isCurrent = m.stage === currentStage));
-  }
-
-  return mapped;
-}, [lifecycle?.stages, salesOrder]);
+    return mapped;
+  }, [lifecycle?.stages, salesOrder]);
 
   const currentStage = useMemo(() => stages.find((s) => s.isCurrent) || stages[0], [stages]);
 
@@ -286,80 +267,50 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
     return;
   }
 
-  const qId = getQuoteIdFromOrder(salesOrder);
-  if (!qId) {
-    // NEW: Try to fetch quote directly from opportunity if not linked to sales order
-    try {
-      // Get quotes by opportunity
+  setBusy(true);
+  try {
+    // 1. Get or find the quote
+    let quoteId = getQuoteIdFromOrder(salesOrder);
+    let quote;
+    
+    if (!quoteId) {
+      // Try to fetch quote directly from opportunity
       const quotes = await quoteService.getQuotesByOpportunity(opportunityId);
       if (quotes.length > 0) {
-        const quote = quotes[0];
+        const foundQuote = quotes[0];
+        quoteId = foundQuote._id || foundQuote.id;
+        quote = foundQuote;
+        
         // Update sales order with quote ID if not already linked
         await salesOrderService.updateSalesOrder(
           salesOrder._id || salesOrder.id,
-          { quoteId: quote._id || quote.id }
+          { quoteId }
         );
-        // Refresh the sales order data
-        await fetchAll();
-        // Use this quote ID
-        return handleAcceptQuoteAndGenerateInvoice(); // Recursive call
       } else {
         showToast('No quote found. Please ensure a quote is generated from the opportunity.', 'error');
         return;
       }
-    } catch (error) {
-      console.error('Error fetching quotes:', error);
-      showToast('Failed to find quote. Please check the opportunity has a quote.', 'error');
-      return;
-    }
-  }
-
-  setBusy(true);
-  try {
-    // 1) Get quote
-    let quote;
-    try {
-      quote = await quoteService.getQuoteById(qId);
-    } catch (error) {
-      console.error('Error fetching quote:', error);
-      showToast('Quote not found. Please refresh and try again.', 'error');
-      return;
+    } else {
+      // Get the quote by ID
+      quote = await quoteService.getQuoteById(quoteId);
     }
 
-    // 2) Check quote status
-    if (!quote) {
-      showToast('Quote not found', 'error');
-      return;
+    // 2. Approve quote if not already approved
+    if (quote && quote.status !== 'approved') {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const userId = user._id || user.id || 'system-auto';
+      const userRole = user.role || 'system';
+      
+      await quoteService.approveQuote(quoteId!, userId, userRole);
+      showToast('Quote approved successfully', 'success');
     }
 
-    // 3) Approve quote if not already approved
-    if (quote?.status !== 'approved') {
-      // Check if quote can be approved
-      if (quote.status === 'draft' || quote.status === 'sent') {
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
-        const userId = user._id || user.id || 'system-auto';
-        const userRole = user.role || 'system';
-        
-        // Approve the quote
-        await quoteService.approveQuote(qId, userId, userRole);
-        showToast('Quote approved successfully', 'success');
-      } else if (quote.status === 'rejected' || quote.status === 'expired') {
-        showToast(`Quote cannot be approved. Current status: ${quote.status}`, 'error');
-        return;
-      } else {
-        showToast(`Quote is already ${quote.status}`, 'info');
-      }
-    }
-
-    // 4) Mark quote stage as completed in lifecycle
-    showToast('Transitioning to invoice stage...', 'info');
-    
-    // Use markStageAsCompleted to properly transition
+    // 3. Mark quote stage as completed (this triggers auto-invoice creation)
     const markStageResult = await lifecycleIntegrationService.markStageAsCompleted(
       opportunityId, 
       'quote',
       {
-        documentId: qId,
+        documentId: quoteId,
         completedBy: JSON.parse(localStorage.getItem('user') || '{}')?._id || 'system',
         notes: 'Quote approved via sales order'
       }
@@ -370,13 +321,12 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
       return;
     }
 
-    // 5) Wait for invoice to be auto-generated
     showToast('Generating invoice from quote…', 'info');
     
-    // Poll for invoice creation
+    // 4. Wait for invoice to be auto-generated
     let invoiceId = null;
     let attempts = 0;
-    const maxAttempts = 10;
+    const maxAttempts = 15; // Increased for reliability
     const delayMs = 1000;
 
     while (!invoiceId && attempts < maxAttempts) {
@@ -389,32 +339,27 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
       
       invoiceId = getInvoiceIdFromOrder(refreshedOrder);
       
-      if (!invoiceId && attempts === maxAttempts) {
-        showToast('Invoice is taking longer than expected. Please check the opportunity lifecycle.', 'warning');
-      }
-    }
-
-    if (invoiceId) {
-      // 6) Update sales order with invoice ID if not already linked
-      if (!salesOrder.invoiceId) {
+      if (invoiceId) {
+        // 5. Update sales order with invoice ID
         await salesOrderService.updateSalesOrder(
           salesOrder._id || salesOrder.id,
           { invoiceId }
         );
+        
+        // 6. Refresh all data
+        await fetchAll();
+        
+        // 7. Transition to invoice tab
+        setActiveTab('invoice');
+        showToast('Invoice created successfully!', 'success');
+        break;
       }
-
-      // 7) Refresh all data
-      await fetchAll();
       
-      // 8) Refresh lifecycle UI
-      const lifecycleUI = await lifecycleIntegrationService.getSalesOrderLifecycleUI(opportunityId);
-      setLifecycle(lifecycleUI);
-
-      showToast('Invoice created successfully!', 'success');
-      setActiveTab('invoice');
-    } else {
-      showToast('Invoice not created. Please check the opportunity workflow.', 'error');
+      if (attempts === maxAttempts) {
+        showToast('Invoice is taking longer than expected. Please check the opportunity lifecycle.', 'warning');
+      }
     }
+
   } catch (e: any) {
     console.error('Error accepting quote:', e);
     showToast(e?.message || 'Failed to accept quote / generate invoice', 'error');
@@ -424,42 +369,56 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
 }, [salesOrder, orderId, showToast, fetchAll]);
 
 
-const handleCompleteSalesOrder = useCallback(async () => {
-  if (!salesOrder) return;
+// const handleCompleteSalesOrder = useCallback(async () => {
+//   if (!salesOrder) return;
 
-  const opportunityId = getOpportunityId(salesOrder);
-  if (!opportunityId) {
-    showToast('Cannot complete: No opportunity linked', 'error');
-    return;
-  }
+//   const opportunityId = getOpportunityId(salesOrder);
+//   if (!opportunityId) {
+//     showToast('Cannot complete: No opportunity linked', 'error');
+//     return;
+//   }
 
-  setBusy(true);
-  try {
-    // Complete the sales order lifecycle
-    const result = await lifecycleIntegrationService.completeSalesOrder(opportunityId);
+//   setBusy(true);
+//   try {
+//     // 1. Complete the sales order lifecycle
+//     const result = await lifecycleIntegrationService.completeSalesOrder(opportunityId);
     
-    if (result.success) {
-      // Update sales order status locally
-      const updatedOrder = await salesOrderService.updateSalesOrder(salesOrder._id || salesOrder.id, {
-        status: 'delivered',
-        actualDeliveryDate: new Date().toISOString()
-      });
-      
-      setSalesOrder(updatedOrder);
-      showToast('Sales order completed successfully!', 'success');
-      
-      // Trigger refresh in list page
-      localStorage.setItem('salesOrdersLastUpdate', Date.now().toString());
-    } else {
-      showToast(result.message || 'Failed to complete sales order', 'error');
-    }
-  } catch (e: any) {
-    console.error('Error completing sales order:', e);
-    showToast(e?.message || 'Failed to complete sales order', 'error');
-  } finally {
-    setBusy(false);
-  }
-}, [salesOrder, showToast]);
+//     if (!result.success) {
+//       throw new Error(result.message || 'Failed to complete sales order');
+//     }
+
+//     // 2. Update sales order status locally
+//     const updatedOrder = await salesOrderService.updateSalesOrder(salesOrder._id || salesOrder.id, {
+//       status: 'delivered',
+//       actualDeliveryDate: new Date().toISOString()
+//     });
+    
+//     // 3. Update state
+//     setSalesOrder(updatedOrder);
+    
+//     // 4. Refresh lifecycle UI
+//     const lifecycleUI = await lifecycleIntegrationService.getSalesOrderLifecycleUI(opportunityId);
+//     setLifecycle(lifecycleUI);
+    
+//     // 5. Refresh stages
+//     await fetchAll();
+    
+//     // 6. Show success and trigger refresh in list page
+//     showToast('Sales order completed successfully!', 'success');
+//     localStorage.setItem('salesOrdersLastUpdate', Date.now().toString());
+    
+//     // 7. Auto-refresh the page after 2 seconds to show completed state
+//     setTimeout(() => {
+//       window.location.reload();
+//     }, 2000);
+    
+//   } catch (e: any) {
+//     console.error('Error completing sales order:', e);
+//     showToast(e?.message || 'Failed to complete sales order', 'error');
+//   } finally {
+//     setBusy(false);
+//   }
+// }, [salesOrder, showToast, fetchAll]);
 
 const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
   for (let i = 0; i < maxAttempts; i++) {
@@ -480,8 +439,38 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
   return null;
 }, [orderId]);
 
+const updateSalesOrderToDelivered = useCallback(async () => {
+  if (!salesOrder) return;
+  
+  try {
+    const updatedOrder = await salesOrderService.updateSalesOrder(salesOrder._id || salesOrder.id, {
+      status: 'delivered',
+      actualDeliveryDate: new Date().toISOString()
+    });
+    
+    setSalesOrder(updatedOrder);
+    showToast('Sales order marked as delivered!', 'success');
+    
+    // Refresh the page to show updated state
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
+    
+  } catch (error) {
+    console.error('Error updating sales order:', error);
+    showToast('Failed to update sales order status', 'error');
+  }
+}, [salesOrder, showToast]);
+
   const handleMarkInvoiceAsPaid = useCallback(async () => {
   if (!invoiceId) return;
+
+  // Check if invoice is already paid
+  if (invoiceStatus === 'paid') {
+    // If already paid, just update sales order to delivered
+    await updateSalesOrderToDelivered();
+    return;
+  }
 
   setBusy(true);
   try {
@@ -490,21 +479,14 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
       invoiceId,
       undefined,
       undefined,
-      'mock_payment',
-      `MOCK-${Date.now().toString(36).toUpperCase()}`
+      'manual_payment',
+      `MANUAL-${Date.now().toString(36).toUpperCase()}`
     );
 
     showToast('Invoice marked as paid', 'success');
     
-    // 2) Refresh data
-    await fetchAll();
-    
-    // 3) Show option to complete sales order
-    showToast('Invoice paid! You can now complete the sales order.', 'success');
-    
-    // 4) Optionally auto-complete sales order after payment
-    // Uncomment below to auto-complete:
-    // await handleCompleteSalesOrder();
+    // 2) Update sales order status to delivered
+    await updateSalesOrderToDelivered();
     
   } catch (e: any) {
     console.error(e);
@@ -512,7 +494,27 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
   } finally {
     setBusy(false);
   }
-}, [invoiceId, fetchAll, showToast]);
+}, [invoiceId, invoiceStatus, updateSalesOrderToDelivered, showToast]);
+
+  useEffect(() => {
+    const checkForUpdates = async () => {
+      if (salesOrder && !salesOrder.invoiceId && currentStage?.stage === 'invoice') {
+        // If we're in invoice stage but no invoice ID, check if one was created
+        const refreshed = await salesOrderService.getSalesOrderById(orderId);
+        const newInvoiceId = getInvoiceIdFromOrder(refreshed);
+        
+        if (newInvoiceId && !salesOrder.invoiceId) {
+          setSalesOrder(refreshed);
+          showToast('Invoice has been created!', 'success');
+        }
+      }
+    };
+
+    // Check every 5 seconds if we're waiting for invoice
+    const interval = setInterval(checkForUpdates, 5000);
+    
+    return () => clearInterval(interval);
+  }, [salesOrder, currentStage, orderId, showToast]);
 
   const handlePrint = async () => {
     try {
@@ -553,6 +555,38 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
     } catch (e) {
       console.error(e);
       showToast('Failed to update status', 'error');
+    }
+  };
+
+  const getInvoiceStatusText = (status: string): string => {
+    switch (status?.toLowerCase()) {
+      case 'draft': return 'Draft';
+      case 'sent': return 'Sent';
+      case 'paid': return 'Paid ✓';
+      case 'overdue': return 'Overdue';
+      case 'cancelled': return 'Cancelled';
+      default: return 'Pending';
+    }
+  };
+
+  const getInvoiceStatusColor = (status: string): string => {
+    switch (status?.toLowerCase()) {
+      case 'draft': return 'text-gray-700 bg-gray-100';
+      case 'sent': return 'text-blue-700 bg-blue-100';
+      case 'paid': return 'text-green-700 bg-green-100';
+      case 'overdue': return 'text-red-700 bg-red-100';
+      case 'cancelled': return 'text-gray-700 bg-gray-100';
+      default: return 'text-yellow-700 bg-yellow-100';
+    }
+  };
+
+  const getInvoiceStatusIcon = (status: string): React.ReactNode => {
+    switch (status?.toLowerCase()) {
+      case 'draft': return <FileText className="h-4 w-4" />;
+      case 'sent': return <Send className="h-4 w-4" />;
+      case 'paid': return <CheckCircle className="h-4 w-4" />;
+      case 'overdue': return <AlertCircle className="h-4 w-4" />;
+      default: return <FileText className="h-4 w-4" />;
     }
   };
 
@@ -776,168 +810,180 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
           <div className="space-y-6">
             {/* Current stage focus */}
             {currentStage && (
-  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 p-6">
-    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-      <div className="flex items-start gap-4">
-        <div className={`p-3 rounded-lg ${
-          salesOrder.status === 'delivered' 
-            ? 'bg-green-100' 
-            : currentStage.stage === 'quote' 
-              ? 'bg-blue-100' 
-              : 'bg-indigo-100'
-        }`}>
-          {salesOrder.status === 'delivered' ? (
-            <PackageCheck className="h-6 w-6 text-green-700" />
-          ) : currentStage.stage === 'quote' ? (
-            <FileText className="h-6 w-6 text-blue-700" />
-          ) : (
-            <Receipt className="h-6 w-6 text-indigo-700" />
-          )}
-        </div>
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 p-6">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className={`p-3 rounded-lg ${
+                      salesOrder.status === 'delivered' 
+                        ? 'bg-green-100' 
+                        : currentStage.stage === 'quote' 
+                          ? 'bg-blue-100' 
+                          : 'bg-indigo-100'
+                    }`}>
+                      {salesOrder.status === 'delivered' ? (
+                        <PackageCheck className="h-6 w-6 text-green-700" />
+                      ) : currentStage.stage === 'quote' ? (
+                        <FileText className="h-6 w-6 text-blue-700" />
+                      ) : (
+                        <Receipt className="h-6 w-6 text-indigo-700" />
+                      )}
+                    </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <h3 className="text-xl font-bold text-gray-900">
-              {salesOrder.status === 'delivered' 
-                ? 'Sales Order Completed' 
-                : currentStage.label}
-            </h3>
-            <StagePill stage={currentStage} />
-            {salesOrder.status === 'delivered' && (
-              <span className="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                <CheckCircle className="h-3 w-3 mr-1" />
-                Completed
-              </span>
-            )}
-          </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-bold text-gray-900">
+                          {salesOrder.status === 'delivered' 
+                            ? 'Sales Order Completed' 
+                            : quoteStatus === 'approved' && currentStage.stage === 'quote'
+                            ? 'Quote Approved ✓'  // Show "Completed" when quote is approved
+                            : currentStage.label}
+                        </h3>
+                        <StagePill stage={currentStage} />
+                        {salesOrder.status === 'delivered' && (
+                          <span className="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Completed
+                          </span>
+                        )}
+                        {/* Add completed badge for approved quote */}
+                        {quoteStatus === 'approved' && currentStage.stage === 'quote' && (
+                          <span className="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Completed
+                          </span>
+                        )}
+                      </div>
 
-          <p className="text-gray-600">
-            {salesOrder.status === 'delivered' 
-              ? 'The sales order has been completed and delivered to the customer.'
-              : currentStage.stage === 'quote'
-                ? 'Accept the quote to automatically generate the invoice.'
-                : invoiceStatus === 'paid'
-                  ? 'Invoice has been paid. Complete the sales order to finish.'
-                  : 'Invoice is ready. You can view it, edit it, or mark as paid.'}
-          </p>
+                      <p className="text-gray-600">
+                        {salesOrder.status === 'delivered' 
+                          ? 'The sales order has been completed and delivered to the customer.'
+                          : quoteStatus === 'approved' && currentStage.stage === 'quote'
+                          ? 'Quote has been approved. Invoice has been automatically generated.'
+                          : currentStage.stage === 'quote'
+                            ? 'Accept the quote to automatically generate the invoice.'
+                            : invoiceStatus === 'paid'
+                              ? 'Invoice has been paid. Complete the sales order to finish.'
+                              : 'Invoice is ready. You can view it, edit it, or mark as paid.'}
+                      </p>
 
-          <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
-            {salesOrder.status === 'delivered' ? (
-              <>
-                <span className="inline-flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  Status: <span className="font-medium text-green-900">Completed & Delivered</span>
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-blue-600" />
-                  Completed: <span className="font-medium text-gray-900">
-                    {salesOrder.actualDeliveryDate ? formatDate(salesOrder.actualDeliveryDate) : formatDate(salesOrder.updatedAt)}
-                  </span>
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="inline-flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-blue-600" />
-                  Quote: <span className={`font-medium ${
-                    quoteStatus === 'approved' ? 'text-green-700' : 'text-gray-900'
-                  }`}>
-                    {quoteStatus === 'approved' ? '✓ Approved' : quoteStatus}
-                  </span>
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <Receipt className="h-4 w-4 text-indigo-600" />
-                  Invoice: <span className={`font-medium ${
-                    invoiceStatus === 'paid' ? 'text-green-700' : 'text-gray-900'
-                  }`}>
-                    {invoiceId 
-                      ? (invoiceStatus === 'paid' ? '✓ Paid' : 'Created') 
-                      : 'Not yet'}
-                  </span>
-                </span>
-                {salesOrder.status && salesOrder.status !== 'draft' && (
-                  <span className="inline-flex items-center gap-2">
-                    <Package className="h-4 w-4 text-purple-600" />
-                    Order: <span className={`font-medium ${getOrderStatusColor(salesOrder.status)}`}>
-                      {salesOrder.status}
-                    </span>
-                  </span>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+                      <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                        {salesOrder.status === 'delivered' ? (
+                          <>
+                            <span className="inline-flex items-center gap-2">
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                              Status: <span className="font-medium text-green-900">Completed & Delivered</span>
+                            </span>
+                            <span className="inline-flex items-center gap-2">
+                              <Calendar className="h-4 w-4 text-blue-600" />
+                              Completed: <span className="font-medium text-gray-900">
+                                {salesOrder.actualDeliveryDate ? formatDate(salesOrder.actualDeliveryDate) : formatDate(salesOrder.updatedAt)}
+                              </span>
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="inline-flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-blue-600" />
+                              Quote: <span className={`font-medium ${
+                                quoteStatus === 'approved' ? 'text-green-700' : 'text-gray-900'
+                              }`}>
+                                {quoteStatus === 'approved' ? '✓ Approved' : quoteStatus}
+                                {quoteStatus === 'approved' && (
+                                  <span className="ml-1 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded">Completed</span>
+                                )}
+                              </span>
+                            </span>
+                            <span className="inline-flex items-center gap-2">
+                              <Receipt className="h-4 w-4 text-indigo-600" />
+                              Invoice: <span className={`font-medium ${
+                                invoiceStatus === 'paid' ? 'text-green-700' : invoiceId ? 'text-blue-700' : 'text-gray-900'
+                              }`}>
+                                {invoiceId 
+                                  ? (invoiceStatus === 'paid' ? '✓ Paid' : 'Created') 
+                                  : quoteStatus === 'approved' ? 'Generating...' : 'Not yet'}
+                              </span>
+                            </span>
+                            {salesOrder.status && salesOrder.status !== 'draft' && (
+                              <span className="inline-flex items-center gap-2">
+                                <Package className="h-4 w-4 text-purple-600" />
+                                Order: <span className={`font-medium ${getOrderStatusColor(salesOrder.status)}`}>
+                                  {salesOrder.status}
+                                </span>
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
-      {/* Primary CTA */}
-      <div className="flex items-center gap-2">
-        {salesOrder.status === 'delivered' ? (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 px-4 py-3 bg-green-100 text-green-800 rounded-lg">
-              <CheckCircle className="h-5 w-5" />
-              <span className="font-medium">Sales Order Completed</span>
-            </div>
-            <Link
-              href={`/invoices/${invoiceId}`}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 text-sm"
-            >
-              <Eye className="h-4 w-4" />
-              View Invoice
-            </Link>
-          </div>
-        ) : currentStage.stage === 'quote' ? (
-          <button
-            onClick={handleAcceptQuoteAndGenerateInvoice}
-            disabled={busy || quoteStatus === 'approved'}
-            className="px-5 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 font-medium disabled:opacity-50 flex items-center gap-2"
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-            {quoteStatus === 'approved' ? 'Already Accepted' : (busy ? 'Processing…' : 'Accept Quote & Generate Invoice')}
-          </button>
-        ) : currentStage.stage === 'invoice' && invoiceId ? (
-          <>
-            <Link
-              href={`/invoices/${invoiceId}`}
-              className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2"
-            >
-              <Eye className="h-4 w-4" />
-              View Invoice
-            </Link>
-            
-            {invoiceStatus !== 'paid' && (
-              <button
-                onClick={handleMarkInvoiceAsPaid}
-                disabled={busy}
-                className="px-4 py-3 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 font-medium disabled:opacity-50 flex items-center gap-2"
-              >
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                Mark as Paid
-              </button>
-            )}
-            
-            {invoiceStatus === 'paid' && salesOrder.status !== 'delivered' && (
-              <button
-                onClick={handleCompleteSalesOrder}
-                disabled={busy}
-                className="px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 font-medium disabled:opacity-50 flex items-center gap-2"
-              >
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackageCheck className="h-4 w-4" />}
-                Complete Sales Order
-              </button>
-            )}
-            
-            {invoiceStatus === 'paid' && salesOrder.status === 'delivered' && (
-              <div className="flex items-center gap-2 px-4 py-3 bg-green-100 text-green-800 rounded-lg">
-                <PackageCheck className="h-5 w-5" />
-                <span className="font-medium">Order Completed</span>
+                  {/* Primary CTA - Updated to show different states */}
+                  <div className="flex items-center gap-2">
+                    {salesOrder.status === 'delivered' ? (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2 px-4 py-3 bg-green-100 text-green-800 rounded-lg">
+                          <CheckCircle className="h-5 w-5" />
+                          <span className="font-medium">Sales Order Completed</span>
+                        </div>
+                        <Link
+                          href={`/invoices/${invoiceId}`}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 text-sm"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View Invoice
+                        </Link>
+                      </div>
+                    ) : currentStage.stage === 'quote' ? (
+                      <button
+                        onClick={handleAcceptQuoteAndGenerateInvoice}
+                        disabled={busy || quoteStatus === 'approved'}
+                        className="px-5 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 font-medium disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {busy ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : quoteStatus === 'approved' ? (
+                          <CheckCircle className="h-4 w-4" />
+                        ) : (
+                          <CheckCircle className="h-4 w-4" />
+                        )}
+                        {quoteStatus === 'approved' 
+                          ? 'Invoice Generated' 
+                          : busy 
+                            ? 'Processing…' 
+                            : 'Accept Quote & Generate Invoice'}
+                      </button>
+                    ) : currentStage.stage === 'invoice' && invoiceId ? (
+                      <>
+                        <Link
+                          href={`/invoices/${invoiceId}`}
+                          className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View Invoice
+                        </Link>
+                        
+                        {/* Simplified: If invoice is not paid, show "Mark as Paid" button */}
+                        {invoiceStatus !== 'paid' ? (
+                          <button
+                            onClick={handleMarkInvoiceAsPaid}
+                            disabled={busy}
+                            className="px-4 py-3 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 font-medium disabled:opacity-50 flex items-center gap-2"
+                          >
+                            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                            Mark as Paid
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-2 px-4 py-3 bg-green-100 text-green-800 rounded-lg">
+                            <PackageCheck className="h-5 w-5" />
+                            <span className="font-medium">Order Completed</span>
+                          </div>
+                        )}
+                      </>
+                    ) : null}
+                  </div>
+                </div>
               </div>
             )}
-          </>
-        ) : null}
-      </div>
-    </div>
-  </div>
-)}
 
             {/* Workflow progress (2-step timeline) */}
             <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -947,8 +993,15 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
                   <p className="text-sm text-gray-600">Sales Order lifecycle: Quote → Invoice</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm text-gray-600">Current</p>
-                  <p className="text-lg font-semibold text-blue-700 capitalize">{currentStage?.stage}</p>
+                  <p className="text-sm text-gray-600">Current Stage</p>
+                  <p className="text-lg font-semibold text-blue-700 capitalize">
+                    {quoteStatus === 'approved' && currentStage?.stage === 'quote' 
+                      ? 'Quote Completed' 
+                      : currentStage?.stage}
+                  </p>
+                  {quoteStatus === 'approved' && currentStage?.stage === 'quote' && (
+                    <p className="text-xs text-green-600">✓ Ready for invoice</p>
+                  )}
                 </div>
               </div>
 
@@ -960,36 +1013,73 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
                       <div
                         className={`w-12 h-12 rounded-full border-4 flex items-center justify-center ${
                           s.completed
-                            ? 'bg-green-50 border-green-200'
+                            ? 'bg-green-50 border-green-500'
                             : s.isCurrent
-                              ? 'bg-blue-50 border-blue-200'
-                              : 'bg-gray-50 border-gray-200'
+                              ? 'bg-blue-50 border-blue-500'
+                              : 'bg-gray-50 border-gray-300'
                         }`}
                       >
-                        <StageDot stage={s} />
+                        {s.completed ? (
+                          <CheckCircle className="h-6 w-6 text-green-600" />
+                        ) : s.isCurrent ? (
+                          <CircleDot className="h-6 w-6 text-blue-600" />
+                        ) : (
+                          <Circle className="h-6 w-6 text-gray-400" />
+                        )}
                       </div>
                       <div className="mt-3 text-center">
-                        <p className="text-sm font-medium text-gray-900">{s.label}</p>
-                        <p className="text-xs text-gray-500">{s.completed ? 'Completed' : s.isCurrent ? 'In progress' : 'Pending'}</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {s.stage === 'quote' && quoteStatus === 'approved' ? 'Completed' : s.label}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {s.completed 
+                            ? (s.stage === 'quote' && quoteStatus === 'approved' ? 'Ready for invoice' : 'Completed')
+                            : s.isCurrent 
+                              ? 'In progress' 
+                              : 'Pending'}
+                        </p>
+                        {s.stage === 'quote' && quoteStatus === 'approved' && (
+                          <span className="inline-flex items-center mt-1 px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">
+                            ✓ Done
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Summary cards */}
+              {/* Summary cards - Updated */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
                 <div className="p-4 bg-blue-50 rounded-lg">
                   <p className="text-sm text-gray-600 mb-1">Order Total</p>
                   <p className="text-lg font-bold text-blue-700">{formatCurrency(salesOrder.totalAmount)}</p>
                 </div>
-                <div className="p-4 bg-green-50 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-1">Quote</p>
-                  <p className="text-lg font-bold text-green-700">{quoteId ? 'Exists' : 'Missing'}</p>
+                <div className={`p-4 rounded-lg ${quoteStatus === 'approved' ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Quote</p>
+                      <p className={`text-lg font-bold ${quoteStatus === 'approved' ? 'text-green-700' : 'text-gray-900'}`}>
+                        {quoteStatus === 'approved' ? 'Completed' : quoteId ? 'Exists' : 'Missing'}
+                      </p>
+                    </div>
+                    {quoteStatus === 'approved' && (
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    )}
+                  </div>
                 </div>
-                <div className="p-4 bg-purple-50 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-1">Invoice</p>
-                  <p className="text-lg font-bold text-purple-700">{invoiceId ? 'Created' : 'Not yet'}</p>
+                <div className={`p-4 rounded-lg ${invoiceId ? 'bg-purple-50 border border-purple-200' : 'bg-gray-50'}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Invoice</p>
+                      <p className={`text-lg font-bold ${invoiceId ? 'text-purple-700' : 'text-gray-900'}`}>
+                        {invoiceId ? 'Created' : quoteStatus === 'approved' ? 'Next Step' : 'Not yet'}
+                      </p>
+                    </div>
+                    {invoiceId && (
+                      <Receipt className="h-5 w-5 text-purple-600" />
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1044,21 +1134,39 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
                 </button>
               </div>
 
-              {/* Guidance message */}
               {currentStage?.stage === 'quote' && (
-                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className={`mt-4 p-4 rounded-lg ${quoteStatus === 'approved' ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200'}`}>
                   <div className="flex items-start gap-3">
-                    <FileText className="h-5 w-5 text-blue-700 mt-0.5" />
+                    {quoteStatus === 'approved' ? (
+                      <CheckCircle className="h-5 w-5 text-green-700 mt-0.5" />
+                    ) : (
+                      <FileText className="h-5 w-5 text-blue-700 mt-0.5" />
+                    )}
                     <div>
-                      <p className="font-medium text-blue-900">Quote Approval Required</p>
-                      <p className="text-sm text-blue-800">
-                        A quote has been auto-generated from the opportunity. Approve it to automatically generate an invoice. Once the invoice is paid, you can complete the sales order.
+                      <p className={`font-medium ${quoteStatus === 'approved' ? 'text-green-900' : 'text-blue-900'}`}>
+                        {quoteStatus === 'approved' ? 'Quote Approved ✓' : 'Quote Approval Required'}
                       </p>
-                      <div className="mt-2 text-xs text-blue-700">
-                        <p>• Quote is auto-generated from opportunity</p>
-                        <p>• Approve quote to generate invoice</p>
-                        <p>• Mark invoice as paid when payment is received</p>
-                        <p>• Complete sales order to finish the workflow</p>
+                      <p className={`text-sm mt-1 ${quoteStatus === 'approved' ? 'text-green-800' : 'text-blue-800'}`}>
+                        {quoteStatus === 'approved' 
+                          ? 'The quote has been approved and marked as completed. The invoice has been automatically generated from the approved quote.'
+                          : 'A quote has been auto-generated from the opportunity. Approve it to automatically generate an invoice. Once the invoice is paid, you can complete the sales order.'}
+                      </p>
+                      <div className={`mt-2 text-xs ${quoteStatus === 'approved' ? 'text-green-700' : 'text-blue-700'}`}>
+                        {quoteStatus === 'approved' ? (
+                          <>
+                            <p>• ✓ Quote approved and completed</p>
+                            <p>• ✓ Invoice generated automatically</p>
+                            <p>• Next: View invoice and mark as paid</p>
+                            <p>• Then: Complete sales order workflow</p>
+                          </>
+                        ) : (
+                          <>
+                            <p>• Quote is auto-generated from opportunity</p>
+                            <p>• Approve quote to generate invoice</p>
+                            <p>• Mark invoice as paid when payment is received</p>
+                            <p>• Complete sales order to finish the workflow</p>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1076,7 +1184,7 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
                 <h3 className="text-lg font-semibold text-gray-900">Quotation</h3>
                 <p className="text-sm text-gray-600">
                   {quoteStatus === 'approved' 
-                    ? 'Quote has been approved. Invoice has been generated.'
+                    ? '✓ Quote has been approved and completed. Invoice has been generated.'
                     : 'Approve the quote to automatically generate an invoice.'}
                 </p>
               </div>
@@ -1092,37 +1200,42 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
                   </Link>
                 )}
 
-                {/* Only show Accept button if quote is not already approved */}
-                {quoteStatus !== 'approved' && (
+                {/* Show different button based on status */}
+                {quoteStatus === 'approved' ? (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-lg">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="font-medium">✓ Completed</span>
+                  </div>
+                ) : (
                   <button
                     onClick={handleAcceptQuoteAndGenerateInvoice}
                     disabled={!quoteId || busy || quoteStatus === 'approved'}
                     className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 font-medium disabled:opacity-50 flex items-center gap-2"
                   >
                     {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                    {quoteStatus === 'approved' ? 'Already Approved' : 'Accept & Generate Invoice'}
+                    Accept & Generate Invoice
                   </button>
-                )}
-
-                {/* Show success message if invoice was generated */}
-                {quoteStatus === 'approved' && invoiceId && (
-                  <div className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-lg">
-                    <CheckCircle className="h-4 w-4" />
-                    <span className="text-sm font-medium">Invoice Generated</span>
-                  </div>
                 )}
               </div>
             </div>
 
             {quoteId ? (
               <div className="space-y-6">
-                {/* Quote Details */}
+                {/* Quote Details - Updated for completed state */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-4 bg-gray-50 rounded-lg border">
-                    <p className="text-sm text-gray-600">Quote ID</p>
+                  <div className={`p-4 rounded-lg ${quoteStatus === 'approved' ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border'}`}>
+                    <p className="text-sm text-gray-600 mb-1">Quote ID</p>
                     <p className="text-sm font-medium text-gray-900 break-all">{quoteId}</p>
+                    {quoteStatus === 'approved' && (
+                      <div className="flex items-center gap-1 mt-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span className="text-xs text-green-700">Completed</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="p-4 rounded-lg border relative overflow-hidden">
+                  <div className={`p-4 rounded-lg border relative overflow-hidden ${
+                    quoteStatus === 'approved' ? 'border-green-200' : ''
+                  }`}>
                     <div className={`absolute top-0 left-0 w-1 h-full ${
                       quoteStatus === 'approved' ? 'bg-green-500' :
                       quoteStatus === 'sent' ? 'bg-blue-500' :
@@ -1132,7 +1245,9 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
                     <div className="ml-2">
                       <p className="text-sm text-gray-600">Status</p>
                       <div className="flex items-center gap-2 mt-1">
-                        <p className="text-sm font-medium text-gray-900 capitalize">{quoteStatus}</p>
+                        <p className="text-sm font-medium text-gray-900 capitalize">
+                          {quoteStatus === 'approved' ? 'Completed' : quoteStatus}
+                        </p>
                         {quoteStatus === 'approved' && (
                           <CheckCircle className="h-4 w-4 text-green-600" />
                         )}
@@ -1140,7 +1255,7 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
                     </div>
                   </div>
                   <div className="p-4 bg-gray-50 rounded-lg border">
-                    <p className="text-sm text-gray-600">Total</p>
+                    <p className="text-sm text-gray-600 mb-1">Total</p>
                     <p className="text-sm font-bold text-blue-700">
                       {typeof salesOrder.quoteId === 'object'
                         ? formatCurrency(salesOrder.quoteId.totalAmount)
@@ -1149,131 +1264,109 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
                   </div>
                 </div>
 
-                {/* Quote Flow Status */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <FileText className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-blue-900">Quote Status Flow</h4>
-                      <p className="text-sm text-blue-700">Current stage in the quotation process</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="text-center">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2 ${
-                        quoteStatus === 'draft' || quoteStatus === 'sent' || quoteStatus === 'approved'
-                          ? 'bg-blue-100 border-2 border-blue-500'
-                          : 'bg-gray-100 border-2 border-gray-300'
-                      }`}>
-                        <FileText className={`h-5 w-5 ${
-                          quoteStatus === 'draft' || quoteStatus === 'sent' || quoteStatus === 'approved'
-                            ? 'text-blue-600'
-                            : 'text-gray-400'
-                        }`} />
-                      </div>
-                      <p className="text-xs font-medium">Created</p>
-                    </div>
-                    
-                    <div className="flex-1 h-0.5 mx-2 bg-gray-200" />
-                    
-                    <div className="text-center">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2 ${
-                        quoteStatus === 'sent' || quoteStatus === 'approved'
-                          ? 'bg-blue-100 border-2 border-blue-500'
-                          : 'bg-gray-100 border-2 border-gray-300'
-                      }`}>
-                        <Send className={`h-5 w-5 ${
-                          quoteStatus === 'sent' || quoteStatus === 'approved'
-                            ? 'text-blue-600'
-                            : 'text-gray-400'
-                        }`} />
-                      </div>
-                      <p className="text-xs font-medium">Sent</p>
-                    </div>
-                    
-                    <div className="flex-1 h-0.5 mx-2 bg-gray-200" />
-                    
-                    <div className="text-center">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2 ${
-                        quoteStatus === 'approved'
-                          ? 'bg-green-100 border-2 border-green-500'
-                          : 'bg-gray-100 border-2 border-gray-300'
-                      }`}>
-                        {quoteStatus === 'approved' ? (
-                          <CheckCircle className="h-5 w-5 text-green-600" />
-                        ) : (
-                          <CheckCircle className="h-5 w-5 text-gray-400" />
-                        )}
-                      </div>
-                      <p className="text-xs font-medium">Approved</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Required Message */}
-                {quoteStatus !== 'approved' && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
-                      <div>
-                        <p className="font-medium text-amber-900">Action Required</p>
-                        <p className="text-sm text-amber-800 mt-1">
-                          {quoteStatus === 'draft' 
-                            ? 'This quote is still in draft. It needs to be sent to the customer for approval.'
-                            : quoteStatus === 'sent'
-                            ? 'This quote has been sent to the customer. Once they approve it, you can accept it here.'
-                            : 'Approve this quote to generate an invoice and continue with the sales order.'}
-                        </p>
-                        {quoteStatus === 'draft' && (
-                          <button
-                            onClick={() => showToast('Send quote functionality not implemented in this view', 'info')}
-                            className="mt-2 px-3 py-1.5 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 flex items-center gap-1"
-                          >
-                            <Send className="h-3.5 w-3.5" />
-                            Send Quote to Customer
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Success Message if Approved */}
+                {/* Show completion message if approved */}
                 {quoteStatus === 'approved' && (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                     <div className="flex items-start gap-3">
                       <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
                       <div>
-                        <p className="font-medium text-green-900">Quote Approved ✓</p>
+                        <p className="font-medium text-green-900">Quote Approved & Completed ✓</p>
                         <p className="text-sm text-green-800 mt-1">
-                          This quote has been approved. {invoiceId 
+                          This quote has been approved and marked as completed. {invoiceId 
                             ? 'An invoice has been automatically generated from this quote.' 
                             : 'Invoice generation is in progress...'}
                         </p>
-                        {invoiceId && (
-                          <div className="mt-3 flex items-center gap-2">
-                            <Link
-                              href={`/invoices/${invoiceId}`}
-                              className="px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 flex items-center gap-1"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                              View Generated Invoice
-                            </Link>
-                            <button
-                              onClick={() => setActiveTab('invoice')}
-                              className="px-3 py-1.5 border border-green-600 text-green-600 text-sm rounded hover:bg-green-50 flex items-center gap-1"
-                            >
-                              Go to Invoice Tab
-                            </button>
-                          </div>
-                        )}
+                        <div className="mt-3 flex items-center gap-2">
+                          {invoiceId && (
+                            <>
+                              <Link
+                                href={`/invoices/${invoiceId}`}
+                                className="px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 flex items-center gap-1"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                                View Generated Invoice
+                              </Link>
+                              <button
+                                onClick={() => setActiveTab('invoice')}
+                                className="px-3 py-1.5 border border-green-600 text-green-600 text-sm rounded hover:bg-green-50 flex items-center gap-1"
+                              >
+                                Go to Invoice Tab
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
                 )}
+
+                {/* Quote Flow Status - Updated for completed state */}
+                <div className={`rounded-lg p-4 ${
+                  quoteStatus === 'approved' 
+                    ? 'bg-green-50 border border-green-200' 
+                    : 'bg-blue-50 border border-blue-200'
+                }`}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`p-2 rounded-lg ${
+                      quoteStatus === 'approved' ? 'bg-green-100' : 'bg-blue-100'
+                    }`}>
+                      <FileText className={`h-5 w-5 ${
+                        quoteStatus === 'approved' ? 'text-green-600' : 'text-blue-600'
+                      }`} />
+                    </div>
+                    <div>
+                      <h4 className={`font-medium ${
+                        quoteStatus === 'approved' ? 'text-green-900' : 'text-blue-900'
+                      }`}>
+                        {quoteStatus === 'approved' ? 'Quote Flow Completed' : 'Quote Status Flow'}
+                      </h4>
+                      <p className={`text-sm ${
+                        quoteStatus === 'approved' ? 'text-green-700' : 'text-blue-700'
+                      }`}>
+                        {quoteStatus === 'approved' 
+                          ? 'All stages of the quotation process have been completed.'
+                          : 'Current stage in the quotation process'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    {/* Draft Step */}
+                    <div className="text-center">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2 ${
+                        'bg-green-100 border-2 border-green-500'
+                      }`}>
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      </div>
+                      <p className="text-xs font-medium">Created</p>
+                    </div>
+                    
+                    <div className="flex-1 h-0.5 mx-2 bg-green-200" />
+                    
+                    {/* Sent Step */}
+                    <div className="text-center">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2 ${
+                        'bg-green-100 border-2 border-green-500'
+                      }`}>
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      </div>
+                      <p className="text-xs font-medium">Sent</p>
+                    </div>
+                    
+                    <div className="flex-1 h-0.5 mx-2 bg-green-200" />
+                    
+                    {/* Approved Step */}
+                    <div className="text-center">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2 ${
+                        'bg-green-100 border-2 border-green-500'
+                      }`}>
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      </div>
+                      <p className="text-xs font-medium">Approved</p>
+                      <p className="text-xs text-green-600 font-medium">Completed</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="text-center py-12">
@@ -1282,31 +1375,6 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
                 <p className="text-gray-600 mb-6">
                   This sales order should have a quote created automatically from the opportunity lifecycle.
                 </p>
-                {/* <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <button
-                    onClick={() => showToast('Quote should be auto-generated from opportunity', 'info')}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Check Opportunity
-                  </button>
-                  <button
-                    onClick={handleCreateQuote}
-                    disabled={creatingQuote}
-                    className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2 justify-center"
-                  >
-                    {creatingQuote ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="h-4 w-4" />
-                        Create Quotation
-                      </>
-                    )}
-                  </button>
-                </div> */}
               </div>
             )}
           </div>
@@ -1314,98 +1382,461 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
 
         {/* INVOICE */}
         {activeTab === 'invoice' && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Invoice</h3>
-                <p className="text-sm text-gray-600">
-                  {invoiceId ? 'Generated from the accepted quote.' : 'Invoice will be generated after quote acceptance.'}
-                </p>
-              </div>
+          <div className="space-y-6">
+            {/* Invoice Header with Status Progress */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Invoice</h3>
+                  <p className="text-sm text-gray-600">
+                    {invoiceId 
+                      ? `Invoice generated from approved quote ${quoteStatus === 'approved' ? '✓' : ''}`
+                      : 'Invoice will be generated after quote acceptance.'}
+                  </p>
+                </div>
 
-              <div className="flex items-center gap-2">
-                {invoiceId ? (
-                  <>
-                    <Link
-                      href={`/invoices/${invoiceId}`}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                    >
-                      <Eye className="h-4 w-4" />
-                      View Invoice
-                    </Link>
+                <div className="flex items-center gap-2">
+                  {invoiceId ? (
+                    <>
+                      <Link
+                        href={`/invoices/${invoiceId}`}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                      >
+                        <Eye className="h-4 w-4" />
+                        View Invoice
+                      </Link>
 
-                    <Link
-                      href={`/invoices/${invoiceId}/edit`}
-                      className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
-                    >
-                      <Edit className="h-4 w-4" />
-                      Edit
-                    </Link>
-
+                      {/* Simplified: If invoice is not paid, show "Mark as Paid" button */}
+                      {invoiceStatus !== 'paid' ? (
+                        <button
+                          onClick={handleMarkInvoiceAsPaid}
+                          disabled={busy}
+                          className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 flex items-center gap-2 disabled:opacity-50"
+                        >
+                          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+                          Mark as Paid
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-2 px-4 py-3 bg-green-100 text-green-800 rounded-lg">
+                          <PackageCheck className="h-5 w-5" />
+                          <span className="font-medium">Order Completed</span>
+                        </div>
+                      )}
+                    </>
+                  ) : quoteStatus === 'approved' ? (
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-800 rounded-lg">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="font-medium">Generating Invoice...</span>
+                      </div>
+                      <button
+                        onClick={() => window.location.reload()}
+                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        Refresh
+                      </button>
+                    </div>
+                  ) : (
                     <button
-                      onClick={handleMarkInvoiceAsPaid}
-                      disabled={busy}
-                      className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 flex items-center gap-2 disabled:opacity-50"
+                      onClick={handleAcceptQuoteAndGenerateInvoice}
+                      disabled={!quoteId || busy}
+                      className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 font-medium disabled:opacity-50 flex items-center gap-2"
                     >
                       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                      Mark as Paid
+                      Generate Invoice
                     </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={handleAcceptQuoteAndGenerateInvoice}
-                    disabled={!quoteId || busy}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 font-medium disabled:opacity-50 flex items-center gap-2"
-                  >
-                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                    Generate Invoice
-                  </button>
-                )}
+                  )}
+                </div>
+              </div>
+
+              {/* Invoice Status Progress Bar */}
+              <div className="mb-6">
+                <div className="flex justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">Invoice Progress</span>
+                  <span className="text-sm font-medium text-blue-600">
+                    {!invoiceId ? '0%' : invoiceStatus === 'paid' ? '100%' : invoiceStatus === 'sent' ? '75%' : invoiceStatus === 'draft' ? '50%' : '25%'}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                  <div 
+                    className="bg-gradient-to-r from-blue-500 to-purple-600 h-2.5 rounded-full transition-all duration-500" 
+                    style={{ 
+                      width: !invoiceId ? '0%' : 
+                        invoiceStatus === 'paid' ? '100%' : 
+                        invoiceStatus === 'sent' ? '75%' : 
+                        invoiceStatus === 'draft' ? '50%' : '25%' 
+                    }}
+                  ></div>
+                </div>
+                <div className="flex justify-between mt-2 text-xs text-gray-500">
+                  <span>Not Created</span>
+                  <span>Draft</span>
+                  <span>Sent</span>
+                  <span>Paid</span>
+                  <span>Completed</span>
+                </div>
               </div>
             </div>
 
+            {/* Invoice Status Timeline */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-6">Invoice Status Timeline</h3>
+              
+              <div className="relative">
+                <div className="absolute left-0 top-1/2 w-full h-0.5 bg-gray-200 transform -translate-y-1/2"></div>
+                
+                <div className="relative flex justify-between">
+                  {/* Step 1: Quote Approved */}
+                  <div className="flex flex-col items-center">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 z-10 ${
+                      quoteStatus === 'approved' 
+                        ? 'bg-green-100 border-2 border-green-500' 
+                        : 'bg-gray-100 border-2 border-gray-300'
+                    }`}>
+                      {quoteStatus === 'approved' ? (
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      ) : (
+                        <FileText className="h-5 w-5 text-gray-400" />
+                      )}
+                    </div>
+                    <span className="text-xs font-medium text-gray-900">Quote Approved</span>
+                    <span className="text-xs text-gray-500">Pre-requisite</span>
+                    {quoteStatus === 'approved' && (
+                      <span className="mt-1 px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">
+                        ✓ Done
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Step 2: Invoice Created */}
+                  <div className="flex flex-col items-center">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 z-10 ${
+                      invoiceId 
+                        ? 'bg-green-100 border-2 border-green-500' 
+                        : quoteStatus === 'approved'
+                          ? 'bg-blue-100 border-2 border-blue-500'
+                          : 'bg-gray-100 border-2 border-gray-300'
+                    }`}>
+                      {invoiceId ? (
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      ) : quoteStatus === 'approved' ? (
+                        <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+                      ) : (
+                        <Receipt className="h-5 w-5 text-gray-400" />
+                      )}
+                    </div>
+                    <span className="text-xs font-medium text-gray-900">Invoice Created</span>
+                    <span className="text-xs text-gray-500">Auto-generated</span>
+                    {invoiceId && (
+                      <span className="mt-1 px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">
+                        ✓ Done
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Step 3: Invoice Sent */}
+                  <div className="flex flex-col items-center">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 z-10 ${
+                      invoiceStatus === 'sent' || invoiceStatus === 'paid'
+                        ? 'bg-green-100 border-2 border-green-500' 
+                        : invoiceId
+                          ? 'bg-blue-100 border-2 border-blue-500'
+                          : 'bg-gray-100 border-2 border-gray-300'
+                    }`}>
+                      {(invoiceStatus === 'sent' || invoiceStatus === 'paid') ? (
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      ) : invoiceId ? (
+                        <Send className="h-5 w-5 text-blue-600" />
+                      ) : (
+                        <Send className="h-5 w-5 text-gray-400" />
+                      )}
+                    </div>
+                    <span className="text-xs font-medium text-gray-900">Invoice Sent</span>
+                    <span className="text-xs text-gray-500">To customer</span>
+                    {(invoiceStatus === 'sent' || invoiceStatus === 'paid') && (
+                      <span className="mt-1 px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">
+                        ✓ Done
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Step 4: Payment Received */}
+                  <div className="flex flex-col items-center">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 z-10 ${
+                      invoiceStatus === 'paid' || salesOrder.status === 'delivered'
+                        ? 'bg-green-100 border-2 border-green-500' 
+                        : invoiceStatus === 'sent'
+                          ? 'bg-blue-100 border-2 border-blue-500'
+                          : 'bg-gray-100 border-2 border-gray-300'
+                    }`}>
+                      {invoiceStatus === 'paid' || salesOrder.status === 'delivered' ? (
+                        <CreditCard className="h-5 w-5 text-green-600" />
+                      ) : invoiceStatus === 'sent' ? (
+                        <CreditCard className="h-5 w-5 text-blue-600" />
+                      ) : (
+                        <CreditCard className="h-5 w-5 text-gray-400" />
+                      )}
+                    </div>
+                    <span className="text-xs font-medium text-gray-900">Payment Received</span>
+                    <span className="text-xs text-gray-500">Mark as paid</span>
+                    {(invoiceStatus === 'paid' || salesOrder.status === 'delivered') && (
+                      <span className="mt-1 px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">
+                        ✓ Done
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Step 5: Sales Order Completed */}
+                  <div className="flex flex-col items-center">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 z-10 ${
+                      salesOrder.status === 'delivered'
+                        ? 'bg-green-100 border-2 border-green-500' 
+                        : invoiceStatus === 'paid'
+                          ? 'bg-blue-100 border-2 border-blue-500'
+                          : 'bg-gray-100 border-2 border-gray-300'
+                    }`}>
+                      {salesOrder.status === 'delivered' ? (
+                        <PackageCheck className="h-5 w-5 text-green-600" />
+                      ) : invoiceStatus === 'paid' ? (
+                        <PackageCheck className="h-5 w-5 text-blue-600" />
+                      ) : (
+                        <PackageCheck className="h-5 w-5 text-gray-400" />
+                      )}
+                    </div>
+                    <span className="text-xs font-medium text-gray-900">Order Completed</span>
+                    <span className="text-xs text-gray-500">Final step</span>
+                    {salesOrder.status === 'delivered' && (
+                      <span className="mt-1 px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">
+                        ✓ Done
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Current Status Summary */}
+              <div className={`mt-6 p-4 rounded-lg ${
+                !invoiceId 
+                  ? 'bg-yellow-50 border border-yellow-200' 
+                  : invoiceStatus === 'paid' || salesOrder.status === 'delivered'
+                    ? 'bg-green-50 border border-green-200'
+                    : invoiceStatus === 'sent'
+                      ? 'bg-blue-50 border border-blue-200'
+                      : 'bg-gray-50 border border-gray-200'
+              }`}>
+                <div className="flex items-center gap-3">
+                  {!invoiceId ? (
+                    <>
+                      <AlertCircle className="h-5 w-5 text-yellow-600" />
+                      <div>
+                        <p className="font-medium text-yellow-900">Awaiting Invoice Creation</p>
+                        <p className="text-sm text-yellow-800">
+                          {quoteStatus === 'approved' 
+                            ? 'Invoice is being generated automatically from the approved quote...'
+                            : 'Approve the quote first to generate the invoice.'}
+                        </p>
+                      </div>
+                    </>
+                  ) : invoiceStatus === 'paid' || salesOrder.status === 'delivered' ? (
+                    <>
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                      <div>
+                        <p className="font-medium text-green-900">Payment Received & Order Completed ✓</p>
+                        <p className="text-sm text-green-800">
+                          Invoice has been paid and sales order is marked as delivered.
+                        </p>
+                      </div>
+                    </>
+                  ) : invoiceStatus === 'sent' ? (
+                    <>
+                      <Send className="h-5 w-5 text-blue-600" />
+                      <div>
+                        <p className="font-medium text-blue-900">Invoice Sent to Customer</p>
+                        <p className="text-sm text-blue-800">
+                          Invoice has been sent. Mark as paid when payment is received.
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="h-5 w-5 text-gray-600" />
+                      <div>
+                        <p className="font-medium text-gray-900">Invoice in Draft</p>
+                        <p className="text-sm text-gray-800">
+                          Invoice has been created. Mark it as paid to complete the sales order.
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Invoice Details Section */}
             {invoiceId ? (
-              <div className="space-y-4">
+              <div className="space-y-6">
+                {/* Invoice Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-1">Invoice Number</p>
-                    <p className="font-semibold text-lg text-blue-700">
-                      {typeof salesOrder.invoiceId === 'object' ? salesOrder.invoiceId.invoiceNumber : 'INV-…'}
-                    </p>
+                  <div className="bg-white rounded-xl border border-gray-200 p-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Invoice Number</p>
+                        <p className="font-semibold text-lg text-blue-700">
+                          {typeof salesOrder.invoiceId === 'object' ? salesOrder.invoiceId.invoiceNumber : 'INV-…'}
+                        </p>
+                      </div>
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <FileText className="h-5 w-5 text-blue-600" />
+                      </div>
+                    </div>
                   </div>
-                  <div className="p-4 bg-green-50 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-1">Status</p>
-                    <p className="font-semibold text-lg text-green-700 capitalize">{invoiceStatus}</p>
+                  
+                  <div className={`rounded-xl border p-5 ${
+                    invoiceStatus === 'paid' 
+                      ? 'bg-green-50 border-green-200' 
+                      : invoiceStatus === 'sent'
+                        ? 'bg-blue-50 border-blue-200'
+                        : invoiceStatus === 'draft'
+                          ? 'bg-gray-50 border-gray-200'
+                          : 'bg-yellow-50 border-yellow-200'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Status</p>
+                        <p className={`font-semibold text-lg ${
+                          invoiceStatus === 'paid' ? 'text-green-700' :
+                          invoiceStatus === 'sent' ? 'text-blue-700' :
+                          'text-gray-900'
+                        }`}>
+                          {invoiceStatus === 'paid' ? 'Paid ✓' : 
+                          invoiceStatus === 'sent' ? 'Sent' : 
+                          invoiceStatus === 'draft' ? 'Draft' : 
+                          'Pending'}
+                        </p>
+                      </div>
+                      <div className={`p-2 rounded-lg ${
+                        invoiceStatus === 'paid' ? 'bg-green-100' :
+                        invoiceStatus === 'sent' ? 'bg-blue-100' :
+                        'bg-gray-100'
+                      }`}>
+                        {invoiceStatus === 'paid' ? (
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                        ) : invoiceStatus === 'sent' ? (
+                          <Send className="h-5 w-5 text-blue-600" />
+                        ) : (
+                          <FileText className="h-5 w-5 text-gray-600" />
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="p-4 bg-purple-50 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-1">Total</p>
-                    <p className="font-semibold text-lg text-purple-700">
-                      {typeof salesOrder.invoiceId === 'object'
-                        ? formatCurrency(salesOrder.invoiceId.totalAmount ?? salesOrder.invoiceId.total)
-                        : formatCurrency(salesOrder.totalAmount)}
-                    </p>
+                  
+                  <div className="bg-white rounded-xl border border-gray-200 p-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Total Amount</p>
+                        <p className="font-semibold text-lg text-purple-700">
+                          {typeof salesOrder.invoiceId === 'object'
+                            ? formatCurrency(salesOrder.invoiceId.totalAmount ?? salesOrder.invoiceId.total)
+                            : formatCurrency(salesOrder.totalAmount)}
+                        </p>
+                      </div>
+                      <div className="p-2 bg-purple-100 rounded-lg">
+                        <DollarSign className="h-5 w-5 text-purple-600" />
+                      </div>
+                    </div>
                   </div>
-                  <div className="p-4 bg-amber-50 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-1">Created</p>
-                    <p className="font-semibold text-lg text-amber-700">
-                      {typeof salesOrder.invoiceId === 'object'
-                        ? formatDate(salesOrder.invoiceId.createdAt)
-                        : '—'}
-                    </p>
+                  
+                  <div className="bg-white rounded-xl border border-gray-200 p-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Created On</p>
+                        <p className="font-semibold text-lg text-amber-700">
+                          {typeof salesOrder.invoiceId === 'object'
+                            ? formatDate(salesOrder.invoiceId.createdAt)
+                            : '—'}
+                        </p>
+                      </div>
+                      <div className="p-2 bg-amber-100 rounded-lg">
+                        <Calendar className="h-5 w-5 text-amber-600" />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Items */}
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-3">Invoice Items</h4>
-                  <div className="overflow-x-auto border border-gray-200 rounded-lg">
-                    <table className="min-w-full divide-y divide-gray-200">
+                {/* Next Actions Card - Updated */}
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Next Actions</h3>
+                  
+                  <div className="space-y-4">
+                    {invoiceStatus === 'draft' || invoiceStatus === 'sent' ? (
+                      <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex items-center gap-3 mb-4">
+                          <CreditCard className="h-5 w-5 text-green-600" />
+                          <div>
+                            <p className="font-medium text-green-900">Ready for Payment</p>
+                            <p className="text-sm text-green-800">
+                              Mark this invoice as paid to automatically complete the sales order.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleMarkInvoiceAsPaid}
+                          disabled={busy}
+                          className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 text-sm disabled:opacity-50"
+                        >
+                          {busy ? 'Processing...' : 'Mark as Paid'}
+                        </button>
+                      </div>
+                    ) : invoiceStatus === 'paid' && salesOrder.status !== 'delivered' ? (
+                      <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                          <div>
+                            <p className="font-medium text-green-900">Sales Order Completed ✓</p>
+                            <p className="text-sm text-green-800">
+                              Invoice has been paid. Sales order will be marked as delivered automatically.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : salesOrder.status === 'delivered' ? (
+                      <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                          <div>
+                            <p className="font-medium text-green-900">Workflow Completed ✓</p>
+                            <p className="text-sm text-green-800">
+                              Sales order has been successfully completed and delivered.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Items Table */}
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-gray-900">Invoice Items</h2>
+                    <span className="text-sm text-gray-600">
+                      {(
+                        (typeof salesOrder.invoiceId === 'object' && (salesOrder.invoiceId.items || salesOrder.invoiceId.lineItems)) ||
+                        salesOrder.lineItems ||
+                        []
+                      ).length} items
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit Price</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                          <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                          <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
+                          <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Unit Price</th>
+                          <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
@@ -1415,19 +1846,21 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
                           []
                         ).map((item: any, idx: number) => (
                           <tr key={idx} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm text-gray-900">{item.description || item.productName || '—'}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{item.quantity ?? '—'}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{formatCurrency(item.unitPrice)}</td>
-                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{formatCurrency(item.total)}</td>
+                            <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {item.description || item.productName || '—'}
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap text-sm text-gray-900">{item.quantity ?? '—'}</td>
+                            <td className="px-5 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(item.unitPrice)}</td>
+                            <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{formatCurrency(item.total)}</td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot className="bg-gray-50">
                         <tr>
-                          <td colSpan={3} className="px-4 py-3 text-right text-sm font-medium text-gray-700">
+                          <td colSpan={3} className="px-5 py-3 text-right text-sm font-medium text-gray-700">
                             Total
                           </td>
-                          <td className="px-4 py-3 text-right text-sm font-bold text-blue-600">
+                          <td className="px-5 py-3 text-right text-sm font-bold text-blue-600">
                             {typeof salesOrder.invoiceId === 'object'
                               ? formatCurrency(salesOrder.invoiceId.totalAmount ?? salesOrder.invoiceId.total)
                               : formatCurrency(salesOrder.totalAmount)}
@@ -1437,45 +1870,86 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
                     </table>
                   </div>
                 </div>
-
-                {typeof salesOrder.invoiceId === 'object' && salesOrder.invoiceId.status === 'draft' && (
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="h-5 w-5 text-amber-700 mt-0.5" />
-                      <div>
-                        <p className="font-medium text-amber-900">Invoice is in draft</p>
-                        <p className="text-sm text-amber-800">
-                          You can edit and send it to the customer.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             ) : (
-              <div className="text-center py-12">
-                <Receipt className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Invoice Not Created Yet</h3>
-                <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                  Accept the quote to automatically generate the invoice from quote items and totals.
-                </p>
-                <button
-                  onClick={handleAcceptQuoteAndGenerateInvoice}
-                  disabled={!quoteId || busy}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 font-medium disabled:opacity-50"
-                >
-                  {busy ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
-                      Generating…
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="h-4 w-4 inline mr-2" />
-                      Accept Quote & Generate Invoice
-                    </>
+              /* No Invoice Created Yet Section */
+              <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+                <div className="max-w-md mx-auto">
+                  <div className="relative mb-6">
+                    <div className="w-24 h-24 mx-auto bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center">
+                      <Receipt className="h-12 w-12 text-blue-400" />
+                    </div>
+                    {quoteStatus === 'approved' && (
+                      <div className="absolute -top-2 -right-2 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center border-4 border-white">
+                        <Loader2 className="h-5 w-5 text-green-600 animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                    {quoteStatus === 'approved' ? 'Invoice is Being Generated' : 'Invoice Not Created Yet'}
+                  </h3>
+                  
+                  <p className="text-gray-600 mb-6">
+                    {quoteStatus === 'approved' 
+                      ? 'Your invoice is being automatically generated from the approved quote. This may take a few moments.'
+                      : 'Accept the quote to automatically generate the invoice from quote items and totals.'}
+                  </p>
+                  
+                  <div className="space-y-4">
+                    {quoteStatus === 'approved' ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Processing quote data...</span>
+                        </div>
+                        <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Calculating invoice totals...</span>
+                        </div>
+                        <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Generating invoice document...</span>
+                        </div>
+                        
+                        <button
+                          onClick={() => window.location.reload()}
+                          className="mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 mx-auto"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          Refresh Page
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleAcceptQuoteAndGenerateInvoice}
+                        disabled={!quoteId || busy}
+                        className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 font-medium disabled:opacity-50"
+                      >
+                        {busy ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                            Generating…
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4 inline mr-2" />
+                            Accept Quote & Generate Invoice
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                  
+                  {quoteStatus === 'approved' && (
+                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        <strong>Note:</strong> If the invoice doesn't appear after a few minutes, 
+                        try refreshing the page or contact support if the issue persists.
+                      </p>
+                    </div>
                   )}
-                </button>
+                </div>
               </div>
             )}
           </div>

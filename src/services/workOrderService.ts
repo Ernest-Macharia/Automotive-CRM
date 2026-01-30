@@ -212,6 +212,7 @@ export interface UpdateWorkOrderData {
   // Add missing properties for stage approvals
   waiverId?: string;
   invoicePaid?: boolean;
+  invoiceId?: string;
   invoicePaymentDate?: string;
   
   // Add the missing properties from the error

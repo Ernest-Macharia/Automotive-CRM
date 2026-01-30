@@ -31,6 +31,12 @@ export interface QuoteRef {
   quoteNumber?: string;
 }
 
+export interface WorkOrderRef {
+  _id?: string;
+  id?: string;
+  workOrderNumber?: string;
+}
+
 export interface JobCardRef {
   _id?: string;
   id?: string;
@@ -58,6 +64,7 @@ export interface Invoice {
   _id?: string;
   invoiceNumber: string;
   opportunityId: OpportunityRef | string;
+  workOrderId: WorkOrderRef | string;
   quoteId?: QuoteRef | string;
   jobCardId?: JobCardRef | string;
   vehicleId?: VehicleRef | string;

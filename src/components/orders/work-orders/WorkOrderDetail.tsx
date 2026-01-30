@@ -4287,82 +4287,156 @@ const handleCompleteJobCard = async (jobCardId: string) => {
             <div className="space-y-6">
               <CurrentStageDisplay />
               {/* <OneClickCompletionSection /> */}
+
+              {/* Add Workflow Status Component Here */}
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Workflow Status</h3>
+                
+                <div className="space-y-4">
+                  {/* Pre-Checklist Stage */}
+                  <div className={`p-4 rounded-lg border ${workOrder.preChecklistId ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <ClipboardCheck className={`h-5 w-5 ${workOrder.preChecklistId ? 'text-green-600' : 'text-gray-400'}`} />
+                        <div>
+                          <h4 className="font-medium text-gray-900">Pre-Checklist</h4>
+                          <p className="text-sm text-gray-600">Pre-service inspection</p>
+                        </div>
+                      </div>
+                      <div>
+                        {workOrder.preChecklistId ? (
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-5 w-5 text-green-600" />
+                            <span className="text-sm font-medium text-green-700">Completed</span>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleCreateStageDocument('pre_checklist')}
+                            className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                          >
+                            Create
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Job Card Stage */}
+                  <div className={`p-4 rounded-lg border ${workOrder.currentStage === 'job_card' ? 'border-blue-200 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium text-gray-900">Job Card</h4>
+                            {workOrder.currentStage === 'job_card' && (
+                              <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+                                Current
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-600">Technician work assignment</p>
+                        </div>
+                      </div>
+                      <div>
+                        {jobCards.length > 0 ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => router.push(`/job-cards/${jobCards[0]._id}`)}
+                              className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                            >
+                              View Job Card
+                            </button>
+                            {jobCards[0].status !== 'completed' && (
+                              <button
+                                onClick={() => handleCompleteJobCard(jobCards[0]._id)}
+                                className="px-3 py-1 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
+                              >
+                                Complete
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleCreateStageDocument('job_card')}
+                            className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                          >
+                            Create
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Post-Checklist Stage */}
+                  <div className={`p-4 rounded-lg border ${workOrder.postChecklistId ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <ClipboardList className={`h-5 w-5 ${workOrder.postChecklistId ? 'text-green-600' : 'text-gray-400'}`} />
+                        <div>
+                          <h4 className="font-medium text-gray-900">Post-Checklist</h4>
+                          <p className="text-sm text-gray-600">Quality verification</p>
+                        </div>
+                      </div>
+                      <div>
+                        {workOrder.postChecklistId ? (
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-5 w-5 text-green-600" />
+                            <span className="text-sm font-medium text-green-700">Completed</span>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleCreateStageDocument('post_checklist')}
+                            className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                          >
+                            Create
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Invoice Stage */}
+                  <div className={`p-4 rounded-lg border ${workOrder.invoiceId ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <ReceiptIcon className={`h-5 w-5 ${workOrder.invoiceId ? 'text-green-600' : 'text-gray-400'}`} />
+                        <div>
+                          <h4 className="font-medium text-gray-900">Invoice</h4>
+                          <p className="text-sm text-gray-600">Billing and payment</p>
+                        </div>
+                      </div>
+                      <div>
+                        {workOrder.invoiceId ? (
+                          <div className="flex items-center gap-2">
+                            {workOrder.invoicePaid ? (
+                              <>
+                                <CheckCircle className="h-5 w-5 text-green-600" />
+                                <span className="text-sm font-medium text-green-700">Paid</span>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => router.push(`/invoices/${workOrder.invoiceId}`)}
+                                className="px-3 py-1.5 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg text-sm font-medium hover:from-yellow-600 hover:to-orange-600 shadow-sm"
+                              >
+                                <DollarSign className="h-4 w-4 inline mr-1" />
+                                Mark as Paid
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-500">Will auto-generate after post-checklist</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
     
               {/* Auto-Transition Overlay */}
               <AutoTransitionOverlay />
 
               {/* Enhanced Workflow Progress */}
               <WorkflowProgressWithAutoTransition stages={workflowStages} />
-
-              {/* Current Stage Summary Card */}
-              {/* {currentStageSummary && (
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-4 mb-4">
-                        <div className="p-3 bg-white rounded-lg shadow-sm">
-                          <Target className="h-6 w-6 text-blue-600" />
-                        </div>
-                        <div>
-                          <h2 className="text-2xl font-bold text-gray-900">Current Stage: {currentStageSummary.title}</h2>
-                          <p className="text-gray-600">{currentStageSummary.description}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                        <div className="bg-white p-4 rounded-lg border border-gray-200">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium text-gray-700">Stage Progress</span>
-                            <span className="text-lg font-bold text-blue-600">{currentStageSummary.progress}%</span>
-                          </div>
-                          <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-500"
-                              style={{ width: `${currentStageSummary.progress}%` }}
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="bg-white p-4 rounded-lg border border-gray-200">
-                          <div className="text-sm font-medium text-gray-700 mb-1">Status</div>
-                          <div className="flex items-center gap-2">
-                            <div className={`w-3 h-3 rounded-full ${
-                              currentStageSummary.status.includes('Completed') || currentStageSummary.status.includes('Approved') 
-                                ? 'bg-green-500' 
-                                : currentStageSummary.status.includes('Progress')
-                                ? 'bg-blue-500'
-                                : 'bg-gray-400'
-                            }`} />
-                            <span className="font-semibold text-gray-900">{currentStageSummary.status}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="bg-white p-4 rounded-lg border border-gray-200">
-                          <div className="text-sm font-medium text-gray-700 mb-1">Next Action Required</div>
-                          <div className="font-medium text-gray-900">{currentStageSummary.nextAction}</div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-gray-500" />
-                          <span className="text-sm text-gray-600">
-                            Estimated completion: {currentStageSummary.estimatedCompletion}
-                          </span>
-                        </div>
-                        
-                        {currentStage && (
-                          <div className="flex items-center gap-2">
-                            {currentStage.actions.map((action) => (
-                              <StageButton key={action.id} stage={currentStage} action={action} />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )} */}
 
               {/* Quick Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

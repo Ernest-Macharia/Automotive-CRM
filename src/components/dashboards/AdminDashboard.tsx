@@ -574,7 +574,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   if (loading) {
     return (
       <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-hidden">
-        <div className="h-16 bg-gradient-to-r from-blue-800 via-purple-900 to-black shadow-lg" />
+        <div className="h-16 bg-gradient-to-r from-blue-500 via-purple-600 to-black shadow-lg" />
         <div className="h-[calc(100vh-64px)] p-4 md:p-6 space-y-6 overflow-auto">
           <div className="animate-pulse space-y-6">
             {/* Header skeleton */}
@@ -744,13 +744,13 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Total Users Card */}
           <div className="group relative">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 rounded-2xl opacity-0 group-hover:opacity-50 blur transition duration-500"></div>
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl opacity-0 group-hover:opacity-50 blur transition duration-500"></div>
             <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5 hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-blue-100 to-purple-100">
                   <Users className="h-6 w-6 text-blue-600" />
                 </div>
-                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-blue-100/80 to-indigo-100/80 text-blue-700 text-xs font-medium">
+                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-blue-100/80 to-purple-100/80 text-blue-700 text-xs font-medium">
                   <UserPlus className="h-3 w-3" />
                   <span>+{stats.userGrowth}%</span>
                 </span>
