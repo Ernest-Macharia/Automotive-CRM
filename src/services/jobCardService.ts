@@ -75,6 +75,7 @@ export interface UpdateJobCardData {
   completedAt?: string;
   completedDate?: string;
   actualHours?: number;
+  completedBy?: string;
 }
 
 export interface JobCardFilterParams {

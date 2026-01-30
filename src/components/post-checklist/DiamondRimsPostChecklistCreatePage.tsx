@@ -722,14 +722,11 @@ export default function DiamondRimsPostChecklistCreatePage({
         checklistType: 'diamond_rims_post',
         opportunityId: toId(formData.opportunityId),
         vehicleId: toId(formData.vehicleId),
-        preChecklistId: toId(formData.preChecklistId) || undefined,
         jobCardId: toId((formData as any).jobCardId) || undefined,
         approved: false,
         completed: true,
         completionDate: new Date().toISOString(),
       } as any;
-
-      console.log('Submitting diamond rims post-checklist:', createDto);
 
       let result: any;
 
@@ -765,60 +762,29 @@ export default function DiamondRimsPostChecklistCreatePage({
         result = await postChecklistService.createPostChecklist(createDto, userId);
 
         try {
-          await postChecklistService.updatePostChecklist(
+          const transitionResult = await lifecycleIntegrationService.handlePostChecklistCompletion(
             result._id,
-            {
-              status: 'approved',
-              approved: true,
-              approvedBy: userId,
-              approvedAt: new Date().toISOString(),
-            } as any,
             userId
           );
-        } catch (autoApproveErr) {
-          console.warn('Post-checklist auto-approval failed:', autoApproveErr);
-        }
-
-        const oppId = toId(formData.opportunityId) || opportunityId;
-        if (oppId) {
-          try {
-            await lifecycleIntegrationService.markStageAsCompleted(oppId, 'postchecklist', {
-              documentId: result._id,
-              completedBy: userId,
-              notes: 'Auto-approved (client signed on form)',
-            });
-            await lifecycleIntegrationService.transitionToNextStage(oppId);
-          } catch (workflowErr) {
-            console.warn('Workflow transition after post-checklist failed:', workflowErr);
+          
+          if (transitionResult.transitioned) {
+            showToast(transitionResult.message, 'success');
           }
+        } catch (transitionError) {
+          console.warn('Auto-transition warning:', transitionError);
+          showToast('Post-checklist created, but transition had issues', 'warning');
         }
 
-        showToast('Diamond Rims post-checklist created successfully', 'success');
-
+        // Update work order
         if (workOrderId && result._id) {
-          try {
-            await workOrderService.updateWorkOrder(workOrderId, {
-              postChecklistId: result._id,
-              postChecklistStatus: 'completed',
-              updatedAt: new Date().toISOString(),
-            });
-          } catch (updateError) {
-            console.error('Error updating work order:', updateError);
-          }
-        }
-
-        if (preChecklistId && result._id) {
-          try {
-            await preChecklistService.updatePreChecklist(preChecklistId, {
-              postChecklistId: result._id,
-              postChecklistCompleted: true,
-            } as any);
-          } catch (preUpdateError) {
-            console.error('Error updating pre-checklist:', preUpdateError);
-          }
+          await workOrderService.updateWorkOrder(workOrderId, {
+            postChecklistId: result._id,
+            updatedAt: new Date().toISOString(),
+          });
         }
       }
 
+      // Redirect based on source
       if (source === 'workflow' && workOrderId) {
         router.push(`/orders/work-orders/${workOrderId}`);
       }

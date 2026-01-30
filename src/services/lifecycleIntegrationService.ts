@@ -1359,14 +1359,15 @@ public async canStageAutoTransition(stage: string, document: any): Promise<boole
           }
         });
         
-        // Then auto-create invoice
-        await this.autoCreateInvoiceForSalesOrder(opportunityId);
+        // Auto-create invoice from quote
+        const invoice = await this.autoCreateInvoiceForSalesOrder(opportunityId);
         
         return {
           success: true,
-          message: `Quote completed and invoice auto-created`,
+          message: `Quote completed and invoice ${invoice ? 'created' : 'already exists'}`,
           stage: 'invoice',
-          autoCreated: true
+          autoCreated: !!invoice,
+          invoiceId: invoice?._id || invoice?.id
         };
       }
       
@@ -1792,45 +1793,109 @@ async checkStageRequirements(opportunityId: string): Promise<{
   }
 }
 
-// Update the handleJobCardCompletion method
-async handleJobCardCompletion(jobCardId: string, userId?: string): Promise<{
-  success: boolean;
-  autoTransitioned: boolean;
-  nextStage?: string;
-  message: string;
-}> {
-  try {
-    const jobCard = await jobCardService.getJobCardById(jobCardId);
-    
-    // Mark job card as completed
-    const updatedJobCard = await jobCardService.updateJobCard(jobCardId, {
-      status: 'completed',
-      completedAt: new Date().toISOString(),
-    });
-    
-    const opportunityId = typeof jobCard.opportunityId === 'object' 
-      ? jobCard.opportunityId._id 
-      : jobCard.opportunityId;
-    
-    if (!opportunityId) {
-      throw new Error('Could not find opportunity for this job card');
+  async handlePreChecklistCompletion(
+    checklistId: string,
+    userId?: string
+  ): Promise<{
+    approved: boolean;
+    transitioned: boolean;
+    nextStage: string;
+    message: string;
+  }> {
+    try {
+      // Get the pre-checklist
+      const checklist = await preChecklistService.getPreChecklistById(checklistId);
+      
+      // Auto-approve the pre-checklist
+      const approvedChecklist = await preChecklistService.updatePreChecklist(checklistId, {
+        approved: true,
+        approvedBy: userId || 'system-auto',
+        approvedAt: new Date().toISOString(),
+        remarks: checklist.remarks ? `${checklist.remarks} (Auto-approved)` : 'Auto-approved by system'
+      });
+
+      const opportunityId = typeof checklist.opportunityId === 'object' 
+        ? checklist.opportunityId._id 
+        : checklist.opportunityId;
+
+      if (!opportunityId) {
+        throw new Error('No opportunity linked to checklist');
+      }
+
+      // Transition to job card stage
+      await this.transitionToStage(opportunityId, 'jobcard', {
+        skipValidation: true,
+        metadata: {
+          autoTransition: true,
+          fromStage: 'prechecklist',
+          toStage: 'jobcard',
+          checklistId,
+          approvedAt: new Date().toISOString()
+        }
+      });
+
+      // Update work order stage
+      const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
+      if (workOrders.length > 0) {
+        const workOrder = workOrders[0];
+        await workOrderService.updateWorkOrder(workOrder._id, {
+          currentStage: 'job_card',
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      return {
+        approved: true,
+        transitioned: true,
+        nextStage: 'jobcard',
+        message: 'Pre-checklist auto-approved and transitioned to Job Card stage'
+      };
+    } catch (error) {
+      console.error('Error handling pre-checklist completion:', error);
+      throw error;
     }
-    
-    // Get current lifecycle
-    const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
-    
-    // Only auto-transition if we're in jobcard stage
-    if (lifecycle.currentStage === 'jobcard') {
-      // Transition to postchecklist stage
+  }
+
+  /**
+   * Handle job card completion with auto-transition
+   */
+  async handleJobCardCompletion(
+    jobCardId: string,
+    userId?: string
+  ): Promise<{
+    completed: boolean;
+    transitioned: boolean;
+    nextStage: string;
+    message: string;
+  }> {
+    try {
+      // Mark job card as completed
+      const updatedJobCard = await jobCardService.updateJobCard(jobCardId, {
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+        completedBy: userId || 'system'
+      });
+
+      const opportunityId = typeof updatedJobCard.opportunityId === 'object' 
+        ? updatedJobCard.opportunityId._id 
+        : updatedJobCard.opportunityId;
+
+      if (!opportunityId) {
+        throw new Error('No opportunity linked to job card');
+      }
+
+      // Transition to post-checklist stage
       await this.transitionToStage(opportunityId, 'postchecklist', {
         skipValidation: true,
         metadata: {
           autoTransition: true,
+          fromStage: 'jobcard',
+          toStage: 'postchecklist',
           jobCardId,
-          triggeredBy: 'job-card-completion'
+          completedAt: new Date().toISOString()
         }
       });
-      
+
       // Update work order stage
       const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
       if (workOrders.length > 0) {
@@ -1840,26 +1905,200 @@ async handleJobCardCompletion(jobCardId: string, userId?: string): Promise<{
           updatedAt: new Date().toISOString()
         });
       }
-      
+
       return {
-        success: true,
-        autoTransitioned: true,
+        completed: true,
+        transitioned: true,
         nextStage: 'postchecklist',
         message: 'Job card completed and auto-transitioned to Post-Checklist stage'
       };
+    } catch (error) {
+      console.error('Error handling job card completion:', error);
+      throw error;
     }
-    
-    return {
-      success: true,
-      autoTransitioned: false,
-      message: 'Job card completed but not in jobcard stage'
-    };
-    
-  } catch (error) {
-    console.error('Error handling job card completion:', error);
-    throw error;
   }
-}
+
+  /**
+   * Handle post-checklist completion with auto-approval and transition
+   */
+  async handlePostChecklistCompletion(
+    checklistId: string,
+    userId?: string
+  ): Promise<{
+    approved: boolean;
+    transitioned: boolean;
+    nextStage: string;
+    message: string;
+  }> {
+    try {
+      // Get the post-checklist
+      const checklist = await postChecklistService.getPostChecklistById(checklistId);
+      
+      // Auto-approve the post-checklist
+      const approvedChecklist = await postChecklistService.updatePostChecklist(checklistId, {
+        approved: true,
+        approvedBy: userId || 'system-auto',
+        approvedAt: new Date().toISOString(),
+        remarks: checklist.remarks ? `${checklist.remarks} (Auto-approved)` : 'Auto-approved by system'
+      });
+
+      const opportunityId = typeof checklist.opportunityId === 'object' 
+        ? checklist.opportunityId._id 
+        : checklist.opportunityId;
+
+      if (!opportunityId) {
+        throw new Error('No opportunity linked to checklist');
+      }
+
+      // Transition to invoice stage
+      await this.transitionToStage(opportunityId, 'invoice', {
+        skipValidation: true,
+        metadata: {
+          autoTransition: true,
+          fromStage: 'postchecklist',
+          toStage: 'invoice',
+          checklistId,
+          approvedAt: new Date().toISOString()
+        }
+      });
+
+      // Auto-generate invoice
+      const invoice = await this.autoGenerateInvoice(opportunityId);
+
+      // Update work order stage
+      const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
+      if (workOrders.length > 0) {
+        const workOrder = workOrders[0];
+        await workOrderService.updateWorkOrder(workOrder._id, {
+          currentStage: 'invoice',
+          invoiceId: invoice._id || invoice.id,
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      return {
+        approved: true,
+        transitioned: true,
+        nextStage: 'invoice',
+        message: 'Post-checklist auto-approved, transitioned to Invoice stage, and invoice generated'
+      };
+    } catch (error) {
+      console.error('Error handling post-checklist completion:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Auto-generate invoice for work order
+   */
+  public async autoGenerateInvoice(opportunityId: string): Promise<any> {
+    try {
+      // Check if invoice already exists
+      const existingInvoices = await invoiceService.getInvoicesByOpportunity(opportunityId);
+      if (existingInvoices.length > 0) {
+        return existingInvoices[0];
+      }
+
+      // Get work order details
+      const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
+      const workOrder = workOrders[0];
+
+      if (!workOrder) {
+        throw new Error('No work order found for opportunity');
+      }
+
+      // Get opportunity for customer info
+      const opportunity = await opportunityService.getOpportunityById(opportunityId);
+
+      // Create invoice number
+      const invoiceNumber = `INV-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+
+      // Create invoice data
+      const invoiceData = {
+        opportunityId,
+        workOrderId: workOrder._id,
+        invoiceNumber,
+        status: 'draft' as const,
+        items: [
+          {
+            description: `Labor - ${workOrder.workOrderNumber || 'Work order'}`,
+            quantity: 1,
+            unitPrice: workOrder.laborCost || 0,
+            total: workOrder.laborCost || 0
+          },
+          {
+            description: 'Parts and materials',
+            quantity: 1,
+            unitPrice: workOrder.partsCost || 0,
+            total: workOrder.partsCost || 0
+          }
+        ],
+        subtotal: workOrder.laborCost || 0 + (workOrder.partsCost || 0),
+        totalAmount: workOrder.totalCost || 0,
+        issueDate: new Date().toISOString(),
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+        notes: `Auto-generated from work order ${workOrder.workOrderNumber}`
+      };
+
+      return await invoiceService.createInvoice(invoiceData);
+    } catch (error) {
+      console.error('Error auto-generating invoice:', error);
+      throw error;
+    }
+  }
+
+  async handleInvoicePayment(
+    invoiceId: string,
+    userId?: string
+  ): Promise<{
+    paid: boolean;
+    completed: boolean;
+    message: string;
+  }> {
+    try {
+      // Mark invoice as paid
+      const paidInvoice = await invoiceService.markInvoiceAsPaid(
+        invoiceId,
+        undefined, // amount - will use invoice total
+        new Date().toISOString(),
+        userId || 'system',
+        `PAID-${Date.now().toString(36).toUpperCase()}`
+      );
+
+      const opportunityId = typeof paidInvoice.opportunityId === 'object' 
+        ? paidInvoice.opportunityId._id 
+        : paidInvoice.opportunityId;
+
+      if (!opportunityId) {
+        throw new Error('No opportunity linked to invoice');
+      }
+
+      // Complete the work order lifecycle
+      await this.completeWorkOrder(opportunityId);
+
+      // Update work order status
+      const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
+      if (workOrders.length > 0) {
+        const workOrder = workOrders[0];
+        await workOrderService.updateWorkOrder(workOrder._id, {
+          status: 'completed',
+          invoicePaid: true,
+          invoicePaymentDate: new Date().toISOString(),
+          actualCompletionDate: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      return {
+        paid: true,
+        completed: true,
+        message: 'Invoice marked as paid and work order completed'
+      };
+    } catch (error) {
+      console.error('Error handling invoice payment:', error);
+      throw error;
+    }
+  }
 
 // Update the autoTransitionOnDocumentUpdate method to handle job card completion
 private async shouldAutoTransition(

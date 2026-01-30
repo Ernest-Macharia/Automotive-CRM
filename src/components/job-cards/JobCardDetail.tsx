@@ -104,46 +104,31 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
       if (status === 'completed') {
         payload.completedDate = new Date().toISOString();
         payload.actualHours = jobCard?.actualHours || jobCard?.estimatedHours || 2;
-      }
-
-      // Update the job card
-      const updatedJobCard = await jobCardService.updateJobCard(jobCardId, payload);
-
-      showToast(`Job card marked as ${status.replace('_', ' ')}`, 'success');
-
-      // If job card was completed, handle workflow transition
-      if (status === 'completed') {
-        if (workOrderId) {
-          try {
-            // Update work order stage (optional, keep your current logic)
-            await workOrderService.updateWorkOrder(workOrderId, {
-              currentStage: 'post_checklist',
-              updatedAt: new Date().toISOString(),
-            });
-
-            showToast('Job completed! Ready for post-checklist quality verification.', 'success');
-
+        
+        // Use the new auto-transition service
+        const transitionResult = await lifecycleIntegrationService.handleJobCardCompletion(
+          jobCardId,
+          'current-user-id' // Replace with actual user ID
+        );
+        
+        if (transitionResult.transitioned) {
+          showToast(transitionResult.message, 'success');
+          
+          // Redirect to post-checklist creation or back to work order
+          if (workOrderId) {
             setTimeout(() => {
               if (window.confirm('Create post-checklist for quality verification?')) {
                 router.push(`/post-checklist/create?workOrderId=${workOrderId}&jobCardId=${jobCardId}`);
               } else {
-                // ✅ redirect back to work order it came from
                 router.push(`/orders/work-orders/${workOrderId}`);
               }
-            }, 700);
-
-          } catch (workflowError) {
-            console.error('Workflow transition error:', workflowError);
-            showToast('Job completed!', 'success');
-
-            // ✅ even if workflow update fails, go back to work order
-            router.push(`/orders/work-orders/${workOrderId}`);
+            }, 1000);
           }
-        } else {
-          // fallback: if no workOrderId in URL
-          showToast('Job completed!', 'success');
-          router.push('/job-cards');
         }
+      } else {
+        // Update job card for other statuses
+        const updatedJobCard = await jobCardService.updateJobCard(jobCardId, payload);
+        showToast(`Job card marked as ${status.replace('_', ' ')}`, 'success');
       }
 
       // Refresh local screen state

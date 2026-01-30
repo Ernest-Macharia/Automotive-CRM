@@ -697,6 +697,8 @@ const toISODate = (d: any): string => {
     }
   };
 
+  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -750,14 +752,11 @@ const toISODate = (d: any): string => {
         opportunityId: toId(formData.opportunityId),
         vehicleId: toId(formData.vehicleId),
         workOrderId: toId((formData as any).workOrderId) || workOrderId || '',
-        preChecklistId: toId((formData as any).preChecklistId), // if exists in your form
         approved: false,
       };
 
-      console.log('Submitting diamond rims pre-checklist:', normalizedSubmissionData);
-
+      // Create or update pre-checklist
       let result: any;
-      
       if (mode === 'edit' && checklistId) {
         result = await preChecklistService.updatePreChecklist(checklistId, normalizedSubmissionData as any);
         showToast('Diamond Rims pre-checklist updated successfully', 'success');
@@ -766,40 +765,26 @@ const toISODate = (d: any): string => {
         result = await preChecklistService.createPreChecklist(normalizedSubmissionData as any, userId);
         showToast('Diamond Rims pre-checklist created successfully', 'success');
         
-        // Update work order with pre-checklist ID if needed
+        // Update work order with pre-checklist ID
         if (workOrderId && result._id) {
-          try {
-            await workOrderService.updateWorkOrder(workOrderId, {
-              preChecklistId: result._id
-            });
-          } catch (updateError) {
-            console.error('Error updating work order:', updateError);
-          }
+          await workOrderService.updateWorkOrder(workOrderId, {
+            preChecklistId: result._id
+          });
         }
         
-        // Auto-transition if applicable
-        const hasSeriousIssues = formData.preServiceInspection.condition.some(cond => 
-          ['Cracks', 'Bends', 'Previously Welded'].includes(cond)
-        );
-        
+        // Auto-approve and transition to job card stage
         try {
-          // Client signs on the form, so we auto-approve immediately
-          const approvedChecklist = await preChecklistService.approvePreChecklist(result._id, userId);
-
-          const oppId = result.opportunityId || formData.opportunityId;
-          if (oppId) {
-            await lifecycleIntegrationService.transitionToStage(
-              oppId,
-              'jobcard',
-              {
-                documentId: approvedChecklist?._id || result._id,
-                completedBy: userId,
-                notes: 'Auto-approved (client signed on form)'
-              }
-            );
+          const transitionResult = await lifecycleIntegrationService.handlePreChecklistCompletion(
+            result._id,
+            userId
+          );
+          
+          if (transitionResult.transitioned) {
+            showToast(transitionResult.message, 'success');
           }
-        } catch (approvalError) {
-          console.warn('Auto-approval/transition failed:', approvalError);
+        } catch (transitionError) {
+          console.warn('Auto-transition warning:', transitionError);
+          showToast('Pre-checklist created, but transition had issues', 'warning');
         }
       }
 

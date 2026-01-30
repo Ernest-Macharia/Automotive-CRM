@@ -129,6 +129,7 @@ export interface PostChecklist {
   serviceRating?: number;
   serviceComments?: string;
   checklistType?: string;
+  remarks?: string;
 }
 
 export interface CreatePostChecklistDto {
@@ -189,6 +190,7 @@ export interface UpdatePostChecklistDto {
   serviceRating?: number;
   status?: string;
   serviceComments?: string;
+  remarks?: string;
 }
 
 export interface CheckItemDto {

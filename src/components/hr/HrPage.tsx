@@ -382,25 +382,26 @@ export default function HRDashboardPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Header Section */}
+      <div className="mb-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">HR Management Dashboard</h1>
-            <p className="text-gray-600 mt-1">Manage employees, performance, incidents, and welfare programs</p>
+            <h1 className="text-xl font-semibold text-gray-900">HR Management Dashboard</h1>
+            <p className="text-sm text-gray-500 mt-1">Manage employees, performance, incidents, and welfare programs</p>
           </div>
           
           <div className="flex items-center gap-3">
             <button
               onClick={loadDashboard}
-              className="flex items-center gap-2 px-3 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <RefreshCw className="h-4 w-4" />
               <span className="hidden sm:inline">Refresh</span>
             </button>
             <button
               onClick={() => router.push('/hr/reports')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
             >
               <BarChart3 className="h-5 w-5" />
               <span className="hidden sm:inline">Reports</span>
@@ -411,22 +412,35 @@ export default function HRDashboardPage() {
         <HRStatsCards stats={stats} router={router} />
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8">
-        <div className="lg:w-64">
-          <div className="bg-white border border-gray-200 rounded-xl p-5 sticky top-8">
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* Left Sidebar */}
+        <div className="xl:w-80 flex-shrink-0">
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-gray-200">
+              <h2 className="font-medium text-gray-900">Quick Actions</h2>
+            </div>
             <HRQuickActions quickActions={quickActions} router={router} />
-            <HRAlertsPanel 
-              alerts={dashboardData?.alerts || []} 
-              onAlertClick={handleAlertAction}
-              getAlertPriorityColor={getAlertPriorityColor}
-            />
+            
+            <div className="p-5 border-t border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-medium text-gray-900">System Alerts</h2>
+                <Bell className="h-5 w-5 text-gray-500" />
+              </div>
+              <HRAlertsPanel 
+                alerts={dashboardData?.alerts || []} 
+                onAlertClick={handleAlertAction}
+                getAlertPriorityColor={getAlertPriorityColor}
+              />
+            </div>
           </div>
         </div>
 
+        {/* Main Content */}
         <div className="flex-1">
           <HRTabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
           
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            {/* Toolbar */}
             <div className="p-4 border-b border-gray-200">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3 flex-1">
@@ -437,7 +451,7 @@ export default function HRDashboardPage() {
                       placeholder={`Search ${activeTab}...`}
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
                     />
                   </div>
                   
@@ -447,7 +461,7 @@ export default function HRDashboardPage() {
                       <select
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
                       >
                         <option value="all">All Status</option>
                         {activeTab === 'contracts' && (
@@ -488,7 +502,7 @@ export default function HRDashboardPage() {
                         <select
                           value={departmentFilter}
                           onChange={(e) => setDepartmentFilter(e.target.value)}
-                          className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
                         >
                           <option value="all">All Departments</option>
                           <option value="Engineering">Engineering</option>
@@ -507,7 +521,7 @@ export default function HRDashboardPage() {
                     if (activeTab === 'overview') router.push('/hr/reports');
                     else router.push(`/hr-portal/${activeTab}/create`);
                   }}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
                 >
                   <Plus className="h-4 w-4" />
                   {activeTab === 'overview' ? 'Generate Report' : `Add ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}`}
@@ -515,7 +529,8 @@ export default function HRDashboardPage() {
               </div>
             </div>
 
-            <div className="p-4">
+            {/* Content Area */}
+            <div className="p-5">
               <HRTabContent
                 activeTab={activeTab}
                 dashboardData={dashboardData}
@@ -541,11 +556,12 @@ export default function HRDashboardPage() {
         </div>
       </div>
 
+      {/* Alert Modal */}
       {showAlertModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-xl p-5 max-w-md w-full">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-xl">
             <div className="flex items-start gap-3 mb-4">
-              <div className={`p-1.5 rounded-lg mt-0.5 ${
+              <div className={`p-2 rounded-lg ${
                 showAlertModal.type === 'danger' ? 'bg-red-100' :
                 showAlertModal.type === 'warning' ? 'bg-yellow-100' : 'bg-blue-100'
               }`}>
@@ -556,16 +572,16 @@ export default function HRDashboardPage() {
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900">HR Alert</h3>
-                <p className="text-sm text-gray-600 mt-1">Priority: {showAlertModal.priority}</p>
+                <p className="text-xs text-gray-500 mt-1">Priority: {showAlertModal.priority}</p>
               </div>
             </div>
             
             <p className="text-gray-700 text-sm mb-5">{showAlertModal.message}</p>
             
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowAlertModal(null)}
-                className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm"
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
               >
                 Dismiss
               </button>
@@ -574,7 +590,7 @@ export default function HRDashboardPage() {
                   setShowAlertModal(null);
                   showToast('Alert action handled', 'success');
                 }}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
               >
                 {showAlertModal.action || 'Take Action'}
               </button>

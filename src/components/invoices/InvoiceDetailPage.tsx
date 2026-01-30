@@ -228,14 +228,25 @@ export default function InvoiceDetailPage({ id }: InvoiceDetailPageProps) {
   };
 
   const handleMarkAsPaid = async () => {
-    if (!invoice) return;
-    
-    // Ask for confirmation
-    if (!confirm(`Mark invoice ${invoice.invoiceNumber} as paid and complete the sales order?`)) {
-      return;
-    }
+  if (!invoice) return;
+  
+  // Determine order type for confirmation message
+  let orderType = 'order';
+  let orderId = '';
+  
+  if (invoice.workOrderId) {
+    orderType = 'work order';
+    orderId = typeof invoice.workOrderId === 'object' 
+      ? invoice.workOrderId._id 
+      : invoice.workOrderId;
+  } else if (invoice.salesOrderId) {
+    orderType = 'sales order';
+    orderId = typeof invoice.salesOrderId === 'object' 
+      ? invoice.salesOrderId._id 
+      : invoice.salesOrderId;
+  }
 
-    setProcessing(true);
+  setProcessing(true);
     try {
       // 1. Mark invoice as paid
       const paidInvoice = await invoiceService.markInvoiceAsPaid(
@@ -249,7 +260,9 @@ export default function InvoiceDetailPage({ id }: InvoiceDetailPageProps) {
       setInvoice(paidInvoice);
       showToast('Invoice marked as paid successfully!', 'success');
       
-      // 2. Complete the sales order workflow if linked
+      // 2. Complete the appropriate workflow based on invoice type
+      const { lifecycleIntegrationService } = await import('@/services/lifecycleIntegrationService');
+      
       if (paidInvoice.opportunityId) {
         const opportunityId = typeof paidInvoice.opportunityId === 'object' 
           ? paidInvoice.opportunityId._id 
@@ -257,36 +270,91 @@ export default function InvoiceDetailPage({ id }: InvoiceDetailPageProps) {
         
         if (opportunityId) {
           try {
-            // Import the lifecycle service
-            const { lifecycleIntegrationService } = await import('@/services/lifecycleIntegrationService');
+            // Get lifecycle to determine package type
+            const { lifecycleService } = await import('@/services/lifecycleService');
+            const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
             
-            // Complete the sales order lifecycle
-            await lifecycleIntegrationService.completeSalesOrder(opportunityId);
-            
-            showToast('Sales order workflow completed!', 'success');
-            
-            // Update sales order status if linked
-            if (paidInvoice.salesOrderId) {
-              const salesOrderId = typeof paidInvoice.salesOrderId === 'object' 
-                ? paidInvoice.salesOrderId._id 
-                : paidInvoice.salesOrderId;
+            if (lifecycle.packageType === 'work_order') {
+              // Handle work order completion
+              await lifecycleIntegrationService.completeWorkOrder(opportunityId);
+              showToast('Work order workflow completed!', 'success');
               
-              if (salesOrderId) {
-                const { salesOrderService } = await import('@/services/salesOrderService');
-                await salesOrderService.updateSalesOrder(salesOrderId, {
-                  status: 'delivered',
-                  actualDeliveryDate: new Date().toISOString()
-                });
+              // Update work order status
+              if (paidInvoice.workOrderId) {
+                const workOrderId = typeof paidInvoice.workOrderId === 'object' 
+                  ? paidInvoice.workOrderId._id 
+                  : paidInvoice.workOrderId;
                 
-                showToast('Sales order marked as delivered', 'success');
+                if (workOrderId) {
+                  const { workOrderService } = await import('@/services/workOrderService');
+                  await workOrderService.updateWorkOrder(workOrderId, {
+                    status: 'completed',
+                    invoicePaid: true,
+                    invoicePaymentDate: new Date().toISOString(),
+                    actualCompletionDate: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  });
+                  
+                  showToast('Work order marked as completed', 'success');
+                }
               }
+            } else if (lifecycle.packageType === 'sales_order') {
+              // Handle sales order completion
+              await lifecycleIntegrationService.completeSalesOrder(opportunityId);
+              showToast('Sales order workflow completed!', 'success');
+              
+              // Update sales order status
+              if (paidInvoice.salesOrderId) {
+                const salesOrderId = typeof paidInvoice.salesOrderId === 'object' 
+                  ? paidInvoice.salesOrderId._id 
+                  : paidInvoice.salesOrderId;
+                
+                if (salesOrderId) {
+                  const { salesOrderService } = await import('@/services/salesOrderService');
+                  await salesOrderService.updateSalesOrder(salesOrderId, {
+                    status: 'delivered',
+                    actualDeliveryDate: new Date().toISOString()
+                  });
+                  
+                  showToast('Sales order marked as delivered', 'success');
+                }
+              }
+            } else {
+              // Generic completion for unknown package types
+              await lifecycleIntegrationService.completeLifecycle(opportunityId);
+              showToast('Order workflow completed!', 'success');
             }
-          } catch (error: any) {
-            console.error('Error completing workflow:', error);
-            showToast('Invoice paid, but workflow completion had issues: ' + error.message, 'warning');
+            
+          } catch (workflowError: any) {
+            console.error('Workflow completion error:', workflowError);
+            showToast('Invoice paid, but workflow completion had issues: ' + workflowError.message, 'warning');
           }
         }
       }
+      
+      // 3. Show appropriate success message and redirect
+      setTimeout(() => {
+        // Redirect based on order type
+        if (paidInvoice.workOrderId) {
+          const workOrderId = typeof paidInvoice.workOrderId === 'object' 
+            ? paidInvoice.workOrderId._id 
+            : paidInvoice.workOrderId;
+          window.location.href = `/orders/work-orders/${workOrderId}`;
+        } else if (paidInvoice.salesOrderId) {
+          const salesOrderId = typeof paidInvoice.salesOrderId === 'object' 
+            ? paidInvoice.salesOrderId._id 
+            : paidInvoice.salesOrderId;
+          window.location.href = `/orders/sales-orders/${salesOrderId}`;
+        } else if (paidInvoice.opportunityId) {
+          const opportunityId = typeof paidInvoice.opportunityId === 'object' 
+            ? paidInvoice.opportunityId._id 
+            : paidInvoice.opportunityId;
+          window.location.href = `/opportunities/${opportunityId}`;
+        } else {
+          // Fallback: stay on invoice page but refresh
+          window.location.reload();
+        }
+      }, 1500);
       
     } catch (error: any) {
       console.error('Error marking invoice as paid:', error);
