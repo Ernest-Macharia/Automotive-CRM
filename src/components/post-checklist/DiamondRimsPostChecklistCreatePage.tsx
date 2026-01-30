@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   Save,
   X,
+  Search,
   CheckCircle,
   AlertCircle,
   FileText,
@@ -70,6 +71,8 @@ import { postChecklistService } from '@/services/postChecklistService';
 import { workOrderService } from '@/services/workOrderService';
 import { opportunityService } from '@/services/opportunityService';
 import { vehicleService } from '@/services/vehicleService';
+import { userService, User } from '@/services/settings/userService';
+import { ROLES } from '@/services/settings/roleService';
 import { useToast } from '@/contexts/ToastContext';
 import TermsModal from '@/components/pre-checklist/TermsModal';
 import DiamondRimsPostChecklistPDF from './DiamondRimsPostChecklistPDF';
@@ -111,6 +114,11 @@ export default function DiamondRimsPostChecklistCreatePage({
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
   const [draftSaved, setDraftSaved] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [showTechnicianDropdown, setShowTechnicianDropdown] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const technicianDropdownRef = useRef<HTMLDivElement>(null);
 
   const [showTermsModal, setShowTermsModal] = useState(false);
 
@@ -314,6 +322,44 @@ export default function DiamondRimsPostChecklistCreatePage({
       autoPopulateFromPreChecklist();
     }
   }, [opportunity, preChecklist]);
+
+  // Add this useEffect to fetch technicians
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setLoadingUsers(true);
+        const usersData = await userService.getAllUsers();
+        const technicianUsers = usersData.filter(user => isTechnician(user) && user.active);
+        setUsers(technicianUsers || []);
+      } catch (error) {
+        console.error('Error fetching users:', error);
+        showToast('Failed to load technicians', 'error', 3000);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    fetchUsers();
+  }, [showToast]);
+
+  // Update your existing useEffect for click outside to include the technician dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // ... existing code for other dropdowns ...
+
+      if (technicianDropdownRef.current && !technicianDropdownRef.current.contains(event.target as Node)) {
+        setShowTechnicianDropdown(false);
+        setUserSearch('');
+      }
+
+      // ... rest of existing code ...
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const toId = (v: any): string => {
     if (!v) return '';
@@ -818,6 +864,47 @@ export default function DiamondRimsPostChecklistCreatePage({
     }
   };
 
+  // Add these functions
+  const isTechnician = (user: User): boolean => {
+    if (!user.role) return false;
+    
+    if (typeof user.role === 'string') {
+      const lowerRole = user.role.toLowerCase();
+      return lowerRole === 'technician' ||
+            lowerRole.includes('technician') ||
+            lowerRole === 'tech' ||
+            lowerRole.includes('mechanic') ||
+            lowerRole.includes('workshop');
+    } else if (user.role && typeof user.role === 'object') {
+      const roleName = user.role.name?.toLowerCase() || user.role.display_name?.toLowerCase() || '';
+      return roleName === 'technician' ||
+            roleName.includes('technician') ||
+            roleName === 'tech' ||
+            roleName.includes('mechanic') ||
+            roleName.includes('workshop');
+    }
+    return false;
+  };
+
+  const getUserRoleName = (user: User): string => {
+    if (typeof user.role === 'string') {
+      return user.role;
+    } else if (user.role && typeof user.role === 'object') {
+      return user.role.name || 'User';
+    }
+    return 'User';
+  };
+
+  const getUserDisplayInfo = (user: User) => {
+    const roleInfo = getUserRoleName(user);
+    return {
+      name: user.name || user.email?.split('@')[0] || 'Unknown User',
+      roleName: roleInfo,
+      isTechnician: isTechnician(user),
+      email: user.email || '',
+    };
+  };
+
   const handleRefreshFromPreChecklist = () => {
     if (preChecklist) {
       autoPopulateFromPreChecklist();
@@ -1093,17 +1180,164 @@ export default function DiamondRimsPostChecklistCreatePage({
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                   />
                 </div>
-                <div>
+                <div className="relative" ref={technicianDropdownRef}>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     COMPLETED BY
                   </label>
-                  <input
-                    type="text"
-                    value={formData.serviceCompletion.completedBy}
-                    onChange={(e) => handleNestedInputChange('serviceCompletion', 'completedBy', e.target.value)}
-                    placeholder="Technician name"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={formData.serviceCompletion.completedBy}
+                      onChange={(e) => handleNestedInputChange('serviceCompletion', 'completedBy', e.target.value)}
+                      onFocus={() => setShowTechnicianDropdown(true)}
+                      placeholder="Select technician..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 pl-10 pr-8"
+                    />
+                    <UserType className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <button
+                      type="button"
+                      onClick={() => setShowTechnicianDropdown(!showTechnicianDropdown)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showTechnicianDropdown ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  
+                  {showTechnicianDropdown && (
+                    <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      <div className="sticky top-0 bg-white p-2 border-b">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <input
+                            type="text"
+                            value={userSearch}
+                            onChange={(e) => setUserSearch(e.target.value)}
+                            placeholder="Search technicians..."
+                            className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto">
+                        {loadingUsers ? (
+                          <div className="p-4 text-center text-gray-500">
+                            <div className="flex items-center justify-center gap-2">
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-500 border-t-transparent" />
+                              Loading technicians...
+                            </div>
+                          </div>
+                        ) : users.length === 0 ? (
+                          <div className="p-4 text-center text-gray-500">
+                            <AlertCircle className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                            <p className="text-sm">No technicians found</p>
+                            <p className="text-xs mt-1">Add technician team members in user management</p>
+                          </div>
+                        ) : (
+                          users
+                            .filter(user => {
+                              const displayInfo = getUserDisplayInfo(user);
+                              return (
+                                displayInfo.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+                                displayInfo.email.toLowerCase().includes(userSearch.toLowerCase()) ||
+                                displayInfo.roleName.toLowerCase().includes(userSearch.toLowerCase())
+                              );
+                            })
+                            .map((user) => {
+                              const displayInfo = getUserDisplayInfo(user);
+                              
+                              return (
+                                <button
+                                  key={user._id || user.id}
+                                  type="button"
+                                  onClick={() => {
+                                    handleNestedInputChange('serviceCompletion', 'completedBy', displayInfo.name);
+                                    setShowTechnicianDropdown(false);
+                                    setUserSearch('');
+                                  }}
+                                  className="w-full px-3 py-3 text-left hover:bg-purple-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0"
+                                >
+                                  <div className="flex-shrink-0">
+                                    <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-100 to-indigo-100 flex items-center justify-center">
+                                      <span className="text-sm font-medium text-indigo-700">
+                                        {displayInfo.name.charAt(0).toUpperCase()}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between">
+                                      <p className="text-sm font-medium text-gray-900 truncate">
+                                        {displayInfo.name}
+                                      </p>
+                                      <span className={`text-xs px-2 py-1 rounded-full ${
+                                        displayInfo.roleName.toLowerCase().includes('technician') ? 
+                                        'bg-blue-100 text-blue-800' : 
+                                        'bg-gray-100 text-gray-800'
+                                      }`}>
+                                        {displayInfo.roleName}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 truncate">{displayInfo.email}</p>
+                                    {/* {displayInfo.department && (
+                                      <p className="text-xs text-gray-400 mt-1">{displayInfo.department}</p>
+                                    )} */}
+                                  </div>
+                                </button>
+                              );
+                            })
+                        )}
+                        {/* Add option for current user if not in the list */}
+                        {sessionStorage.getItem('userName') && !users.some(u => 
+                          getUserDisplayInfo(u).name === sessionStorage.getItem('userName')
+                        ) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const currentUserName = sessionStorage.getItem('userName') || '';
+                              handleNestedInputChange('serviceCompletion', 'completedBy', currentUserName);
+                              setShowTechnicianDropdown(false);
+                              setUserSearch('');
+                            }}
+                            className="w-full px-3 py-3 text-left hover:bg-green-50 flex items-center gap-3 border-t border-gray-200"
+                          >
+                            <div className="flex-shrink-0">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-100 to-teal-100 flex items-center justify-center">
+                                <UserType className="h-4 w-4 text-green-600" />
+                              </div>
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-900">
+                                {sessionStorage.getItem('userName')}
+                              </p>
+                              <p className="text-xs text-gray-500">Current User</p>
+                            </div>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {formData.serviceCompletion.completedBy && (
+                    <div className="mt-2 p-2 rounded-lg bg-blue-50 border border-blue-100">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Check className="h-4 w-4 text-green-600" />
+                          <span className="text-sm text-gray-700">
+                            Selected: {formData.serviceCompletion.completedBy}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleNestedInputChange('serviceCompletion', 'completedBy', '')}
+                          className="text-xs text-red-500 hover:text-red-600"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">

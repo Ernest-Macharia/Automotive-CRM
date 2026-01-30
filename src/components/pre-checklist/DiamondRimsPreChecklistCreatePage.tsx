@@ -70,7 +70,8 @@ import {
   Gauge,
   ThermometerSnowflake,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  Search
 } from 'lucide-react';
 import { preChecklistService } from '@/services/preChecklistService';
 import { workOrderService } from '@/services/workOrderService';
@@ -115,6 +116,11 @@ export default function DiamondRimsPreChecklistCreatePage({
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
   const [draftSaved, setDraftSaved] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [showCustomerServiceDropdown, setShowCustomerServiceDropdown] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const customerServiceDropdownRef = useRef<HTMLDivElement>(null);
 
   // DIAMOND RIMS FORM STATE
   const [formData, setFormData] = useState({
@@ -300,6 +306,24 @@ export default function DiamondRimsPreChecklistCreatePage({
       autoPopulateFromOpportunity();
     }
   }, [opportunity]);
+  // Update your existing useEffect for click outside
+useEffect(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    // ... existing code ...
+
+    if (customerServiceDropdownRef.current && !customerServiceDropdownRef.current.contains(event.target as Node)) {
+      setShowCustomerServiceDropdown(false);
+      setUserSearch('');
+    }
+
+    // ... rest of existing code ...
+  };
+
+  document.addEventListener('mousedown', handleClickOutside);
+  return () => {
+    document.removeEventListener('mousedown', handleClickOutside);
+  };
+}, []);
 const toId = (v: any): string => {
   if (!v) return '';
   return typeof v === 'string' ? v : (v._id ?? '');
@@ -970,6 +994,53 @@ const toISODate = (d: any): string => {
     };
   };
 
+  // Update the isCustomerServicePerson function to check for the specific role name
+  const isCustomerServicePerson = (user: User): boolean => {
+    if (!user.role) return false;
+    
+    if (typeof user.role === 'string') {
+      const lowerRole = user.role.toLowerCase();
+      // Check for exact role name or variations
+      return lowerRole.includes('customer') && lowerRole.includes('service');
+    } else if (user.role && typeof user.role === 'object') {
+      const roleName = user.role.name?.toLowerCase() || user.role.display_name?.toLowerCase() || '';
+      return  roleName.includes('customer') && roleName.includes('service');
+    }
+    return false;
+  };
+
+  const isSalesPerson = (user: User): boolean => {
+    if (typeof user.role === 'string') {
+      const lowerRole = user.role.toLowerCase();
+      return lowerRole.includes('sales') || lowerRole.includes('representative');
+    } else if (user.role && typeof user.role === 'object') {
+      const roleName = user.role.name?.toLowerCase() || user.role.display_name?.toLowerCase() || '';
+      return roleName.includes('sales') || roleName.includes('representative');
+    }
+    return false;
+  };
+
+  // Add function to get user display info
+  const getUserDisplayInfo = (user: User) => {
+    const roleInfo = getUserRoleName(user);
+    return {
+      name: user.name || user.email?.split('@')[0] || 'Unknown User',
+      roleName: roleInfo,
+      isCustomerService: isCustomerServicePerson(user),
+      email: user.email || '',
+    };
+  };
+
+  // Add function to get role name
+  const getUserRoleName = (user: User): string => {
+    if (typeof user.role === 'string') {
+      return user.role;
+    } else if (user.role && typeof user.role === 'object') {
+      return user.role.name || 'User';
+    }
+    return 'User';
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-teal-50/30 flex items-center justify-center">
@@ -1089,17 +1160,168 @@ const toISODate = (d: any): string => {
               </h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                {/* Replace this section in your form - Service Intake Information */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Customer Service Representative
+                    Customer Service Representative *
                   </label>
-                  <input
-                    type="text"
-                    value={formData.serviceIntake.customerServiceRep}
-                    onChange={(e) => handleNestedInputChange('serviceIntake', 'customerServiceRep', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    required
-                  />
+                  <div className="relative" ref={customerServiceDropdownRef}>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={formData.serviceIntake.customerServiceRep}
+                        onChange={(e) => handleNestedInputChange('serviceIntake', 'customerServiceRep', e.target.value)}
+                        onFocus={() => setShowCustomerServiceDropdown(true)}
+                        placeholder="Select or type customer service representative..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 pl-10 pr-8"
+                        required
+                      />
+                      <UserType className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomerServiceDropdown(!showCustomerServiceDropdown)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showCustomerServiceDropdown ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                    
+                    {showCustomerServiceDropdown && (
+                      <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        <div className="sticky top-0 bg-white p-2 border-b">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <input
+                              type="text"
+                              value={userSearch}
+                              onChange={(e) => setUserSearch(e.target.value)}
+                              placeholder="Search customer service representatives..."
+                              className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto">
+                          {loadingUsers ? (
+                            <div className="p-4 text-center text-gray-500">
+                              <div className="flex items-center justify-center gap-2">
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-500 border-t-transparent" />
+                                Loading customer service team...
+                              </div>
+                            </div>
+                          ) : users.length === 0 ? (
+                            <div className="p-4 text-center text-gray-500">
+                              <AlertCircle className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                              <p className="text-sm">No customer service representatives found</p>
+                              <p className="text-xs mt-1">Add customer service team members in user management</p>
+                            </div>
+                          ) : (
+                            users
+                              .filter(user => {
+                                const displayInfo = getUserDisplayInfo(user);
+                                return (
+                                  displayInfo.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+                                  displayInfo.email.toLowerCase().includes(userSearch.toLowerCase()) ||
+                                  displayInfo.roleName.toLowerCase().includes(userSearch.toLowerCase())
+                                );
+                              })
+                              .map((user) => {
+                                const displayInfo = getUserDisplayInfo(user);
+                                
+                                return (
+                                  <button
+                                    key={user.id}
+                                    type="button"
+                                    onClick={() => {
+                                      handleNestedInputChange('serviceIntake', 'customerServiceRep', displayInfo.name);
+                                      setShowCustomerServiceDropdown(false);
+                                      setUserSearch('');
+                                    }}
+                                    className="w-full px-3 py-3 text-left hover:bg-purple-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0"
+                                  >
+                                    <div className="flex-shrink-0">
+                                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-100 to-pink-100 flex items-center justify-center">
+                                        <span className="text-sm font-medium text-purple-700">
+                                          {displayInfo.name.charAt(0).toUpperCase()}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center justify-between">
+                                        <p className="text-sm font-medium text-gray-900 truncate">
+                                          {displayInfo.name}
+                                        </p>
+                                        <span className={`text-xs px-2 py-1 rounded-full ${
+                                          displayInfo.roleName.toLowerCase().includes('customer service') ? 
+                                          'bg-purple-100 text-purple-800' : 
+                                          'bg-gray-100 text-gray-800'
+                                        }`}>
+                                          {displayInfo.roleName}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-gray-500 truncate">{displayInfo.email}</p>
+                                      {/* {displayInfo.department && (
+                                        <p className="text-xs text-gray-400 mt-1">{displayInfo.department}</p>
+                                      )} */}
+                                    </div>
+                                  </button>
+                                );
+                              })
+                          )}
+                          {/* Add option for current user if not in the list */}
+                          {sessionStorage.getItem('userName') && !users.some(u => 
+                            getUserDisplayInfo(u).name === sessionStorage.getItem('userName')
+                          ) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const currentUserName = sessionStorage.getItem('userName') || '';
+                                handleNestedInputChange('serviceIntake', 'customerServiceRep', currentUserName);
+                                setShowCustomerServiceDropdown(false);
+                                setUserSearch('');
+                              }}
+                              className="w-full px-3 py-3 text-left hover:bg-blue-50 flex items-center gap-3 border-t border-gray-200"
+                            >
+                              <div className="flex-shrink-0">
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-100 to-cyan-100 flex items-center justify-center">
+                                  <UserType className="h-4 w-4 text-blue-600" />
+                                </div>
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-gray-900">
+                                  {sessionStorage.getItem('userName')}
+                                </p>
+                                <p className="text-xs text-gray-500">Current User</p>
+                              </div>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {formData.serviceIntake.customerServiceRep && (
+                    <div className="mt-2 p-2 rounded-lg bg-purple-50 border border-purple-100">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Check className="h-4 w-4 text-green-600" />
+                          <span className="text-sm text-gray-700">
+                            Selected: {formData.serviceIntake.customerServiceRep}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleNestedInputChange('serviceIntake', 'customerServiceRep', '')}
+                          className="text-xs text-red-500 hover:text-red-600"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
