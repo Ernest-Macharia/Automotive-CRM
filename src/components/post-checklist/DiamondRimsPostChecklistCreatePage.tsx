@@ -664,7 +664,7 @@ export default function DiamondRimsPostChecklistCreatePage({
     try {
       setSubmitting(true);
 
-      // Validations
+      // Validate required fields
       if (
         !formData.customerDetails.firstName ||
         !formData.customerDetails.lastName ||
@@ -672,64 +672,63 @@ export default function DiamondRimsPostChecklistCreatePage({
         !formData.customerDetails.email
       ) {
         showToast('Please fill in all required customer details', 'error');
-        return;
-      }
-
-      if (!formData.carDetails.licensePlate) {
-        showToast('License plate is required', 'error');
+        setSubmitting(false);
         return;
       }
 
       if (formData.services.actualService.length === 0) {
         showToast('Please select at least one service', 'error');
+        setSubmitting(false);
         return;
       }
 
       if (!formData.finalChecks.tireCondition) {
         showToast('Tire condition is required', 'error');
+        setSubmitting(false);
         return;
       }
 
       if (!formData.qualityAssurance.leadTechnicianConfirmation) {
         showToast('Lead technician confirmation is required', 'error');
+        setSubmitting(false);
         return;
       }
 
       if (!formData.qualityAssurance.operationsCounterCheck) {
         showToast('Operations counter check is required', 'error');
+        setSubmitting(false);
         return;
       }
 
       if (!formData.mustKnowAccepted) {
         showToast('Please acknowledge the MUST KNOW section', 'error');
+        setSubmitting(false);
         return;
       }
 
       if (!formData.acceptTerms) {
         showToast('Please accept the terms and conditions', 'error');
+        setSubmitting(false);
         return;
       }
 
-      if (!formData.clientSignature) {
-        showToast('Client signature is required', 'error');
-        return;
-      }
-
-      const userId = sessionStorage.getItem('userId') || undefined;
-
-      const createDto = {
+      // Normalize IDs to strings before submit
+      const normalizedSubmissionData = {
         ...formData,
         checklistType: 'diamond_rims_post',
         opportunityId: toId(formData.opportunityId),
         vehicleId: toId(formData.vehicleId),
+        workOrderId: toId((formData as any).workOrderId) || workOrderId || '',
         jobCardId: toId((formData as any).jobCardId) || undefined,
         approved: false,
         completed: true,
         completionDate: new Date().toISOString(),
-      } as any;
+      };
 
+      const userId = sessionStorage.getItem('userId') || undefined;
+
+      // Create or update post-checklist
       let result: any;
-
       if (mode === 'edit' && checklistId) {
         const updateDto: any = {
           inspectionItems: (formData as any).inspectionItems,
@@ -759,35 +758,48 @@ export default function DiamondRimsPostChecklistCreatePage({
         result = await postChecklistService.updatePostChecklist(checklistId, updateDto, userId);
         showToast('Diamond Rims post-checklist updated successfully', 'success');
       } else {
-        result = await postChecklistService.createPostChecklist(createDto, userId);
+        result = await postChecklistService.createPostChecklist(normalizedSubmissionData as any, userId);
+        showToast('Diamond Rims post-checklist created successfully', 'success');
 
-        try {
-          const transitionResult = await lifecycleIntegrationService.handlePostChecklistCompletion(
-            result._id,
-            userId
-          );
-          
-          if (transitionResult.transitioned) {
-            showToast(transitionResult.message, 'success');
-          }
-        } catch (transitionError) {
-          console.warn('Auto-transition warning:', transitionError);
-          showToast('Post-checklist created, but transition had issues', 'warning');
-        }
-
-        // Update work order
+        // Update work order with post-checklist ID
         if (workOrderId && result._id) {
           await workOrderService.updateWorkOrder(workOrderId, {
             postChecklistId: result._id,
             updatedAt: new Date().toISOString(),
           });
         }
+
+        // Auto-approve and transition to next stage
+        try {
+          const transitionResult = await lifecycleIntegrationService.handlePostChecklistCompletion(
+            result._id,
+            userId
+          );
+
+          if (transitionResult.transitioned) {
+            showToast(transitionResult.message, 'success');
+          }
+        } catch (transitionError) {
+          console.warn('Auto-transition warning:', transitionError);
+          // Optional: Uncomment if you want to show warning
+          // showToast('Post-checklist created, but transition had issues', 'warning');
+        }
       }
 
-      // Redirect based on source
-      if (source === 'workflow' && workOrderId) {
+      // Redirect logic - same pattern as pre-checklist
+      if (workOrderId) {
+        // Redirect back to work order details
         router.push(`/orders/work-orders/${workOrderId}`);
+      } else if (source === 'opportunity' && formData.opportunityId) {
+        // If coming from opportunity, go to opportunity page
+        router.push(`/opportunities/${formData.opportunityId}`);
+      } else if (result._id) {
+        // Fallback: Go to post-checklist details
+        router.push(`/post-checklist/${result._id}`);
+      } else {
+        router.push('/postchecklists');
       }
+
     } catch (error: any) {
       console.error('Error submitting post-checklist:', error);
       showToast(error.message || 'Failed to save post-checklist', 'error');
@@ -1318,7 +1330,7 @@ export default function DiamondRimsPostChecklistCreatePage({
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      License Plate *Required
+                      License Plate
                     </label>
                     <input
                       type="text"
@@ -1326,7 +1338,6 @@ export default function DiamondRimsPostChecklistCreatePage({
                       onChange={(e) => handleNestedInputChange('carDetails', 'licensePlate', e.target.value)}
                       placeholder="e.g., KAA 123A"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      required
                     />
                   </div>
                 </div>
@@ -2243,9 +2254,9 @@ export default function DiamondRimsPostChecklistCreatePage({
                       )}
                     </div>
                   )}
-                  {!formData.clientSignature && (
+                  {/* {!formData.clientSignature && (
                     <p className="mt-1 text-sm text-red-600">Client signature is required</p>
-                  )}
+                  )} */}
                 </div>
                 
                 {/* Inspector Signature */}

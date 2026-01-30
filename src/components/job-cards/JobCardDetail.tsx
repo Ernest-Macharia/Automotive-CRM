@@ -104,31 +104,31 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
       if (status === 'completed') {
         payload.completedDate = new Date().toISOString();
         payload.actualHours = jobCard?.actualHours || jobCard?.estimatedHours || 2;
-        
-        // Use the new auto-transition service
-        const transitionResult = await lifecycleIntegrationService.handleJobCardCompletion(
-          jobCardId,
-          'current-user-id' // Replace with actual user ID
-        );
-        
-        if (transitionResult.transitioned) {
-          showToast(transitionResult.message, 'success');
-          
-          // Redirect to post-checklist creation or back to work order
-          if (workOrderId) {
-            setTimeout(() => {
-              if (window.confirm('Create post-checklist for quality verification?')) {
-                router.push(`/post-checklist/create?workOrderId=${workOrderId}&jobCardId=${jobCardId}`);
-              } else {
-                router.push(`/orders/work-orders/${workOrderId}`);
-              }
-            }, 1000);
+      }
+
+      // Update the job card
+      const updatedJobCard = await jobCardService.updateJobCard(jobCardId, payload);
+
+      showToast(`Job card marked as ${status.replace('_', ' ')}`, 'success');
+
+      // If job card was completed, handle workflow transition
+      if (status === 'completed') {
+        if (workOrderId) {
+          try {
+            // Update work order stage (optional, keep your current logic)
+            await workOrderService.updateWorkOrder(workOrderId, {
+              currentStage: 'post_checklist',
+              updatedAt: new Date().toISOString(),
+            });
+
+            showToast('Job completed! Ready for post-checklist quality verification.', 'success');
+
+            router.push(`/orders/work-orders/${workOrderId}`);
+
+          } catch (workflowError) {
+            console.error('Workflow transition error:', workflowError);
           }
         }
-      } else {
-        // Update job card for other statuses
-        const updatedJobCard = await jobCardService.updateJobCard(jobCardId, payload);
-        showToast(`Job card marked as ${status.replace('_', ' ')}`, 'success');
       }
 
       // Refresh local screen state
@@ -258,7 +258,7 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Optional reminder banner (NO modal now) */}
-        {(jobCard.status === 'pending' && (!jobCard.assignedTo || !jobCard.startDate)) && (
+        {/* {(jobCard.status === 'pending' && (!jobCard.assignedTo || !jobCard.startDate)) && (
           <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-start gap-2">
@@ -279,7 +279,7 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
               </button>
             </div>
           </div>
-        )}
+        )} */}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* LEFT COLUMN */}

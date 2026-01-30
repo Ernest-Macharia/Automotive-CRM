@@ -784,7 +784,7 @@ const toISODate = (d: any): string => {
           }
         } catch (transitionError) {
           console.warn('Auto-transition warning:', transitionError);
-          showToast('Pre-checklist created, but transition had issues', 'warning');
+          // showToast('Pre-checklist created, but transition had issues', 'warning');
         }
       }
 
