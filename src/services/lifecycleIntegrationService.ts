@@ -249,11 +249,8 @@ export class LifecycleIntegrationService {
   }
 
   private isStageTrulyCompleted(stageName: string, lifecycleStage: any, document: any): boolean {
-    const lifecycleCompleted = lifecycleStage?.completed || false;
-    
-    if (!lifecycleCompleted) {
-      return false;
-    }
+    // Treat document state as the source of truth for completion.
+    // lifecycleStage.completed can lag behind when completions happen via auto-approval.
     
     // For prechecklist - check if approved or all items are OK/N/A
     if (stageName === 'prechecklist') {
@@ -1793,6 +1790,8 @@ async checkStageRequirements(opportunityId: string): Promise<{
   }
 }
 
+  // In lifecycleIntegrationService.ts - Update the handlePreChecklistCompletion method
+
   async handlePreChecklistCompletion(
     checklistId: string,
     userId?: string
@@ -1801,18 +1800,18 @@ async checkStageRequirements(opportunityId: string): Promise<{
     transitioned: boolean;
     nextStage: string;
     message: string;
+    shouldCreateJobCard: boolean;
+    jobCardRedirectUrl?: string;
   }> {
     try {
-      // Get the pre-checklist
       const checklist = await preChecklistService.getPreChecklistById(checklistId);
-      
-      // Auto-approve the pre-checklist
-      const approvedChecklist = await preChecklistService.updatePreChecklist(checklistId, {
-        approved: true,
-        approvedBy: userId || 'system-auto',
-        approvedAt: new Date().toISOString(),
-        remarks: checklist.remarks ? `${checklist.remarks} (Auto-approved)` : 'Auto-approved by system'
-      });
+
+      // Auto-approve the pre-checklist (BACKEND-COMPATIBLE)
+      // Backend DTO supports only: { approved: boolean; remarks?: string }
+      await preChecklistService.approvePreChecklist(
+        checklistId,
+        checklist.remarks ? `${checklist.remarks} (Auto-approved)` : 'Auto-approved by system'
+      );
 
       const opportunityId = typeof checklist.opportunityId === 'object' 
         ? checklist.opportunityId._id 
@@ -1822,33 +1821,33 @@ async checkStageRequirements(opportunityId: string): Promise<{
         throw new Error('No opportunity linked to checklist');
       }
 
-      // Transition to job card stage
-      await this.transitionToStage(opportunityId, 'jobcard', {
-        skipValidation: true,
-        metadata: {
-          autoTransition: true,
-          fromStage: 'prechecklist',
-          toStage: 'jobcard',
-          checklistId,
-          approvedAt: new Date().toISOString()
-        }
-      });
-
-      // Update work order stage
+      // Get work orders
       const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
+      let workOrderId: string | undefined;
+      
       if (workOrders.length > 0) {
         const workOrder = workOrders[0];
+        workOrderId = workOrder._id;
+        
+        // Update work order with pre-checklist ID ONLY.
+        // Do NOT auto-transition stages — stage transition must happen when user clicks "Move to ...".
         await workOrderService.updateWorkOrder(workOrder._id, {
-          currentStage: 'job_card',
-          updatedAt: new Date().toISOString()
+          preChecklistId: checklistId,
+          updatedAt: new Date().toISOString(),
+          status: 'in_progress'
         });
       }
 
+      // Do NOT transition here. UI will show "Move to Job Card" once approved.
+      const jobCardRedirectUrl = undefined;
+
       return {
         approved: true,
-        transitioned: true,
+        transitioned: false,
         nextStage: 'jobcard',
-        message: 'Pre-checklist auto-approved and transitioned to Job Card stage'
+        message: 'Pre-checklist auto-approved. You can now move to Job Card stage.',
+        shouldCreateJobCard: false,
+        jobCardRedirectUrl
       };
     } catch (error) {
       console.error('Error handling pre-checklist completion:', error);
@@ -1867,8 +1866,12 @@ async checkStageRequirements(opportunityId: string): Promise<{
     transitioned: boolean;
     nextStage: string;
     message: string;
+    shouldCreatePostChecklist: boolean;
+    postChecklistRedirectUrl?: string;
   }> {
     try {
+      const jobCard = await jobCardService.getJobCardById(jobCardId);
+      
       // Mark job card as completed
       const updatedJobCard = await jobCardService.updateJobCard(jobCardId, {
         status: 'completed',
@@ -1898,19 +1901,30 @@ async checkStageRequirements(opportunityId: string): Promise<{
 
       // Update work order stage
       const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
+      let workOrderId: string | undefined;
+      
       if (workOrders.length > 0) {
         const workOrder = workOrders[0];
+        workOrderId = workOrder._id;
+        
         await workOrderService.updateWorkOrder(workOrder._id, {
           currentStage: 'post_checklist',
-          updatedAt: new Date().toISOString()
+          updatedAt: new Date().toISOString(),
         });
       }
+
+      // Return info for post-checklist creation
+      const postChecklistRedirectUrl = workOrderId 
+        ? `/post-checklist/create?workOrderId=${workOrderId}&jobCardId=${jobCardId}&opportunityId=${opportunityId}&autoRedirect=true`
+        : undefined;
 
       return {
         completed: true,
         transitioned: true,
         nextStage: 'postchecklist',
-        message: 'Job card completed and auto-transitioned to Post-Checklist stage'
+        message: 'Job card completed and auto-transitioned to Post-Checklist stage',
+        shouldCreatePostChecklist: true,
+        postChecklistRedirectUrl
       };
     } catch (error) {
       console.error('Error handling job card completion:', error);
@@ -1921,6 +1935,9 @@ async checkStageRequirements(opportunityId: string): Promise<{
   /**
    * Handle post-checklist completion with auto-approval and transition
    */
+  /**
+ * Handle post-checklist completion with auto-approval and transition
+ */
   async handlePostChecklistCompletion(
     checklistId: string,
     userId?: string
@@ -1929,9 +1946,11 @@ async checkStageRequirements(opportunityId: string): Promise<{
     transitioned: boolean;
     nextStage: string;
     message: string;
+    shouldGenerateInvoice: boolean;
+    invoiceGenerated?: boolean;
+    invoiceId?: string;
   }> {
     try {
-      // Get the post-checklist
       const checklist = await postChecklistService.getPostChecklistById(checklistId);
       
       // Auto-approve the post-checklist
@@ -1950,6 +1969,24 @@ async checkStageRequirements(opportunityId: string): Promise<{
         throw new Error('No opportunity linked to checklist');
       }
 
+      // Get work order
+      const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
+      let workOrderId: string | undefined;
+      let invoiceGenerated = false;
+      let invoiceId: string | undefined;
+      
+      if (workOrders.length > 0) {
+        const workOrder = workOrders[0];
+        workOrderId = workOrder._id;
+        
+        // Update work order with post-checklist ID and stage
+        await workOrderService.updateWorkOrder(workOrder._id, {
+          postChecklistId: checklistId,
+          currentStage: 'invoice',
+          updatedAt: new Date().toISOString()
+        });
+      }
+
       // Transition to invoice stage
       await this.transitionToStage(opportunityId, 'invoice', {
         skipValidation: true,
@@ -1958,29 +1995,38 @@ async checkStageRequirements(opportunityId: string): Promise<{
           fromStage: 'postchecklist',
           toStage: 'invoice',
           checklistId,
-          approvedAt: new Date().toISOString()
+          approvedAt: new Date().toISOString(),
+          workOrderId
         }
       });
 
       // Auto-generate invoice
-      const invoice = await this.autoGenerateInvoice(opportunityId);
-
-      // Update work order stage
-      const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
-      if (workOrders.length > 0) {
-        const workOrder = workOrders[0];
-        await workOrderService.updateWorkOrder(workOrder._id, {
-          currentStage: 'invoice',
-          invoiceId: invoice._id || invoice.id,
-          updatedAt: new Date().toISOString()
-        });
+      try {
+        const invoice = await this.autoGenerateInvoice(opportunityId);
+        invoiceGenerated = true;
+        invoiceId = invoice._id || invoice.id;
+        
+        // Update work order with invoice ID if generated
+        if (workOrderId && invoiceId) {
+          await workOrderService.updateWorkOrder(workOrderId, {
+            invoiceId: invoiceId,
+            updatedAt: new Date().toISOString()
+          });
+        }
+      } catch (invoiceError) {
+        console.warn('Could not auto-generate invoice:', invoiceError);
+        // Continue anyway - invoice can be generated manually
       }
 
       return {
         approved: true,
         transitioned: true,
         nextStage: 'invoice',
-        message: 'Post-checklist auto-approved, transitioned to Invoice stage, and invoice generated'
+        message: 'Post-checklist auto-approved and transitioned to Invoice stage' + 
+                (invoiceGenerated ? ' (invoice auto-generated)' : ''),
+        shouldGenerateInvoice: !invoiceGenerated,
+        invoiceGenerated,
+        invoiceId
       };
     } catch (error) {
       console.error('Error handling post-checklist completion:', error);
@@ -4479,9 +4525,11 @@ async autoTransitionOnPreChecklistComplete(
   }
 
   private isStageCompleted(stageName: string, document: any, lifecycleStage: any): boolean {
-    const lifecycleCompleted = lifecycleStage?.completed || false;
-    
-    if (!lifecycleCompleted) return false;
+    // Some backends only mark lifecycleStage.completed when the explicit "next" transition
+    // endpoint is called. For auto-approved documents (e.g., pre/post checklists) we still
+    // want the UI to immediately reflect completion based on the document itself.
+    // Therefore, treat document state as the source of truth and use lifecycleStage.completed
+    // only as an additional signal (not a gate).
     
     switch (stageName) {
       case 'prechecklist':

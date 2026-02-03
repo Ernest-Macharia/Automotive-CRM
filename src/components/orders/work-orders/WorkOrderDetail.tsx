@@ -260,6 +260,61 @@ const FullPageSkeleton = () => (
 export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProps) {
   const router = useRouter();
   const { showToast } = useToast();
+
+  // Add this at the top of your component
+  const debounce = (func: Function, wait: number) => {
+    let timeout: NodeJS.Timeout;
+    return (...args: any[]) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func(...args), wait);
+    };
+  };
+
+  // In your component, create a debounced version
+  const debouncedCheckStageRequirements = useCallback(
+    debounce(async (opportunityId: string) => {
+      // Your check logic here
+    }, 500), // 500ms debounce
+    []
+  );
+
+  // Canonical stage keys used across UI/actions
+  const normalizeWorkflowStage = (s?: string) => {
+    if (!s) return '';
+    const lower = String(s).toLowerCase();
+    if (lower === 'pre_checklist' || lower === 'prechecklist') return 'prechecklist';
+    if (lower === 'job_card' || lower === 'jobcard') return 'jobcard';
+    if (lower === 'post_checklist' || lower === 'postchecklist') return 'postchecklist';
+    if (lower === 'invoice') return 'invoice';
+    return lower.replace(/_/g, '');
+  };
+
+  // Robust approval detection (backend may use different fields/values)
+  const isDocApproved = (doc: any): boolean => {
+  if (!doc) return false;
+  
+  // Check for auto-approval indicators
+  if (doc.autoApproved === true) return true;
+  if (doc.approved === true) return true;
+  
+  // Check if client has signed (for pre/post checklists)
+  if (doc.clientSignature && doc.clientSignature !== '') return true;
+  if (doc.customerSignature && doc.customerSignature !== '') return true;
+  
+  // Check status field
+  const rawStatus = doc.status || doc.approvalStatus || '';
+  if (typeof rawStatus === 'string') {
+    const status = rawStatus.toLowerCase();
+    if (['approved', 'completed', 'signed', 'auto_approved', 'auto-approved'].includes(status)) {
+      return true;
+    }
+  }
+  
+  // Check timestamps
+  if (doc.approvedAt || doc.completedAt || doc.signedAt) return true;
+  
+  return false;
+};
   
   const [workOrder, setWorkOrder] = useState<WorkOrder | null>(null);
   const [loading, setLoading] = useState(true);
@@ -379,10 +434,10 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     if (workOrder && autoRefresh) {
       fetchStageOverview();
       
-      // Set up auto-refresh every 10 seconds
+      // Set up auto-refresh every 30 seconds (not 10)
       const interval = setInterval(() => {
         fetchStageOverview();
-      }, 10000);
+      }, 30000); // 30 seconds
       
       setRefreshInterval(interval);
       
@@ -423,87 +478,63 @@ export default function WorkOrderDetailPage({ orderId }: WorkOrderDetailPageProp
     }
   }, [workOrder]);
 
-//   useEffect(() => {
-//   const checkJobCardStatus = async () => {
-//     if (!workOrder) return;
-    
-//     const opportunityId = typeof workOrder.opportunityId === 'object' 
-//       ? workOrder.opportunityId._id 
-//       : workOrder.opportunityId;
-    
-//     try {
-//       setJobCardStatus(prev => ({ ...prev, checking: true }));
-      
-//       const check = await lifecycleIntegrationService.checkJobCardCreationNeeded(opportunityId);
-      
-//       setJobCardStatus({
-//         needsJobCard: check.needsJobCard,
-//         reason: check.reason,
-//         checking: false
-//       });
-      
-//     } catch (error) {
-//       console.error('Error checking job card status:', error);
-//       setJobCardStatus({
-//         needsJobCard: false,
-//         reason: 'Error checking job card status',
-//         checking: false
-//       });
-//     }
-//   };
-  
-//   // Check when work order changes or when we're on job-cards tab
-//   if (workOrder && (activeTab === 'job-cards' || activeTab === 'overview' || activeTab === 'stages')) {
-//     checkJobCardStatus();
-//   }
-// }, [workOrder, activeTab]);
 
-useEffect(() => {
-  const checkStageRequirements = async () => {
-    if (!workOrder) return;
+  useEffect(() => {
+    const checkStageRequirements = async () => {
+      if (!workOrder) return;
+      
+      const opportunityId = typeof workOrder.opportunityId === 'object' 
+        ? workOrder.opportunityId._id 
+        : workOrder.opportunityId;
+      
+      try {
+        // Set checking to true but DON'T reset other values immediately
+        // This prevents flickering
+        setJobCardStatus(prev => ({ ...prev, checking: true }));
+        setPostChecklistStatus(prev => ({ ...prev, checking: true }));
+        
+        const check = await lifecycleIntegrationService.checkStageRequirements(opportunityId);
+        
+        // Only update if the data is significantly different
+        setJobCardStatus(prev => {
+          if (prev.needsJobCard === check.jobCardNeeded && 
+              prev.reason === check.jobCardStatus.reason &&
+              !prev.checking) {
+            return prev; // No change needed
+          }
+          return {
+            needsJobCard: check.jobCardNeeded,
+            reason: check.jobCardStatus.reason,
+            checking: false
+          };
+        });
+        
+        setPostChecklistStatus(prev => {
+          if (prev.needsPostChecklist === check.postChecklistNeeded && 
+              prev.reason === check.postChecklistStatus.reason &&
+              !prev.checking) {
+            return prev;
+          }
+          return {
+            needsPostChecklist: check.postChecklistNeeded,
+            reason: check.postChecklistStatus.reason,
+            checking: false
+          };
+        });
+        
+      } catch (error) {
+        console.error('Error checking stage requirements:', error);
+        // Don't reset to defaults - keep previous state
+        setJobCardStatus(prev => ({ ...prev, checking: false }));
+        setPostChecklistStatus(prev => ({ ...prev, checking: false }));
+      }
+    };
     
-    const opportunityId = typeof workOrder.opportunityId === 'object' 
-      ? workOrder.opportunityId._id 
-      : workOrder.opportunityId;
-    
-    try {
-      setJobCardStatus(prev => ({ ...prev, checking: true }));
-      setPostChecklistStatus(prev => ({ ...prev, checking: true }));
-      
-      const check = await lifecycleIntegrationService.checkStageRequirements(opportunityId);
-      
-      setJobCardStatus({
-        needsJobCard: check.jobCardNeeded,
-        reason: check.jobCardStatus.reason,
-        checking: false
-      });
-      
-      setPostChecklistStatus({
-        needsPostChecklist: check.postChecklistNeeded,
-        reason: check.postChecklistStatus.reason,
-        checking: false
-      });
-      
-    } catch (error) {
-      console.error('Error checking stage requirements:', error);
-      setJobCardStatus({
-        needsJobCard: false,
-        reason: 'Error checking job card status',
-        checking: false
-      });
-      setPostChecklistStatus({
-        needsPostChecklist: false,
-        reason: 'Error checking post-checklist status',
-        checking: false
-      });
+    if (workOrder && (activeTab === 'overview' || activeTab === 'stages' || 
+        activeTab === 'job-cards' || activeTab === 'post-checklist')) {
+      checkStageRequirements();
     }
-  };
-  
-  if (workOrder && (activeTab === 'overview' || activeTab === 'stages' || 
-      activeTab === 'job-cards' || activeTab === 'post-checklist')) {
-    checkStageRequirements();
-  }
-}, [workOrder, activeTab]);
+  }, [workOrder, activeTab]);
 
   // Also update the fetchWorkOrder function to remove the initialization call:
   const fetchWorkOrder = async () => {
@@ -511,6 +542,33 @@ useEffect(() => {
       setLoading(true);
       const data = await workOrderService.getWorkOrderById(orderId);
       setWorkOrder(data);
+
+      // 🔄 Keep key stage documents in sync even when user is on Overview.
+      // The workflow UI (statuses/buttons/colors) relies on checklist/jobcard values.
+      // Previously, checklists were fetched only when their tab was opened, which
+      // caused Overview + stage CTAs to remain stale after auto-approval.
+      try {
+        if (data?.preChecklistId) {
+          const pc = await preChecklistService.getPreChecklistById(data.preChecklistId);
+          setPreChecklist(pc);
+
+        } else {
+          setPreChecklist(null);
+        }
+      } catch (e) {
+        console.warn('WorkOrderDetail: failed to prefetch pre-checklist', e);
+      }
+
+      try {
+        if (data?.postChecklistId) {
+          const poc = await postChecklistService.getPostChecklistById(data.postChecklistId);
+          setPostChecklist(poc);
+        } else {
+          setPostChecklist(null);
+        }
+      } catch (e) {
+        console.warn('WorkOrderDetail: failed to prefetch post-checklist', e);
+      }
       
       await transformWorkOrderToStages(data);
       await fetchStageOverview();
@@ -683,41 +741,50 @@ useEffect(() => {
 
   // Add helper function for default overview
   const getDefaultStageOverview = () => {
+    const preChecklistApproved = !!preChecklist?.approved;
+    const hasPreChecklist = !!workOrder?.preChecklistId;
     return {
       currentStage: {
         id: 'prechecklist',
         label: 'Pre-Checklist',
         description: 'Complete pre-service inspection',
-        status: workOrder?.preChecklistId ? 'in_progress' : 'not_started',
-        progress: workOrder?.preChecklistId ? 50 : 0,
+        status: !hasPreChecklist ? 'not_started' : (preChecklistApproved ? 'completed' : 'in_progress'),
+        progress: !hasPreChecklist ? 0 : (preChecklistApproved ? 100 : 50),
         icon: '✅',
-        color: workOrder?.preChecklistId ? 'blue' : 'gray',
-        hasDocument: !!workOrder?.preChecklistId,
-        documentStatus: workOrder?.preChecklistId ? 'pending' : 'none',
-        canProceed: false,
-        requirements: [workOrder?.preChecklistId ? 'Complete and approve checklist' : 'Create pre-checklist']
+        color: !hasPreChecklist ? 'gray' : (preChecklistApproved ? 'green' : 'blue'),
+        hasDocument: hasPreChecklist,
+        documentStatus: !hasPreChecklist ? 'none' : (preChecklistApproved ? 'approved' : 'pending'),
+        canProceed: preChecklistApproved,
+        requirements: !hasPreChecklist
+          ? ['Create pre-checklist']
+          : (preChecklistApproved ? [] : ['Complete and approve checklist'])
       },
       nextStage: {
         id: 'jobcard',
         label: 'Job Card',
         description: 'Create detailed work instructions',
         icon: '🔧',
-        isReady: false,
-        requirements: ['Complete Pre-Checklist']
+        isReady: preChecklistApproved,
+        requirements: preChecklistApproved ? [] : ['Complete Pre-Checklist']
       },
       progress: {
-        percentage: workOrder?.preChecklistId ? 25 : 0,
-        completed: workOrder?.preChecklistId ? 1 : 0,
+        percentage: !hasPreChecklist ? 0 : (preChecklistApproved ? 25 : 25),
+        completed: !hasPreChecklist ? 0 : (preChecklistApproved ? 1 : 1),
         total: 4,
         estimatedCompletion: 'Not started'
       },
       actions: [{
         id: 'create-pre-checklist',
-        label: workOrder?.preChecklistId ? 'Continue Pre-Checklist' : 'Create Pre-Checklist',
+        label: !hasPreChecklist
+          ? 'Create Pre-Checklist'
+          : (preChecklistApproved ? 'Move to Job Card Stage' : 'Continue Pre-Checklist'),
         type: 'primary',
-        icon: workOrder?.preChecklistId ? 'edit' : 'plus',
-        description: workOrder?.preChecklistId ? 'Continue working on pre-checklist' : 'Start the workflow',
-        action: 'create'
+        icon: !hasPreChecklist ? 'plus' : (preChecklistApproved ? 'arrow-right' : 'edit'),
+        description: !hasPreChecklist
+          ? 'Start the workflow'
+          : (preChecklistApproved ? 'Proceed to Job Card stage' : 'Continue working on pre-checklist'),
+        action: preChecklistApproved ? 'transition' : 'create',
+        targetStage: preChecklistApproved ? 'jobcard' : undefined
       }]
     };
   };
@@ -1411,6 +1478,80 @@ useEffect(() => {
     }
   };
 
+  const handleTransitionToJobCard = async () => {
+    if (!workOrder) {
+      showToast('Work order not found', 'error');
+      return;
+    }
+    
+    setIsTransitioning(true);
+    
+    try {
+      const opportunityId = typeof workOrder.opportunityId === 'object' 
+        ? workOrder.opportunityId._id 
+        : workOrder.opportunityId;
+      
+      if (!opportunityId) {
+        showToast('No opportunity linked to this work order', 'error');
+        return;
+      }
+      
+      // Ensure pre-checklist is approved
+      if (preChecklist && !isDocApproved(preChecklist)) {
+        await preChecklistService.updatePreChecklist(preChecklist._id, {
+          approved: true,
+          approvedAt: new Date().toISOString(),
+        });
+      }
+      
+      // Transition using lifecycle service
+      const transitionResult = await lifecycleIntegrationService.transitionToStage(
+        opportunityId,
+        'jobcard',
+        {
+          skipValidation: false,
+          metadata: {
+            triggeredBy: 'user_manual_transition',
+            fromStage: 'prechecklist',
+            toStage: 'jobcard',
+            timestamp: new Date().toISOString(),
+            workOrderId: workOrder._id
+          }
+        }
+      );
+      
+      if (!transitionResult.success) {
+        throw new Error(transitionResult.message || 'Failed to transition workflow stage');
+      }
+      
+      // Update work order stage
+      await workOrderService.updateWorkOrder(workOrder._id, {
+        currentStage: 'job_card',
+        updatedAt: new Date().toISOString(),
+      });
+      
+      // Refresh all data
+      await Promise.all([
+        fetchWorkOrder(),
+        fetchStageOverview(),
+        transformWorkOrderToStages(workOrder)
+      ]);
+      
+      showToast('Successfully moved to Job Card stage!', 'success');
+      
+      // Redirect to job card creation
+      setTimeout(() => {
+        router.push(`/job-cards/create?workOrderId=${workOrder._id}&opportunityId=${opportunityId}&autoRedirect=true`);
+      }, 1500);
+      
+    } catch (error: any) {
+      console.error('Error transitioning to job card:', error);
+      showToast(error.message || 'Failed to transition to job card', 'error');
+    } finally {
+      setIsTransitioning(false);
+    }
+  };
+
   const transformWorkOrderToStages = async (order: WorkOrder) => {
     if (!order) {
       setWorkflowStages([]);
@@ -1449,10 +1590,33 @@ useEffect(() => {
         
         switch (stage.stage) {
           case 'prechecklist':
-            // Auto-approved when created (client signs form)
-            status = stage.document?.approved ? 'approved' : 'in_progress';
-            completed = !!stage.document;
-            break;
+        // AUTO-APPROVED WHEN CREATED
+        status = isDocApproved(preChecklist) ? 'approved' : 'in_progress';
+        completed = isDocApproved(preChecklist);
+        
+        // Always show "Move to Job Card" when pre-checklist is approved
+        if (isDocApproved(preChecklist)) {
+          // Update actions to show "Move to Job Card" button
+          stage.actions = [
+            {
+              id: 'move-to-job-card',
+              label: 'Move to Job Card',
+              icon: <ArrowRight className="h-4 w-4" />,
+              variant: 'primary' as const,
+              description: 'Proceed to create job card',
+              action: async () => handleTransitionToJobCard()
+            },
+            {
+              id: 'view-pre-checklist',
+              label: 'View Pre-Checklist',
+              icon: <Eye className="h-4 w-4" />,
+              variant: 'secondary' as const,
+              description: 'View approved pre-checklist',
+              action: async () => handleViewStageDocument('prechecklist', order.preChecklistId)
+            }
+          ];
+        }
+        break;
             
           case 'jobcard':
             // Status depends on job card state
@@ -1470,12 +1634,35 @@ useEffect(() => {
             // Auto-approved when created (client signs form)
             status = stage.document?.approved ? 'approved' : 'in_progress';
             completed = !!stage.document;
+            
+            // If approved, show invoice generation actions
+            if (status === 'approved') {
+              // Add invoice generation actions
+              const hasInvoice = !!workOrder?.invoiceId;
+              if (!hasInvoice) {
+                // Add generate invoice action
+                const actions = stage.actions || [];
+                actions.push({
+                  id: 'generate-invoice',
+                  label: 'Generate Invoice',
+                  icon: <ReceiptIcon className="h-4 w-4" />,
+                  variant: 'primary' as const,
+                  description: 'Generate invoice from completed work',
+                  action: async () => handleCreateStageDocument('invoice')
+                });
+              }
+            }
             break;
             
           case 'invoice':
             status = stage.document?.status === 'paid' ? 'completed' : 
                     stage.document ? 'in_progress' : 'not_started';
             completed = stage.document?.status === 'paid';
+            
+            // If post-checklist is approved but no invoice exists, this should be current stage
+            if (!stage.document && postChecklist?.approved) {
+              status = 'in_progress';
+            }
             break;
         }
         
@@ -1655,6 +1842,132 @@ useEffect(() => {
     return actionMap[enhancedAction.action];
   };
 
+  // Add this function to determine what to show based on current stage
+  const getCurrentStageDisplay = () => {
+    if (!workOrder) return null;
+    
+    const currentStage = workOrder.currentStage;
+    const hasPreChecklist = !!workOrder.preChecklistId;
+    const hasJobCards = jobCards.length > 0;
+    const hasPostChecklist = !!workOrder.postChecklistId;
+    const hasInvoice = !!workOrder.invoiceId;
+    
+    // Check if pre-checklist is approved
+    const preChecklistApproved = preChecklist && isDocApproved(preChecklist);
+    
+    // Check if job card is completed
+    const jobCardCompleted = jobCards.length > 0 && 
+      jobCards.some(jc => jc.status === 'completed');
+    
+    // Check if post-checklist is approved
+    const postChecklistApproved = postChecklist && isDocApproved(postChecklist);
+
+    switch (currentStage) {
+      case 'pre_checklist':
+        if (!hasPreChecklist) {
+          return {
+            title: 'Create Pre-Checklist',
+            description: 'Start the workflow by creating pre-service inspection',
+            action: () => handleCreateStageDocument('pre_checklist'),
+            buttonText: 'Create Pre-Checklist'
+          };
+        } else if (hasPreChecklist && !preChecklistApproved) {
+          return {
+            title: 'Complete Pre-Checklist',
+            description: 'Pre-checklist created. Complete inspection items to auto-approve.',
+            action: () => handleViewStageDocument('pre_checklist', workOrder.preChecklistId),
+            buttonText: 'Continue Pre-Checklist'
+          };
+        } else if (preChecklistApproved) {
+          return {
+            title: 'Pre-Checklist Approved ✓',
+            description: 'Ready to move to Job Card stage',
+            action: handleTransitionToJobCard,
+            buttonText: 'Move to Job Card Stage'
+          };
+        }
+        break;
+        
+      case 'job_card':
+        if (!hasJobCards) {
+          return {
+            title: 'Create Job Card',
+            description: 'Pre-checklist completed. Create job card for technicians.',
+            action: () => handleCreateStageDocument('job_card'),
+            buttonText: 'Create Job Card'
+          };
+        } else if (hasJobCards && !jobCardCompleted) {
+          return {
+            title: 'Complete Job Card',
+            description: 'Job card created. Mark as completed when work is done.',
+            action: () => router.push(`/job-cards/${jobCards[0]._id}`),
+            buttonText: 'View Job Card'
+          };
+        } else if (jobCardCompleted) {
+          return {
+            title: 'Job Card Completed ✓',
+            description: 'Ready to move to Post-Checklist stage',
+            action: () => {
+              // Auto-transition to post-checklist
+              handleCompleteJobCard(jobCards[0]._id);
+            },
+            buttonText: 'Move to Post-Checklist',
+            autoTransition: true
+          };
+        }
+        break;
+        
+      case 'post_checklist':
+        if (!hasPostChecklist) {
+          return {
+            title: 'Create Post-Checklist',
+            description: 'Job card completed. Create post-service quality check.',
+            action: () => handleCreateStageDocument('post_checklist'),
+            buttonText: 'Create Post-Checklist'
+          };
+        } else if (hasPostChecklist && !postChecklistApproved) {
+          return {
+            title: 'Complete Post-Checklist',
+            description: 'Post-checklist created. Complete quality verification.',
+            action: () => handleViewStageDocument('post_checklist', workOrder.postChecklistId),
+            buttonText: 'Continue Post-Checklist'
+          };
+        } else if (postChecklistApproved) {
+          return {
+            title: 'Post-Checklist Approved ✓',
+            description: 'Ready to generate invoice',
+            action: () => handleCreateStageDocument('invoice'),
+            buttonText: 'Generate Invoice',
+            autoTransition: true
+          };
+        }
+        break;
+        
+      case 'invoice':
+        if (!hasInvoice) {
+          return {
+            title: 'Generate Invoice',
+            description: 'Post-checklist approved. Generate invoice for customer.',
+            action: () => handleCreateStageDocument('invoice'),
+            buttonText: 'Generate Invoice'
+          };
+        } else {
+          const invoiceStatus = invoice?.status || 'draft';
+          return {
+            title: invoiceStatus === 'paid' ? 'Invoice Paid ✓' : 'Invoice Generated',
+            description: invoiceStatus === 'paid' 
+              ? 'Work order completed successfully' 
+              : 'Invoice created. Mark as paid when payment received.',
+            action: () => handleViewStageDocument('invoice', workOrder.invoiceId),
+            buttonText: 'View Invoice'
+          };
+        }
+        break;
+    }
+    
+    return null;
+  };
+
   const getStageIcon = (stage: string): React.ReactNode => {
     switch (stage) {
       case 'prechecklist':
@@ -1765,12 +2078,12 @@ useEffect(() => {
         statusColor: statusDisplay?.color || 'text-gray-600',
         bgColor: statusDisplay?.bgColor || 'bg-gray-100',
         completed: ['completed', 'approved'].includes(status),
-        isCurrent: order.currentStage === stageConfig.stage,
+        isCurrent: normalizeWorkflowStage(order.currentStage) === normalizeWorkflowStage(stageConfig.stage),
         documentId,
         actions: actions || [],
         progress: getStageProgress(status),
-        approvalDate: order.stageApprovals?.[stageConfig.stage as keyof typeof order.stageApprovals]?.approvedAt,
-        approvedBy: order.stageApprovals?.[stageConfig.stage as keyof typeof order.stageApprovals]?.approvedBy,
+        approvalDate: order.stageApprovals?.[normalizeWorkflowStage(stageConfig.stage) as keyof typeof order.stageApprovals]?.approvedAt,
+        approvedBy: order.stageApprovals?.[normalizeWorkflowStage(stageConfig.stage) as keyof typeof order.stageApprovals]?.approvedBy,
         completionDate: documentId ? new Date().toISOString() : undefined
       };
     });
@@ -1850,28 +2163,34 @@ useEffect(() => {
 
   const getStageDocumentId = (order: WorkOrder, stage: string): string | undefined => {
     switch (stage) {
-      case 'pre_checklist': 
+      case 'prechecklist':
+      case 'pre_checklist':
         return order.preChecklistId;
-      case 'job_card': 
+      case 'jobcard':
+      case 'job_card':
         return getJobCardId(order.jobCards);
-      case 'post_checklist': 
+      case 'postchecklist':
+      case 'post_checklist':
         return order.postChecklistId;
-      case 'invoice': 
+      case 'invoice':
         return order.invoiceId;
-      default: 
+      default:
         return undefined;
     }
   };
 
   const checkStageApproval = (order: WorkOrder, stage: string): boolean => {
-    const normalizedStage = stage.replace('_', '');
+    const normalizedStage = stage.replace(/_/g, '').toLowerCase();
     const stageApproval = order.stageApprovals?.[normalizedStage as keyof typeof order.stageApprovals];
-    
+
     // Also check if we have document-specific approval
-    if (stage === 'pre_checklist' && preChecklist) {
-      return preChecklist.approved || stageApproval?.approved || false;
+    if ((stage === 'pre_checklist' || stage === 'prechecklist') && preChecklist) {
+      return isDocApproved(preChecklist) || stageApproval?.approved || false;
     }
-    
+    if ((stage === 'post_checklist' || stage === 'postchecklist') && postChecklist) {
+      return isDocApproved(postChecklist) || stageApproval?.approved || false;
+    }
+
     return stageApproval?.approved || false;
   };
 
@@ -1907,27 +2226,17 @@ useEffect(() => {
             }
           }
         ],
-        needs_approval: [
+        approved: [
           {
-            id: 'approve-checklist',
-            label: 'Approve Checklist',
-            icon: <CheckCircle className="h-4 w-4" />,
-            variant: 'success' as const,
+            id: 'move-to-job-card',
+            label: 'Move to Job Card',
+            icon: <ArrowRight className="h-4 w-4" />,
+            variant: 'primary' as const,
             action: async () => {
-              handleApproveStage(stageKey, documentId);
+              // Transition to job card stage
+              await handleTransitionToJobCard();
             }
           },
-          {
-            id: 'view-checklist',
-            label: 'View Checklist',
-            icon: <Eye className="h-4 w-4" />,
-            variant: 'secondary' as const,
-            action: async () => {
-              router.push(`/${stageKey}/${documentId}`);
-            }
-          }
-        ],
-        approved: [
           {
             id: 'view-approved-checklist',
             label: 'View Approved Checklist',
@@ -2173,13 +2482,6 @@ useEffect(() => {
           bgColor: 'bg-blue-100',
           icon: <PlayCircle className="h-4 w-4" />
         };
-      case 'needs_approval':
-        return {
-          label: 'Needs Approval',
-          color: 'text-amber-600',
-          bgColor: 'bg-amber-100',
-          icon: <AlertOctagon className="h-4 w-4" />
-        };
       case 'approved':
         return {
           label: 'Approved',
@@ -2237,58 +2539,58 @@ useEffect(() => {
       let documentData: any = {};
       
       switch (stage) {
-        case 'prechecklist':
-        case 'pre_checklist':
-          // Create pre-checklist
-
-          try {
-            await lifecycleIntegrationService.initializeWorkOrderLifecycle(opportunityId);
-          } catch (error) {
-            console.log('Workflow may already be initialized:', error);
-          }
-            
-          router.push(`/pre-checklist/create?workOrderId=${workOrder._id}&opportunityId=${opportunityId}&vehicleId=${workOrder.vehicleId}`);
-          return;
-          
-        case 'jobcard':
-        case 'job_card':
-          // Navigate to job card creation
-          router.push(`/job-cards/create?workOrderId=${workOrder._id}`);
-          return;
-          
-        case 'postchecklist':
-        case 'post_checklist':
-          // Create post-checklist
-          documentData = {
-            opportunityId,
-            vehicleId: workOrder.vehicleId || '',
-            jobCardId: jobCards[0]?._id || '',
-            inspectionItems: [
-              { item: 'Work Quality', status: 'incomplete', required: true, category: 'quality' },
-              { item: 'Safety Check', status: 'incomplete', required: true, category: 'safety' },
-              { item: 'Cleanliness', status: 'incomplete', required: true, category: 'cleanliness' },
-            ],
-            notes: `Post-service quality check for ${workOrder.notes || 'work order'}`,
-            overallCondition: 'pending'
-          };
-          
-          await lifecycleIntegrationService.createDocumentAndUpdateWorkflow(
-            'postchecklist',
-            opportunityId,
-            documentData,
-            'current-user-id' // Replace with actual user
-          );
-          
-          showToast('Post-checklist created', 'success');
-          break;
-          
+        // ... other cases ...
+        
         case 'invoice':
-          setShowGenerateInvoiceModal(true);
+          // Check if post-checklist is approved
+          if (!postChecklist?.approved) {
+            showToast('Cannot generate invoice until post-checklist is approved', 'warning');
+            return;
+          }
+          
+          // Check if invoice already exists
+          if (workOrder.invoiceId) {
+            showToast('Invoice already exists', 'info');
+            router.push(`/invoices/${workOrder.invoiceId}`);
+            return;
+          }
+          
+          // Generate invoice
+          try {
+            const invoiceResult = await workOrderService.generateInvoice(workOrder._id);
+            
+            if (invoiceResult.invoice._id) {
+              showToast('Invoice generated successfully', 'success');
+              
+              // Update work order with invoice ID
+              await workOrderService.updateWorkOrder(workOrder._id, {
+                invoiceId: invoiceResult.invoice._id,
+                updatedAt: new Date().toISOString()
+              });
+              
+              // Update local state
+              setWorkOrder({
+                ...workOrder,
+                invoiceId: invoiceResult.invoice._id
+              });
+              
+              // Refresh data
+              await fetchWorkOrder();
+              
+              // Navigate to invoice tab
+              setActiveTab('invoice');
+              
+              // Show success modal or navigate to invoice
+              setTimeout(() => {
+                router.push(`/invoices/${invoiceResult.invoice._id}`);
+              }, 1500);
+            }
+          } catch (error) {
+            console.error('Error generating invoice:', error);
+            showToast('Failed to generate invoice', 'error');
+          }
           return;
       }
-      
-      // Refresh all data
-      // setTimeout(refreshAllData, 1500);
       
     } catch (error) {
       console.error('Error creating document:', error);
@@ -4661,7 +4963,7 @@ const handleCompleteJobCard = async (jobCardId: string) => {
                     <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                       <ClipboardCheck className="h-5 w-5 text-blue-600" />
                       Pre-Checklist
-                      {preChecklist?.approved && (
+                      {workOrder.preChecklistId && (
                         <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
                           <CheckCircle className="h-3 w-3" />
                           Approved
@@ -4680,7 +4982,7 @@ const handleCompleteJobCard = async (jobCardId: string) => {
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
                       >
                         <Eye className="h-4 w-4" />
-                        {preChecklist?.approved ? 'View Approved' : 'View Checklist'}
+                        {isDocApproved(preChecklist) ? 'View Approved' : 'View Checklist'}
                       </button>
                     ) : (
                       <button
@@ -4736,22 +5038,22 @@ const handleCompleteJobCard = async (jobCardId: string) => {
                           <div>
                             <h4 className="font-medium text-gray-900">Checklist Status</h4>
                             <p className="text-sm text-gray-600">
-                              {preChecklist.approved ? 'Approved and ready for next stage' : 'Pending approval'}
+                              {isDocApproved(preChecklist) ? 'Approved and ready for next stage' : 'Pending approval'}
                             </p>
                           </div>
                           
                           <div className="text-right">
                             <div className="text-sm font-medium text-gray-700">Approval</div>
                             <div className={`text-sm font-medium ${
-                              preChecklist.approved ? 'text-green-600' : 'text-yellow-600'
+                              isDocApproved(preChecklist) ? 'text-green-600' : 'text-yellow-600'
                             }`}>
-                              {preChecklist.approved ? '✓ Approved' : 'Pending'}
+                              {isDocApproved(preChecklist) ? '✓ Approved' : 'Pending'}
                             </div>
                           </div>
                         </div>
                         
                         {/* Auto-transition notice */}
-                        {preChecklist.approved && (
+                        {isDocApproved(preChecklist) && (
                           <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                             <div className="flex items-start gap-3">
                               <Zap className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
@@ -4781,7 +5083,7 @@ const handleCompleteJobCard = async (jobCardId: string) => {
                         View Full Checklist
                       </button>
                       
-                      {!preChecklist.approved && (
+                      {!isDocApproved(preChecklist) && (
                         <button
                           onClick={async () => {
                             try {
@@ -4852,166 +5154,132 @@ const handleCompleteJobCard = async (jobCardId: string) => {
           )}
 
           {activeTab === 'job-cards' && (
-  <div className="space-y-6">
-    <div className="bg-white rounded-xl border border-gray-200 p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900">Job Cards</h3>
-          <p className="text-sm text-gray-600">
-            {workOrder?.currentStage === 'job_card' 
-              ? 'Create and manage job cards for this work order'
-              : 'Job cards will be available in the Job Card stage'}
-          </p>
-        </div>
-        
-        {/* Show create button only when job card is needed */}
-        {workOrder?.currentStage === 'job_card' && jobCardStatus.needsJobCard && (
-          <button
-            onClick={() => router.push(`/job-cards/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}`)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Create Job Card
-          </button>
-        )}
-      </div>
-
-      {/* Show job card requirement message */}
-      {/* {workOrder?.currentStage === 'job_card' && jobCardStatus.needsJobCard && (
-        <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-200 rounded-xl p-6 mb-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-white rounded-lg shadow-sm">
-              <AlertTriangle className="h-6 w-6 text-yellow-600" />
-            </div>
-            <div className="flex-1">
-              <h4 className="font-bold text-gray-900 mb-2">Job Card Required</h4>
-              <p className="text-gray-600 mb-4">
-                {jobCardStatus.reason}. Create a job card with technician assignments to proceed.
-              </p>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => router.push(`/job-cards/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}`)}
-                  className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 flex items-center gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Create Job Card Now
-                </button>
-                
-                <button
-                  onClick={() => fetchJobCards()} // Refresh job cards
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Refresh Status
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )} */}
-
-      {/* Job Cards List - Only show if job cards exist and are assigned */}
-      {jobCards.length > 0 ? (
-        <div className="space-y-4">
-          {jobCards
-            .filter(jobCard => jobCard.assignedTo) // Only show assigned job cards
-            .map((jobCard) => (
-              <div key={jobCard._id} className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
-                        <Wrench className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-gray-900">{jobCard.jobTitle || 'Job Card'}</h4>
-                        <p className="text-sm text-gray-600">
-                          Assigned to: {jobCard.assignedTo?.name || jobCard.assignedTo || 'Unassigned'}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                      <div>
-                        <div className="text-sm text-gray-600">Status</div>
-                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                          jobCard.status === 'completed' ? 'bg-green-100 text-green-800' :
-                          jobCard.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {jobCard.status === 'completed' ? 'Completed' :
-                          jobCard.status === 'in_progress' ? 'In Progress' :
-                          'Pending'}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-gray-600">Priority</div>
-                        <div className="font-medium">{jobCard.priority || 'Medium'}</div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-gray-600">Est. Hours</div>
-                        <div className="font-medium">{jobCard.estimatedHours || 0} hours</div>
-                      </div>
-                    </div>
-                    
-                    {/* Complete Button */}
-                    {jobCard.status !== 'completed' && (
-                      <button
-                        onClick={() => handleCompleteJobCard(jobCard._id)}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
-                      >
-                        <CheckCircle className="h-4 w-4" />
-                        Mark as Completed
-                      </button>
-                    )}
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Job Cards</h3>
+                    <p className="text-sm text-gray-600">
+                      {jobCardStatus.checking ? 'Checking job card status...' : 
+                      jobCardStatus.needsJobCard ? 'Job card needs to be created' : 
+                      jobCards.length > 0 ? `${jobCards.length} job card(s) created` : 
+                      'No job cards yet'}
+                    </p>
                   </div>
                   
-                  <div className="flex items-center gap-2">
+                  {/* Show create button only when job card is truly needed */}
+                  {!jobCardStatus.checking && jobCardStatus.needsJobCard && (
                     <button
-                      onClick={() => router.push(`/job-cards/${jobCard._id}`)}
-                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                      onClick={() => router.push(`/job-cards/create?workOrderId=${workOrder?._id}&opportunityId=${workOrder?.opportunityId}`)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
                     >
-                      View Details
+                      <Plus className="h-4 w-4" />
+                      Create Job Card
                     </button>
-                    <button
-                      onClick={() => router.push(`/job-cards/edit/${jobCard._id}`)}
-                      className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
-                    >
-                      Edit
-                    </button>
-                  </div>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  {jobCardStatus.checking ? (
+                    <div className="text-center py-8">
+                      <Loader2 className="h-8 w-8 text-blue-600 animate-spin mx-auto mb-4" />
+                      <p className="text-gray-600">Checking job card status...</p>
+                    </div>
+                  ) : jobCards.length > 0 ? (
+                    // Show existing job cards
+                    jobCards.map((jobCard) => (
+                      <div key={jobCard._id} className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                                <Wrench className="h-5 w-5" />
+                              </div>
+                              <div>
+                                <h4 className="font-semibold text-gray-900">{jobCard.jobTitle || 'Job Card'}</h4>
+                                <p className="text-sm text-gray-600">
+                                  Assigned to: {jobCard.assignedTo?.name || jobCard.assignedTo || 'Unassigned'}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                              <div>
+                                <div className="text-sm text-gray-600">Status</div>
+                                <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                                  jobCard.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                  jobCard.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                                  'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {jobCard.status === 'completed' ? 'Completed' :
+                                  jobCard.status === 'in_progress' ? 'In Progress' :
+                                  'Pending'}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-sm text-gray-600">Priority</div>
+                                <div className="font-medium">{jobCard.priority || 'Medium'}</div>
+                              </div>
+                              <div>
+                                <div className="text-sm text-gray-600">Est. Hours</div>
+                                <div className="font-medium">{jobCard.estimatedHours || 0} hours</div>
+                              </div>
+                            </div>
+                            
+                            {/* Complete Button */}
+                            {jobCard.status !== 'completed' && (
+                              <button
+                                onClick={() => handleCompleteJobCard(jobCard._id)}
+                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                                Mark as Completed
+                              </button>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => router.push(`/job-cards/${jobCard._id}`)}
+                              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                            >
+                              View Details
+                            </button>
+                            <button
+                              onClick={() => router.push(`/job-cards/edit/${jobCard._id}`)}
+                              className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+                            >
+                              Edit
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : !jobCardStatus.needsJobCard ? (
+                    // No job cards but workflow says we're beyond jobcard stage
+                    <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
+                      <Wrench className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h4 className="text-lg font-semibold text-gray-900 mb-2">No Job Cards</h4>
+                      <p className="text-gray-600 mb-6">
+                        {workOrder?.currentStage === 'job_card' 
+                          ? 'Job cards will appear here once created and assigned.'
+                          : 'Job card stage not currently active.'}
+                      </p>
+                      {workOrder?.currentStage === 'job_card' && (
+                        <button
+                          onClick={() => router.push(`/job-cards/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}`)}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 mx-auto"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Create Job Card
+                        </button>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               </div>
-            ))}
-        </div>
-      ) : workOrder?.currentStage === 'job_card' && !jobCardStatus.needsJobCard ? (
-        // No job cards but stage says we don't need them (shouldn't happen)
-        <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-          <Wrench className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h4 className="text-lg font-semibold text-gray-900 mb-2">No Job Cards</h4>
-          <p className="text-gray-600 mb-6">
-            Job cards will appear here once created and assigned.
-          </p>
-          <button
-            onClick={() => router.push(`/job-cards/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}`)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 mx-auto"
-          >
-            <Plus className="h-4 w-4" />
-            Create Job Card
-          </button>
-        </div>
-      ) : workOrder?.currentStage !== 'job_card' ? (
-        <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-          <Wrench className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h4 className="text-lg font-semibold text-gray-900 mb-2">Job Card Stage Not Active</h4>
-          <p className="text-gray-600 mb-6">
-            Complete the pre-checklist stage to unlock job card creation.
-          </p>
-        </div>
-      ) : null}
-    </div>
-  </div>
-)}
+            </div>
+          )}
 
           {activeTab === 'delays' && (
             <div className="space-y-6">
@@ -5555,11 +5823,38 @@ const handleCompleteJobCard = async (jobCardId: string) => {
                     <h3 className="text-lg font-semibold text-gray-900">Invoice</h3>
                     <p className="text-sm text-gray-600">Generate and manage billing</p>
                   </div>
-                  {workOrder.invoiceId ? (
-                    <span className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                      <CheckCircle className="h-4 w-4" />
-                      {workOrder.invoicePaid ? 'Paid' : 'Generated'}
-                    </span>
+                  {!workOrder?.invoiceId ? (
+                    <div className="bg-white rounded-xl border border-gray-200 p-6">
+                      <div className="text-center py-8">
+                        <ReceiptIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Invoice Created Yet</h3>
+                        <p className="text-gray-600 mb-6">
+                          {postChecklist?.approved 
+                            ? 'Post-checklist has been approved. You can now generate the invoice.'
+                            : 'Complete and approve the post-checklist first to generate invoice.'}
+                        </p>
+                        
+                        {postChecklist?.approved && (
+                          <div className="flex items-center justify-center gap-3">
+                            <button
+                              onClick={() => handleCreateStageDocument('invoice')}
+                              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                            >
+                              <ReceiptIcon className="h-4 w-4" />
+                              Generate Invoice
+                            </button>
+                            
+                            <button
+                              onClick={() => setShowGenerateInvoiceModal(true)}
+                              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                            >
+                              <DollarSign className="h-4 w-4" />
+                              Create with Custom Details
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   ) : (
                     <span className="inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
                       <AlertCircle className="h-4 w-4" />
@@ -5706,9 +6001,9 @@ const handleCompleteJobCard = async (jobCardId: string) => {
                       </div>
                       <div className="flex items-center justify-between">
                         <span className={`text-xs px-2 py-1 rounded-full ${
-                          preChecklist?.approved ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                          isDocApproved(preChecklist) ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
                         }`}>
-                          {preChecklist?.approved ? 'Approved' : 'Pending'}
+                          {isDocApproved(preChecklist) ? 'Approved' : 'Pending'}
                         </span>
                         <button
                           onClick={() => handleViewStageDocument('pre_checklist', workOrder.preChecklistId)}

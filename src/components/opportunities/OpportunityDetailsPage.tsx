@@ -3,6 +3,7 @@
 import { opportunityService, Opportunity } from '@/services/opportunityService';
 import DeleteConfirmationModal from '@/components/opportunities/DeleteConfirmationModal';
 import ConfirmationModal from '@/components/opportunities/ConfirmationModal';
+import NotesSection from '@/components/opportunities/NotesSection';
 import { useToast } from '@/contexts/ToastContext';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -1140,7 +1141,9 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
               )}
             </div>
 
-            <div className="space-y-6">
+            <div className="lg:col-span-1 space-y-6">
+
+              <NotesSection opportunityId={opportunityId} />
 
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/30 p-6 shadow-lg">
                 <h3 className="font-semibold text-gray-800 mb-4">Recent Activity</h3>

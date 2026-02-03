@@ -113,25 +113,73 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
 
       // If job card was completed, handle workflow transition
       if (status === 'completed') {
-        if (workOrderId) {
-          try {
-            // Update work order stage (optional, keep your current logic)
-            await workOrderService.updateWorkOrder(workOrderId, {
-              currentStage: 'post_checklist',
-              updatedAt: new Date().toISOString(),
-            });
-
-            showToast('Job completed! Ready for post-checklist quality verification.', 'success');
-
+        try {
+          // Handle job card completion with lifecycle integration
+          const transitionResult = await lifecycleIntegrationService.handleJobCardCompletion(
+            jobCardId,
+            sessionStorage.getItem('userId') || undefined
+          );
+          
+          if (transitionResult.transitioned) {
+            showToast(transitionResult.message, 'success');
+            
+            // Update work order stage if we have workOrderId
+            if (workOrderId) {
+              await workOrderService.updateWorkOrder(workOrderId, {
+                currentStage: 'post_checklist',
+                updatedAt: new Date().toISOString(),
+              });
+            }
+            
+            // Auto-create post-checklist
+            try {
+              const opportunityId = typeof updatedJobCard.opportunityId === 'object' 
+                ? updatedJobCard.opportunityId._id 
+                : updatedJobCard.opportunityId;
+              
+              if (opportunityId) {
+                await lifecycleIntegrationService.autoCreateChecklistIfNeeded(
+                  opportunityId,
+                  'postchecklist',
+                  sessionStorage.getItem('userId') || undefined
+                );
+              }
+            } catch (postChecklistError) {
+              console.warn('Could not auto-create post-checklist:', postChecklistError);
+              // Continue anyway - user can create post-checklist manually
+            }
+            
+            // IMPORTANT: Redirect to work order page
+            if (workOrderId) {
+              router.push(`/orders/work-orders/${workOrderId}`);
+              return; // Exit early after redirect
+            }
+          } else {
+            // If auto-transition failed, still update work order and redirect
+            if (workOrderId) {
+              await workOrderService.updateWorkOrder(workOrderId, {
+                currentStage: 'post_checklist',
+                updatedAt: new Date().toISOString(),
+              });
+              
+              showToast('Job completed! Ready for post-checklist quality verification.', 'success');
+              router.push(`/orders/work-orders/${workOrderId}`);
+              return; // Exit early after redirect
+            }
+          }
+        } catch (workflowError) {
+          console.error('Workflow transition error:', workflowError);
+          // showToast('Job completed, but workflow transition had issues', 'warning');
+          
+          // Still try to redirect to work order if available
+          if (workOrderId) {
             router.push(`/orders/work-orders/${workOrderId}`);
-
-          } catch (workflowError) {
-            console.error('Workflow transition error:', workflowError);
+            return; // Exit early after redirect
           }
         }
       }
 
-      // Refresh local screen state
+      // If not completed or redirection didn't happen, refresh the page
       await fetchJobCard();
 
     } catch (error) {
@@ -142,9 +190,21 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
     }
   };
   
+  // Replace the existing handleBackToWorkOrder function with this:
   const handleBackToWorkOrder = () => {
     if (workOrderId) {
       router.push(`/orders/work-orders/${workOrderId}`);
+    } else if (jobCard?.opportunityId) {
+      // Try to get work order from opportunity
+      const oppId = typeof jobCard.opportunityId === 'object' 
+        ? jobCard.opportunityId._id 
+        : jobCard.opportunityId;
+      
+      if (oppId) {
+        router.push(`/opportunities/${oppId}`);
+      } else {
+        router.push('/job-cards');
+      }
     } else {
       router.push('/job-cards');
     }
@@ -246,9 +306,10 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
             </Link>
             <button
               onClick={handleBackToWorkOrder}
-              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors flex items-center gap-2 font-medium"
             >
-              Go to Work Order
+              <ArrowLeft className="h-4 w-4" />
+              Back to Work Order
             </button>
 
           </div>
@@ -335,9 +396,9 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
                   <button
                     onClick={() => handleStatusUpdate('completed')}
                     disabled={updating}
-                    className="px-2.5 py-1.5 text-xs rounded-lg bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-60"
+                    className="px-2.5 py-1.5 text-xs rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 disabled:opacity-60 font-medium"
                   >
-                    Complete
+                    {updating ? 'Processing...' : 'Complete Job'}
                   </button>
                 )}
 

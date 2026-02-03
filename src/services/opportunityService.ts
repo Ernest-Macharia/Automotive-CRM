@@ -1,4 +1,12 @@
 import { apiClient } from '@/lib/api/client';
+import { 
+  Note, 
+  CreateNoteData, 
+  UpdateNoteData, 
+  NoteSearchParams, 
+  NoteSummary,
+  NoteType 
+} from '@/types/note';
 
 export interface Opportunity {
   _id: string;
@@ -1197,6 +1205,179 @@ class OpportunityService {
       return await extendedApiClient.get(`/opportunities/stats/top?limit=${limit}`);
     } catch (error) {
       console.error('Error fetching top opportunities:', error);
+      throw error;
+    }
+  }
+
+  async addNote(opportunityId: string, noteData: CreateNoteData): Promise<Note> {
+    try {
+      return await extendedApiClient.post<CreateNoteData, Note>(
+        `/opportunities/${opportunityId}/notes`,
+        noteData
+      );
+    } catch (error) {
+      console.error(`Error adding note to opportunity ${opportunityId}:`, error);
+      throw error;
+    }
+  }
+
+  // In your opportunityService.ts file, update the notes methods:
+
+  async getNotes(opportunityId: string): Promise<Note[]> {
+    try {
+      const response = await extendedApiClient.get<any>(
+        `/opportunities/${opportunityId}/notes`
+      );
+      
+      // Handle different response formats
+      if (Array.isArray(response)) {
+        return response as Note[];
+      } else if (response.data && Array.isArray(response.data)) {
+        return response.data as Note[];
+      } else if (response.notes && Array.isArray(response.notes)) {
+        return response.notes as Note[];
+      } else {
+        console.warn('Unexpected notes response format:', response);
+        return [];
+      }
+    } catch (error) {
+      console.error(`Error fetching notes for opportunity ${opportunityId}:`, error);
+      return [];
+    }
+  }
+
+  async getNotesSummary(opportunityId: string): Promise<NoteSummary> {
+    try {
+      const response = await extendedApiClient.get<any>(
+        `/opportunities/${opportunityId}/notes/summary`
+      );
+      
+      // Return a default structure if the response is malformed
+      if (!response) {
+        return {
+          totalNotes: 0,
+          byType: [],
+          recentActivity: [],
+          authors: []
+        };
+      }
+      
+      // Ensure byType is always an array
+      const summary = {
+        totalNotes: response.totalNotes || 0,
+        byType: Array.isArray(response.byType) ? response.byType : [],
+        recentActivity: Array.isArray(response.recentActivity) ? response.recentActivity : [],
+        authors: Array.isArray(response.authors) ? response.authors : []
+      };
+      
+      return summary;
+    } catch (error) {
+      console.error(`Error fetching notes summary for opportunity ${opportunityId}:`, error);
+      return {
+        totalNotes: 0,
+        byType: [],
+        recentActivity: [],
+        authors: []
+      };
+    }
+  }
+
+  async getNotesByType(opportunityId: string, type: NoteType): Promise<Note[]> {
+    try {
+      return await extendedApiClient.get<Note[]>(
+        `/opportunities/${opportunityId}/notes/type/${type}`
+      );
+    } catch (error) {
+      console.error(`Error fetching notes by type for opportunity ${opportunityId}:`, error);
+      throw error;
+    }
+  }
+
+  async updateNote(opportunityId: string, noteId: string, noteData: UpdateNoteData): Promise<Note> {
+    try {
+      return await extendedApiClient.patch<UpdateNoteData, Note>(
+        `/opportunities/${opportunityId}/notes/${noteId}`,
+        noteData
+      );
+    } catch (error) {
+      console.error(`Error updating note ${noteId}:`, error);
+      throw error;
+    }
+  }
+
+  async deleteNote(opportunityId: string, noteId: string): Promise<{ message: string }> {
+    try {
+      return await extendedApiClient.delete<{ message: string }>(
+        `/opportunities/${opportunityId}/notes/${noteId}`
+      );
+    } catch (error) {
+      console.error(`Error deleting note ${noteId}:`, error);
+      throw error;
+    }
+  }
+
+  async searchNotes(opportunityId: string, params: NoteSearchParams): Promise<Note[]> {
+    try {
+      const queryParams = new URLSearchParams();
+      
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            if (Array.isArray(value)) {
+              value.forEach(item => queryParams.append(`${key}[]`, item));
+            } else if (typeof value === 'boolean') {
+              queryParams.append(key, value.toString());
+            } else {
+              queryParams.append(key, value.toString());
+            }
+          }
+        });
+      }
+      
+      const endpoint = `/opportunities/${opportunityId}/notes/search${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      return await extendedApiClient.get<Note[]>(endpoint);
+    } catch (error) {
+      console.error(`Error searching notes for opportunity ${opportunityId}:`, error);
+      throw error;
+    }
+  }
+
+  async uploadNoteAttachment(
+    opportunityId: string,
+    noteId: string,
+    file: File
+  ): Promise<Note> {
+    try {
+      const formData = new FormData();
+      formData.append('attachment', file);
+      
+      const apiBaseUrl = (apiClient as any).API_BASE_URL || '';
+      const response = await fetch(`${apiBaseUrl}/opportunities/${opportunityId}/notes/${noteId}/attachments`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Authorization': `Bearer ${sessionStorage.getItem('accessToken')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+      
+      return response.json();
+    } catch (error) {
+      console.error('Error uploading note attachment:', error);
+      throw error;
+    }
+  }
+
+  async removeNoteAttachment(opportunityId: string, noteId: string, attachmentId: string): Promise<Note> {
+    try {
+      return await extendedApiClient.delete<Note>(
+        `/opportunities/${opportunityId}/notes/${noteId}/attachments/${attachmentId}`
+      );
+    } catch (error) {
+      console.error('Error removing note attachment:', error);
       throw error;
     }
   }

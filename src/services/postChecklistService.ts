@@ -187,6 +187,7 @@ export interface UpdatePostChecklistDto {
   acceptDiagnosticCharges?: boolean;
   additionalComments?: string;
   diagnosticChargesAccepted?: boolean;
+  autoApproved?: boolean;
   serviceRating?: number;
   status?: string;
   serviceComments?: string;

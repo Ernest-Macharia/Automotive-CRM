@@ -138,6 +138,7 @@ export interface UpdatePreChecklistDto {
   inspectionItems?: InspectionItem[];
   remarks?: string;
   approved?: boolean;
+  autoApproved?: boolean;
   approvedBy?: string;
   approvedAt?: string;
   serviceType?: 'pickup_only' | 'workshop_installation' | 'mobile_service';
@@ -411,17 +412,39 @@ class PreChecklistService {
 
   // Utility methods
   async getPreChecklistsByOpportunity(opportunityId: string): Promise<PreChecklist[]> {
+    // NOTE:
+    // The backend has historically been unreliable for GET /prechecklists (500s).
+    // To avoid breaking stage overview UI, we try more specific endpoints first.
+    // If all attempts fail, we return an empty list (callers should handle gracefully).
     try {
+      // 1) Preferred: opportunity-specific endpoint (if available on backend)
+      try {
+        const list = await extendedApiClient.get<PreChecklist[]>(`/prechecklists/opportunity/${opportunityId}`);
+        return Array.isArray(list) ? list : [];
+      } catch {
+        // ignore, try next
+      }
+
+      // 2) Alternative: query param filtering (if backend supports it)
+      try {
+        const list = await extendedApiClient.get<PreChecklist[]>('/prechecklists', { opportunityId });
+        return Array.isArray(list) ? list : [];
+      } catch {
+        // ignore, try next
+      }
+
+      // 3) Fallback: fetch all then filter locally (least preferred)
       const allChecklists = await this.getAllPreChecklists();
       return allChecklists.filter(checklist => {
-        const oppId = typeof checklist.opportunityId === 'object' 
-          ? checklist.opportunityId._id 
+        const oppId = typeof checklist.opportunityId === 'object'
+          ? checklist.opportunityId._id
           : checklist.opportunityId;
         return oppId === opportunityId;
       });
     } catch (error) {
       console.error(`Error getting pre-checklists for opportunity ${opportunityId}:`, error);
-      throw error;
+      // Don't throw—stage overview should still render even if documents cannot be fetched.
+      return [];
     }
   }
 

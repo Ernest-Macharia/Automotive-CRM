@@ -9,6 +9,7 @@ import { Opportunity, opportunityService } from './opportunityService';
 
 export interface TechnicianNote {
   content: string;
+  _id: string;
   createdBy: {
     _id: string;
     firstName: string;
@@ -178,6 +179,7 @@ export interface CreateWorkOrderData {
   quoteId: string;
   waiverId?: string;
   jobCards?: string[];
+  vehicleId?: string;
   preChecklistId?: string;
   postChecklistId?: string;
   invoiceId?: string;
@@ -212,6 +214,7 @@ export interface UpdateWorkOrderData {
   // Add missing properties for stage approvals
   waiverId?: string;
   invoicePaid?: boolean;
+  autoApproved?: boolean;
   invoiceId?: string;
   invoicePaymentDate?: string;
   
@@ -226,6 +229,7 @@ export interface UpdateWorkOrderData {
     pre_checklist?: {
       needsApproval?: boolean;
       approved?: boolean;
+      autoApproved?: boolean;
       rejected?: boolean;
       submittedAt?: string;
       submittedBy?: string;
@@ -248,6 +252,7 @@ export interface UpdateWorkOrderData {
     post_checklist?: {
       needsApproval?: boolean;
       approved?: boolean;
+      autoApproved?: boolean;
       rejected?: boolean;
       submittedAt?: string;
       submittedBy?: string;
@@ -821,147 +826,6 @@ class WorkOrderService {
     }
   }
 
-  async autoApproveAndTransition(
-    workOrderId: string,
-    checklistType: 'prechecklist' | 'postchecklist',
-    userId?: string
-  ): Promise<{
-    success: boolean;
-    message: string;
-    nextStage?: string;
-  }> {
-    try {
-      // Get work order
-      const workOrder = await this.getWorkOrderById(workOrderId);
-      
-      // Get checklist ID
-      const checklistId = checklistType === 'prechecklist' 
-        ? workOrder.preChecklistId 
-        : workOrder.postChecklistId;
-      
-      if (!checklistId) {
-        return { 
-          success: false, 
-          message: `${checklistType} not found` 
-        };
-      }
-      
-      // Auto-approve the checklist
-      if (checklistType === 'prechecklist') {
-        await preChecklistService.updatePreChecklist(checklistId, {
-          approved: true,
-          approvedBy: userId || 'system-auto',
-          approvedAt: new Date().toISOString(),
-          status: 'completed'
-        });
-      } else {
-        await postChecklistService.updatePostChecklist(checklistId, {
-          approved: true,
-          approvedBy: userId || 'system-auto',
-          approvedAt: new Date().toISOString(),
-          status: 'completed'
-        });
-      }
-      
-      // Get opportunity ID
-      const opportunityId = typeof workOrder.opportunityId === 'object' 
-        ? workOrder.opportunityId._id 
-        : workOrder.opportunityId;
-      
-      // Auto-transition to next stage
-      let nextStage: string;
-      if (checklistType === 'prechecklist') {
-        nextStage = 'jobcard';
-        await this.updateWorkOrder(workOrderId, {
-          currentStage: 'job_card'
-        });
-      } else {
-        nextStage = 'invoice';
-        await this.updateWorkOrder(workOrderId, {
-          currentStage: 'invoice'
-        });
-      }
-      
-      // Update lifecycle
-      await lifecycleIntegrationService.transitionToStage(opportunityId, nextStage, {
-        skipValidation: true,
-        metadata: {
-          autoApproved: true,
-          checklistType,
-          checklistId,
-          triggeredBy: userId || 'system'
-        }
-      });
-      
-      return {
-        success: true,
-        message: `${checklistType} auto-approved and moved to ${nextStage}`,
-        nextStage
-      };
-      
-    } catch (error) {
-      console.error('Auto-approval error:', error);
-      return {
-        success: false,
-        message: `Failed to auto-approve ${checklistType}`
-      };
-    }
-  }
-
-  async getStageValidation(workOrderId: string, stage: string) {
-    try {
-      const workOrder = await this.getWorkOrderById(workOrderId);
-      const opportunityId = typeof workOrder.opportunityId === 'object' 
-        ? workOrder.opportunityId._id 
-        : workOrder.opportunityId;
-      
-      // Get document for the stage
-      let document = null;
-      switch (stage) {
-        case 'prechecklist':
-          if (workOrder.preChecklistId) {
-            document = await preChecklistService.getPreChecklistById(workOrder.preChecklistId);
-          }
-          break;
-        case 'jobcard':
-          const jobCards = await jobCardService.getJobCardsByOpportunity(opportunityId);
-          if (jobCards.length > 0) {
-            document = jobCards[0];
-          }
-          break;
-        case 'postchecklist':
-          if (workOrder.postChecklistId) {
-            document = await postChecklistService.getPostChecklistById(workOrder.postChecklistId);
-          }
-          break;
-        case 'invoice':
-          if (workOrder.invoiceId) {
-            document = await invoiceService.getInvoiceById(workOrder.invoiceId);
-          }
-          break;
-      }
-      
-      return await lifecycleIntegrationService.validateStageCompletion(opportunityId, stage, document);
-    } catch (error) {
-      console.error('Error getting stage validation:', error);
-      throw error;
-    }
-  }
-
-  async getWorkflowProgress(workOrderId: string) {
-    try {
-      const workOrder = await this.getWorkOrderById(workOrderId);
-      const opportunityId = typeof workOrder.opportunityId === 'object' 
-        ? workOrder.opportunityId._id 
-        : workOrder.opportunityId;
-      
-      return await lifecycleIntegrationService.getEnhancedWorkflowUI(opportunityId);
-    } catch (error) {
-      console.error('Error getting workflow progress:', error);
-      throw error;
-    }
-  }
-
   async getNextStageAction(workOrderId: string) {
     try {
       const workflow = await this.getWorkflowProgress(workOrderId);
@@ -987,49 +851,520 @@ class WorkOrderService {
 
   // Utility methods for UI
 
-    getStageStatusConfig(stage: any) {
-    if (!stage) return {
-      label: 'Unknown',
-      className: 'bg-gray-100 text-gray-800',
-      icon: '❓'
-    };
+    // Add this method to the WorkOrderService class to handle auto-approval status
+async getChecklistStatus(checklistId: string, checklistType: 'prechecklist' | 'postchecklist'): Promise<{
+  approved: boolean;
+  autoApproved: boolean;
+  status: string;
+  canTransition: boolean;
+}> {
+  try {
+    let checklist;
     
-    if (stage.completed) {
+    if (checklistType === 'prechecklist') {
+      const preChecklistService = require('./preChecklistService').preChecklistService;
+      checklist = await preChecklistService.getPreChecklistById(checklistId);
+    } else {
+      const postChecklistService = require('./postChecklistService').postChecklistService;
+      checklist = await postChecklistService.getPostChecklistById(checklistId);
+    }
+    
+    // Check for auto-approval indicators
+    const isAutoApproved = checklist.autoApproved || 
+                          checklist.approvedBy === 'system-auto' ||
+                          checklist.approvedBy === 'auto-approval-system' ||
+                          checklist.remarks?.includes('Auto-approved') ||
+                          checklist.notes?.includes('Auto-approved') ||
+                          (checklist.approved && checklist.approvedAt && 
+                           checklist.approvedBy === 'system');
+    
+    // For pre-checklists, also check if all items are OK/N/A
+    const allItemsOk = checklistType === 'prechecklist' ? 
+      checklist.inspectionItems?.every((item: any) => 
+        item.status === 'ok' || item.status === 'n/a'
+      ) || false : true;
+    
+    // For post-checklists, check if all required items are completed
+    const allRequiredCompleted = checklistType === 'postchecklist' ?
+      checklist.inspectionItems?.every((item: any) => 
+        !item.required || item.status === 'completed' || item.status === 'n/a'
+      ) || false : true;
+    
+    const isApproved = checklist.approved || isAutoApproved || allItemsOk || allRequiredCompleted;
+    
+    return {
+      approved: isApproved,
+      autoApproved: isAutoApproved,
+      status: isApproved ? 'approved' : 'pending',
+      canTransition: isApproved
+    };
+  } catch (error) {
+    console.error(`Error getting ${checklistType} status:`, error);
+    return {
+      approved: false,
+      autoApproved: false,
+      status: 'unknown',
+      canTransition: false
+    };
+  }
+}
+
+// Update the getStageValidation method to use auto-approval logic
+async getStageValidation(workOrderId: string, stage: string) {
+  try {
+    const workOrder = await this.getWorkOrderById(workOrderId);
+    const opportunityId = typeof workOrder.opportunityId === 'object' 
+      ? workOrder.opportunityId._id 
+      : workOrder.opportunityId;
+    
+    // Get document for the stage
+    let document = null;
+    switch (stage) {
+      case 'prechecklist':
+        if (workOrder.preChecklistId) {
+          document = await preChecklistService.getPreChecklistById(workOrder.preChecklistId);
+        }
+        break;
+      case 'jobcard':
+        const jobCards = await jobCardService.getJobCardsByOpportunity(opportunityId);
+        if (jobCards.length > 0) {
+          document = jobCards[0];
+        }
+        break;
+      case 'postchecklist':
+        if (workOrder.postChecklistId) {
+          document = await postChecklistService.getPostChecklistById(workOrder.postChecklistId);
+        }
+        break;
+      case 'invoice':
+        if (workOrder.invoiceId) {
+          document = await invoiceService.getInvoiceById(workOrder.invoiceId);
+        }
+        break;
+    }
+    
+    // Use enhanced validation that considers auto-approval
+    return await this.validateStageCompletionWithAutoApproval(workOrder, stage, document);
+  } catch (error) {
+    console.error('Error getting stage validation:', error);
+    throw error;
+  }
+}
+
+// Add new validation method that considers auto-approval
+async validateStageCompletionWithAutoApproval(
+  workOrder: WorkOrder, 
+  stage: string, 
+  document: any
+): Promise<{ 
+  isValid: boolean; 
+  message?: string; 
+  requirements?: string[];
+  autoApproved?: boolean;
+}> {
+  switch (stage) {
+    case 'prechecklist':
+      if (!document) {
+        return { 
+          isValid: false, 
+          message: 'Pre-checklist document not found',
+          requirements: ['Create pre-checklist document']
+        };
+      }
+      
+      // Check for auto-approval
+      const preChecklistStatus = await this.getChecklistStatus(document._id, 'prechecklist');
+      
       return {
-        label: 'Completed',
-        className: 'bg-green-100 text-green-800',
-        icon: '✅'
+        isValid: preChecklistStatus.approved,
+        message: preChecklistStatus.approved 
+          ? (preChecklistStatus.autoApproved ? 'Auto-approved ✓' : 'Approved')
+          : 'Pre-checklist needs completion',
+        requirements: preChecklistStatus.approved ? [] : ['Complete pre-checklist items'],
+        autoApproved: preChecklistStatus.autoApproved
+      };
+
+    case 'jobcard':
+      if (!document) {
+        return { 
+          isValid: false, 
+          message: 'Job card not found',
+          requirements: ['Create job card document']
+        };
+      }
+      
+      const isCompleted = document.status === 'completed' || document.status === 'closed';
+      
+      return {
+        isValid: isCompleted,
+        message: isCompleted ? 'Job card completed' : 'Job card in progress',
+        requirements: isCompleted ? [] : ['Complete job card tasks']
+      };
+
+    case 'postchecklist':
+      if (!document) {
+        return { 
+          isValid: false, 
+          message: 'Post-checklist not found',
+          requirements: ['Create post-checklist document']
+        };
+      }
+      
+      // Check for auto-approval
+      const postChecklistStatus = await this.getChecklistStatus(document._id, 'postchecklist');
+      
+      return {
+        isValid: postChecklistStatus.approved,
+        message: postChecklistStatus.approved 
+          ? (postChecklistStatus.autoApproved ? 'Auto-approved ✓' : 'Approved')
+          : 'Post-checklist needs completion',
+        requirements: postChecklistStatus.approved ? [] : ['Complete post-checklist items'],
+        autoApproved: postChecklistStatus.autoApproved
+      };
+
+    case 'invoice':
+      if (!document) {
+        return { 
+          isValid: false, 
+          message: 'Invoice not found',
+          requirements: ['Create invoice document']
+        };
+      }
+      
+      const isSentOrPaid = document.status === 'sent' || document.status === 'paid';
+      
+      return {
+        isValid: isSentOrPaid,
+        message: isSentOrPaid ? 'Invoice sent/paid' : 'Invoice pending',
+        requirements: isSentOrPaid ? [] : ['Send or mark invoice as paid']
+      };
+
+    default:
+      return { 
+        isValid: false, 
+        message: `Unknown stage: ${stage}`,
+        requirements: ['Valid stage required']
+      };
+  }
+}
+
+// Update the autoApproveAndTransition method to mark as auto-approved
+async autoApproveAndTransition(
+  workOrderId: string,
+  checklistType: 'prechecklist' | 'postchecklist',
+  userId?: string
+): Promise<{
+  success: boolean;
+  message: string;
+  nextStage?: string;
+  autoApproved: boolean;
+}> {
+  try {
+    // Get work order
+    const workOrder = await this.getWorkOrderById(workOrderId);
+    
+    // Get checklist ID
+    const checklistId = checklistType === 'prechecklist' 
+      ? workOrder.preChecklistId 
+      : workOrder.postChecklistId;
+    
+    if (!checklistId) {
+      return { 
+        success: false, 
+        message: `${checklistType} not found`,
+        autoApproved: false
       };
     }
     
-    if (stage.isCurrent) {
-      if (stage.status === 'needs_approval') {
-        return {
-          label: 'Needs Approval',
-          className: 'bg-yellow-100 text-yellow-800',
-          icon: '⚠️'
-        };
+    // Auto-approve the checklist with auto-approval flag
+    if (checklistType === 'prechecklist') {
+      await preChecklistService.updatePreChecklist(checklistId, {
+        approved: true,
+        autoApproved: true, // Add this flag
+        approvedBy: 'system-auto',
+        approvedAt: new Date().toISOString(),
+        status: 'completed',
+        remarks: workOrder.notes ? `${workOrder.notes} (Auto-approved)` : 'Auto-approved by system'
+      });
+    } else {
+      await postChecklistService.updatePostChecklist(checklistId, {
+        approved: true,
+        autoApproved: true, // Add this flag
+        approvedBy: 'system-auto',
+        approvedAt: new Date().toISOString(),
+        status: 'completed',
+        remarks: workOrder.notes ? `${workOrder.notes} (Auto-approved)` : 'Auto-approved by system'
+      });
+    }
+    
+    // Get opportunity ID
+    const opportunityId = typeof workOrder.opportunityId === 'object' 
+      ? workOrder.opportunityId._id 
+      : workOrder.opportunityId;
+    
+    // Auto-transition to next stage
+    let nextStage: string;
+    if (checklistType === 'prechecklist') {
+      nextStage = 'jobcard';
+      await this.updateWorkOrder(workOrderId, {
+        currentStage: 'job_card',
+        stageApprovals: {
+          ...workOrder.stageApprovals,
+          pre_checklist: {
+            ...workOrder.stageApprovals?.pre_checklist,
+            approved: true,
+            autoApproved: true,
+            approvedAt: new Date().toISOString(),
+            approvedBy: 'system-auto'
+          }
+        },
+        preChecklistCompletionDate: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    } else {
+      nextStage = 'invoice';
+      await this.updateWorkOrder(workOrderId, {
+        currentStage: 'invoice',
+        stageApprovals: {
+          ...workOrder.stageApprovals,
+          post_checklist: {
+            ...workOrder.stageApprovals?.post_checklist,
+            approved: true,
+            autoApproved: true,
+            approvedAt: new Date().toISOString(),
+            approvedBy: 'system-auto'
+          }
+        },
+        postChecklistCompletionDate: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      
+      // Auto-generate invoice if not exists
+      if (!workOrder.invoiceId) {
+        setTimeout(async () => {
+          try {
+            const invoiceResult = await this.generateInvoice(workOrderId);
+            if (invoiceResult.invoice._id) {
+              await this.updateWorkOrder(workOrderId, {
+                invoiceId: invoiceResult.invoice._id,
+                updatedAt: new Date().toISOString()
+              });
+            }
+          } catch (error) {
+            console.error('Error auto-generating invoice:', error);
+          }
+        }, 1000);
       }
-      if (stage.status === 'ready') {
-        return {
-          label: 'Ready',
-          className: 'bg-blue-100 text-blue-800',
-          icon: '⚡'
-        };
+    }
+    
+    // Update lifecycle
+    await lifecycleIntegrationService.transitionToStage(opportunityId, nextStage, {
+      skipValidation: true,
+      metadata: {
+        autoApproved: true,
+        checklistType,
+        checklistId,
+        triggeredBy: 'system-auto'
       }
+    });
+    
+    return {
+      success: true,
+      message: `${checklistType} auto-approved and moved to ${nextStage}`,
+      nextStage,
+      autoApproved: true
+    };
+    
+  } catch (error) {
+    console.error('Auto-approval error:', error);
+    return {
+      success: false,
+      message: `Failed to auto-approve ${checklistType}`,
+      autoApproved: false
+    };
+  }
+}
+
+// Add method to check if checklist needs approval (should return false for auto-approved)
+async checkIfChecklistNeedsApproval(checklistId: string, checklistType: 'prechecklist' | 'postchecklist'): Promise<boolean> {
+  try {
+    const status = await this.getChecklistStatus(checklistId, checklistType);
+    // Return false if already approved (especially auto-approved)
+    return !status.approved;
+  } catch (error) {
+    console.error('Error checking checklist approval status:', error);
+    return true; // Assume needs approval if error
+  }
+}
+
+// Update the getWorkflowProgress method to use auto-approval status
+async getWorkflowProgress(workOrderId: string) {
+  try {
+    const workOrder = await this.getWorkOrderById(workOrderId);
+    const opportunityId = typeof workOrder.opportunityId === 'object' 
+      ? workOrder.opportunityId._id 
+      : workOrder.opportunityId;
+    
+    const workflow = await lifecycleIntegrationService.getEnhancedWorkflowUI(opportunityId);
+    
+    // Enhance workflow data with auto-approval status
+    if (workflow.stages) {
+      workflow.stages = await Promise.all(workflow.stages.map(async (stage: any) => {
+        if ((stage.stage === 'prechecklist' || stage.stage === 'postchecklist') && stage.documentId) {
+          const checklistType = stage.stage === 'prechecklist' ? 'prechecklist' : 'postchecklist';
+          const status = await this.getChecklistStatus(stage.documentId, checklistType);
+          
+          return {
+            ...stage,
+            approved: status.approved,
+            autoApproved: status.autoApproved,
+            status: status.approved ? 'approved' : 'pending',
+            canTransition: status.canTransition,
+            validation: {
+              isValid: status.approved,
+              message: status.approved 
+                ? (status.autoApproved ? 'Auto-approved ✓' : 'Approved')
+                : 'Needs completion'
+            }
+          };
+        }
+        return stage;
+      }));
+    }
+    
+    return workflow;
+  } catch (error) {
+    console.error('Error getting workflow progress:', error);
+    throw error;
+  }
+}
+
+// Add method to force refresh checklist approval status
+async refreshChecklistApprovalStatus(
+  workOrderId: string,
+  checklistType: 'prechecklist' | 'postchecklist'
+): Promise<{
+  success: boolean;
+  approved: boolean;
+  autoApproved: boolean;
+  message: string;
+}> {
+  try {
+    const workOrder = await this.getWorkOrderById(workOrderId);
+    const checklistId = checklistType === 'prechecklist' 
+      ? workOrder.preChecklistId 
+      : workOrder.postChecklistId;
+    
+    if (!checklistId) {
       return {
-        label: 'In Progress',
-        className: 'bg-blue-100 text-blue-800',
-        icon: '🔄'
+        success: false,
+        approved: false,
+        autoApproved: false,
+        message: `${checklistType} not found`
       };
+    }
+    
+    const status = await this.getChecklistStatus(checklistId, checklistType);
+    
+    // If auto-approved but work order stage hasn't been updated
+    if (status.approved && status.autoApproved) {
+      // Update work order stage approvals
+      const updateData: UpdateWorkOrderData = {
+        updatedAt: new Date().toISOString()
+      };
+      
+      if (checklistType === 'prechecklist') {
+        (updateData.stageApprovals as any) = {
+          ...workOrder.stageApprovals,
+          pre_checklist: {
+            ...workOrder.stageApprovals?.pre_checklist,
+            approved: true,
+            autoApproved: true,
+            approvedAt: new Date().toISOString(),
+            approvedBy: 'system-auto'
+          }
+        };
+        updateData.preChecklistCompletionDate = new Date().toISOString();
+      } else {
+        (updateData.stageApprovals as any) = {
+          ...workOrder.stageApprovals,
+          post_checklist: {
+            ...workOrder.stageApprovals?.post_checklist,
+            approved: true,
+            autoApproved: true,
+            approvedAt: new Date().toISOString(),
+            approvedBy: 'system-auto'
+          }
+        };
+        updateData.postChecklistCompletionDate = new Date().toISOString();
+      }
+      
+      await this.updateWorkOrder(workOrderId, updateData);
     }
     
     return {
-      label: 'Pending',
-      className: 'bg-gray-100 text-gray-800',
-      icon: '⏳'
+      success: true,
+      approved: status.approved,
+      autoApproved: status.autoApproved,
+      message: status.approved 
+        ? (status.autoApproved ? 'Auto-approved' : 'Approved')
+        : 'Pending approval'
+    };
+  } catch (error) {
+    console.error('Error refreshing checklist approval:', error);
+    return {
+      success: false,
+      approved: false,
+      autoApproved: false,
+      message: 'Error checking approval status'
     };
   }
+}
+
+// Update the getStageStatusConfig method to show auto-approved status
+getStageStatusConfig(stage: any) {
+  if (!stage) return {
+    label: 'Unknown',
+    className: 'bg-gray-100 text-gray-800',
+    icon: '❓'
+  };
+  
+  if (stage.completed || stage.approved) {
+    return {
+      label: stage.autoApproved ? 'Auto-Approved' : 'Approved',
+      className: stage.autoApproved ? 'bg-green-100 text-green-800' : 'bg-green-100 text-green-800',
+      icon: stage.autoApproved ? '⚡✅' : '✅'
+    };
+  }
+  
+  if (stage.isCurrent) {
+    if (stage.status === 'needs_approval') {
+      return {
+        label: 'Needs Action',
+        className: 'bg-yellow-100 text-yellow-800',
+        icon: '⚠️'
+      };
+    }
+    if (stage.status === 'ready') {
+      return {
+        label: 'Ready',
+        className: 'bg-blue-100 text-blue-800',
+        icon: '⚡'
+      };
+    }
+    return {
+      label: 'In Progress',
+      className: 'bg-blue-100 text-blue-800',
+      icon: '🔄'
+    };
+  }
+  
+  return {
+    label: 'Pending',
+    className: 'bg-gray-100 text-gray-800',
+    icon: '⏳'
+  };
+}
 
   getStageProgressBar(stage: any) {
     const progress = stage.progress || 0;

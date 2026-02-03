@@ -729,7 +729,7 @@ const toISODate = (d: any): string => {
     try {
       setSubmitting(true);
 
-      // Validate required fields
+      // Validate required fields (keep existing validation)
       if (!formData.customerDetails.firstName || 
           !formData.customerDetails.lastName ||
           !formData.customerDetails.mobile ||
@@ -776,42 +776,44 @@ const toISODate = (d: any): string => {
         opportunityId: toId(formData.opportunityId),
         vehicleId: toId(formData.vehicleId),
         workOrderId: toId((formData as any).workOrderId) || workOrderId || '',
-        approved: false,
+        approved: true, // Set to true for auto-approval
+        clientSignature: formData.clientSignature || 'auto-approved', // Ensure signature exists
+        inspectorSignature: formData.inspectorSignature || 'auto-approved'
       };
 
-      // Create or update pre-checklist
+      // Create pre-checklist
       let result: any;
+      const userId = sessionStorage.getItem('userId') || undefined;
+      
       if (mode === 'edit' && checklistId) {
         result = await preChecklistService.updatePreChecklist(checklistId, normalizedSubmissionData as any);
         showToast('Diamond Rims pre-checklist updated successfully', 'success');
       } else {
-        const userId = sessionStorage.getItem('userId') || undefined;
         result = await preChecklistService.createPreChecklist(normalizedSubmissionData as any, userId);
         showToast('Diamond Rims pre-checklist created successfully', 'success');
-        
-        // Update work order with pre-checklist ID
-        if (workOrderId && result._id) {
-          await workOrderService.updateWorkOrder(workOrderId, {
-            preChecklistId: result._id
-          });
-        }
-        
-        // Auto-approve and transition to job card stage
-        try {
-          const transitionResult = await lifecycleIntegrationService.handlePreChecklistCompletion(
-            result._id,
-            userId
-          );
-          
-          if (transitionResult.transitioned) {
-            showToast(transitionResult.message, 'success');
-          }
-        } catch (transitionError) {
-          console.warn('Auto-transition warning:', transitionError);
-          // showToast('Pre-checklist created, but transition had issues', 'warning');
-        }
       }
 
+      // Update work order with pre-checklist ID
+      if (workOrderId && result._id) {
+        await workOrderService.updateWorkOrder(workOrderId, {
+          preChecklistId: result._id
+        });
+      }
+
+      // Auto-approve pre-checklist ONLY (do NOT auto-transition).
+      // Stage transition must happen when the user clicks "Move to Job Card" on WorkOrderDetail.
+      try {
+        const approveResult = await lifecycleIntegrationService.handlePreChecklistCompletion(
+          result._id,
+          userId
+        );
+        showToast(approveResult.message, 'success');
+      } catch (approveError) {
+        console.warn('Auto-approval warning:', approveError);
+        // Don't block user flow; we'll still redirect back to the work order.
+      }
+
+      // Fallback redirection logic
       if (workOrderId) {
         // Redirect back to work order details
         router.push(`/orders/work-orders/${workOrderId}`);
