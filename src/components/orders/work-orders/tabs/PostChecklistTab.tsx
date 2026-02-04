@@ -1,3 +1,4 @@
+// src/components/orders/work-orders/tabs/PostChecklistTab.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,7 +7,8 @@ import {
   ClipboardList, Plus, Eye, Check, Loader2, 
   CheckCircle, ArrowRight, AlertTriangle,
   FileCheck, AlertCircle, FileText,
-  Sparkles, Calendar
+  RefreshCw,
+  ReceiptIcon
 } from 'lucide-react';
 import { WorkOrder } from '@/services/workOrderService';
 import { workOrderService } from '@/services/workOrderService';
@@ -18,23 +20,41 @@ interface PostChecklistTabProps {
   workOrder: WorkOrder;
   isTransitioning: boolean;
   onAction: (action: () => Promise<void>) => Promise<void>;
+  refreshInterval?: number; // Optional refresh interval in milliseconds
 }
 
-export default function PostChecklistTab({ workOrder, isTransitioning, onAction }: PostChecklistTabProps) {
+export default function PostChecklistTab({ 
+  workOrder, 
+  isTransitioning, 
+  onAction,
+  refreshInterval = 5000 // Default 5 seconds refresh
+}: PostChecklistTabProps) {
   const router = useRouter();
   const { showToast } = useToast();
   const [localLoading, setLocalLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [postChecklistStatus, setPostChecklistStatus] = useState({
     hasPostChecklist: false,
     isApproved: false,
     needsApproval: false,
     postChecklistId: '',
-    canGenerateInvoice: false
+    canGenerateInvoice: false,
+    lastUpdated: new Date().toISOString()
   });
 
+  // Load post-checklist status on component mount and when workOrder changes
   useEffect(() => {
     loadPostChecklistStatus();
-  }, [workOrder]);
+    
+    // Set up interval for auto-refresh
+    const intervalId = setInterval(() => {
+      if (!refreshing && postChecklistStatus.needsApproval) {
+        refreshStatus();
+      }
+    }, refreshInterval);
+    
+    return () => clearInterval(intervalId);
+  }, [workOrder._id, refreshing, refreshInterval]);
 
   const loadPostChecklistStatus = async () => {
     if (!workOrder._id) return;
@@ -45,8 +65,19 @@ export default function PostChecklistTab({ workOrder, isTransitioning, onAction 
       
       if (hasPostChecklist && workOrder.postChecklistId) {
         try {
+          // Check for auto-approval status
           const checklist = await postChecklistService.getPostChecklistById(workOrder.postChecklistId);
           isApproved = checklist.approved || false;
+          
+          // Check for auto-approval indicators
+          const isAutoApproved = checklist.autoApproved || 
+                                checklist.approvedBy === 'system-auto' ||
+                                checklist.approvedBy === 'auto-approval-system';
+          
+          if (isAutoApproved && !isApproved) {
+            // Auto-approve if not already approved
+            isApproved = true;
+          }
         } catch (error) {
           console.error('Error loading post-checklist details:', error);
         }
@@ -57,10 +88,24 @@ export default function PostChecklistTab({ workOrder, isTransitioning, onAction 
         isApproved,
         needsApproval: hasPostChecklist && !isApproved,
         postChecklistId: workOrder.postChecklistId || '',
-        canGenerateInvoice: hasPostChecklist && isApproved && !workOrder.invoiceId
+        canGenerateInvoice: hasPostChecklist && isApproved && !workOrder.invoiceId,
+        lastUpdated: new Date().toISOString()
       });
     } catch (error) {
       console.error('Error loading post-checklist status:', error);
+    }
+  };
+
+  const refreshStatus = async () => {
+    if (refreshing) return;
+    
+    setRefreshing(true);
+    try {
+      await loadPostChecklistStatus();
+    } catch (error) {
+      console.error('Error refreshing post-checklist status:', error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -135,16 +180,19 @@ export default function PostChecklistTab({ workOrder, isTransitioning, onAction 
     }
   };
 
+  const handleRefresh = async () => {
+    await refreshStatus();
+    showToast('Status refreshed', 'success');
+  };
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return '—';
     return format(new Date(dateString), 'MMM dd, yyyy HH:mm');
   };
 
-  const handleCreateInvoice = () => {
+  const handleViewInvoice = () => {
     if (workOrder.invoiceId) {
-      router.push(`/invoices/${workOrder.invoiceId}`);
-    } else {
-      router.push(`/invoices/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}`);
+      window.open(`/invoices/${workOrder.invoiceId}`, '_blank');
     }
   };
 
@@ -156,18 +204,40 @@ export default function PostChecklistTab({ workOrder, isTransitioning, onAction 
           <p className="text-sm text-gray-600">Post-service quality verification</p>
         </div>
         
-        {/* Dynamic button based on status */}
-        {!postChecklistStatus.hasPostChecklist && (
-          <button
-            onClick={handleCreatePostChecklist}
-            disabled={isTransitioning || localLoading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" />
-            Create Post-Checklist
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Refresh button */}
+          {postChecklistStatus.hasPostChecklist && !postChecklistStatus.isApproved && (
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+              title="Refresh status"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+          )}
+          
+          {/* Dynamic button based on status */}
+          {!postChecklistStatus.hasPostChecklist && (
+            <button
+              onClick={handleCreatePostChecklist}
+              disabled={isTransitioning || localLoading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              Create Post-Checklist
+            </button>
+          )}
+        </div>
       </div>
+      
+      {/* Auto-refresh indicator */}
+      {postChecklistStatus.needsApproval && !refreshing && (
+        <div className="mb-4 text-xs text-blue-600 flex items-center gap-1">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Auto-refreshing every {refreshInterval/1000} seconds...
+        </div>
+      )}
       
       {postChecklistStatus.hasPostChecklist ? (
         <div className="space-y-6">
@@ -192,6 +262,11 @@ export default function PostChecklistTab({ workOrder, isTransitioning, onAction 
                     ? 'Ready to proceed to Invoice generation' 
                     : 'Needs approval before proceeding to Invoice'}
                 </p>
+                {!postChecklistStatus.isApproved && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    ✓ Auto-detects approval status in real-time
+                  </p>
+                )}
               </div>
               <div className="flex gap-2">
                 <button
@@ -228,7 +303,7 @@ export default function PostChecklistTab({ workOrder, isTransitioning, onAction 
             <div className="border border-gray-200 rounded-lg p-4">
               <div className="flex items-center gap-3 mb-3">
                 {postChecklistStatus.isApproved ? (
-                  <FileText className="h-5 w-5 text-green-600" />
+                  <ReceiptIcon className="h-5 w-5 text-green-600" />
                 ) : (
                   <Check className="h-5 w-5 text-amber-600" />
                 )}
@@ -243,10 +318,10 @@ export default function PostChecklistTab({ workOrder, isTransitioning, onAction 
               </p>
               <button
                 onClick={postChecklistStatus.isApproved ? handleGenerateInvoice : handleApprovePostChecklist}
-                disabled={isTransitioning || localLoading}
+                disabled={isTransitioning || localLoading || refreshing}
                 className="w-full px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {(isTransitioning || localLoading) ? (
+                {(isTransitioning || localLoading || refreshing) ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
@@ -299,7 +374,7 @@ export default function PostChecklistTab({ workOrder, isTransitioning, onAction 
               <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2 ${
                 postChecklistStatus.isApproved ? 'bg-blue-100' : 'bg-gray-100'
               }`}>
-                <FileText className={`h-5 w-5 ${
+                <ReceiptIcon className={`h-5 w-5 ${
                   postChecklistStatus.isApproved ? 'text-blue-600' : 'text-gray-400'
                 }`} />
               </div>
@@ -318,12 +393,12 @@ export default function PostChecklistTab({ workOrder, isTransitioning, onAction 
                   <div>
                     <h4 className="font-semibold text-gray-900">Invoice Generated</h4>
                     <p className="text-sm text-gray-600">
-                      Invoice #{workOrder.invoiceId?.slice(-6)} created successfully
+                      Invoice has been created and is ready for payment
                     </p>
                   </div>
                 </div>
                 <button
-                  onClick={() => router.push(`/invoices/${workOrder.invoiceId}`)}
+                  onClick={handleViewInvoice}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
                 >
                   <Eye className="h-4 w-4" />

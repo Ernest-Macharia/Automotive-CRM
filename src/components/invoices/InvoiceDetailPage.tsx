@@ -8,30 +8,20 @@ import {
   CheckCircle,
   Printer,
   ArrowLeft,
-  Edit,
-  Trash2,
   Clock,
   XCircle,
   Mail,
-  CreditCard,
   Calendar,
-  Building,
   User,
   DollarSign,
   FileText,
-  Package,
   Check,
   AlertCircle,
-  TrendingUp,
   Eye,
-  Send,
   Copy,
-  History,
-  ChevronRight,
-  X,
   Loader2,
-  ShieldCheck,
-  PackageCheck
+  PackageCheck,
+  ChevronRight
 } from 'lucide-react';
 import { invoiceService, Invoice, INVOICE_STATUS, PAYMENT_STATUS } from '@/services/invoiceService';
 import { useToast } from '@/contexts/ToastContext';
@@ -109,31 +99,6 @@ export default function InvoiceDetailPage({ id }: InvoiceDetailPageProps) {
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case INVOICE_STATUS.APPROVED: return <CheckCircle className="h-4 w-4" />;
-      case INVOICE_STATUS.SENT: return <Send className="h-4 w-4" />;
-      case INVOICE_STATUS.DRAFT: return <FileText className="h-4 w-4" />;
-      case INVOICE_STATUS.CANCELLED: return <XCircle className="h-4 w-4" />;
-      default: return <Receipt className="h-4 w-4" />;
-    }
-  };
-
-  const getPaymentStatusIcon = (paymentStatus: string) => {
-    switch (paymentStatus) {
-      case PAYMENT_STATUS.PAID: return <CheckCircle className="h-4 w-4" />;
-      case PAYMENT_STATUS.PARTIALLY_PAID: return <Clock className="h-4 w-4" />;
-      case PAYMENT_STATUS.UNPAID: return <AlertCircle className="h-4 w-4" />;
-      default: return <Receipt className="h-4 w-4" />;
-    }
-  };
-
-  const renderReference = (ref: any) => {
-    if (!ref) return '-';
-    if (typeof ref === 'string') return ref;
-    return ref.subject || ref.quoteNumber || ref.jobTitle || ref.registrationNumber || ref._id || '—';
-  };
-
   const getCustomerName = () => {
     if (!invoice?.opportunityId) return 'Unknown Customer';
     
@@ -160,185 +125,36 @@ export default function InvoiceDetailPage({ id }: InvoiceDetailPageProps) {
     return dueDate < today;
   };
 
-  const daysUntilDue = () => {
-    if (!invoice?.dueDate) return null;
-    
-    const due = new Date(invoice.dueDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const diffTime = due.getTime() - today.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
   const canMarkAsPaid = () => {
     if (!invoice) return false;
     
-    // Only allow marking as paid if invoice is approved and not already paid
-    return invoice.status === INVOICE_STATUS.APPROVED && 
-           invoice.paymentStatus === PAYMENT_STATUS.UNPAID;
+    // Only allow marking as paid if invoice is unpaid
+    return invoice.paymentStatus === PAYMENT_STATUS.UNPAID;
   };
 
   /* ---------------- actions ---------------- */
-
-  const handleSendInvoice = async () => {
-    if (!invoice) return;
-    
-    try {
-      setProcessing(true);
-      
-      // Update invoice status to "sent"
-      const sentInvoice = await invoiceService.updateInvoice(invoice.id, {
-        status: 'sent',
-        sentAt: new Date().toISOString()
-      });
-      
-      setInvoice(sentInvoice);
-      showToast('Invoice sent successfully! It can now be approved.', 'success');
-      
-    } catch (error: any) {
-      console.error('Error sending invoice:', error);
-      showToast(error.message || 'Failed to send invoice', 'error');
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const handleApprove = async () => {
-    if (!invoice) return;
-    
-    try {
-      setProcessing(true);
-      
-      // Check if invoice is in correct status for approval
-      if (invoice.status !== INVOICE_STATUS.SENT) {
-        showToast('Invoice must be sent before it can be approved', 'error');
-        return;
-      }
-      
-      const approvedInvoice = await invoiceService.approveInvoice(invoice.id);
-      setInvoice(approvedInvoice);
-      showToast('Invoice approved successfully! It can now be marked as paid.', 'success');
-      
-    } catch (error: any) {
-      showToast(error.message || 'Failed to approve invoice', 'error');
-    } finally {
-      setProcessing(false);
-    }
-  };
 
   const handleMarkAsPaid = async () => {
     if (!invoice) return;
     
     setProcessing(true);
     try {
-      // 1. Mark invoice as paid
+      // Mark invoice as paid
       const paidInvoice = await invoiceService.markInvoiceAsPaid(
         invoice.id,
         invoice.total,
         new Date().toISOString(),
-        'system_completed',
-        `COMPLETED-${Date.now().toString(36).toUpperCase()}`
+        'cash', // Default payment method
+        `PAYMENT-${Date.now().toString(36).toUpperCase()}`
       );
       
       setInvoice(paidInvoice);
       showToast('Invoice marked as paid successfully!', 'success');
       
-      // 2. Complete the appropriate workflow based on invoice type
-      const { lifecycleIntegrationService } = await import('@/services/lifecycleIntegrationService');
-      
-      if (paidInvoice.opportunityId) {
-        const opportunityId = typeof paidInvoice.opportunityId === 'object' 
-          ? paidInvoice.opportunityId._id 
-          : paidInvoice.opportunityId;
-        
-        if (opportunityId) {
-          try {
-            // Get lifecycle to determine package type
-            const { lifecycleService } = await import('@/services/lifecycleService');
-            const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
-            
-            if (lifecycle.packageType === 'work_order') {
-              // Handle work order completion
-              await lifecycleIntegrationService.completeWorkOrder(opportunityId);
-              
-              // Update work order status
-              if (paidInvoice.workOrderId) {
-                const workOrderId = typeof paidInvoice.workOrderId === 'object' 
-                  ? paidInvoice.workOrderId._id 
-                  : paidInvoice.workOrderId;
-                
-                if (workOrderId) {
-                  const { workOrderService } = await import('@/services/workOrderService');
-                  await workOrderService.updateWorkOrder(workOrderId, {
-                    status: 'completed',
-                    invoicePaid: true,
-                    invoicePaymentDate: new Date().toISOString(),
-                    actualCompletionDate: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                  });
-                }
-              }
-            } else if (lifecycle.packageType === 'sales_order') {
-              // Handle sales order completion
-              await lifecycleIntegrationService.completeSalesOrder(opportunityId);
-              
-              // Update sales order status
-              if (paidInvoice.salesOrderId) {
-                const salesOrderId = typeof paidInvoice.salesOrderId === 'object' 
-                  ? paidInvoice.salesOrderId._id 
-                  : paidInvoice.salesOrderId;
-                
-                if (salesOrderId) {
-                  const { salesOrderService } = await import('@/services/salesOrderService');
-                  await salesOrderService.updateSalesOrder(salesOrderId, {
-                    status: 'delivered',
-                    actualDeliveryDate: new Date().toISOString()
-                  });
-                }
-              }
-            } else {
-              // Generic completion for unknown package types
-              await lifecycleIntegrationService.completeLifecycle(opportunityId);
-            }
-            
-          } catch (workflowError: any) {
-            console.error('Workflow completion error:', workflowError);
-            // Don't show error toast here as the main payment succeeded
-          }
-        }
-      }
-      
-      // 3. Determine redirect path
-      let redirectPath = '/invoices';
-      
-      if (paidInvoice.workOrderId) {
-        const workOrderId = typeof paidInvoice.workOrderId === 'object' 
-          ? paidInvoice.workOrderId._id 
-          : paidInvoice.workOrderId;
-        redirectPath = `/orders/work-orders/${workOrderId}`;
-      } else if (paidInvoice.salesOrderId) {
-        const salesOrderId = typeof paidInvoice.salesOrderId === 'object' 
-          ? paidInvoice.salesOrderId._id 
-          : paidInvoice.salesOrderId;
-        redirectPath = `/orders/sales-orders/${salesOrderId}`;
-      } else if (paidInvoice.opportunityId) {
-        const opportunityId = typeof paidInvoice.opportunityId === 'object' 
-          ? paidInvoice.opportunityId._id 
-          : paidInvoice.opportunityId;
-        redirectPath = `/opportunities/${opportunityId}`;
-      }
-      
-      // 4. Show success message with redirect info
-      const orderType = paidInvoice.workOrderId ? 'work order' : 
-                      paidInvoice.salesOrderId ? 'sales order' : 'opportunity';
-      
-      showToast(`Invoice paid! Redirecting to ${orderType}...`, 'success');
-      
-      // 5. Redirect after a short delay
+      // Show completion message
       setTimeout(() => {
-        router.push(redirectPath);
-      }, 2000);
+        showToast('Payment recorded. The related work order has been completed.', 'success');
+      }, 1000);
       
     } catch (error: any) {
       console.error('Error marking invoice as paid:', error);
@@ -348,20 +164,11 @@ export default function InvoiceDetailPage({ id }: InvoiceDetailPageProps) {
     }
   };
 
-  const handleDelete = async () => {
+  const handleCopyInvoiceNumber = () => {
     if (!invoice) return;
-    if (!confirm('Are you sure you want to delete this invoice?')) return;
-
-    try {
-      setProcessing(true);
-      await invoiceService.deleteInvoice(invoice.id);
-      showToast('Invoice deleted successfully', 'success');
-      router.push('/invoices');
-    } catch (error: any) {
-      showToast(error.message || 'Failed to delete invoice', 'error');
-    } finally {
-      setProcessing(false);
-    }
+    
+    navigator.clipboard.writeText(invoice.invoiceNumber);
+    showToast('Invoice number copied to clipboard', 'success');
   };
 
   const handleExportPDF = async () => {
@@ -408,29 +215,6 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
     }
   };
 
-  const handleSendEmail = async () => {
-    if (!invoice) return;
-    
-    const email = prompt('Enter recipient email:', getCustomerEmail() || 'customer@example.com');
-    if (!email) return;
-    
-    try {
-      setProcessing(true);
-      showToast(`Invoice sent to ${email}`, 'success');
-    } catch (error) {
-      showToast('Failed to send email', 'error');
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const handleCopyInvoiceNumber = () => {
-    if (!invoice) return;
-    
-    navigator.clipboard.writeText(invoice.invoiceNumber);
-    showToast('Invoice number copied to clipboard', 'success');
-  };
-
   /* ---------------- UI states ---------------- */
 
   if (loading) {
@@ -464,12 +248,11 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
   }
 
   const isOverdueInvoice = isOverdue();
-  const daysLeft = daysUntilDue();
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header - Blue to Purple Theme */}
-      <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-md flex items-center px-6 flex-shrink-0">
+      {/* Header */}
+      <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-md flex items-center px-6">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             <Link href="/invoices" className="p-2 hover:bg-white/20 rounded-xl transition-colors">
@@ -482,22 +265,22 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
           </div>
 
           <div className="flex items-center gap-3">
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${getStatusColor(invoice.status)}`}>
-              {getStatusIcon(invoice.status)}
-              {invoiceService.getStatusText(invoice.status)}
-            </span>
-            
             <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${getPaymentStatusColor(invoice.paymentStatus)}`}>
-              {getPaymentStatusIcon(invoice.paymentStatus)}
+              {invoice.paymentStatus === PAYMENT_STATUS.PAID ? (
+                <CheckCircle className="h-4 w-4" />
+              ) : invoice.paymentStatus === PAYMENT_STATUS.PARTIALLY_PAID ? (
+                <Clock className="h-4 w-4" />
+              ) : (
+                <AlertCircle className="h-4 w-4" />
+              )}
               {invoiceService.getPaymentStatusText(invoice.paymentStatus)}
               {isOverdueInvoice && ' (Overdue)'}
             </span>
             
-            {/* Show completion badge if paid */}
             {invoice.paymentStatus === PAYMENT_STATUS.PAID && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                 <PackageCheck className="h-3.5 w-3.5" />
-                Order Complete
+                Paid
               </span>
             )}
           </div>
@@ -505,7 +288,7 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* LEFT COLUMN */}
           <div className="lg:col-span-2 space-y-6">
@@ -532,15 +315,6 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
                     <Download className="h-3.5 w-3.5 inline mr-1" />
                     Export
                   </button>
-                  {invoice.status === INVOICE_STATUS.DRAFT && (
-                    <Link 
-                      href={`/invoices/${invoice.id}/edit`}
-                      className="px-3 py-1.5 text-xs border border-purple-300 text-purple-700 rounded-lg hover:bg-purple-50"
-                    >
-                      <Edit className="h-3.5 w-3.5 inline mr-1" />
-                      Edit
-                    </Link>
-                  )}
                 </div>
               </div>
 
@@ -560,13 +334,17 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Opportunity</p>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm text-gray-900">{renderReference(invoice.opportunityId)}</p>
+                      <p className="text-sm text-gray-900">
+                        {typeof invoice.opportunityId === 'object' 
+                          ? invoice.opportunityId.subject || invoice.opportunityId._id
+                          : invoice.opportunityId || '—'}
+                      </p>
                       {typeof invoice.opportunityId === 'object' && invoice.opportunityId._id && (
                         <Link 
                           href={`/opportunities/${invoice.opportunityId._id}`}
-                          className="text-blue-600 hover:underline text-xs"
+                          className="text-blue-600 hover:underline text-xs inline-flex items-center"
                         >
-                          View
+                          View <ChevronRight className="h-3 w-3 ml-0.5" />
                         </Link>
                       )}
                     </div>
@@ -601,22 +379,34 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
                   <div>
                     <p className="text-xs text-gray-500 mb-2">References</p>
                     <div className="space-y-1.5 text-sm">
+                      {invoice.workOrderId && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Work Order:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-900">
+                              {typeof invoice.workOrderId === 'object' 
+                                ? invoice.workOrderId.workOrderNumber || invoice.workOrderId._id
+                                : invoice.workOrderId}
+                            </span>
+                            {typeof invoice.workOrderId === 'object' && invoice.workOrderId._id && (
+                              <Link 
+                                href={`/orders/work-orders/${invoice.workOrderId._id}`}
+                                className="text-blue-600 hover:underline text-xs"
+                              >
+                                View
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       {invoice.quoteId && (
                         <div className="flex justify-between">
                           <span className="text-gray-600">Quote:</span>
-                          <span className="text-gray-900">{renderReference(invoice.quoteId)}</span>
-                        </div>
-                      )}
-                      {invoice.jobCardId && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Job Card:</span>
-                          <span className="text-gray-900">{renderReference(invoice.jobCardId)}</span>
-                        </div>
-                      )}
-                      {invoice.salesOrderId && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Sales Order:</span>
-                          <span className="text-gray-900">{renderReference(invoice.salesOrderId)}</span>
+                          <span className="text-gray-900">
+                            {typeof invoice.quoteId === 'object' 
+                              ? invoice.quoteId.quoteNumber || invoice.quoteId._id
+                              : invoice.quoteId}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -630,117 +420,6 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
                   <p className="text-sm text-gray-700 bg-gray-50 rounded p-2.5">{invoice.notes}</p>
                 </div>
               )}
-            </div>
-
-            {/* Status Flow Indicator */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-              <h2 className="text-base font-semibold text-gray-800 mb-4">Invoice Flow</h2>
-              
-              <div className="relative">
-                <div className="absolute left-0 right-0 top-1/2 h-0.5 bg-gray-200 transform -translate-y-1/2" />
-                
-                <div className="relative flex justify-between">
-                  {/* Draft Step */}
-                  <div className="flex flex-col items-center">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${
-                      invoice.status === INVOICE_STATUS.DRAFT 
-                        ? 'bg-blue-100 border-2 border-blue-500' 
-                        : invoice.status === INVOICE_STATUS.SENT || invoice.status === INVOICE_STATUS.APPROVED || invoice.paymentStatus === PAYMENT_STATUS.PAID
-                          ? 'bg-green-100 border-2 border-green-500'
-                          : 'bg-gray-100 border-2 border-gray-300'
-                    }`}>
-                      {invoice.status === INVOICE_STATUS.DRAFT ? (
-                        <FileText className="h-5 w-5 text-blue-600" />
-                      ) : (
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                      )}
-                    </div>
-                    <span className="text-xs font-medium">Draft</span>
-                    <span className="text-xs text-gray-500">Create invoice</span>
-                  </div>
-                  
-                  {/* Sent Step */}
-                  <div className="flex flex-col items-center">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${
-                      invoice.status === INVOICE_STATUS.SENT 
-                        ? 'bg-blue-100 border-2 border-blue-500' 
-                        : invoice.status === INVOICE_STATUS.APPROVED || invoice.paymentStatus === PAYMENT_STATUS.PAID
-                          ? 'bg-green-100 border-2 border-green-500'
-                          : 'bg-gray-100 border-2 border-gray-300'
-                    }`}>
-                      {invoice.status === INVOICE_STATUS.SENT ? (
-                        <Send className="h-5 w-5 text-blue-600" />
-                      ) : invoice.status === INVOICE_STATUS.APPROVED || invoice.paymentStatus === PAYMENT_STATUS.PAID ? (
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                      ) : (
-                        <Send className="h-5 w-5 text-gray-400" />
-                      )}
-                    </div>
-                    <span className="text-xs font-medium">Sent</span>
-                    <span className="text-xs text-gray-500">Send to customer</span>
-                  </div>
-                  
-                  {/* Approved Step */}
-                  <div className="flex flex-col items-center">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${
-                      invoice.status === INVOICE_STATUS.APPROVED 
-                        ? 'bg-blue-100 border-2 border-blue-500' 
-                        : invoice.paymentStatus === PAYMENT_STATUS.PAID
-                          ? 'bg-green-100 border-2 border-green-500'
-                          : 'bg-gray-100 border-2 border-gray-300'
-                    }`}>
-                      {invoice.status === INVOICE_STATUS.APPROVED ? (
-                        <CheckCircle className="h-5 w-5 text-blue-600" />
-                      ) : invoice.paymentStatus === PAYMENT_STATUS.PAID ? (
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                      ) : (
-                        <CheckCircle className="h-5 w-5 text-gray-400" />
-                      )}
-                    </div>
-                    <span className="text-xs font-medium">Approved</span>
-                    <span className="text-xs text-gray-500">Customer approval</span>
-                  </div>
-                  
-                  {/* Paid Step */}
-                  <div className="flex flex-col items-center">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${
-                      invoice.paymentStatus === PAYMENT_STATUS.PAID 
-                        ? 'bg-green-100 border-2 border-green-500' 
-                        : 'bg-gray-100 border-2 border-gray-300'
-                    }`}>
-                      {invoice.paymentStatus === PAYMENT_STATUS.PAID ? (
-                        <CreditCard className="h-5 w-5 text-green-600" />
-                      ) : (
-                        <CreditCard className="h-5 w-5 text-gray-400" />
-                      )}
-                    </div>
-                    <span className="text-xs font-medium">Paid</span>
-                    <span className="text-xs text-gray-500">Complete sales order</span>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Current Action Required */}
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
-                <p className="text-sm font-medium text-blue-800 mb-1">Current Action Required:</p>
-                {invoice.status === INVOICE_STATUS.DRAFT ? (
-                  <p className="text-xs text-blue-700">
-                    <strong>Send this invoice</strong> to the customer to begin the approval process.
-                  </p>
-                ) : invoice.status === INVOICE_STATUS.SENT ? (
-                  <p className="text-xs text-blue-700">
-                    <strong>Approve this invoice</strong> once the customer has reviewed and accepted it.
-                  </p>
-                ) : invoice.status === INVOICE_STATUS.APPROVED && invoice.paymentStatus === PAYMENT_STATUS.UNPAID ? (
-                  <p className="text-xs text-blue-700">
-                    <strong>Mark this invoice as paid</strong> to complete the sales order workflow.
-                  </p>
-                ) : invoice.paymentStatus === PAYMENT_STATUS.PAID ? (
-                  <p className="text-xs text-green-700">
-                    ✓ Invoice paid and sales order completed.
-                  </p>
-                ) : null}
-              </div>
             </div>
 
             {/* Items */}
@@ -789,7 +468,7 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
               </div>
             </div>
 
-            {/* Invoice Completed Section */}
+            {/* Payment Status Section */}
             {invoice.paymentStatus === PAYMENT_STATUS.PAID && invoice.paidAt && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                 <div className="flex items-center gap-3 mb-4">
@@ -797,8 +476,8 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
                     <CheckCircle className="h-5 w-5 text-green-600" />
                   </div>
                   <div>
-                    <h2 className="text-base font-semibold text-gray-800">Invoice Completed</h2>
-                    <p className="text-xs text-gray-600">Sales order workflow has been completed</p>
+                    <h2 className="text-base font-semibold text-gray-800">Invoice Paid</h2>
+                    <p className="text-xs text-gray-600">Payment completed successfully</p>
                   </div>
                 </div>
                 
@@ -814,15 +493,15 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
                     </div>
                   </div>
                   
-                  {/* Show sales order completion status */}
-                  {invoice.opportunityId && (
+                  {/* Show work order completion if applicable */}
+                  {invoice.workOrderId && (
                     <div className="p-3 bg-green-50 border border-green-200 rounded">
                       <div className="flex items-center gap-2 mb-1">
                         <PackageCheck className="h-4 w-4 text-green-600" />
-                        <p className="text-sm font-medium text-green-800">Sales Order Completed</p>
+                        <p className="text-sm font-medium text-green-800">Work Order Completed</p>
                       </div>
                       <p className="text-xs text-green-700">
-                        The sales order has been marked as delivered and the workflow is complete.
+                        The related work order has been marked as completed.
                       </p>
                     </div>
                   )}
@@ -833,41 +512,57 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
 
           {/* RIGHT COLUMN */}
           <div className="space-y-6">
-            {/* Actions */}
+            {/* Payment Action Card */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-              <h2 className="text-base font-semibold text-gray-800 mb-4">Invoice Actions</h2>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <DollarSign className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-gray-800">Payment</h2>
+                  <p className="text-xs text-gray-600">Record payment for this invoice</p>
+                </div>
+              </div>
               
-              <div className="space-y-3">
-                {/* Send Invoice Button - For Draft invoices */}
-                {invoice.status === INVOICE_STATUS.DRAFT && (
-                  <button 
-                    onClick={handleSendInvoice}
-                    disabled={processing}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-medium rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-60"
-                  >
-                    <Send className="h-4 w-4" />
-                    Send Invoice
-                  </button>
-                )}
-
-                {/* Approve Invoice Button - For Sent invoices */}
-                {invoice.status === INVOICE_STATUS.SENT && (
-                  <button 
-                    onClick={handleApprove}
-                    disabled={processing}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60"
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                    Approve Invoice
-                  </button>
-                )}
-
-                {/* Mark as Paid Button - For approved, unpaid invoices */}
-                {canMarkAsPaid() && (
+              {invoice.paymentStatus === PAYMENT_STATUS.PAID ? (
+                <div className="text-center py-4">
+                  <div className="p-3 bg-green-100 rounded-full w-12 h-12 mx-auto mb-3 flex items-center justify-center">
+                    <CheckCircle className="h-6 w-6 text-green-600" />
+                  </div>
+                  <p className="text-sm font-medium text-gray-900 mb-1">Invoice Paid</p>
+                  <p className="text-xs text-gray-600">
+                    Payment completed on {formatDate(invoice.paidAt)}
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  {/* Payment Status */}
+                  <div className="mb-4">
+                    <div className="flex justify-between mb-1">
+                      <span className="text-xs text-gray-600">Status</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getPaymentStatusColor(invoice.paymentStatus)}`}>
+                        {invoiceService.getPaymentStatusText(invoice.paymentStatus)}
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-gray-200 rounded-full">
+                      <div 
+                        className="h-full rounded-full bg-red-500"
+                        style={{ width: '0%' }}
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Amount Due */}
+                  <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                    <p className="text-xs text-gray-500 mb-1">Amount Due</p>
+                    <p className="text-xl font-bold text-gray-900">{invoiceService.formatCurrency(invoice.total)}</p>
+                  </div>
+                  
+                  {/* Mark as Paid Button */}
                   <button 
                     onClick={handleMarkAsPaid}
-                    disabled={processing}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 text-white text-sm font-medium rounded-lg hover:from-emerald-700 hover:to-green-700 disabled:opacity-60"
+                    disabled={processing || !canMarkAsPaid()}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-3 bg-gradient-to-r from-emerald-600 to-green-600 text-white text-sm font-medium rounded-lg hover:from-emerald-700 hover:to-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {processing ? (
                       <>
@@ -877,98 +572,24 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
                     ) : (
                       <>
                         <CheckCircle className="h-4 w-4" />
-                        Mark as Paid & Complete Sales Order
+                        Mark as Paid
                       </>
                     )}
                   </button>
-                )}
-
-                {/* Email Actions */}
-                <div className="pt-2 border-t border-gray-100">
-                  <p className="text-xs font-medium text-gray-700 mb-1">Communication:</p>
-                  <button 
-                    onClick={handleSendEmail}
-                    disabled={processing}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 disabled:opacity-60"
-                  >
-                    <Mail className="h-4 w-4" />
-                    Send Email
-                  </button>
+                  
+                  {invoice.dueDate && isOverdueInvoice && (
+                    <p className="text-xs text-red-600 mt-2 text-center">
+                      <AlertCircle className="h-3 w-3 inline mr-1" />
+                      Overdue by {Math.abs(Math.floor((new Date(invoice.dueDate).getTime() - new Date().getTime()) / (1000 * 3600 * 24)))} days
+                    </p>
+                  )}
                 </div>
-
-                {/* Danger Zone */}
-                <div className="pt-2 border-t border-gray-100">
-                  <p className="text-xs font-medium text-gray-700 mb-1">Danger Zone:</p>
-                  <button 
-                    onClick={handleDelete}
-                    disabled={processing}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 border border-red-600 text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 disabled:opacity-60"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete Invoice
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
 
-            {/* Status & Stats */}
+            {/* Quick Info */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-              <h2 className="text-base font-semibold text-gray-800 mb-4">Status Summary</h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-xs text-gray-600">Invoice Status</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getStatusColor(invoice.status)}`}>
-                      {invoiceService.getStatusText(invoice.status)}
-                    </span>
-                  </div>
-                  <div className="h-1.5 bg-gray-200 rounded-full">
-                    <div 
-                      className={`h-full rounded-full ${
-                        invoice.status === INVOICE_STATUS.DRAFT ? 'bg-gray-400' :
-                        invoice.status === INVOICE_STATUS.SENT ? 'bg-blue-500' :
-                        invoice.status === INVOICE_STATUS.APPROVED ? 'bg-green-500' :
-                        'bg-red-500'
-                      }`}
-                      style={{ width: `${invoice.status === INVOICE_STATUS.DRAFT ? 25 : invoice.status === INVOICE_STATUS.SENT ? 50 : invoice.status === INVOICE_STATUS.APPROVED ? 75 : 100}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-xs text-gray-600">Payment Status</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getPaymentStatusColor(invoice.paymentStatus)}`}>
-                      {invoiceService.getPaymentStatusText(invoice.paymentStatus)}
-                    </span>
-                  </div>
-                  <div className="h-1.5 bg-gray-200 rounded-full">
-                    <div 
-                      className={`h-full rounded-full ${
-                        invoice.paymentStatus === PAYMENT_STATUS.UNPAID ? 'bg-red-500' :
-                        invoice.paymentStatus === PAYMENT_STATUS.PARTIALLY_PAID ? 'bg-yellow-500' :
-                        'bg-green-500'
-                      }`}
-                      style={{ width: `${invoice.paymentStatus === PAYMENT_STATUS.UNPAID ? 0 : invoice.paymentStatus === PAYMENT_STATUS.PARTIALLY_PAID ? 50 : 100}%` }}
-                    />
-                  </div>
-                </div>
-
-                {isOverdueInvoice && (
-                  <div className="p-2.5 bg-red-50 border border-red-200 rounded text-xs text-red-700">
-                    <div className="flex items-center gap-1.5">
-                      <AlertCircle className="h-3.5 w-3.5" />
-                      Overdue by {Math.abs(daysLeft || 0)} days
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Quick Stats */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-              <h2 className="text-base font-semibold text-gray-800 mb-4">Quick Stats</h2>
+              <h2 className="text-base font-semibold text-gray-800 mb-4">Quick Info</h2>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Invoice Total</span>
@@ -979,30 +600,69 @@ TOTAL: ${invoiceService.formatCurrency(invoice.total)}
                   <span className="text-gray-900">{invoice.items.length}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Status</span>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                    invoice.paymentStatus === PAYMENT_STATUS.PAID ? 'bg-green-100 text-green-800' :
-                    invoice.paymentStatus === PAYMENT_STATUS.UNPAID ? 'bg-red-100 text-red-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {invoiceService.getPaymentStatusText(invoice.paymentStatus)}
-                  </span>
+                  <span className="text-gray-600">Created</span>
+                  <span className="text-gray-900">{formatDate(invoice.createdAt)}</span>
                 </div>
+                {invoice.dueDate && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Due Date</span>
+                    <span className={`font-medium ${isOverdueInvoice ? 'text-red-600' : 'text-gray-900'}`}>
+                      {formatDate(invoice.dueDate)}
+                    </span>
+                  </div>
+                )}
                 
-                {/* Show completion info if paid */}
+                {/* Show payment info if paid */}
                 {invoice.paymentStatus === PAYMENT_STATUS.PAID && invoice.paidAt && (
-                  <div className="pt-3 border-t border-gray-200">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Paid On</span>
-                      <span className="text-gray-900">{formatDate(invoice.paidAt)}</span>
-                    </div>
-                    <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-700">
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle className="h-3.5 w-3.5" />
-                        <span>Sales order workflow completed</span>
+                  <>
+                    <div className="pt-2 border-t border-gray-200">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Paid On</span>
+                        <span className="text-gray-900">{formatDate(invoice.paidAt)}</span>
                       </div>
                     </div>
-                  </div>
+                    {invoice.workOrderId && (
+                      <div className="p-2 bg-blue-50 border border-blue-200 rounded">
+                        <p className="text-xs text-blue-700">
+                          ✓ Related work order automatically completed
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Related Links */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <h2 className="text-base font-semibold text-gray-800 mb-4">Related</h2>
+              <div className="space-y-2">
+                {invoice.opportunityId && typeof invoice.opportunityId === 'object' && invoice.opportunityId._id && (
+                  <Link
+                    href={`/opportunities/${invoice.opportunityId._id}`}
+                    className="flex items-center justify-between p-2 hover:bg-gray-50 rounded"
+                  >
+                    <span className="text-sm text-gray-700">Opportunity</span>
+                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                  </Link>
+                )}
+                {invoice.workOrderId && typeof invoice.workOrderId === 'object' && invoice.workOrderId._id && (
+                  <Link
+                    href={`/orders/work-orders/${invoice.workOrderId._id}`}
+                    className="flex items-center justify-between p-2 hover:bg-gray-50 rounded"
+                  >
+                    <span className="text-sm text-gray-700">Work Order</span>
+                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                  </Link>
+                )}
+                {invoice.quoteId && typeof invoice.quoteId === 'object' && invoice.quoteId._id && (
+                  <Link
+                    href={`/quotes/${invoice.quoteId._id}`}
+                    className="flex items-center justify-between p-2 hover:bg-gray-50 rounded"
+                  >
+                    <span className="text-sm text-gray-700">Quote</span>
+                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                  </Link>
                 )}
               </div>
             </div>

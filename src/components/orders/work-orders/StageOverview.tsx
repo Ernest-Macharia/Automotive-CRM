@@ -6,7 +6,9 @@ import {
   ReceiptIcon, CheckCircle, AlertTriangle, 
   Info, ArrowRight, Plus, Eye, Check,
   DollarSign, Loader2, Clock, Users,
-  CheckSquare, AlertCircle
+  CheckSquare, AlertCircle,
+  PartyPopper,
+  Trophy
 } from 'lucide-react';
 import { WorkOrder } from '@/services/workOrderService';
 import { workOrderService } from '@/services/workOrderService';
@@ -24,6 +26,7 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
   const router = useRouter();
   const [jobCards, setJobCards] = useState<JobCard[]>([]);
   const [loadingJobCards, setLoadingJobCards] = useState(false);
+  const [showCompletionSuccess, setShowCompletionSuccess] = useState(false);
   
   const stagesConfig = {
     pre_checklist: {
@@ -52,19 +55,19 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
     }
   };
 
-  const refreshData = async () => {
-    if (workOrder._id) {
-      await loadJobCards();
-    }
-  };
-
   useEffect(() => {
     if (workOrder && workOrder._id) {
       loadJobCards();
     }
   }, [workOrder]);
 
-  // In StageOverview.tsx - Update the loadJobCards function:
+  // Check if work order is completed to show success message
+  useEffect(() => {
+    if (workOrder.status === 'completed' && !showCompletionSuccess) {
+      setShowCompletionSuccess(true);
+    }
+  }, [workOrder.status]);
+
   const loadJobCards = async () => {
     try {
       setLoadingJobCards(true);
@@ -87,6 +90,7 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
       setLoadingJobCards(false);
     }
   };
+
   const getStageStatus = () => {
     const stage = workOrder.currentStage || 'pre_checklist';
     const stageConfig = stagesConfig[stage as keyof typeof stagesConfig];
@@ -151,8 +155,8 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
         } else {
           const isPaid = workOrder.invoicePaid || false;
           if (isPaid) {
-            nextAction = 'Complete Work Order';
-            canProceed = true;
+            nextAction = 'Work Order Completed';
+            canProceed = false;
           } else {
             nextAction = 'Mark Invoice as Paid';
             canProceed = true;
@@ -222,69 +226,75 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
     });
   };
 
-  // In StageOverview.tsx - Update the handleGenerateInvoice function:
-
-const handleGenerateInvoice = async () => {
-  await onStageAction(async () => {
-    // Generate invoice and send email
-    const invoiceResult = await workOrderService.generateInvoice(workOrder._id);
-    
-    // Update work order
-    await workOrderService.updateWorkOrder(workOrder._id, {
-      invoiceId: invoiceResult.invoice._id,
-      currentStage: 'invoice',
-      status: 'ready_for_invoice',
-      updatedAt: new Date().toISOString()
+  const handleGenerateInvoice = async () => {
+    await onStageAction(async () => {
+      // Generate invoice and send email
+      const invoiceResult = await workOrderService.generateInvoice(workOrder._id);
+      
+      // Update work order
+      await workOrderService.updateWorkOrder(workOrder._id, {
+        invoiceId: invoiceResult.invoice._id,
+        currentStage: 'invoice',
+        status: 'ready_for_invoice',
+        updatedAt: new Date().toISOString()
+      });
     });
-  });
-};
+  };
 
-// Update handleMarkInvoicePaid function:
-const handleMarkInvoicePaid = async () => {
-  if (!workOrder.invoiceId) return;
-  
-  await onStageAction(async () => {
-    // Mark invoice as paid using the correct endpoint
-    await invoiceService.markInvoiceAsPaid(
-      workOrder.invoiceId,
-      sessionStorage.getItem('userId'),
-      sessionStorage.getItem('userRole'),
-      'cash', // Default payment method
-      `Payment for work order ${workOrder.workOrderNumber}`
-    );
+  const handleMarkInvoicePaid = async () => {
+    if (!workOrder.invoiceId) return;
     
-    // Update work order
-    await workOrderService.updateWorkOrder(workOrder._id, {
-      invoicePaid: true,
-      invoicePaymentDate: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+    await onStageAction(async () => {
+      try {
+        // 1. Mark invoice as paid using the PATCH /invoices/{id}/pay endpoint
+        await invoiceService.markInvoiceAsPaid(
+          workOrder.invoiceId,
+          sessionStorage.getItem('userId'),
+          sessionStorage.getItem('userRole'),
+          'cash', // Default payment method
+          `Payment for work order ${workOrder.workOrderNumber}`
+        );
+        
+        // 2. Complete the work order
+        await workOrderService.updateWorkOrder(workOrder._id, {
+          status: 'completed',
+          invoicePaid: true,
+          invoicePaymentDate: new Date().toISOString(),
+          actualCompletionDate: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+        
+        // 3. Show success message
+        setShowCompletionSuccess(true);
+        
+      } catch (error) {
+        console.error('Error marking invoice as paid:', error);
+        throw error;
+      }
     });
-  });
-};
+  };
 
-// Update handleCompleteWorkOrder function:
-const handleCompleteWorkOrder = async () => {
-  if (!workOrder.invoiceId) return;
-  
-  await onStageAction(async () => {
-    // First approve the invoice
-    await invoiceService.approveInvoice(
-      workOrder.invoiceId,
-      sessionStorage.getItem('userId'),
-      sessionStorage.getItem('userRole')
-    );
-    
-    // Then complete the work order
-    await workOrderService.updateWorkOrder(workOrder._id, {
-      status: 'completed',
-      actualCompletionDate: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
-  });
-};
+  // Remove the separate handleCompleteWorkOrder function since it's now part of handleMarkInvoicePaid
 
   const renderStageActions = () => {
     const stage = stageStatus.id;
+
+    // If work order is already completed, show completion message
+    if (workOrder.status === 'completed') {
+      return (
+        <div className="flex items-center gap-3">
+          <div className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg flex items-center gap-2">
+            <Trophy className="h-5 w-5" />
+            Work Order Completed ✓
+          </div>
+          {workOrder.actualCompletionDate && (
+            <div className="text-sm text-gray-600">
+              Completed on {new Date(workOrder.actualCompletionDate).toLocaleDateString()}
+            </div>
+          )}
+        </div>
+      );
+    }
 
     switch (stage) {
       case 'pre_checklist':
@@ -506,21 +516,22 @@ const handleCompleteWorkOrder = async () => {
               <button
                 onClick={handleMarkInvoicePaid}
                 disabled={isTransitioning}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
+                className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 flex items-center gap-2 disabled:opacity-50"
               >
                 {isTransitioning ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <DollarSign className="h-4 w-4" />
+                  <CheckCircle className="h-4 w-4" />
                 )}
-                Mark as Paid
+                Mark as Paid & Complete Work Order
               </button>
             </div>
           );
         } else if (workOrder.status !== 'completed') {
+          // This shouldn't happen anymore since handleMarkInvoicePaid completes the work order
           return (
             <button
-              onClick={handleCompleteWorkOrder}
+              onClick={handleMarkInvoicePaid}
               disabled={isTransitioning}
               className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 transition-colors disabled:opacity-50"
             >
@@ -536,6 +547,26 @@ const handleCompleteWorkOrder = async () => {
   };
 
   const renderStageRequirements = () => {
+    // If work order is completed, show completion message
+    if (workOrder.status === 'completed') {
+      return (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-green-600">
+            <CheckCircle className="h-5 w-5" />
+            <span className="font-medium">Work Order Successfully Completed!</span>
+          </div>
+          <div className="ml-7 space-y-1 text-sm text-green-700">
+            <p>✓ All stages completed</p>
+            <p>✓ Invoice paid and closed</p>
+            <p>✓ Customer billing completed</p>
+            {workOrder.actualCompletionDate && (
+              <p>✓ Completed on {new Date(workOrder.actualCompletionDate).toLocaleDateString()}</p>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     const stage = stageStatus.id;
 
     switch (stage) {
@@ -632,12 +663,12 @@ const handleCompleteWorkOrder = async () => {
           workOrder.invoicePaid ? (
             <div className="flex items-center gap-2 text-green-600">
               <CheckCircle className="h-4 w-4" />
-              <span>Invoice paid ✓ Work Order can be completed</span>
+              <span>Invoice paid ✓ Work Order completed successfully</span>
             </div>
           ) : (
             <div className="flex items-center gap-2 text-yellow-600">
               <AlertTriangle className="h-4 w-4" />
-              <span>Invoice generated, mark as paid to complete</span>
+              <span>Invoice generated, mark as paid to complete work order</span>
             </div>
           )
         ) : (
@@ -711,6 +742,30 @@ const handleCompleteWorkOrder = async () => {
 
   return (
     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
+      {/* Completion Success Message */}
+      {showCompletionSuccess && (
+        <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white rounded-lg shadow-sm">
+              <PartyPopper className="h-5 w-5 text-green-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-green-800">Work Order Completed Successfully!</h3>
+              <p className="text-sm text-green-700">
+                The invoice has been paid and the work order is now marked as completed.
+                All workflow stages are finished.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowCompletionSuccess(false)}
+              className="text-green-600 hover:text-green-800"
+            >
+              <AlertCircle className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
           <div className="p-3 bg-white rounded-lg shadow-sm">
@@ -721,9 +776,11 @@ const handleCompleteWorkOrder = async () => {
           
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
-              <h2 className="text-2xl font-bold text-gray-900">Current Stage: {stageConfig?.label}</h2>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {workOrder.status === 'completed' ? 'Work Order Completed' : `Current Stage: ${stageConfig?.label}`}
+              </h2>
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                workOrder.status === 'completed' ? 'bg-green-100 text-green-800' :
+                workOrder.status === 'completed' ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' :
                 workOrder.status === 'delayed' ? 'bg-orange-100 text-orange-800' :
                 'bg-blue-100 text-blue-800'
               }`}>
@@ -731,7 +788,11 @@ const handleCompleteWorkOrder = async () => {
               </span>
             </div>
             
-            <p className="text-gray-600 mb-4">{stageConfig?.description}</p>
+            <p className="text-gray-600 mb-4">
+              {workOrder.status === 'completed' 
+                ? 'All work completed, invoice paid, and customer billing finished.'
+                : stageConfig?.description}
+            </p>
             
             {/* Stage Requirements */}
             <div className="space-y-2 mb-6">
@@ -745,6 +806,30 @@ const handleCompleteWorkOrder = async () => {
             <div className="mt-4">
               {renderStageActions()}
             </div>
+
+            {/* Additional Info for Completed Work Orders */}
+            {workOrder.status === 'completed' && (
+              <div className="mt-6 pt-4 border-t border-blue-200">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  {workOrder.actualCompletionDate && (
+                    <div>
+                      <p className="text-gray-600">Completion Date</p>
+                      <p className="font-medium text-gray-900">
+                        {new Date(workOrder.actualCompletionDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                  )}
+                  {workOrder.invoicePaymentDate && (
+                    <div>
+                      <p className="text-gray-600">Payment Date</p>
+                      <p className="font-medium text-gray-900">
+                        {new Date(workOrder.invoicePaymentDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

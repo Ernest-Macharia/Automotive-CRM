@@ -392,6 +392,39 @@ export interface NotificationLog {
 class WorkOrderService {
   private basePath = '/workorder';
 
+    private opportunityCache = new Map<string, { value: Opportunity; expiresAt: number }>();
+  private opportunityInFlight = new Map<string, Promise<Opportunity>>();
+
+  // Tune this: longer = fewer requests, shorter = fresher data
+  private OPPORTUNITY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+  private getCachedOpportunity(id: string, signal?: AbortSignal): Promise<Opportunity> {
+    const now = Date.now();
+    const cached = this.opportunityCache.get(id);
+
+    if (cached && cached.expiresAt > now) {
+      return Promise.resolve(cached.value);
+    }
+
+    const inFlight = this.opportunityInFlight.get(id);
+    if (inFlight) return inFlight;
+
+    const promise = (async () => {
+      try {
+        // If your opportunityService/apiClient supports signal, pass it through.
+        // If not supported, this is still safe.
+        const opp = await opportunityService.getOpportunityById(id, false /* keep your existing arg */);
+        this.opportunityCache.set(id, { value: opp, expiresAt: now + this.OPPORTUNITY_CACHE_TTL_MS });
+        return opp;
+      } finally {
+        this.opportunityInFlight.delete(id);
+      }
+    })();
+
+    this.opportunityInFlight.set(id, promise);
+    return promise;
+  }
+
   // POST /api/v1/workorder - Create a new work order
   async createWorkOrder(data: CreateWorkOrderData): Promise<WorkOrder> {
     try {
@@ -1623,21 +1656,16 @@ async getWorkOrderJobCards(workOrderId: string): Promise<JobCard[]> {
         
         if (typeof jobCardRef === 'string') {
           jobCardId = jobCardRef.trim();
-          console.log(`   📝 String ID: ${jobCardId}`);
         } else if (jobCardRef && typeof jobCardRef === 'object') {
           // Check for _id or id property
           if (jobCardRef._id) {
             jobCardId = jobCardRef._id;
-            console.log(`   📝 Object _id: ${jobCardId}`);
           } else if (jobCardRef.id) {
             jobCardId = jobCardRef.id;
-            console.log(`   📝 Object id: ${jobCardId}`);
           } else {
-            console.warn('   ⚠️ Invalid job card object reference:', jobCardRef);
             return null;
           }
         } else {
-          console.warn(`   ⚠️ Invalid job card reference type [${index}]:`, typeof jobCardRef, jobCardRef);
           return null;
         }
         
@@ -2095,84 +2123,68 @@ async createWorkOrderFromOpportunity(
 }
 
 // Enhanced getCustomerDetails method
-async getCustomerDetails(workOrder: WorkOrder): Promise<{
-  name: string;
-  email: string;
-  phone: string;
-  companyName: string;
-  address?: string;
-  taxId?: string;
-}> {
-  try {
-    let opportunity: Opportunity | null = null;
-    
-    // Get opportunity data
-    if (typeof workOrder.opportunityId === 'object' && workOrder.opportunityId) {
-      // Opportunity is already populated
-      const oppData = workOrder.opportunityId as any;
-      return {
-        name: oppData.customer?.name || oppData.subject || 'Unknown Customer',
-        email: oppData.customer?.email || '',
-        phone: oppData.customer?.phone || '',
-        companyName: oppData.customer?.companyName || '',
-        address: oppData.customer?.companyAddress || '',
-        taxId: oppData.customer?.companyTaxId || ''
-      };
-    } else if (typeof workOrder.opportunityId === 'string') {
-      // Fetch opportunity
-      opportunity = await this.getFullOpportunityDetails(workOrder.opportunityId);
-      if (opportunity && opportunity.customer) {
+  async getCustomerDetails(workOrder: WorkOrder): Promise<{
+    name: string;
+    email: string;
+    phone: string;
+    companyName: string;
+    address?: string;
+    taxId?: string;
+  }> {
+    try {
+      // If opportunityId is already populated, DO NOT fetch anything.
+      if (typeof workOrder.opportunityId === 'object' && workOrder.opportunityId) {
+        const opp: any = workOrder.opportunityId;
         return {
-          name: opportunity.customer.name || 'Customer',
-          email: opportunity.customer.email || '',
-          phone: opportunity.customer.phone || '',
-          companyName: opportunity.customer.companyName || '',
-          address: opportunity.customer.companyAddress || '',
-          taxId: opportunity.customer.companyTaxId || ''
+          name: opp.customer?.name || opp.subject || 'Unknown Customer',
+          email: opp.customer?.email || '',
+          phone: opp.customer?.phone || '',
+          companyName: opp.customer?.companyName || '',
+          address: opp.customer?.companyAddress || '',
+          taxId: opp.customer?.companyTaxId || ''
         };
       }
+
+      // Otherwise use cached/deduped fetch
+      if (typeof workOrder.opportunityId === 'string' && workOrder.opportunityId.trim()) {
+        const opportunity = await this.getFullOpportunityDetails(workOrder.opportunityId);
+        return {
+          name: opportunity?.customer?.name || 'Customer',
+          email: opportunity?.customer?.email || '',
+          phone: opportunity?.customer?.phone || '',
+          companyName: opportunity?.customer?.companyName || '',
+          address: (opportunity as any)?.customer?.companyAddress || '',
+          taxId: (opportunity as any)?.customer?.companyTaxId || ''
+        };
+      }
+
+      return { name: 'Unknown Customer', email: '', phone: '', companyName: '' };
+    } catch (error) {
+      console.error('Error in getCustomerDetails:', error);
+      return { name: 'Error loading customer', email: '', phone: '', companyName: '' };
     }
-    
-    // Fallback
-    return {
-      name: 'Unknown Customer',
-      email: '',
-      phone: '',
-      companyName: ''
-    };
-  } catch (error) {
-    console.error('Error in getCustomerDetails:', error);
-    return {
-      name: 'Error loading customer',
-      email: '',
-      phone: '',
-      companyName: ''
-    };
   }
-}
+
 
 // Enhanced getAssignedToDetails method
-async getAssignedToDetails(workOrder: WorkOrder): Promise<{
-  name: string;
-  email: string;
-  id: string;
-  phone?: string;
-  role?: string;
-}> {
-  try {
-    // First, check if assignedTo is directly populated on work order
+  async getAssignedToDetails(workOrder: WorkOrder): Promise<{
+    name: string;
+    email: string;
+    id: string;
+    phone?: string;
+    role?: string;
+  }> {
+    try {
+      const displayName = (u: any) => {
+        const full = `${u?.firstName || ''} ${u?.lastName || ''}`.trim();
+        if (full) return full;
+        const email = (u?.email || '').trim();
+        if (email) return email.split('@')[0];
+        return 'Assigned';
+      };
 
-    const displayName = (u: any) => {
-      const full = `${u?.firstName || ''} ${u?.lastName || ''}`.trim();
-      if (full) return full;
-
-      const email = (u?.email || '').trim();
-      if (email) return email.split('@')[0]; // or return email to be explicit
-
-      return 'Assigned';
-    };
-    if (workOrder.assignedTo) {
-      if (typeof workOrder.assignedTo === 'object') {
+      // 1) Prefer workOrder.assignedTo if populated
+      if (workOrder.assignedTo && typeof workOrder.assignedTo === 'object') {
         return {
           name: displayName(workOrder.assignedTo),
           email: workOrder.assignedTo.email || '',
@@ -2181,51 +2193,42 @@ async getAssignedToDetails(workOrder: WorkOrder): Promise<{
           role: ''
         };
       }
-    }
-    
-    // If not assigned on work order, check opportunity's assignedTo
-    let opportunity: Opportunity | null = null;
-    
-    if (typeof workOrder.opportunityId === 'object' && workOrder.opportunityId) {
-      // Check if opportunity has assignedTo
-      const oppData = workOrder.opportunityId as any;
-      if (oppData.assignedTo) {
-        return {
-          name: displayName(oppData.assignedTo),
-          email: oppData.assignedTo.email || '',
-          id: oppData.assignedTo._id || '',
-          phone: oppData.assignedTo.phone || '',
-          role: oppData.assignedTo.role || ''
-        };
+
+      // 2) If opportunity is populated, use it without fetching
+      if (typeof workOrder.opportunityId === 'object' && workOrder.opportunityId) {
+        const opp: any = workOrder.opportunityId;
+        if (opp.assignedTo) {
+          return {
+            name: displayName(opp.assignedTo),
+            email: opp.assignedTo.email || '',
+            id: opp.assignedTo._id || '',
+            phone: opp.assignedTo.phone || '',
+            role: opp.assignedTo.role || ''
+          };
+        }
       }
-    } else if (typeof workOrder.opportunityId === 'string') {
-      // Fetch opportunity to check assignedTo
-      opportunity = await this.getFullOpportunityDetails(workOrder.opportunityId);
-      if (opportunity && opportunity.assignedTo) {
-        return {
-          name: displayName(opportunity.assignedTo),
-          email: opportunity.assignedTo.email || '',
-          id: opportunity.assignedTo._id || opportunity.assignedTo.id || '',
-          phone: opportunity.assignedTo.phone || '',
-          role: opportunity.assignedTo.role || ''
-        };
+
+      // 3) Otherwise fetch opportunity (cached/deduped)
+      if (typeof workOrder.opportunityId === 'string' && workOrder.opportunityId.trim()) {
+        const opportunity = await this.getFullOpportunityDetails(workOrder.opportunityId);
+        if (opportunity?.assignedTo) {
+          return {
+            name: displayName(opportunity.assignedTo),
+            email: opportunity.assignedTo.email || '',
+            id: (opportunity.assignedTo as any)._id || (opportunity.assignedTo as any).id || '',
+            phone: (opportunity.assignedTo as any).phone || '',
+            role: (opportunity.assignedTo as any).role || ''
+          };
+        }
       }
+
+      return { name: 'Unassigned', email: '', id: '' };
+    } catch (error) {
+      console.error('Error extracting assigned to details:', error);
+      return { name: 'Error loading assignee', email: '', id: '' };
     }
-    
-    return {
-      name: 'Unassigned',
-      email: '',
-      id: ''
-    };
-  } catch (error) {
-    console.error('Error extracting assigned to details:', error);
-    return {
-      name: 'Error loading assignee',
-      email: '',
-      id: ''
-    };
   }
-}
+
 
 // Method to sync opportunity data to work order
 async syncOpportunityDataToWorkOrder(workOrderId: string): Promise<WorkOrder> {

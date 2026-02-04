@@ -6,7 +6,8 @@ import {
   ClipboardCheck, Plus, Eye, Check, 
   Loader2, ArrowRight, CheckCircle,
   FileCheck,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { WorkOrder } from '@/services/workOrderService';
 import { preChecklistService } from '@/services/preChecklistService';
@@ -18,22 +19,40 @@ interface PreChecklistTabProps {
   workOrder: WorkOrder;
   isTransitioning: boolean;
   onAction: (action: () => Promise<void>) => Promise<void>;
+  refreshInterval?: number; // Optional refresh interval in milliseconds
 }
 
-export default function PreChecklistTab({ workOrder, isTransitioning, onAction }: PreChecklistTabProps) {
+export default function PreChecklistTab({ 
+  workOrder, 
+  isTransitioning, 
+  onAction,
+  refreshInterval = 5000 // Default 5 seconds refresh
+}: PreChecklistTabProps) {
   const router = useRouter();
   const { showToast } = useToast();
   const [localLoading, setLocalLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [preChecklistStatus, setPreChecklistStatus] = useState({
     hasPreChecklist: false,
     isApproved: false,
     needsApproval: false,
-    preChecklistId: ''
+    preChecklistId: '',
+    lastUpdated: new Date().toISOString()
   });
 
+  // Load pre-checklist status on component mount and when workOrder changes
   useEffect(() => {
     loadPreChecklistStatus();
-  }, [workOrder]);
+    
+    // Set up interval for auto-refresh
+    const intervalId = setInterval(() => {
+      if (!refreshing && preChecklistStatus.needsApproval) {
+        refreshStatus();
+      }
+    }, refreshInterval);
+    
+    return () => clearInterval(intervalId);
+  }, [workOrder._id, refreshing, refreshInterval]);
 
   const loadPreChecklistStatus = async () => {
     if (!workOrder._id) return;
@@ -44,10 +63,24 @@ export default function PreChecklistTab({ workOrder, isTransitioning, onAction }
         hasPreChecklist: status.hasPreChecklist,
         isApproved: status.isApproved,
         needsApproval: status.needsApproval,
-        preChecklistId: status.preChecklistId || ''
+        preChecklistId: status.preChecklistId || '',
+        lastUpdated: new Date().toISOString()
       });
     } catch (error) {
       console.error('Error loading pre-checklist status:', error);
+    }
+  };
+
+  const refreshStatus = async () => {
+    if (refreshing) return;
+    
+    setRefreshing(true);
+    try {
+      await loadPreChecklistStatus();
+    } catch (error) {
+      console.error('Error refreshing pre-checklist status:', error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -80,7 +113,7 @@ export default function PreChecklistTab({ workOrder, isTransitioning, onAction }
         
         if (result.success) {
           showToast(result.message, 'success');
-          // Reload status
+          // Force immediate refresh
           await loadPreChecklistStatus();
         } else {
           throw new Error(result.message);
@@ -95,7 +128,12 @@ export default function PreChecklistTab({ workOrder, isTransitioning, onAction }
 
   const handleCreateJobCard = () => {
     // Redirect to job card creation page
-    router.push(`/job-cards/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}`);
+    router.push(`/job-cards/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}&refresh=true`);
+  };
+
+  const handleRefresh = async () => {
+    await refreshStatus();
+    showToast('Status refreshed', 'success');
   };
 
   return (
@@ -106,18 +144,40 @@ export default function PreChecklistTab({ workOrder, isTransitioning, onAction }
           <p className="text-sm text-gray-600">Pre-service inspection document</p>
         </div>
         
-        {/* Dynamic button based on status */}
-        {!preChecklistStatus.hasPreChecklist && (
-          <button
-            onClick={handleCreatePreChecklist}
-            disabled={isTransitioning || localLoading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" />
-            Create Pre-Checklist
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Refresh button */}
+          {preChecklistStatus.hasPreChecklist && !preChecklistStatus.isApproved && (
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+              title="Refresh status"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+          )}
+          
+          {/* Dynamic button based on status */}
+          {!preChecklistStatus.hasPreChecklist && (
+            <button
+              onClick={handleCreatePreChecklist}
+              disabled={isTransitioning || localLoading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              Create Pre-Checklist
+            </button>
+          )}
+        </div>
       </div>
+      
+      {/* Auto-refresh indicator */}
+      {preChecklistStatus.needsApproval && !refreshing && (
+        <div className="mb-4 text-xs text-blue-600 flex items-center gap-1">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Auto-refreshing every {refreshInterval/1000} seconds...
+        </div>
+      )}
       
       {preChecklistStatus.hasPreChecklist ? (
         <div className="space-y-6">
@@ -142,6 +202,11 @@ export default function PreChecklistTab({ workOrder, isTransitioning, onAction }
                     ? 'Ready to proceed to Job Card creation' 
                     : 'Needs approval before proceeding'}
                 </p>
+                {!preChecklistStatus.isApproved && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    ✓ Auto-detects approval status in real-time
+                  </p>
+                )}
               </div>
               <div className="flex gap-2">
                 <button
@@ -193,10 +258,10 @@ export default function PreChecklistTab({ workOrder, isTransitioning, onAction }
               </p>
               <button
                 onClick={preChecklistStatus.isApproved ? handleCreateJobCard : handleApprovePreChecklist}
-                disabled={isTransitioning || localLoading}
+                disabled={isTransitioning || localLoading || refreshing}
                 className="w-full px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {(isTransitioning || localLoading) ? (
+                {(isTransitioning || localLoading || refreshing) ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
