@@ -358,47 +358,19 @@ class PreChecklistService {
   }
 
   // 5. Update a pre-checklist
-  async updatePreChecklist(id: string, data: UpdatePreChecklistDto): Promise<PreChecklist> {
-    try {
-      // Get current checklist first
-      const currentChecklist = await this.getPreChecklistById(id);
-      
-      // If checklist is approved and we're updating inspection items, handle specially
-      if (currentChecklist.approved && data.inspectionItems) {
-        // Create audit log entry (simplified version)
-        console.log(`Audit: Checklist ${id} updated after approval`, {
-          previousItems: currentChecklist.inspectionItems,
-          newItems: data.inspectionItems,
-          timestamp: new Date().toISOString()
-        });
-        
-        // Keep approval status but update items
-        // This allows updates without requiring re-approval
-        const updateData: UpdatePreChecklistDto = {
-          ...data,
-          approved: true, // Keep approved status
-          approvedBy: typeof currentChecklist.approvedBy === 'object' 
-            ? currentChecklist.approvedBy._id 
-            : currentChecklist.approvedBy,
-          // updatedAt will be set by backend
-        };
-        
-        return await extendedApiClient.put<UpdatePreChecklistDto, PreChecklist>(
-          `/prechecklists/${id}`, 
-          updateData
-        );
-      }
-      
-      // Normal update for non-approved checklists
-      return await extendedApiClient.put<UpdatePreChecklistDto, PreChecklist>(
-        `/prechecklists/${id}`, 
-        data
-      );
-    } catch (error) {
-      console.error(`Error updating pre-checklist ${id}:`, error);
-      throw error;
-    }
+async updatePreChecklist(id: string, data: UpdatePreChecklistDto): Promise<PreChecklist> {
+  try {
+    // REMOVE the auto-approval logic for approved checklists
+    // Just do a normal update
+    return await extendedApiClient.put<UpdatePreChecklistDto, PreChecklist>(
+      `/prechecklists/${id}`, 
+      data
+    );
+  } catch (error) {
+    console.error(`Error updating pre-checklist ${id}:`, error);
+    throw error;
   }
+}
 
   // 6. Delete a pre-checklist
   async deletePreChecklist(id: string): Promise<{ message: string }> {

@@ -96,10 +96,31 @@ class JobCardService {
    * Create a new job card
    * POST /api/v1/jobcards
    */
+  // In jobCardService.ts - Update the createJobCard method:
   async createJobCard(data: CreateJobCardData, userId?: string): Promise<JobCard> {
     try {
+      console.log('📤 Sending job card creation request:', data);
       const response = await apiClient.post<CreateJobCardData, any>('/jobcards', data);
-      return response;
+      console.log('📥 Job card creation response:', response);
+      
+      // The response has a success flag and data field
+      if (response.success && response.data) {
+        console.log('✅ Job card created successfully in data field');
+        console.log('📝 Data field contains:', response.data);
+        console.log('🔍 Data ID fields:', {
+          _id: response.data._id,
+          id: response.data.id
+        });
+        
+        return this.normalizeJobCard(response.data);
+      } else if (response._id || response.id) {
+        // Fallback: check if ID is at root level
+        console.log('✅ Job card created successfully at root level');
+        return this.normalizeJobCard(response);
+      } else {
+        console.error('❌ Job card creation response missing ID:', response);
+        throw new Error('Job card creation failed: No ID returned');
+      }
     } catch (error) {
       console.error('Error creating job card:', error);
       throw error;
@@ -114,44 +135,58 @@ class JobCardService {
  * Get all job cards
  * GET /api/v1/jobcards
  */
+// In jobCardService.ts - Update the getAllJobCards method:
 async getAllJobCards(params?: JobCardFilterParams): Promise<JobCard[]> {
   try {
-    // Simplify the endpoint - use base endpoint without query params
-    const endpoint = '/jobcards';
+    // Build query params properly
+    const queryParams = new URLSearchParams();
+    
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          queryParams.append(key, value.toString());
+        }
+      });
+    }
+    
+    const queryString = queryParams.toString();
+    const endpoint = `/jobcards${queryString ? `?${queryString}` : ''}`;
     
     console.log('🔍 Fetching job cards from:', endpoint);
     
-    // Fetch without query params first
+    // Fetch with query params
     const response = await apiClient.get<any[]>(endpoint);
+    console.log('📥 Get all job cards response:', response);
     
-    console.log('📦 Raw API response:', response);
-    console.log('📊 Response type:', typeof response);
-    console.log('📊 Is array?', Array.isArray(response));
+    // Handle different response structures
+    let jobCardsData: any[] = [];
     
     if (Array.isArray(response)) {
-      // Apply filtering on the client side if needed
-      let filteredData = response;
-      
-      // Apply client-side filtering if params are provided
-      if (params) {
-        filteredData = this.filterJobCards(response, params);
-      }
-      
-      const normalized = filteredData.map(jobCard => {
-        const normalizedCard = this.normalizeJobCard(jobCard);
-        console.log(`📝 Normalized card ${jobCard._id}:`, normalizedCard);
-        return normalizedCard;
-      });
-      return normalized;
+      jobCardsData = response;
+    } else if (response.success && Array.isArray(response.data)) {
+      jobCardsData = response.data;
+    } else if (response.data && Array.isArray(response.data)) {
+      jobCardsData = response.data;
     } else {
-      console.error('❌ API response is not an array:', response);
+      console.error('❌ Unexpected response format:', response);
       return [];
     }
+    
+    console.log(`📊 Processing ${jobCardsData.length} job cards`);
+    
+    const normalized = jobCardsData.map(jobCard => {
+      const normalizedCard = this.normalizeJobCard(jobCard);
+      console.log(`📝 Normalized card ${jobCard._id}:`, normalizedCard);
+      return normalizedCard;
+    });
+    return normalized;
   } catch (error) {
     console.error('Error fetching job cards:', error);
     throw error;
   }
 }
+
+// Remove the private filterJobCards method since we're doing server-side filtering now
 
 /**
  * Filter job cards on client side
@@ -209,7 +244,15 @@ private filterJobCards(jobCards: any[], params: JobCardFilterParams): any[] {
   async getJobCardById(id: string): Promise<JobCard> {
     try {
       const response = await apiClient.get<any>(`/jobcards/${id}`);
-      return this.normalizeJobCard(response);
+      console.log('📥 Get job card by ID response:', response);
+      
+      // Handle nested structure
+      let jobCardData = response;
+      if (response.success && response.data) {
+        jobCardData = response.data;
+      }
+      
+      return this.normalizeJobCard(jobCardData);
     } catch (error) {
       console.error(`Error fetching job card ${id}:`, error);
       throw error;
@@ -263,20 +306,34 @@ private filterJobCards(jobCards: any[], params: JobCardFilterParams): any[] {
   private normalizeJobCard(data: any): JobCard {
     
     // Extract ID
-    const id = data._id || data.id;
+     let jobCardData = data;
+    if (data.data && (data.data._id || data.data.id)) {
+      console.log('📦 Found nested data structure, using data field');
+      jobCardData = data.data;
+    }
+    
+    // Extract ID
+    const id = jobCardData._id || jobCardData.id;
+    
+    if (!id) {
+      console.error('❌ Cannot find ID in job card data:', jobCardData);
+      throw new Error('Job card data missing ID');
+    }
+    
+    console.log(`📝 Extracted ID: ${id}`);
     
     // Extract createdBy (handle both string and populated object)
     let createdBy: UserRef | string;
-    if (typeof data.createdBy === 'string') {
-      createdBy = data.createdBy;
-    } else if (data.createdBy?._id) {
+    if (typeof jobCardData.createdBy === 'string') {
+      createdBy = jobCardData.createdBy;
+    } else if (jobCardData.createdBy?._id) {
       createdBy = {
-        _id: data.createdBy._id,
-        id: data.createdBy._id,
-        email: data.createdBy.email || '',
-        role: data.createdBy.role || '',
-        name: data.createdBy.name || (data.createdBy.firstName && data.createdBy.lastName 
-          ? `${data.createdBy.firstName} ${data.createdBy.lastName}` 
+        _id: jobCardData.createdBy._id,
+        id: jobCardData.createdBy._id,
+        email: jobCardData.createdBy.email || '',
+        role: jobCardData.createdBy.role || '',
+        name: jobCardData.createdBy.name || (jobCardData.createdBy.firstName && jobCardData.createdBy.lastName 
+          ? `${jobCardData.createdBy.firstName} ${jobCardData.createdBy.lastName}` 
           : '')
       };
     } else {

@@ -432,6 +432,95 @@ class InvoiceService {
     }
   }
 
+  async createInvoiceFromWorkOrder(workOrderId: string): Promise<{
+    workOrder: any;
+    invoice: Invoice;
+  }> {
+    try {
+      const response = await apiClient.post<any, any>(
+        `/invoices/from-workorder/${workOrderId}`,
+        {}
+      );
+      return {
+        workOrder: response.workOrder,
+        invoice: this.normalizeInvoice(response.invoice)
+      };
+    } catch (error) {
+      console.error(`Error creating invoice from work order ${workOrderId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get invoices by work order
+   * GET /api/v1/invoices/workorder/{workOrderId}
+   */
+  async getInvoicesByWorkOrder(workOrderId: string): Promise<Invoice[]> {
+    try {
+      const response = await apiClient.get<any[]>(`/invoices/workorder/${workOrderId}`);
+      return response.map(invoice => this.normalizeInvoice(invoice));
+    } catch (error) {
+      console.error(`Error fetching invoices for work order ${workOrderId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send invoice email to customer
+   * This triggers the email sending via the backend
+   */
+  async sendInvoiceEmail(invoiceId: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // The backend should handle email sending when invoice is created/updated
+      // But we can also trigger it manually if needed
+      const response = await apiClient.post<any, any>(
+        `/invoices/${invoiceId}/trigger-receipt`,
+        {}
+      );
+      return {
+        success: true,
+        message: 'Invoice email sent successfully'
+      };
+    } catch (error) {
+      console.error(`Error sending invoice email for ${invoiceId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Test email sending
+   * POST /api/v1/invoices/test-email/{email}
+   */
+  async testInvoiceEmail(email: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await apiClient.post<any, any>(
+        `/invoices/test-email/${email}`,
+        {}
+      );
+      return {
+        success: true,
+        message: 'Test email sent successfully'
+      };
+    } catch (error) {
+      console.error('Error sending test email:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Debug email for invoice
+   * GET /api/v1/invoices/{id}/debug-email
+   */
+  async debugInvoiceEmail(invoiceId: string): Promise<any> {
+    try {
+      const response = await apiClient.get<any>(`/invoices/${invoiceId}/debug-email`);
+      return response;
+    } catch (error) {
+      console.error(`Error debugging email for invoice ${invoiceId}:`, error);
+      throw error;
+    }
+  }
+
   /**
    * Get invoices by payment status
    */

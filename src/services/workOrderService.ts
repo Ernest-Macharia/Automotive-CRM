@@ -3,7 +3,7 @@ import { apiClient } from '@/lib/api/client';
 import { lifecycleIntegrationService } from './lifecycleIntegrationService';
 import { invoiceService } from './invoiceService';
 import { postChecklistService } from './postChecklistService';
-import { jobCardService } from './jobCardService';
+import { JobCard, jobCardService } from './jobCardService';
 import { preChecklistService } from './preChecklistService';
 import { Opportunity, opportunityService } from './opportunityService';
 
@@ -208,7 +208,11 @@ export interface UpdateWorkOrderData {
   partsCost?: number;
   totalCost?: number;
   notes?: string;
-  jobCards?: string[];
+  jobCards?: string[] | Array<{
+    _id: string;
+    jobTitle?: string;
+    status?: string;
+  }>;
   delayInfo?: Partial<DelayInfo>;
   
   // Add missing properties for stage approvals
@@ -491,7 +495,14 @@ class WorkOrderService {
   // GET /api/v1/workorder/{id}
   async getWorkOrderById(id: string): Promise<WorkOrder> {
     try {
-      return await apiClient.get<WorkOrder>(`${this.basePath}/${id}`);
+      const response = await apiClient.get<WorkOrder>(`${this.basePath}/${id}`);
+      console.log('📥 Get work order by ID response:', response);
+      
+      // Handle nested structure
+      if (response.success && response) {
+        return response;
+      }
+      return response;
     } catch (error) {
       console.error(`Error fetching work order ${id}:`, error);
       throw error;
@@ -575,6 +586,7 @@ class WorkOrderService {
   }
 
   // POST /api/v1/workorder/{id}/generate-invoice
+
   async generateInvoice(id: string): Promise<{
     workOrder: WorkOrder;
     invoice: {
@@ -585,10 +597,20 @@ class WorkOrderService {
     };
   }> {
     try {
-      return await apiClient.post<any, any>(
-        `${this.basePath}/${id}/generate-invoice`,
-        {}
-      );
+      // Use the invoice service to create invoice from work order
+      const result = await invoiceService.createInvoiceFromWorkOrder(id);
+      
+      // Try to send email
+      try {
+        await invoiceService.sendInvoiceEmail(result.invoice.id);
+      } catch (emailError) {
+        console.warn('Invoice created but email sending failed:', emailError);
+      }
+      
+      return {
+        workOrder: result.workOrder,
+        invoice: result.invoice
+      };
     } catch (error) {
       console.error(`Error generating invoice for work order ${id}:`, error);
       throw error;
@@ -621,10 +643,21 @@ class WorkOrderService {
   // POST /api/v1/workorder/{id}/jobcards/{jobCardId}
   async addJobCardToWorkOrder(workOrderId: string, jobCardId: string): Promise<WorkOrder> {
     try {
-      return await apiClient.post<any, WorkOrder>(
+      console.log(`🔗 Adding job card ${jobCardId} to work order ${workOrderId}`);
+      
+      // Use the proper API endpoint
+      const response = await apiClient.post<any, any>(
         `${this.basePath}/${workOrderId}/jobcards/${jobCardId}`,
         {}
       );
+      
+      console.log('📥 Add job card to work order response:', response);
+      
+      // Handle nested structure
+      if (response.success && response.data) {
+        return response.data;
+      }
+      return response;
     } catch (error) {
       console.error(`Error adding job card to work order ${workOrderId}:`, error);
       throw error;
@@ -811,21 +844,6 @@ class WorkOrderService {
     }
   }
 
-  async getEnhancedWorkflowUI(workOrderId: string) {
-    try {
-      const workOrder = await this.getWorkOrderById(workOrderId);
-      const opportunityId = typeof workOrder.opportunityId === 'object' 
-        ? workOrder.opportunityId._id 
-        : workOrder.opportunityId;
-      
-      // Use lifecycle integration service
-      return await lifecycleIntegrationService.getEnhancedWorkflowUI(opportunityId);
-    } catch (error) {
-      console.error('Error getting enhanced workflow UI:', error);
-      throw error;
-    }
-  }
-
   async getNextStageAction(workOrderId: string) {
     try {
       const workflow = await this.getWorkflowProgress(workOrderId);
@@ -948,6 +966,93 @@ async getStageValidation(workOrderId: string, stage: string) {
   } catch (error) {
     console.error('Error getting stage validation:', error);
     throw error;
+  }
+}
+
+async getPreChecklistApprovalStatus(workOrderId: string): Promise<{
+  hasPreChecklist: boolean;
+  isApproved: boolean;
+  needsApproval: boolean;
+  preChecklistId?: string;
+}> {
+  try {
+    const workOrder = await this.getWorkOrderById(workOrderId);
+    
+    if (!workOrder.preChecklistId) {
+      return {
+        hasPreChecklist: false,
+        isApproved: false,
+        needsApproval: false
+      };
+    }
+    
+    // Get pre-checklist details
+    const preChecklist = await preChecklistService.getPreChecklistById(workOrder.preChecklistId);
+    
+    return {
+      hasPreChecklist: true,
+      isApproved: preChecklist.approved || false,
+      needsApproval: !preChecklist.approved,
+      preChecklistId: workOrder.preChecklistId
+    };
+  } catch (error) {
+    console.error('Error getting pre-checklist approval status:', error);
+    return {
+      hasPreChecklist: false,
+      isApproved: false,
+      needsApproval: false
+    };
+  }
+}
+
+// Add method to approve pre-checklist manually
+async approvePreChecklistManually(workOrderId: string, approvedBy?: string): Promise<{
+  success: boolean;
+  message: string;
+  nextAction?: string;
+}> {
+  try {
+    const workOrder = await this.getWorkOrderById(workOrderId);
+    
+    if (!workOrder.preChecklistId) {
+      return {
+        success: false,
+        message: 'No pre-checklist found to approve'
+      };
+    }
+    
+    // Approve the pre-checklist
+    await preChecklistService.approvePreChecklist(
+      workOrder.preChecklistId,
+      approvedBy
+    );
+    
+    // Update work order stage approvals
+    await this.updateWorkOrder(workOrderId, {
+      stageApprovals: {
+        ...workOrder.stageApprovals,
+        pre_checklist: {
+          ...workOrder.stageApprovals?.pre_checklist,
+          approved: true,
+          approvedAt: new Date().toISOString(),
+          approvedBy: approvedBy || 'manual'
+        }
+      },
+      preChecklistCompletionDate: new Date().toISOString()
+    });
+    
+    return {
+      success: true,
+      message: 'Pre-checklist approved successfully',
+      nextAction: 'create_job_card'
+    };
+    
+  } catch (error) {
+    console.error('Error approving pre-checklist:', error);
+    return {
+      success: false,
+      message: 'Failed to approve pre-checklist'
+    };
   }
 }
 
@@ -1449,6 +1554,206 @@ getStageStatusConfig(stage: any) {
     };
     
     return stages[stage as keyof typeof stages] || null;
+  }
+
+
+  /**
+   * Add a job card to work order
+   */
+  async addJobCard(workOrderId: string, jobCardId: string): Promise<WorkOrder> {
+    try {
+      const workOrder = await this.getWorkOrderById(workOrderId);
+      
+      const existingJobCards = workOrder.jobCards || [];
+      const newJobCards = Array.isArray(existingJobCards) 
+        ? [...existingJobCards, jobCardId]
+        : [jobCardId];
+      
+      return await this.updateWorkOrder(workOrderId, {
+        jobCards: newJobCards,
+        currentStage: 'job_card',
+        status: 'in_progress',
+        updatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error(`Error adding job card to work order ${workOrderId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all job cards for a work order (populated)
+   */
+  // In workOrderService.ts - Fix the getWorkOrderJobCards method:
+/**
+ * Get all job cards for a work order (populated)
+ */
+// In workOrderService.ts - Update the getWorkOrderJobCards method:
+async getWorkOrderJobCards(workOrderId: string): Promise<JobCard[]> {
+  try {
+    console.log(`🔍 Getting job cards for work order: ${workOrderId}`);
+    await this.cleanupWorkOrderJobCards(workOrderId);
+    const workOrder = await this.getWorkOrderById(workOrderId);
+    
+    console.log(`📦 Work order jobCards field:`, workOrder.jobCards);
+    
+    // Check if jobCards is an array and filter out null values
+    if (!workOrder.jobCards || !Array.isArray(workOrder.jobCards)) {
+      console.log(`📭 No job cards array found for work order ${workOrderId}`);
+      return [];
+    }
+    
+    // Filter out null values
+    const validJobCardRefs = workOrder.jobCards.filter(ref => ref !== null && ref !== undefined);
+    
+    if (validJobCardRefs.length === 0) {
+      console.log(`📭 No valid job card references found for work order ${workOrderId}`);
+      return [];
+    }
+    
+    console.log(`🔢 Found ${validJobCardRefs.length} valid job card references out of ${workOrder.jobCards.length} total`);
+    
+    // Fetch job cards using jobCardService
+    const jobCardPromises = validJobCardRefs.map(async (jobCardRef, index) => {
+      try {
+        console.log(`   Processing reference [${index}]:`, jobCardRef);
+        
+        // Extract job card ID safely
+        let jobCardId: string;
+        
+        if (typeof jobCardRef === 'string') {
+          jobCardId = jobCardRef.trim();
+          console.log(`   📝 String ID: ${jobCardId}`);
+        } else if (jobCardRef && typeof jobCardRef === 'object') {
+          // Check for _id or id property
+          if (jobCardRef._id) {
+            jobCardId = jobCardRef._id;
+            console.log(`   📝 Object _id: ${jobCardId}`);
+          } else if (jobCardRef.id) {
+            jobCardId = jobCardRef.id;
+            console.log(`   📝 Object id: ${jobCardId}`);
+          } else {
+            console.warn('   ⚠️ Invalid job card object reference:', jobCardRef);
+            return null;
+          }
+        } else {
+          console.warn(`   ⚠️ Invalid job card reference type [${index}]:`, typeof jobCardRef, jobCardRef);
+          return null;
+        }
+        
+        // Validate job card ID
+        if (!jobCardId || typeof jobCardId !== 'string' || jobCardId.trim().length === 0) {
+          console.warn(`   ⚠️ Empty job card ID at index ${index}:`, jobCardId);
+          return null;
+        }
+        
+        console.log(`   🔍 Fetching job card with ID: ${jobCardId}`);
+        
+        // Try to fetch the job card
+        const jobCard = await jobCardService.getJobCardById(jobCardId);
+        console.log(`   ✅ Successfully loaded job card:`, jobCard._id, jobCard.jobTitle);
+        return jobCard;
+      } catch (error) {
+        console.error(`   ❌ Error loading job card at index ${index}:`, error);
+        return null;
+      }
+    });
+    
+    const results = await Promise.all(jobCardPromises);
+    // Filter out null values and ensure we have JobCard objects
+    const validJobCards = results.filter((jobCard): jobCard is JobCard => 
+      jobCard !== null && jobCard !== undefined && 'id' in jobCard
+    );
+    
+    console.log(`📊 Loaded ${validJobCards.length} valid job cards`);
+    return validJobCards;
+  } catch (error) {
+    console.error(`❌ Error fetching job cards for work order ${workOrderId}:`, error);
+    throw error;
+  }
+}
+
+// In workOrderService.ts - Add a method to clean up null job card references:
+async cleanupWorkOrderJobCards(workOrderId: string): Promise<WorkOrder> {
+  try {
+    const workOrder = await this.getWorkOrderById(workOrderId);
+    
+    if (!workOrder.jobCards || !Array.isArray(workOrder.jobCards)) {
+      return workOrder;
+    }
+    
+    // Filter out null values
+    const cleanedJobCards = workOrder.jobCards.filter(ref => 
+      ref !== null && ref !== undefined
+    );
+    
+    // If there are null values, update the work order
+    if (cleanedJobCards.length !== workOrder.jobCards.length) {
+      console.log(`🧹 Cleaning up null job card references for work order ${workOrderId}`);
+      console.log(`📊 Before: ${workOrder.jobCards.length} items, After: ${cleanedJobCards.length} items`);
+      
+      return await this.updateWorkOrder(workOrderId, {
+        jobCards: cleanedJobCards,
+        updatedAt: new Date().toISOString()
+      });
+    }
+    
+    return workOrder;
+  } catch (error) {
+    console.error(`Error cleaning up work order job cards ${workOrderId}:`, error);
+    throw error;
+  }
+}
+
+  /**
+   * Check if job card exists for work order
+   */
+  async hasJobCard(workOrderId: string): Promise<boolean> {
+    try {
+      const workOrder = await this.getWorkOrderById(workOrderId);
+      return !!(workOrder.jobCards && workOrder.jobCards.length > 0);
+    } catch (error) {
+      console.error(`Error checking job cards for work order ${workOrderId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Update work order when job card is completed
+   */
+  async onJobCardCompleted(workOrderId: string, jobCardId: string): Promise<WorkOrder> {
+    try {
+      const workOrder = await this.getWorkOrderById(workOrderId);
+      const jobCards = await this.getWorkOrderJobCards(workOrderId);
+      
+      // Check if all job cards are completed
+      const allCompleted = jobCards.every(jc => 
+        jc.status === 'completed' || jc._id === jobCardId 
+      );
+      
+      const updateData: UpdateWorkOrderData = {
+        updatedAt: new Date().toISOString()
+      };
+      
+      // If all job cards are completed, move to next stage
+      if (allCompleted && workOrder.currentStage === 'job_card') {
+        updateData.currentStage = 'post_checklist';
+        updateData.jobCardCompletionDate = new Date().toISOString();
+        updateData.stageApprovals = {
+          ...workOrder.stageApprovals,
+          job_card: {
+            ...workOrder.stageApprovals?.job_card,
+            approved: true,
+            approvedAt: new Date().toISOString()
+          }
+        };
+      }
+      
+      return await this.updateWorkOrder(workOrderId, updateData);
+    } catch (error) {
+      console.error(`Error updating work order on job card completion ${workOrderId}:`, error);
+      throw error;
+    }
   }
 
   getStageCompletionStatus(workOrder: WorkOrder, stage: string) {

@@ -706,16 +706,13 @@ export default function DiamondRimsPostChecklistCreatePage({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     try {
       setSubmitting(true);
 
       // Validate required fields
       if (
-        !formData.customerDetails.firstName ||
-        !formData.customerDetails.lastName ||
-        !formData.customerDetails.mobile ||
-        !formData.customerDetails.email
+        !formData.customerDetails.firstName
       ) {
         showToast('Please fill in all required customer details', 'error');
         setSubmitting(false);
@@ -758,19 +755,6 @@ export default function DiamondRimsPostChecklistCreatePage({
         return;
       }
 
-      // Ensure signatures exist for auto-approval
-      if (!formData.clientSignature) {
-        // For auto-approval, we can set a default or use the inspector's signature
-        handleInputChange('clientSignature', formData.inspectorSignature || 'auto-approved-by-system');
-      }
-
-      if (!formData.inspectorSignature) {
-        const currentUserName = sessionStorage.getItem('userName') || 'System';
-        const dataUrl = `data:image/svg+xml;base64,${btoa(`<svg><text>${currentUserName}</text></svg>`)}`;
-        setInspectorSignature(dataUrl);
-        handleInputChange('inspectorSignature', dataUrl);
-      }
-
       // Normalize IDs to strings before submit
       const normalizedSubmissionData = {
         ...formData,
@@ -779,82 +763,43 @@ export default function DiamondRimsPostChecklistCreatePage({
         vehicleId: toId(formData.vehicleId),
         workOrderId: toId((formData as any).workOrderId) || workOrderId || '',
         jobCardId: toId((formData as any).jobCardId) || undefined,
-        approved: true, // Auto-approve for post-checklist
+        approved: false, // SET TO FALSE - NO AUTO-APPROVAL
         completed: true,
         completionDate: new Date().toISOString(),
-        approvedAt: new Date().toISOString(),
-        approvedBy: sessionStorage.getItem('userId') || 'system'
+        clientSignature: formData.clientSignature || '',
+        inspectorSignature: formData.inspectorSignature || ''
       };
 
-      const userId = sessionStorage.getItem('userId') || undefined;
-
-      // Create or update post-checklist
+      // Create post-checklist
       let result: any;
+      const userId = sessionStorage.getItem('userId') || undefined;
+      
       if (mode === 'edit' && checklistId) {
-        const updateDto: any = {
-          inspectionItems: (formData as any).inspectionItems,
-          notes: (formData as any).notes,
-          overallCondition: (formData as any).overallCondition,
-          recommendations: (formData as any).recommendations,
-          customerName: (formData as any).customerName,
-          dateTime: (formData as any).dateTime,
-          warrantyDuration: (formData as any).warrantyDuration,
-          beforePhotos: (formData as any).beforePhotos,
-          afterPhotos: (formData as any).afterPhotos,
-          rating: (formData as any).rating,
-          comments: (formData as any).comments,
-          acceptTerms: formData.acceptTerms,
-          customerSignature: (formData as any).customerSignature || formData.clientSignature,
-          warrantyStartDate: (formData as any).warrantyStartDate,
-          warrantyEndDate: (formData as any).warrantyEndDate,
-          warrantyNotes: (formData as any).warrantyNotes,
-          productServiceNeeded: (formData as any).productServiceNeeded,
-          acceptDiagnosticCharges: (formData as any).acceptDiagnosticCharges,
-          additionalComments: (formData as any).additionalComments,
-          diagnosticChargesAccepted: (formData as any).diagnosticChargesAccepted,
-          serviceRating: (formData as any).serviceRating,
-          serviceComments: (formData as any).serviceComments,
-          approved: true, // Auto-approve on edit too
-          approvedBy: userId
-        };
-
-        result = await postChecklistService.updatePostChecklist(checklistId, updateDto, userId);
-        showToast('Diamond Rims post-checklist updated and approved successfully', 'success');
+        result = await postChecklistService.updatePostChecklist(checklistId, normalizedSubmissionData as any, userId);
+        showToast('Diamond Rims post-checklist updated successfully', 'success');
       } else {
         result = await postChecklistService.createPostChecklist(normalizedSubmissionData as any, userId);
-        showToast('Diamond Rims post-checklist created and approved successfully', 'success');
-
-        // Update work order with post-checklist ID
-        if (workOrderId && result._id) {
-          await workOrderService.updateWorkOrder(workOrderId, {
-            postChecklistId: result._id,
-            updatedAt: new Date().toISOString(),
-            status: 'completed' // Mark work order as completed
-          });
-        }
-      }
-      // Auto-approve the post-checklist (do NOT transition / generate invoice here)
-      try {
-        await lifecycleIntegrationService.handlePostChecklistCompletion(result._id, userId);
-      } catch (transitionError) {
-        console.warn('Post-checklist approval workflow warning:', transitionError);
-        // Continue anyway - user can proceed from Work Order detail page
+        showToast('Diamond Rims post-checklist created successfully', 'success');
       }
 
-      // Redirect back to work order detail so user can click "Generate Invoice"
-      if (workOrderId) {
-        router.push(`/orders/work-orders/${workOrderId}`);
-        return;
+      // Update work order with post-checklist ID
+      if (workOrderId && result._id) {
+        await workOrderService.updateWorkOrder(workOrderId, {
+          postChecklistId: result._id,
+          postChecklistStatus: 'pending', // Set status to pending, not approved
+          updatedAt: new Date().toISOString()
+        });
       }
-// Fallback redirection logic
+
+      // DO NOT auto-approve. The checklist will remain pending.
+      showToast('Post-checklist created. Please return to work order to approve it.', 'success');
+
+      // Redirect back to work order details
       if (workOrderId) {
-        // Redirect back to work order details
         router.push(`/orders/work-orders/${workOrderId}`);
       } else if (source === 'opportunity' && formData.opportunityId) {
-        // If coming from opportunity, go to opportunity page
         router.push(`/opportunities/${formData.opportunityId}`);
       } else if (result._id) {
-        // Fallback: Go to post-checklist details
         router.push(`/post-checklist/${result._id}`);
       } else {
         router.push('/postchecklists');
@@ -2378,7 +2323,7 @@ export default function DiamondRimsPostChecklistCreatePage({
                     </div>
                     
                     {/* Download Section */}
-                    <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    {/* <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                       <div className="p-2 bg-white rounded-lg">
                         <Download className="h-5 w-5 text-blue-600" />
                       </div>
@@ -2395,7 +2340,7 @@ export default function DiamondRimsPostChecklistCreatePage({
                         <Download className="h-4 w-4" />
                         Download PDF
                       </a>
-                    </div>
+                    </div> */}
                   </div>
                   
                   {/* Terms Acceptance */}
@@ -2716,7 +2661,7 @@ export default function DiamondRimsPostChecklistCreatePage({
                     ) : (
                       <>
                         <CheckCircle className="h-4 w-4" />
-                        {mode === 'edit' ? 'Update & Approve' : 'Complete, Approve & Return'}
+                        {mode === 'edit' ? 'Update Postchecklist' : 'Complete Postchecklist'}
                       </>
                     )}
                   </button>

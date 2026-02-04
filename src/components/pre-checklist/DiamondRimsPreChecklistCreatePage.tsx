@@ -721,8 +721,6 @@ const toISODate = (d: any): string => {
     }
   };
 
-  
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -776,9 +774,9 @@ const toISODate = (d: any): string => {
         opportunityId: toId(formData.opportunityId),
         vehicleId: toId(formData.vehicleId),
         workOrderId: toId((formData as any).workOrderId) || workOrderId || '',
-        approved: true, // Set to true for auto-approval
-        clientSignature: formData.clientSignature || 'auto-approved', // Ensure signature exists
-        inspectorSignature: formData.inspectorSignature || 'auto-approved'
+        approved: false, // SET TO FALSE - NO AUTO-APPROVAL
+        clientSignature: formData.clientSignature || '',
+        inspectorSignature: formData.inspectorSignature || ''
       };
 
       // Create pre-checklist
@@ -796,32 +794,20 @@ const toISODate = (d: any): string => {
       // Update work order with pre-checklist ID
       if (workOrderId && result._id) {
         await workOrderService.updateWorkOrder(workOrderId, {
-          preChecklistId: result._id
+          preChecklistId: result._id,
+          preChecklistStatus: 'pending' // Set status to pending, not approved
         });
       }
 
-      // Auto-approve pre-checklist ONLY (do NOT auto-transition).
-      // Stage transition must happen when the user clicks "Move to Job Card" on WorkOrderDetail.
-      try {
-        const approveResult = await lifecycleIntegrationService.handlePreChecklistCompletion(
-          result._id,
-          userId
-        );
-        showToast(approveResult.message, 'success');
-      } catch (approveError) {
-        console.warn('Auto-approval warning:', approveError);
-        // Don't block user flow; we'll still redirect back to the work order.
-      }
+      // DO NOT auto-approve. The checklist will remain pending.
+      showToast('Pre-checklist created. Please return to work order to approve it.', 'success');
 
-      // Fallback redirection logic
+      // Redirect back to work order details
       if (workOrderId) {
-        // Redirect back to work order details
         router.push(`/orders/work-orders/${workOrderId}`);
       } else if (source === 'opportunity' && formData.opportunityId) {
-        // If coming from opportunity, go to opportunity page
         router.push(`/opportunities/${formData.opportunityId}`);
       } else if (result._id) {
-        // Fallback: Go to pre-checklist details
         router.push(`/pre-checklist/${result._id}`);
       } else {
         router.push('/prechecklists');
@@ -2369,7 +2355,7 @@ const toISODate = (d: any): string => {
                     </div>
                     
                     {/* Download Section */}
-                    <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    {/* <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                       <div className="p-2 bg-white rounded-lg">
                         <Download className="h-5 w-5 text-blue-600" />
                       </div>
@@ -2386,7 +2372,7 @@ const toISODate = (d: any): string => {
                         <Download className="h-4 w-4" />
                         Download PDF
                       </a>
-                    </div>
+                    </div> */}
                   </div>
                   
                   {/* Terms Acceptance */}

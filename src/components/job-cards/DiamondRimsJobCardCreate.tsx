@@ -913,80 +913,109 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
 
   const totals = calculateTotals();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // In DiamondRimsJobCardCreate.tsx - Update the handleSubmit function:
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  if (!validateForm()) return;
+  
+  try {
+    setSubmitting(true);
     
-    if (!validateForm()) return;
+    // Prepare job card data
+    const createData: CreateJobCardData = {
+      opportunityId: formData.opportunityId,
+      workOrderId: workOrderId,
+      jobTitle: formData.jobTitle,
+      jobDescription: formData.jobDescription,
+      assignedTo: formData.assignedTo || undefined,
+      priority: formData.priority || 'medium',
+      estimatedHours: formData.estimatedHours || 0,
+      status: 'pending',
+      ...(vehicleDetails?._id && { vehicleId: vehicleDetails._id })
+    };
     
-    try {
-      setSubmitting(true);
-      
-      // Prepare job card data
-      const createData: CreateJobCardData = {
-        opportunityId: formData.opportunityId,
-        workOrderId: formData.workOrderId,
-        jobTitle: formData.jobTitle,
-        jobDescription: formData.jobDescription,
-        assignedTo: formData.assignedTo || undefined,
-        priority: formData.priority || 'medium',
-        estimatedHours: formData.estimatedHours || 0,
-        status: formData.status || 'pending',
-        // Include Diamond Rims specific data
-        metadata: {
-          rimBrand: formData.rimBrand,
-          rimSize: formData.rimSize,
-          rimMaterial: formData.rimMaterial,
-          servicesRequired: formData.servicesRequired,
-          powderCoatingRAL: formData.powderCoatingRAL,
-          quotedAmount: formData.quotedAmount,
-          warrantyPeriod: formData.warrantyPeriod,
-          processStage: formData.processStage
-        }
-      };
-      
-      console.log('Creating Diamond Rims job card with data:', createData);
-      
-      // Create job card
-      const newJobCard = await jobCardService.createJobCard(createData);
-      showToast('Diamond Rims Job Card created successfully!', 'success');
-      
-      // Update work order with job card ID
-      if (workOrderId) {
+    console.log('🔧 Creating Diamond Rims job card with data:', createData);
+    
+    // Create job card
+    const newJobCard = await jobCardService.createJobCard(createData);
+console.log('✅ Job card created response:', newJobCard);
+console.log('📊 Response keys:', Object.keys(newJobCard));
+console.log('🔍 Checking for ID:', {
+  hasId: 'id' in newJobCard,
+  has_id: '_id' in newJobCard,
+  id: newJobCard.id,
+  _id: newJobCard._id
+});
+    console.log('✅ Job card created successfully:', newJobCard);
+    console.log('📝 New job card ID:', newJobCard._id || newJobCard.id);
+    
+    showToast('Diamond Rims Job Card created successfully!', 'success');
+    
+    // CRITICAL: Use the proper API endpoint to add job card to work order
+    if (workOrderId && (newJobCard._id || newJobCard.id)) {
+      try {
+        console.log('🔗 Linking job card to work order using API endpoint...');
+        const jobCardId = newJobCard._id || newJobCard.id;
+        
+        // Use the proper API endpoint to add job card to work order
+        await workOrderService.addJobCardToWorkOrder(workOrderId, jobCardId);
+        
+        // Also update the work order stage if needed
+        await workOrderService.updateWorkOrder(workOrderId, {
+          currentStage: 'job_card',
+          status: 'in_progress',
+          updatedAt: new Date().toISOString()
+        });
+        
+        console.log('✅ Successfully linked job card to work order');
+        showToast('Job card linked to work order successfully!', 'success');
+        
+      } catch (updateError) {
+        console.error('❌ Error linking job card to work order:', updateError);
+        
+        // Fallback: Try to update the work order directly
         try {
+          console.log('🔄 Trying fallback method...');
+          const currentWorkOrder = await workOrderService.getWorkOrderById(workOrderId);
+          const existingJobCards = Array.isArray(currentWorkOrder.jobCards) 
+            ? currentWorkOrder.jobCards.filter(Boolean) // Filter out nulls
+            : [];
+          
+          const jobCardId = newJobCard._id || newJobCard.id;
+          const newJobCards = [...existingJobCards, jobCardId];
+          
           await workOrderService.updateWorkOrder(workOrderId, {
-            updatedAt: new Date().toISOString(),
+            jobCards: newJobCards,
+            currentStage: 'job_card',
+            status: 'in_progress',
+            updatedAt: new Date().toISOString()
           });
-        } catch (updateError) {
-          console.error('Error updating work order:', updateError);
+          
+          console.log('✅ Fallback method succeeded');
+          showToast('Work order updated (fallback method)', 'success');
+        } catch (fallbackError) {
+          console.error('❌ Fallback also failed:', fallbackError);
+          showToast('Job card created but could not link to work order', 'warning');
         }
       }
-
-      // Navigate back to work order details page
-      if (workOrderId) {
-        router.push(`/orders/work-orders/${workOrderId}`);
-      } else if (source === 'workflow' && opportunityId) {
-        const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
-        if (workOrders.length > 0) {
-          router.push(`/orders/work-orders/${workOrders[0]._id}`);
-        } else if (newJobCard._id || newJobCard.id) {
-          router.push(`/job-cards/${newJobCard._id || newJobCard.id}`);
-        } else {
-          router.push('/job-cards');
-        }
-      } else if (newJobCard._id || newJobCard.id) {
-        router.push(`/job-cards/${newJobCard._id || newJobCard.id}`);
-      } else {
-        router.push('/job-cards');
-      }
-      
-    } catch (error: any) {
-      console.error('Error creating job card:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
-      showToast(`Failed to create job card: ${errorMessage}`, 'error');
-    } finally {
-      setSubmitting(false);
     }
-  };
+
+    // Navigate back to work order details page
+    if (workOrderId) {
+      console.log('📍 Navigating back to work order...');
+      router.push(`/orders/work-orders/${workOrderId}?t=${Date.now()}`);
+    }
+    
+  } catch (error: any) {
+    console.error('❌ Error creating job card:', error);
+    console.error('📝 Error details:', error.message, error.response?.data);
+    const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
+    showToast(`Failed to create job card: ${errorMessage}`, 'error');
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const handleCancel = () => {
     if (source === 'workflow' && workOrderId) {
