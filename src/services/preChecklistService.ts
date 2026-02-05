@@ -32,106 +32,334 @@ export interface PreChecklist {
     vin?: string;
     mileage?: number;
   };
-  createdBy?: string | {
-    _id: string;
-    email: string;
-    firstName?: string;
-    lastName?: string;
-    role?: string;
-  };
-  inspectedBy?: string | {
-    _id: string;
-    email: string;
-    firstName?: string;
-    lastName?: string;
-    role?: string;
-  };
-  inspectionItems: InspectionItem[];
-  remarks?: string;
-  approved: boolean;
-  approvedBy?: string | {
-    _id: string;
-    email: string;
-    firstName?: string;
-    lastName?: string;
-    role?: string;
-  };
-  approvedAt?: Date | string;
-  date?: Date | string;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-  
-  // Add these new properties
-  serviceType?: 'pickup_only' | 'workshop_installation' | 'mobile_service';
+  checklistType?: string;
+  inspectedBy?: string | null;
   inspectorName?: string;
+  remarks?: string;
+  approved?: boolean;
+  
+  serviceIntake?: {
+    date: string;
+    customerServiceRep: string;
+    inspectorNotes?: string;
+    backendAccessCode?: string;
+    priorityLevel?: 'normal' | 'high' | 'urgent';
+    specialInstructions?: string;
+  };
+  
   customerDetails?: {
+    name?: string;
     firstName: string;
     lastName: string;
+    mobile: string;
     email: string;
-    phone: string;
   };
+  
   carDetails?: {
-    regNo: string;
-    make: string;
-    year: string;
-    model: string;
-    vin: string;
+    carMake: string;
+    carModel: string;
+    mileage: string;
+    yearOfManufacture: string;
+    licensePlate: string;
+    vehicleType?: string;
+    color: string;
+    engineSize?: string;
+    fuelType?: string;
   };
-  productServiceNeeded?: string;
-  productPrice?: number;
-  servicePrice?: number;
+  
+  services?: {
+    actualService: string[];
+  };
+  
+  preServiceInspection?: {
+    condition: string[];
+    inspectorAccessNotes?: string;
+    inspectionNotes?: string;
+    photosRequired?: boolean;
+    videoRequired?: boolean;
+  };
+  
+  powderCoating?: {
+    colourRAL?: string;
+  };
+  
+  deliveryMode?: string;
+  tpmsSensorsFitted?: boolean;
+  wheelNutsTotal?: number;
+  nozzleCapsTotal?: number;
+  nozzleCapsType?: string;
+  lockNutsTotal?: number;
+  
+  centerCaps?: {
+    present?: boolean;
+    quantity?: number;
+    condition?: string;
+    type?: string;
+    notes?: string;
+  };
+  
+  rimOrTireSelection?: string;
+  rimsDetails?: {
+    quantity?: number;
+    size?: string;
+    type?: string;
+    condition?: string;
+  };
+  tiresDetails?: {
+    quantity?: number;
+    size?: string;
+    type?: string;
+    treadDepth?: string;
+  };
+  
+  tireBrands?: {
+    fr?: string;
+    fl?: string;
+    br?: string;
+    bl?: string;
+    spare?: string;
+  };
+  
+  tireDOT?: {
+    fr?: {
+      code?: string;
+      week?: string;
+      year?: string;
+      plant?: string;
+    };
+    fl?: {
+      code?: string;
+      week?: string;
+      year?: string;
+      plant?: string;
+    };
+    br?: {
+      code?: string;
+      week?: string;
+      year?: string;
+      plant?: string;
+    };
+    bl?: {
+      code?: string;
+      week?: string;
+      year?: string;
+      plant?: string;
+    };
+    spare?: {
+      code?: string;
+      week?: string;
+      year?: string;
+      plant?: string;
+    };
+  };
+  
+  suitability?: {
+    skimming?: string;
+    powderCoating?: string;
+    straightening?: string;
+    welding?: string;
+    diamondCutting?: string;
+    notes?: string;
+    recommendations?: string;
+  };
+  
+  declaredValuable?: {
+    value?: boolean;
+    declaredValue?: number;
+    insuranceRequired?: boolean;
+    insuranceProvider?: string;
+    policyNumber?: string;
+    notes?: string;
+  };
+  
   additionalInformation?: string;
-  installationDetails?: {
-    estimatedTime: 'less_1_hour' | '1_2_hours' | '3_hours' | 'more_3_hours';
-    assignedTechnician: string;
-    workStartTime: string;
+  mustKnowAccepted?: boolean;
+  
+  clientUpdate?: {
+    associatedRisks?: {
+      brakeDiscSkimming?: boolean;
+      powderCoating?: boolean;
+      straightening?: boolean;
+      welding?: boolean;
+      diamondCutting?: boolean;
+      general?: boolean;
+    };
+    mustKnows?: {
+      processExplained?: boolean;
+      clientRiskAcceptance?: boolean;
+      personalBelongings?: boolean;
+      timelineEstimates?: boolean;
+      fullPaymentRequired?: boolean;
+      storageFees?: boolean;
+      storageRisk?: boolean;
+    };
   };
-  deliveryPickupMethod?: 'customer_pickup' | 'courier_delivery' | 'mobile_delivery_install';
+  
   acceptTerms?: boolean;
-  acceptDiagnosticCharges?: boolean;
   clientSignature?: string;
   inspectorSignature?: string;
   uploadedImages?: string[];
-  checklistType?: string;
+  clientSigningMethod?: string;
+  clientEmail?: string;
+  inspectionItems?: InspectionItem[];
+  createdAt?: string;
+  createdBy: string | null;
 }
 
 export interface CreatePreChecklistDto {
   opportunityId: string;
   vehicleId: string;
-  inspectionItems: InspectionItem[];
+  inspectionItems?: InspectionItem[];
   remarks?: string;
   approved?: boolean;
-  // Add these new properties
-  serviceType?: 'pickup_only' | 'workshop_installation' | 'mobile_service';
+  
+  // Update these interfaces to match Diamond Rims form
+  checklistType?: string;
+  inspectedBy?: string;
   inspectorName?: string;
+  
+  // Fix: Update customerDetails to match form
   customerDetails?: {
+    name?: string;
     firstName: string;
     lastName: string;
+    mobile: string; // Change from phone to mobile
     email: string;
-    phone: string;
   };
+  
+  // Fix: Update carDetails to match form
   carDetails?: {
-    regNo: string;
-    make: string;
-    year: string;
-    model: string;
-    vin: string;
+    carMake: string; // Change from make
+    carModel: string; // Change from model
+    mileage: string; // Added
+    yearOfManufacture: string; // Change from year
+    licensePlate: string; // Change from regNo
+    color: string; // Added
+    vehicleType?: string; // Added
+    engineSize?: string; // Added
+    fuelType?: string; // Added
+    vin?: string; // Keep vin
   };
-  productServiceNeeded?: string;
-  productPrice?: number;
-  servicePrice?: number;
+  
+  // Add other Diamond Rims fields
+  serviceIntake?: {
+    date: string;
+    customerServiceRep: string;
+    inspectorNotes?: string;
+    backendAccessCode?: string;
+    priorityLevel?: string;
+    specialInstructions?: string;
+  };
+  
+  services?: {
+    actualService: string[];
+  };
+  
+  preServiceInspection?: {
+    condition: string[];
+    inspectorAccessNotes?: string;
+    inspectionNotes?: string;
+    photosRequired?: boolean;
+    videoRequired?: boolean;
+  };
+  
+  powderCoating?: {
+    colourRAL?: string;
+  };
+  
+  deliveryMode?: string;
+  tpmsSensorsFitted?: boolean;
+  wheelNutsTotal?: number;
+  nozzleCapsTotal?: number;
+  nozzleCapsType?: string;
+  lockNutsTotal?: number;
+  
+  centerCaps?: {
+    present?: boolean;
+    quantity?: number;
+    condition?: string;
+    type?: string;
+    notes?: string;
+  };
+  
+  rimOrTireSelection?: string;
+  rimsDetails?: {
+    quantity?: number;
+    size?: string;
+    type?: string;
+    condition?: string;
+  };
+  tiresDetails?: {
+    quantity?: number;
+    size?: string;
+    type?: string;
+    treadDepth?: string;
+  };
+  
+  tireBrands?: {
+    fr?: string;
+    fl?: string;
+    br?: string;
+    bl?: string;
+    spare?: string;
+  };
+  
+  tireDOT?: {
+    fr?: { code?: string; week?: string; year?: string; plant?: string };
+    fl?: { code?: string; week?: string; year?: string; plant?: string };
+    br?: { code?: string; week?: string; year?: string; plant?: string };
+    bl?: { code?: string; week?: string; year?: string; plant?: string };
+    spare?: { code?: string; week?: string; year?: string; plant?: string };
+  };
+  
+  suitability?: {
+    skimming?: string;
+    powderCoating?: string;
+    straightening?: string;
+    welding?: string;
+    diamondCutting?: string;
+    notes?: string;
+    recommendations?: string;
+  };
+  
+  declaredValuable?: {
+    value?: boolean;
+    declaredValue?: number;
+    insuranceRequired?: boolean;
+    insuranceProvider?: string;
+    policyNumber?: string;
+    notes?: string;
+  };
+  
   additionalInformation?: string;
-  installationDetails?: {
-    estimatedTime: 'less_1_hour' | '1_2_hours' | '3_hours' | 'more_3_hours';
-    assignedTechnician: string;
-    workStartTime: string;
+  mustKnowAccepted?: boolean;
+  
+  clientUpdate?: {
+    associatedRisks?: {
+      brakeDiscSkimming?: boolean;
+      powderCoating?: boolean;
+      straightening?: boolean;
+      welding?: boolean;
+      diamondCutting?: boolean;
+      general?: boolean;
+    };
+    mustKnows?: {
+      processExplained?: boolean;
+      clientRiskAcceptance?: boolean;
+      personalBelongings?: boolean;
+      timelineEstimates?: boolean;
+      fullPaymentRequired?: boolean;
+      storageFees?: boolean;
+      storageRisk?: boolean;
+    };
   };
-  deliveryPickupMethod?: 'customer_pickup' | 'courier_delivery' | 'mobile_delivery_install';
+  
   acceptTerms?: boolean;
-  acceptDiagnosticCharges?: boolean;
   clientSignature?: string;
   inspectorSignature?: string;
   uploadedImages?: string[];
+  clientSigningMethod?: string;
+  clientEmail?: string;
 }
 
 export interface UpdatePreChecklistDto {
@@ -201,6 +429,25 @@ export interface PreChecklistStats {
     count: number;
     approved: number;
   }>;
+}
+
+export interface SignatureData {
+  name: string;
+  signatureData: string; // Base64 image data
+  role: 'Vehicle Owner' | 'Inspector' | 'Customer Service' | 'Manager' | string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+export interface SignedPreChecklist {
+  _id: string;
+  signature: {
+    name: string;
+    signedAt: string;
+    role: string;
+    ipAddress?: string;
+  };
+  updatedAt: string;
 }
 
 // Extended ApiClient for pre-checklist service
@@ -311,6 +558,39 @@ class ExtendedApiClient {
 const extendedApiClient = new ExtendedApiClient();
 
 class PreChecklistService {
+  private getApiBaseUrl(): string {
+    // Access the private method from extendedApiClient if available
+    if ((extendedApiClient as any).getApiBaseUrl) {
+      return (extendedApiClient as any).getApiBaseUrl();
+    }
+    
+    // Fallback to environment variable or default
+    try {
+      const config = require('@/lib/api/config');
+      return config.API_BASE_URL || '';
+    } catch {
+      return '';
+    }
+  }
+
+  private getHeaders(): Record<string, string> {
+    // Access the private method from extendedApiClient if available
+    if ((extendedApiClient as any).getHeaders) {
+      return (extendedApiClient as any).getHeaders();
+    }
+    
+    // Fallback implementation
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    const token = sessionStorage.getItem('accessToken');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    return headers;
+  }
   // 1. Create a new pre-checklist
   async createPreChecklist(data: CreatePreChecklistDto, userId?: string): Promise<PreChecklist> {
     try {
@@ -320,10 +600,30 @@ class PreChecklistService {
         headers['X-User-Id'] = userId;
       }
       
-      return await extendedApiClient.post<CreatePreChecklistDto, PreChecklist>('/prechecklists', data, headers);
-    } catch (error) {
+      // For Diamond Rims checklist, ensure checklistType is set
+      if (!data.checklistType && (data.services || data.carDetails)) {
+        data.checklistType = 'diamond_rims';
+      }
+      
+      // Add createdBy if not present
+      const submissionData = {
+        ...data,
+        createdBy: userId || data.inspectedBy,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      console.log('Submitting pre-checklist data:', JSON.stringify(submissionData, null, 2));
+      
+      return await extendedApiClient.post<CreatePreChecklistDto, PreChecklist>(
+        '/prechecklists', 
+        submissionData, 
+        headers
+      );
+    } catch (error: any) {
       console.error('Error creating pre-checklist:', error);
-      throw error;
+      console.error('Error response:', error.response?.data || error.message);
+      throw new Error(error.message || 'Failed to create pre-checklist');
     }
   }
 
@@ -358,19 +658,26 @@ class PreChecklistService {
   }
 
   // 5. Update a pre-checklist
-async updatePreChecklist(id: string, data: UpdatePreChecklistDto): Promise<PreChecklist> {
-  try {
-    // REMOVE the auto-approval logic for approved checklists
-    // Just do a normal update
-    return await extendedApiClient.put<UpdatePreChecklistDto, PreChecklist>(
-      `/prechecklists/${id}`, 
-      data
-    );
-  } catch (error) {
-    console.error(`Error updating pre-checklist ${id}:`, error);
-    throw error;
+  async updatePreChecklist(id: string, data: UpdatePreChecklistDto): Promise<PreChecklist> {
+    try {
+      console.log('Updating pre-checklist:', id, data);
+      
+      // Add updatedAt timestamp
+      const updateData = {
+        ...data,
+        updatedAt: new Date().toISOString()
+      };
+      
+      return await extendedApiClient.put<UpdatePreChecklistDto, PreChecklist>(
+        `/prechecklists/${id}`, 
+        updateData
+      );
+    } catch (error: any) {
+      console.error(`Error updating pre-checklist ${id}:`, error);
+      console.error('Error response:', error.response?.data || error.message);
+      throw new Error(error.message || 'Failed to update pre-checklist');
+    }
   }
-}
 
   // 6. Delete a pre-checklist
   async deletePreChecklist(id: string): Promise<{ message: string }> {
@@ -557,38 +864,92 @@ async updatePreChecklist(id: string, data: UpdatePreChecklistDto): Promise<PreCh
     }
   }
 
-  // In preChecklistService.ts, add these methods:
-
-// Enhanced approval method with lifecycle integration
-  async approvePreChecklistWithLifecycle(
-    id: string, 
-    approvedBy?: string
-  ): Promise<{
-    checklist: PreChecklist;
-    lifecycleUpdate: any;
-  }> {
+  async signPreChecklist(id: string, signatureData: SignatureData): Promise<SignedPreChecklist> {
     try {
-      const lifecycleIntegrationService = require('./lifecycleIntegrationService').lifecycleIntegrationService;
+      // Get client IP and user agent
+      const clientInfo = await this.getClientInfo();
       
-      // 1. Approve the checklist
-      const approvedChecklist = await this.approvePreChecklist(id, approvedBy);
-      
-      // 2. Update lifecycle stage
-      const lifecycleUpdate = await lifecycleIntegrationService.handleChecklistApproval(
-        id, 
-        'prechecklist', 
-        approvedBy
-      );
-      
-      return {
-        checklist: approvedChecklist,
-        lifecycleUpdate
+      const signatureSubmission = {
+        ...signatureData,
+        ipAddress: clientInfo.ipAddress,
+        userAgent: clientInfo.userAgent
       };
-    } catch (error) {
-      console.error(`Error approving pre-checklist with lifecycle:`, error);
-      throw error;
+      
+      console.log('Signing pre-checklist with data:', signatureSubmission);
+      
+      return await extendedApiClient.post<SignatureData, SignedPreChecklist>(
+        `/prechecklists/${id}/sign`,
+        signatureSubmission
+      );
+    } catch (error: any) {
+      console.error(`Error signing pre-checklist ${id}:`, error);
+      throw new Error(error.message || 'Failed to sign pre-checklist');
     }
   }
+
+// 8. Get client information
+private async getClientInfo(): Promise<{ ipAddress: string; userAgent: string }> {
+  try {
+    // Get IP address
+    let ipAddress = 'unknown';
+    try {
+      const ipResponse = await fetch('https://api.ipify.org?format=json');
+      const ipData = await ipResponse.json();
+      ipAddress = ipData.ip;
+    } catch (ipError) {
+      console.warn('Could not fetch IP address:', ipError);
+    }
+    
+    // Get user agent from browser
+    const userAgent = navigator.userAgent || 'unknown';
+    
+    return { ipAddress, userAgent };
+  } catch (error) {
+    console.error('Error getting client info:', error);
+    return { ipAddress: 'unknown', userAgent: 'unknown' };
+  }
+}
+
+// 9. Download PDF
+// In preChecklistService.ts, simplify the downloadPDF method:
+async downloadPDF(id: string): Promise<Blob> {
+  try {
+    // Use the existing API client methods if possible
+    // If not, create a simple fetch request
+    const token = sessionStorage.getItem('accessToken');
+    const headers: Record<string, string> = {
+      'Authorization': token ? `Bearer ${token}` : '',
+    };
+    
+    // You might need to adjust the URL based on your setup
+    const response = await fetch(`/api/v1/prechecklists/${id}/download-pdf`, {
+      method: 'GET',
+      headers,
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to download PDF: ${response.statusText}`);
+    }
+    
+    return await response.blob();
+  } catch (error: any) {
+    console.error(`Error downloading PDF for pre-checklist ${id}:`, error);
+    throw error;
+  }
+}
+
+// 10. Generate PDF
+async generatePDF(id: string): Promise<{ pdfPath: string; message: string }> {
+  try {
+    return await extendedApiClient.get<{ pdfPath: string; message: string }>(
+      `/prechecklists/${id}/generate-pdf`
+    );
+  } catch (error: any) {
+    console.error(`Error generating PDF for pre-checklist ${id}:`, error);
+    throw error;
+  }
+}
 
   // Method to check if pre-checklist is required for stage transition
   async isRequiredForStageTransition(opportunityId: string): Promise<{
@@ -669,7 +1030,7 @@ async updatePreChecklist(id: string, data: UpdatePreChecklistDto): Promise<PreCh
         approved: allChecklists.filter(c => c.approved).length,
         pending: allChecklists.filter(c => !c.approved).length,
         withFaults: allChecklists.filter(c => 
-          c.inspectionItems.some(item => item.status === 'fault')
+          c.inspectionItems && c.inspectionItems.some(item => item.status === 'fault')
         ).length,
         byVehicle: [],
         byInspector: [],
@@ -702,23 +1063,35 @@ async updatePreChecklist(id: string, data: UpdatePreChecklistDto): Promise<PreCh
         count: data.count
       }));
 
-      // Group by inspector
+      // Group by inspector - FIXED VERSION with proper null handling
       const inspectorMap = new Map<string, { count: number; inspectorInfo?: any }>();
       allChecklists.forEach(checklist => {
         const inspector = checklist.inspectedBy || checklist.createdBy;
-        if (inspector) {
-          const inspectorId = typeof inspector === 'object' ? inspector._id : inspector;
+        
+        // Use a type guard to handle null/undefined
+        if (this.isValidInspector(inspector)) {
+          let inspectorId = '';
+          let inspectorInfo: any = undefined;
           
-          if (!inspectorMap.has(inspectorId)) {
-            inspectorMap.set(inspectorId, {
-              count: 0,
-              inspectorInfo: typeof inspector === 'object' ? {
-                email: inspector.email,
-                firstName: inspector.firstName
-              } : undefined
-            });
+          if (typeof inspector === 'object') {
+            inspectorId = inspector._id || '';
+            inspectorInfo = {
+              email: inspector.email || '',
+              firstName: inspector.firstName || ''
+            };
+          } else {
+            inspectorId = inspector;
           }
-          inspectorMap.get(inspectorId)!.count++;
+          
+          if (inspectorId) {
+            if (!inspectorMap.has(inspectorId)) {
+              inspectorMap.set(inspectorId, {
+                count: 0,
+                inspectorInfo
+              });
+            }
+            inspectorMap.get(inspectorId)!.count++;
+          }
         }
       });
       
@@ -733,11 +1106,13 @@ async updatePreChecklist(id: string, data: UpdatePreChecklistDto): Promise<PreCh
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
       const recentChecklists = allChecklists.filter(c => 
-        new Date(c.createdAt) >= thirtyDaysAgo
+        c.createdAt && new Date(c.createdAt) >= thirtyDaysAgo
       );
       
       const activityByDate = new Map<string, { count: number; approved: number }>();
       recentChecklists.forEach(checklist => {
+        if (!checklist.createdAt) return;
+        
         const date = new Date(checklist.createdAt).toISOString().split('T')[0];
         if (!activityByDate.has(date)) {
           activityByDate.set(date, { count: 0, approved: 0 });
@@ -763,6 +1138,13 @@ async updatePreChecklist(id: string, data: UpdatePreChecklistDto): Promise<PreCh
       throw error;
     }
   }
+
+  // Add this helper method to handle inspector validation
+  private isValidInspector(inspector: any): inspector is string | { _id: string; email?: string; firstName?: string } {
+    return inspector !== null && inspector !== undefined && 
+          (typeof inspector === 'string' || 
+            (typeof inspector === 'object' && inspector !== null));
+  }
   
 
   async searchPreChecklists(searchTerm: string): Promise<PreChecklist[]> {
@@ -777,7 +1159,7 @@ async updatePreChecklist(id: string, data: UpdatePreChecklistDto): Promise<PreCh
         }
         
         // Search in inspection items
-        if (checklist.inspectionItems.some(item => 
+        if (checklist.inspectionItems && checklist.inspectionItems.some(item => 
           item.item.toLowerCase().includes(searchLower) || 
           item.remarks?.toLowerCase().includes(searchLower)
         )) {
@@ -785,7 +1167,7 @@ async updatePreChecklist(id: string, data: UpdatePreChecklistDto): Promise<PreCh
         }
         
         // Search in vehicle info
-        if (typeof checklist.vehicleId === 'object') {
+        if (typeof checklist.vehicleId === 'object' && checklist.vehicleId) {
           if (
             checklist.vehicleId.registrationNumber?.toLowerCase().includes(searchLower) ||
             checklist.vehicleId.make?.toLowerCase().includes(searchLower) ||
@@ -796,7 +1178,7 @@ async updatePreChecklist(id: string, data: UpdatePreChecklistDto): Promise<PreCh
         }
         
         // Search in opportunity info
-        if (typeof checklist.opportunityId === 'object') {
+        if (typeof checklist.opportunityId === 'object' && checklist.opportunityId) {
           if (
             checklist.opportunityId.subject?.toLowerCase().includes(searchLower) ||
             checklist.opportunityId.customer?.name?.toLowerCase().includes(searchLower) ||
@@ -819,8 +1201,18 @@ async updatePreChecklist(id: string, data: UpdatePreChecklistDto): Promise<PreCh
       const allChecklists = await this.getAllPreChecklists();
       return allChecklists.filter(checklist => {
         const inspector = checklist.inspectedBy || checklist.createdBy;
-        if (!inspector) return false;
-        return typeof inspector === 'object' ? inspector._id === inspectorId : inspector === inspectorId;
+        
+        // Use the type guard helper
+        if (!this.isValidInspector(inspector)) {
+          return false;
+        }
+        
+        // Use optional chaining and nullish coalescing
+        const inspectorIdToCompare = typeof inspector === 'object' 
+          ? inspector._id 
+          : inspector;
+        
+        return inspectorIdToCompare === inspectorId;
       });
     } catch (error) {
       console.error(`Error getting pre-checklists by inspector ${inspectorId}:`, error);
