@@ -75,7 +75,7 @@ import {
   Edit,
   Mail as MailIcon
 } from 'lucide-react';
-import { preChecklistService } from '@/services/preChecklistService';
+import { CreatePreChecklistDto, PreChecklist, preChecklistService } from '@/services/preChecklistService';
 import { workOrderService } from '@/services/workOrderService';
 import { opportunityService } from '@/services/opportunityService';
 import { vehicleService } from '@/services/vehicleService';
@@ -421,43 +421,45 @@ export default function DiamondRimsPreChecklistCreatePage({
       : dt.toISOString().split('T')[0];
   };
 
-  const mapChecklistToForm = (checklist: any) => {
+  const mapChecklistToForm = (checklist: PreChecklist) => {
+    console.log('Mapping checklist to form:', checklist);
+    
     return {
-      checklistType: checklist?.checklistType ?? 'diamond_rims',
+      checklistType: checklist?.checklistType || 'diamond_rims',
       opportunityId: toId(checklist?.opportunityId),
       vehicleId: toId(checklist?.vehicleId),
-      inspectedBy: toId(checklist?.inspectedBy) || sessionStorage.getItem('userId') || '',
-      inspectorName: checklist?.inspectorName ?? '',
-      remarks: checklist?.remarks ?? '',
+      inspectedBy: checklist?.inspectedBy || toId(checklist?.inspectedBy) || sessionStorage.getItem('userId') || '',
+      inspectorName: checklist?.inspectorName || '',
+      remarks: checklist?.remarks || '',
       approved: !!checklist?.approved,
 
       serviceIntake: {
-        date: toISODate(checklist?.serviceIntake?.date ?? checklist?.date),
-        customerServiceRep: checklist?.serviceIntake?.customerServiceRep ?? sessionStorage.getItem('userName') ?? '',
-        inspectorNotes: checklist?.serviceIntake?.inspectorNotes ?? '',
-        backendAccessCode: checklist?.serviceIntake?.backendAccessCode ?? '',
-        priorityLevel: checklist?.serviceIntake?.priorityLevel ?? 'normal',
-        specialInstructions: checklist?.serviceIntake?.specialInstructions ?? ''
+        date: checklist?.serviceIntake?.date,
+        customerServiceRep: checklist?.serviceIntake?.customerServiceRep || sessionStorage.getItem('userName') || '',
+        inspectorNotes: checklist?.serviceIntake?.inspectorNotes || '',
+        backendAccessCode: checklist?.serviceIntake?.backendAccessCode || '',
+        priorityLevel: checklist?.serviceIntake?.priorityLevel || 'normal',
+        specialInstructions: checklist?.serviceIntake?.specialInstructions || ''
       },
 
       customerDetails: {
-        name: checklist?.customerDetails?.name ?? '',
-        firstName: checklist?.customerDetails?.firstName ?? '',
-        lastName: checklist?.customerDetails?.lastName ?? '',
-        mobile: checklist?.customerDetails?.mobile ?? '',
-        email: checklist?.customerDetails?.email ?? '',
+        name: checklist?.customerDetails?.name || '',
+        firstName: checklist?.customerDetails?.firstName || '',
+        lastName: checklist?.customerDetails?.lastName || '',
+        mobile: checklist?.customerDetails?.mobile || '',
+        email: checklist?.customerDetails?.email || '',
       },
 
       carDetails: {
-        carMake: checklist?.carDetails?.carMake ?? '',
-        carModel: checklist?.carDetails?.carModel ?? '',
-        mileage: checklist?.carDetails?.mileage ?? '',
-        yearOfManufacture: checklist?.carDetails?.yearOfManufacture ?? '',
-        licensePlate: checklist?.carDetails?.licensePlate ?? '',
-        vehicleType: checklist?.carDetails?.vehicleType ?? '',
-        color: checklist?.carDetails?.color ?? '',
-        engineSize: checklist?.carDetails?.engineSize ?? '',
-        fuelType: checklist?.carDetails?.fuelType ?? '',
+        carMake: checklist?.carDetails?.carMake || '',
+        carModel: checklist?.carDetails?.carModel || '',
+        mileage: checklist?.carDetails?.mileage || '',
+        yearOfManufacture: checklist?.carDetails?.yearOfManufacture || '',
+        licensePlate: checklist?.carDetails?.licensePlate || '',
+        vehicleType: checklist?.carDetails?.vehicleType || '',
+        color: checklist?.carDetails?.color || '',
+        engineSize: checklist?.carDetails?.engineSize || '',
+        fuelType: checklist?.carDetails?.fuelType || '',
       },
 
       services: {
@@ -470,106 +472,106 @@ export default function DiamondRimsPreChecklistCreatePage({
         condition: Array.isArray(checklist?.preServiceInspection?.condition)
           ? checklist.preServiceInspection.condition
           : [],
-        inspectorAccessNotes: checklist?.preServiceInspection?.inspectorAccessNotes ?? '',
-        inspectionNotes: checklist?.preServiceInspection?.inspectionNotes ?? '',
+        inspectorAccessNotes: checklist?.preServiceInspection?.inspectorAccessNotes || '',
+        inspectionNotes: checklist?.preServiceInspection?.inspectionNotes || '',
         photosRequired: !!checklist?.preServiceInspection?.photosRequired,
         videoRequired: !!checklist?.preServiceInspection?.videoRequired
       },
 
       powderCoating: {
-        colourRAL: checklist?.powderCoating?.colourRAL ?? '',
+        colourRAL: checklist?.powderCoating?.colourRAL || '',
       },
 
-      deliveryMode: checklist?.deliveryMode ?? '',
+      deliveryMode: checklist?.deliveryMode || '',
       tpmsSensorsFitted: !!checklist?.tpmsSensorsFitted,
-      wheelNutsTotal: checklist?.wheelNutsTotal ?? 4,
-      nozzleCapsTotal: checklist?.nozzleCapsTotal ?? 0,
-      nozzleCapsType: checklist?.nozzleCapsType ?? '',
-      lockNutsTotal: checklist?.lockNutsTotal ?? 0,
+      wheelNutsTotal: checklist?.wheelNutsTotal || 4,
+      nozzleCapsTotal: checklist?.nozzleCapsTotal || 0,
+      nozzleCapsType: checklist?.nozzleCapsType || '',
+      lockNutsTotal: checklist?.lockNutsTotal || 0,
 
       centerCaps: {
         present: !!checklist?.centerCaps?.present,
-        quantity: checklist?.centerCaps?.quantity ?? 0,
-        condition: checklist?.centerCaps?.condition ?? 'good',
-        type: checklist?.centerCaps?.type ?? '',
-        notes: checklist?.centerCaps?.notes ?? ''
+        quantity: checklist?.centerCaps?.quantity || 0,
+        condition: checklist?.centerCaps?.condition || 'good',
+        type: checklist?.centerCaps?.type || '',
+        notes: checklist?.centerCaps?.notes || ''
       },
 
-      rimOrTireSelection: checklist?.rimOrTireSelection ?? '',
+      rimOrTireSelection: checklist?.rimOrTireSelection || '',
       rimsDetails: {
-        quantity: checklist?.rimsDetails?.quantity ?? 0,
-        size: checklist?.rimsDetails?.size ?? '',
-        type: checklist?.rimsDetails?.type ?? '',
-        condition: checklist?.rimsDetails?.condition ?? ''
+        quantity: checklist?.rimsDetails?.quantity || 0,
+        size: checklist?.rimsDetails?.size || '',
+        type: checklist?.rimsDetails?.type || '',
+        condition: checklist?.rimsDetails?.condition || ''
       },
       tiresDetails: {
-        quantity: checklist?.tiresDetails?.quantity ?? 0,
-        size: checklist?.tiresDetails?.size ?? '',
-        type: checklist?.tiresDetails?.type ?? '',
-        treadDepth: checklist?.tiresDetails?.treadDepth ?? ''
+        quantity: checklist?.tiresDetails?.quantity || 0,
+        size: checklist?.tiresDetails?.size || '',
+        type: checklist?.tiresDetails?.type || '',
+        treadDepth: checklist?.tiresDetails?.treadDepth || ''
       },
 
       tireBrands: {
-        fr: checklist?.tireBrands?.fr ?? '',
-        fl: checklist?.tireBrands?.fl ?? '',
-        br: checklist?.tireBrands?.br ?? '',
-        bl: checklist?.tireBrands?.bl ?? '',
-        spare: checklist?.tireBrands?.spare ?? '',
+        fr: checklist?.tireBrands?.fr || '',
+        fl: checklist?.tireBrands?.fl || '',
+        br: checklist?.tireBrands?.br || '',
+        bl: checklist?.tireBrands?.bl || '',
+        spare: checklist?.tireBrands?.spare || '',
       },
 
       tireDOT: {
         fr: {
-          code: checklist?.tireDOT?.fr?.code ?? '',
-          week: checklist?.tireDOT?.fr?.week ?? '',
-          year: checklist?.tireDOT?.fr?.year ?? '',
-          plant: checklist?.tireDOT?.fr?.plant ?? ''
+          code: checklist?.tireDOT?.fr?.code || '',
+          week: checklist?.tireDOT?.fr?.week || '',
+          year: checklist?.tireDOT?.fr?.year || '',
+          plant: checklist?.tireDOT?.fr?.plant || ''
         },
         fl: {
-          code: checklist?.tireDOT?.fl?.code ?? '',
-          week: checklist?.tireDOT?.fl?.week ?? '',
-          year: checklist?.tireDOT?.fl?.year ?? '',
-          plant: checklist?.tireDOT?.fl?.plant ?? ''
+          code: checklist?.tireDOT?.fl?.code || '',
+          week: checklist?.tireDOT?.fl?.week || '',
+          year: checklist?.tireDOT?.fl?.year || '',
+          plant: checklist?.tireDOT?.fl?.plant || ''
         },
         br: {
-          code: checklist?.tireDOT?.br?.code ?? '',
-          week: checklist?.tireDOT?.br?.week ?? '',
-          year: checklist?.tireDOT?.br?.year ?? '',
-          plant: checklist?.tireDOT?.br?.plant ?? ''
+          code: checklist?.tireDOT?.br?.code || '',
+          week: checklist?.tireDOT?.br?.week || '',
+          year: checklist?.tireDOT?.br?.year || '',
+          plant: checklist?.tireDOT?.br?.plant || ''
         },
         bl: {
-          code: checklist?.tireDOT?.bl?.code ?? '',
-          week: checklist?.tireDOT?.bl?.week ?? '',
-          year: checklist?.tireDOT?.bl?.year ?? '',
-          plant: checklist?.tireDOT?.bl?.plant ?? ''
+          code: checklist?.tireDOT?.bl?.code || '',
+          week: checklist?.tireDOT?.bl?.week || '',
+          year: checklist?.tireDOT?.bl?.year || '',
+          plant: checklist?.tireDOT?.bl?.plant || ''
         },
         spare: {
-          code: checklist?.tireDOT?.spare?.code ?? '',
-          week: checklist?.tireDOT?.spare?.week ?? '',
-          year: checklist?.tireDOT?.spare?.year ?? '',
-          plant: checklist?.tireDOT?.spare?.plant ?? ''
+          code: checklist?.tireDOT?.spare?.code || '',
+          week: checklist?.tireDOT?.spare?.week || '',
+          year: checklist?.tireDOT?.spare?.year || '',
+          plant: checklist?.tireDOT?.spare?.plant || ''
         },
       },
 
       suitability: {
-        skimming: checklist?.suitability?.skimming ?? '',
-        powderCoating: checklist?.suitability?.powderCoating ?? '',
-        straightening: checklist?.suitability?.straightening ?? '',
-        welding: checklist?.suitability?.welding ?? '',
-        diamondCutting: checklist?.suitability?.diamondCutting ?? '',
-        notes: checklist?.suitability?.notes ?? '',
-        recommendations: checklist?.suitability?.recommendations ?? ''
+        skimming: checklist?.suitability?.skimming || '',
+        powderCoating: checklist?.suitability?.powderCoating || '',
+        straightening: checklist?.suitability?.straightening || '',
+        welding: checklist?.suitability?.welding || '',
+        diamondCutting: checklist?.suitability?.diamondCutting || '',
+        notes: checklist?.suitability?.notes || '',
+        recommendations: checklist?.suitability?.recommendations || ''
       },
 
       declaredValuable: {
         value: !!checklist?.declaredValuable?.value,
-        declaredValue: checklist?.declaredValuable?.declaredValue ?? 0,
+        declaredValue: checklist?.declaredValuable?.declaredValue || 0,
         insuranceRequired: !!checklist?.declaredValuable?.insuranceRequired,
-        insuranceProvider: checklist?.declaredValuable?.insuranceProvider ?? '',
-        policyNumber: checklist?.declaredValuable?.policyNumber ?? '',
-        notes: checklist?.declaredValuable?.notes ?? ''
+        insuranceProvider: checklist?.declaredValuable?.insuranceProvider || '',
+        policyNumber: checklist?.declaredValuable?.policyNumber || '',
+        notes: checklist?.declaredValuable?.notes || ''
       },
 
-      additionalInformation: checklist?.additionalInformation ?? '',
+      additionalInformation: checklist?.additionalInformation || '',
       mustKnowAccepted: !!checklist?.mustKnowAccepted,
 
       clientUpdate: {
@@ -593,11 +595,11 @@ export default function DiamondRimsPreChecklistCreatePage({
       },
 
       acceptTerms: !!checklist?.acceptTerms,
-      clientSignature: checklist?.clientSignature ?? '',
-      inspectorSignature: checklist?.inspectorSignature ?? '',
+      clientSignature: checklist?.clientSignature || '',
+      inspectorSignature: checklist?.inspectorSignature || '',
       uploadedImages: Array.isArray(checklist?.uploadedImages) ? checklist.uploadedImages : [],
-      clientSigningMethod: checklist?.clientSigningMethod ?? '',
-      clientEmail: checklist?.clientEmail ?? ''
+      clientSigningMethod: checklist?.clientSigningMethod || '',
+      clientEmail: checklist?.clientEmail || ''
     };
   };
 
@@ -939,40 +941,6 @@ export default function DiamondRimsPreChecklistCreatePage({
     }
   };
 
-  const saveSignature = (type: 'client' | 'inspector') => {
-    if (type === 'client' && clientSigRef.current) {
-      const dataUrl = clientSigRef.current.getTrimmedCanvas().toDataURL('image/png');
-      setClientSignature(dataUrl);
-      handleInputChange('clientSignature', dataUrl);
-      setShowClientSignature(false);
-    } else if (type === 'inspector' && inspectorSigRef.current) {
-      const dataUrl = inspectorSigRef.current.getTrimmedCanvas().toDataURL('image/png');
-      setInspectorSignature(dataUrl);
-      handleInputChange('inspectorSignature', dataUrl);
-      setShowInspectorSignature(false);
-    }
-  };
-
-  const handleClientApproval = (action: 'approve' | 'send') => {
-    if (action === 'approve') {
-      if (!formData.clientSignature) {
-        showToast('Please provide client signature', 'error');
-        return;
-      }
-      
-      // Submit the form
-      handleSubmit(new Event('submit') as any);
-      
-    } else if (action === 'send') {
-      if (!formData.clientEmail) {
-        showToast('Please enter client email address', 'error');
-        return;
-      }
-      
-      showToast('Email sent to client for approval', 'success');
-    }
-  };
-
   const sendForClientApproval = async () => {
     try {
       if (!formData.clientEmail || !formData.clientEmail.includes('@')) {
@@ -992,6 +960,61 @@ export default function DiamondRimsPreChecklistCreatePage({
     }
   };
 
+  const saveSignature = async (type: 'client' | 'inspector') => {
+    try {
+      let dataUrl = '';
+      
+      if (type === 'client' && clientSigRef.current) {
+        dataUrl = clientSigRef.current.getTrimmedCanvas().toDataURL('image/png');
+        setClientSignature(dataUrl);
+      } else if (type === 'inspector' && inspectorSigRef.current) {
+        dataUrl = inspectorSigRef.current.getTrimmedCanvas().toDataURL('image/png');
+        setInspectorSignature(dataUrl);
+      }
+      
+      if (!dataUrl) {
+        showToast('No signature detected', 'error');
+        return;
+      }
+      
+      // If we have a checklist ID (edit mode), use the API endpoint
+      if (checklistId) {
+        const signatureData = {
+          name: type === 'client' 
+            ? `${formData.customerDetails.firstName} ${formData.customerDetails.lastName}`
+            : formData.inspectorName || sessionStorage.getItem('userName') || 'Inspector',
+          signatureData: dataUrl,
+          role: type === 'client' ? 'Vehicle Owner' : 'Inspector'
+        };
+        
+        // Save signature to backend
+        await preChecklistService.signPreChecklist(checklistId, signatureData);
+        
+        showToast(`${type === 'client' ? 'Client' : 'Inspector'} signature saved to server`, 'success');
+      } else {
+        // If no checklist ID (create mode), just update local state
+        if (type === 'client') {
+          handleInputChange('clientSignature', dataUrl);
+        } else {
+          handleInputChange('inspectorSignature', dataUrl);
+        }
+        showToast(`${type === 'client' ? 'Client' : 'Inspector'} signature saved`, 'success');
+      }
+      
+      // Close signature modal
+      if (type === 'client') {
+        setShowClientSignature(false);
+      } else {
+        setShowInspectorSignature(false);
+      }
+      
+    } catch (error: any) {
+      console.error(`Error saving ${type} signature:`, error);
+      showToast(error.message || `Failed to save ${type} signature`, 'error');
+    }
+  };
+
+  // Update the handleSubmit function to use signatures properly
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -1020,18 +1043,6 @@ export default function DiamondRimsPreChecklistCreatePage({
         return;
       }
       
-      if (formData.preServiceInspection.condition.length === 0) {
-        showToast('Please select at least one condition', 'error');
-        setSubmitting(false);
-        return;
-      }
-      
-      if (!formData.rimOrTireSelection) {
-        showToast('Please select item type (Rims or Tires)', 'error');
-        setSubmitting(false);
-        return;
-      }
-      
       if (!formData.mustKnowAccepted) {
         showToast('Please acknowledge the MUST KNOW section', 'error');
         setSubmitting(false);
@@ -1050,36 +1061,108 @@ export default function DiamondRimsPreChecklistCreatePage({
         return;
       }
 
-      const normalizedSubmissionData = {
-        ...formData,
+      // Create submission data - ensure all required fields are included
+      const submissionData: CreatePreChecklistDto = {
         checklistType: 'diamond_rims',
-        opportunityId: toId(formData.opportunityId),
-        vehicleId: toId(formData.vehicleId),
-        workOrderId: toId((formData as any).workOrderId) || workOrderId || '',
-        approved: false,
-        clientSignature: formData.clientSignature || '',
-        inspectorSignature: formData.inspectorSignature || ''
+        opportunityId: formData.opportunityId,
+        vehicleId: formData.vehicleId,
+        inspectedBy: sessionStorage.getItem('userId') || formData.inspectedBy,
+        inspectorName: formData.inspectorName,
+        remarks: formData.remarks,
+        approved: false, // Set to false initially
+        
+        serviceIntake: {
+          date: formData.serviceIntake.date,
+          customerServiceRep: formData.serviceIntake.customerServiceRep,
+          inspectorNotes: formData.serviceIntake.inspectorNotes,
+          backendAccessCode: formData.serviceIntake.backendAccessCode,
+          priorityLevel: formData.serviceIntake.priorityLevel,
+          specialInstructions: formData.serviceIntake.specialInstructions
+        },
+        
+        customerDetails: {
+          firstName: formData.customerDetails.firstName,
+          lastName: formData.customerDetails.lastName,
+          mobile: formData.customerDetails.mobile,
+          email: formData.customerDetails.email
+        },
+        
+        carDetails: {
+          carMake: formData.carDetails.carMake,
+          carModel: formData.carDetails.carModel,
+          mileage: formData.carDetails.mileage,
+          yearOfManufacture: formData.carDetails.yearOfManufacture,
+          licensePlate: formData.carDetails.licensePlate,
+          color: formData.carDetails.color,
+          vehicleType: formData.carDetails.vehicleType,
+          engineSize: formData.carDetails.engineSize,
+          fuelType: formData.carDetails.fuelType
+        },
+        
+        services: {
+          actualService: formData.services.actualService
+        },
+        
+        preServiceInspection: {
+          condition: formData.preServiceInspection.condition,
+          inspectorAccessNotes: formData.preServiceInspection.inspectorAccessNotes,
+          inspectionNotes: formData.preServiceInspection.inspectionNotes,
+          photosRequired: formData.preServiceInspection.photosRequired,
+          videoRequired: formData.preServiceInspection.videoRequired
+        },
+        
+        powderCoating: {
+          colourRAL: formData.powderCoating.colourRAL
+        },
+        
+        deliveryMode: formData.deliveryMode,
+        tpmsSensorsFitted: formData.tpmsSensorsFitted,
+        wheelNutsTotal: formData.wheelNutsTotal,
+        nozzleCapsTotal: formData.nozzleCapsTotal,
+        nozzleCapsType: formData.nozzleCapsType,
+        lockNutsTotal: formData.lockNutsTotal,
+        
+        centerCaps: formData.centerCaps,
+        rimOrTireSelection: formData.rimOrTireSelection,
+        rimsDetails: formData.rimsDetails,
+        tiresDetails: formData.tiresDetails,
+        tireBrands: formData.tireBrands,
+        tireDOT: formData.tireDOT,
+        suitability: formData.suitability,
+        declaredValuable: formData.declaredValuable,
+        additionalInformation: formData.additionalInformation,
+        mustKnowAccepted: formData.mustKnowAccepted,
+        clientUpdate: formData.clientUpdate,
+        acceptTerms: formData.acceptTerms,
+        clientSignature: formData.clientSignature,
+        inspectorSignature: formData.inspectorSignature,
+        uploadedImages: formData.uploadedImages,
+        clientSigningMethod: formData.clientSigningMethod,
+        clientEmail: formData.clientEmail
       };
 
-      let result: any;
+      console.log('Submitting pre-checklist data:', submissionData);
+
+      let result: PreChecklist;
       const userId = sessionStorage.getItem('userId') || undefined;
       
       if (mode === 'edit' && checklistId) {
-        result = await preChecklistService.updatePreChecklist(checklistId, normalizedSubmissionData as any);
+        result = await preChecklistService.updatePreChecklist(checklistId, submissionData as any);
         showToast('Diamond Rims pre-checklist updated successfully', 'success');
       } else {
-        result = await preChecklistService.createPreChecklist(normalizedSubmissionData as any, userId);
+        result = await preChecklistService.createPreChecklist(submissionData, userId);
         showToast('Diamond Rims pre-checklist created successfully', 'success');
       }
+
+      console.log('Pre-checklist saved:', result);
 
       if (workOrderId && result._id) {
         await workOrderService.updateWorkOrder(workOrderId, {
           preChecklistId: result._id,
           preChecklistStatus: 'pending'
         });
+        showToast('Pre-checklist created and linked to work order', 'success');
       }
-
-      showToast('Pre-checklist created. Please return to work order to approve it.', 'success');
 
       if (workOrderId) {
         router.push(`/orders/work-orders/${workOrderId}`);
@@ -1096,6 +1179,46 @@ export default function DiamondRimsPreChecklistCreatePage({
       showToast(error.message || 'Failed to save pre-checklist', 'error');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Add a function to download PDF using the API endpoint
+  const downloadPDFViaAPI = async () => {
+    try {
+      if (!checklistId) {
+        // If no checklist ID, generate local PDF
+        await downloadPDF();
+        return;
+      }
+      
+      setUploading(true);
+      showToast('Generating PDF from server...', 'info');
+      
+      // First generate the PDF
+      await preChecklistService.generatePDF(checklistId);
+      
+      // Then download it
+      const blob = await preChecklistService.downloadPDF(checklistId);
+      
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Diamond_Rims_PreChecklist_${formData.carDetails.licensePlate || 'NEW'}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      showToast('PDF downloaded from server successfully!', 'success');
+    } catch (error: any) {
+      console.error('Error downloading PDF from API:', error);
+      showToast('Failed to download PDF from server. Generating local copy...', 'warning');
+      
+      // Fallback to local PDF generation
+      await downloadPDF();
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -1322,11 +1445,16 @@ export default function DiamondRimsPreChecklistCreatePage({
 
           <div className="flex items-center gap-3">
             <button
-              onClick={downloadPDF}
+              onClick={downloadPDFViaAPI}
               className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors shadow-sm"
+              disabled={uploading}
             >
-              <FileText className="h-5 w-5" />
-              Download PDF
+              {uploading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <FileText className="h-5 w-5" />
+              )}
+              {uploading ? 'Generating...' : 'Download PDF'}
             </button>
             <button
               onClick={downloadExcel}
@@ -3272,13 +3400,19 @@ export default function DiamondRimsPreChecklistCreatePage({
                       Inspector Signature <RequiredField />
                     </label>
                     {formData.inspectorSignature && (
-                      <button
-                        type="button"
-                        onClick={() => clearSignature('inspector')}
-                        className="text-xs text-red-600 hover:text-red-800"
-                      >
-                        Clear
-                      </button>
+                      <div className="flex gap-2">
+                        <span className="text-xs text-green-600 flex items-center gap-1">
+                          <CheckCircle className="h-3 w-3" />
+                          Signed
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => clearSignature('inspector')}
+                          className="text-xs text-red-600 hover:text-red-800"
+                        >
+                          Clear
+                        </button>
+                      </div>
                     )}
                   </div>
                   
@@ -3349,13 +3483,19 @@ export default function DiamondRimsPreChecklistCreatePage({
                       Client Signature <RequiredField />
                     </label>
                     {formData.clientSignature && (
-                      <button
-                        type="button"
-                        onClick={() => clearSignature('client')}
-                        className="text-xs text-red-600 hover:text-red-800"
-                      >
-                        Clear
-                      </button>
+                      <div className="flex gap-2">
+                        <span className="text-xs text-green-600 flex items-center gap-1">
+                          <CheckCircle className="h-3 w-3" />
+                          Signed
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => clearSignature('client')}
+                          className="text-xs text-red-600 hover:text-red-800"
+                        >
+                          Clear
+                        </button>
+                      </div>
                     )}
                   </div>
                   
@@ -3532,26 +3672,6 @@ export default function DiamondRimsPreChecklistCreatePage({
                 </div>
                 
                 <div className="flex gap-4">
-                  {/* Conditional buttons based on client presence */}
-                  {formData.clientSigningMethod === 'present' && formData.clientSignature ? (
-                    <button
-                      type="button"
-                      onClick={() => handleClientApproval('approve')}
-                      className="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-medium transition-colors flex items-center gap-2"
-                    >
-                      <Check className="h-5 w-5" />
-                      Approve & Sign
-                    </button>
-                  ) : formData.clientSigningMethod === 'absent' && formData.clientEmail ? (
-                    <button
-                      type="button"
-                      onClick={() => handleClientApproval('send')}
-                      className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium transition-colors flex items-center gap-2"
-                    >
-                      <MailIcon className="h-5 w-5" />
-                      Send for Client Approval
-                    </button>
-                  ) : null}
                   
                   <button
                     type="submit"
