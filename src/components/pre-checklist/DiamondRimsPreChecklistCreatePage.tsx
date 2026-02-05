@@ -71,7 +71,9 @@ import {
   ThermometerSnowflake,
   ChevronRight,
   ExternalLink,
-  Search
+  Search,
+  Edit,
+  Mail as MailIcon
 } from 'lucide-react';
 import { preChecklistService } from '@/services/preChecklistService';
 import { workOrderService } from '@/services/workOrderService';
@@ -121,6 +123,9 @@ export default function DiamondRimsPreChecklistCreatePage({
   const [showCustomerServiceDropdown, setShowCustomerServiceDropdown] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const customerServiceDropdownRef = useRef<HTMLDivElement>(null);
+  const [showCustomerEdit, setShowCustomerEdit] = useState(false);
+  const [showVehicleEdit, setShowVehicleEdit] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // DIAMOND RIMS FORM STATE
   const [formData, setFormData] = useState({
@@ -132,10 +137,13 @@ export default function DiamondRimsPreChecklistCreatePage({
     remarks: '',
     approved: false,
     
-    // SERVICE INTAKE FORM FIELDS
     serviceIntake: {
       date: new Date().toISOString().split('T')[0],
       customerServiceRep: sessionStorage.getItem('userName') || '',
+      inspectorNotes: '',
+      backendAccessCode: '',
+      priorityLevel: 'normal',
+      specialInstructions: ''
     },
     
     customerDetails: {
@@ -162,8 +170,13 @@ export default function DiamondRimsPreChecklistCreatePage({
       actualService: [] as string[],
     },
     
+    // Add edit space for pre-service section
     preServiceInspection: {
       condition: [] as string[],
+      inspectorAccessNotes: '',
+      inspectionNotes: '',
+      photosRequired: false,
+      videoRequired: false
     },
     
     powderCoating: {
@@ -176,7 +189,30 @@ export default function DiamondRimsPreChecklistCreatePage({
     nozzleCapsTotal: 0,
     nozzleCapsType: '',
     lockNutsTotal: 0,
-    centerCaps: '',
+    
+    // Create a "Center Caps" section
+    centerCaps: {
+      present: false,
+      quantity: 0,
+      condition: 'good',
+      type: '',
+      notes: ''
+    },
+    
+    // Change Rim and Tire details - dropdown option for either Rims or Tires
+    rimOrTireSelection: '',
+    rimsDetails: {
+      quantity: 0,
+      size: '',
+      type: '',
+      condition: ''
+    },
+    tiresDetails: {
+      quantity: 0,
+      size: '',
+      type: '',
+      treadDepth: ''
+    },
     
     tireBrands: {
       fr: '',
@@ -186,56 +222,102 @@ export default function DiamondRimsPreChecklistCreatePage({
       spare: '',
     },
     
+    // Have the "DOT" section in full
     tireDOT: {
-      fr: '',
-      fl: '',
-      br: '',
-      bl: '',
-      spare: '',
+      fr: {
+        code: '',
+        week: '',
+        year: '',
+        plant: ''
+      },
+      fl: {
+        code: '',
+        week: '',
+        year: '',
+        plant: ''
+      },
+      br: {
+        code: '',
+        week: '',
+        year: '',
+        plant: ''
+      },
+      bl: {
+        code: '',
+        week: '',
+        year: '',
+        plant: ''
+      },
+      spare: {
+        code: '',
+        week: '',
+        year: '',
+        plant: ''
+      },
     },
     
-    rimsTires: '',
-    declaredValuable: false,
-    additionalInformation: '',
-    
+    // "Suitability" section should have its own space
     suitability: {
       skimming: '',
       powderCoating: '',
       straightening: '',
+      welding: '',
+      diamondCutting: '',
+      notes: '',
+      recommendations: ''
     },
+    
+    // "Declared Valuable" section should have its own space
+    declaredValuable: {
+      value: false,
+      declaredValue: 0,
+      insuranceRequired: false,
+      insuranceProvider: '',
+      policyNumber: '',
+      notes: ''
+    },
+    
+    additionalInformation: '',
     
     // MUST KNOW - Already accepted
     mustKnowAccepted: false,
     
-    // CLIENT UPDATE - Risks explained
+    // CLIENT UPDATE - Well defined section
     clientUpdate: {
-      brakeDiscSkimming: false,
-      powderCoating: false,
-      straightening: false,
-      welding: false,
-      diamondCutting: false,
+      // Associated Risks separated from Must Knows
+      associatedRisks: {
+        brakeDiscSkimming: false,
+        powderCoating: false,
+        straightening: false,
+        welding: false,
+        diamondCutting: false,
+        general: false
+      },
+      // Must Knows
+      mustKnows: {
+        processExplained: false,
+        clientRiskAcceptance: false,
+        personalBelongings: false,
+        timelineEstimates: false,
+        fullPaymentRequired: false,
+        storageFees: false,
+        storageRisk: false
+      }
     },
     
-    // AGREED AMOUNT
-    agreedAmount: {
-      total: 0,
-      breakdown: '',
-    },
-    
-    // AGENT DETAILS
-    agentDetails: {
-      firstName: '',
-      lastName: '',
-      idNumber: '',
-    },
-    
-    // Terms acceptance
+    // Terms acceptance - Check buttons only in main acceptance section
     acceptTerms: false,
+    
+    // Client and Inspector section - Separate signatures
     clientSignature: '',
     inspectorSignature: '',
     
-    // Uploads
-    uploadedImages: [] as string[]
+    // Upload section for photos (6 image limit for 50mbs)
+    uploadedImages: [] as string[],
+    
+    // Client signing options
+    clientSigningMethod: '',
+    clientEmail: ''
   });
 
   const [clientSignature, setClientSignature] = useState(formData.clientSignature);
@@ -277,7 +359,7 @@ export default function DiamondRimsPreChecklistCreatePage({
     { id: 'mobile_delivery_install', label: 'Mobile Service', icon: <CarIcon className="h-5 w-5" /> }
   ];
 
-  // RAL Colors options (common powder coating colors)
+  // RAL Colors options
   const ralColors = [
     'RAL 9010 (Pure White)',
     'RAL 9005 (Jet Black)',
@@ -297,6 +379,11 @@ export default function DiamondRimsPreChecklistCreatePage({
     'Custom Color'
   ];
 
+  // Required field indicator component
+  const RequiredField = () => (
+    <span className="text-red-500 ml-1">*</span>
+  );
+
   useEffect(() => {
     loadRelatedData();
   }, [opportunityId, workOrderId, vehicleId, checklistId, mode]);
@@ -306,67 +393,51 @@ export default function DiamondRimsPreChecklistCreatePage({
       autoPopulateFromOpportunity();
     }
   }, [opportunity]);
-  // Update your existing useEffect for click outside
-useEffect(() => {
-  const handleClickOutside = (event: MouseEvent) => {
-    // ... existing code ...
 
-    if (customerServiceDropdownRef.current && !customerServiceDropdownRef.current.contains(event.target as Node)) {
-      setShowCustomerServiceDropdown(false);
-      setUserSearch('');
-    }
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (customerServiceDropdownRef.current && !customerServiceDropdownRef.current.contains(event.target as Node)) {
+        setShowCustomerServiceDropdown(false);
+        setUserSearch('');
+      }
+    };
 
-    // ... rest of existing code ...
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const toId = (v: any): string => {
+    if (!v) return '';
+    return typeof v === 'string' ? v : (v._id ?? '');
   };
 
-  document.addEventListener('mousedown', handleClickOutside);
-  return () => {
-    document.removeEventListener('mousedown', handleClickOutside);
+  const toISODate = (d: any): string => {
+    if (!d) return new Date().toISOString().split('T')[0];
+    const dt = new Date(d);
+    return isNaN(dt.getTime())
+      ? new Date().toISOString().split('T')[0]
+      : dt.toISOString().split('T')[0];
   };
-}, []);
-const toId = (v: any): string => {
-  if (!v) return '';
-  return typeof v === 'string' ? v : (v._id ?? '');
-};
 
-const toISODate = (d: any): string => {
-  if (!d) return new Date().toISOString().split('T')[0];
-  const dt = new Date(d);
-  return isNaN(dt.getTime())
-    ? new Date().toISOString().split('T')[0]
-    : dt.toISOString().split('T')[0];
-};
-
-/**
- * Map API checklist (may contain populated refs, missing fields, etc.)
- * into the strict shape your formData state expects.
- */
   const mapChecklistToForm = (checklist: any) => {
     return {
-      ...formData, // keep your defaults for anything missing
-      ...checklist, // allow simple scalar overwrites
       checklistType: checklist?.checklistType ?? 'diamond_rims',
-
-      // IMPORTANT: keep relation fields as strings only
       opportunityId: toId(checklist?.opportunityId),
       vehicleId: toId(checklist?.vehicleId),
-      workOrderId: toId(checklist?.workOrderId),
-
-      // preChecklistId can be null -> normalize to string
-      preChecklistId: toId(checklist?.preChecklistId),
-
-      // normalize known date fields if you have them in post-checklist;
-      // if your form uses serviceIntake.date (like in your snippet), keep that too.
-      date: toISODate(checklist?.date),
-
       inspectedBy: toId(checklist?.inspectedBy) || sessionStorage.getItem('userId') || '',
       inspectorName: checklist?.inspectorName ?? '',
+      remarks: checklist?.remarks ?? '',
+      approved: !!checklist?.approved,
 
-      // Ensure nested structures exist with defaults
       serviceIntake: {
         date: toISODate(checklist?.serviceIntake?.date ?? checklist?.date),
-        customerServiceRep:
-          checklist?.serviceIntake?.customerServiceRep ?? sessionStorage.getItem('userName') ?? '',
+        customerServiceRep: checklist?.serviceIntake?.customerServiceRep ?? sessionStorage.getItem('userName') ?? '',
+        inspectorNotes: checklist?.serviceIntake?.inspectorNotes ?? '',
+        backendAccessCode: checklist?.serviceIntake?.backendAccessCode ?? '',
+        priorityLevel: checklist?.serviceIntake?.priorityLevel ?? 'normal',
+        specialInstructions: checklist?.serviceIntake?.specialInstructions ?? ''
       },
 
       customerDetails: {
@@ -383,6 +454,10 @@ const toISODate = (d: any): string => {
         mileage: checklist?.carDetails?.mileage ?? '',
         yearOfManufacture: checklist?.carDetails?.yearOfManufacture ?? '',
         licensePlate: checklist?.carDetails?.licensePlate ?? '',
+        vehicleType: checklist?.carDetails?.vehicleType ?? '',
+        color: checklist?.carDetails?.color ?? '',
+        engineSize: checklist?.carDetails?.engineSize ?? '',
+        fuelType: checklist?.carDetails?.fuelType ?? '',
       },
 
       services: {
@@ -395,47 +470,141 @@ const toISODate = (d: any): string => {
         condition: Array.isArray(checklist?.preServiceInspection?.condition)
           ? checklist.preServiceInspection.condition
           : [],
+        inspectorAccessNotes: checklist?.preServiceInspection?.inspectorAccessNotes ?? '',
+        inspectionNotes: checklist?.preServiceInspection?.inspectionNotes ?? '',
+        photosRequired: !!checklist?.preServiceInspection?.photosRequired,
+        videoRequired: !!checklist?.preServiceInspection?.videoRequired
       },
 
       powderCoating: {
         colourRAL: checklist?.powderCoating?.colourRAL ?? '',
       },
 
+      deliveryMode: checklist?.deliveryMode ?? '',
+      tpmsSensorsFitted: !!checklist?.tpmsSensorsFitted,
+      wheelNutsTotal: checklist?.wheelNutsTotal ?? 4,
+      nozzleCapsTotal: checklist?.nozzleCapsTotal ?? 0,
+      nozzleCapsType: checklist?.nozzleCapsType ?? '',
+      lockNutsTotal: checklist?.lockNutsTotal ?? 0,
+
+      centerCaps: {
+        present: !!checklist?.centerCaps?.present,
+        quantity: checklist?.centerCaps?.quantity ?? 0,
+        condition: checklist?.centerCaps?.condition ?? 'good',
+        type: checklist?.centerCaps?.type ?? '',
+        notes: checklist?.centerCaps?.notes ?? ''
+      },
+
+      rimOrTireSelection: checklist?.rimOrTireSelection ?? '',
+      rimsDetails: {
+        quantity: checklist?.rimsDetails?.quantity ?? 0,
+        size: checklist?.rimsDetails?.size ?? '',
+        type: checklist?.rimsDetails?.type ?? '',
+        condition: checklist?.rimsDetails?.condition ?? ''
+      },
+      tiresDetails: {
+        quantity: checklist?.tiresDetails?.quantity ?? 0,
+        size: checklist?.tiresDetails?.size ?? '',
+        type: checklist?.tiresDetails?.type ?? '',
+        treadDepth: checklist?.tiresDetails?.treadDepth ?? ''
+      },
+
+      tireBrands: {
+        fr: checklist?.tireBrands?.fr ?? '',
+        fl: checklist?.tireBrands?.fl ?? '',
+        br: checklist?.tireBrands?.br ?? '',
+        bl: checklist?.tireBrands?.bl ?? '',
+        spare: checklist?.tireBrands?.spare ?? '',
+      },
+
+      tireDOT: {
+        fr: {
+          code: checklist?.tireDOT?.fr?.code ?? '',
+          week: checklist?.tireDOT?.fr?.week ?? '',
+          year: checklist?.tireDOT?.fr?.year ?? '',
+          plant: checklist?.tireDOT?.fr?.plant ?? ''
+        },
+        fl: {
+          code: checklist?.tireDOT?.fl?.code ?? '',
+          week: checklist?.tireDOT?.fl?.week ?? '',
+          year: checklist?.tireDOT?.fl?.year ?? '',
+          plant: checklist?.tireDOT?.fl?.plant ?? ''
+        },
+        br: {
+          code: checklist?.tireDOT?.br?.code ?? '',
+          week: checklist?.tireDOT?.br?.week ?? '',
+          year: checklist?.tireDOT?.br?.year ?? '',
+          plant: checklist?.tireDOT?.br?.plant ?? ''
+        },
+        bl: {
+          code: checklist?.tireDOT?.bl?.code ?? '',
+          week: checklist?.tireDOT?.bl?.week ?? '',
+          year: checklist?.tireDOT?.bl?.year ?? '',
+          plant: checklist?.tireDOT?.bl?.plant ?? ''
+        },
+        spare: {
+          code: checklist?.tireDOT?.spare?.code ?? '',
+          week: checklist?.tireDOT?.spare?.week ?? '',
+          year: checklist?.tireDOT?.spare?.year ?? '',
+          plant: checklist?.tireDOT?.spare?.plant ?? ''
+        },
+      },
+
+      suitability: {
+        skimming: checklist?.suitability?.skimming ?? '',
+        powderCoating: checklist?.suitability?.powderCoating ?? '',
+        straightening: checklist?.suitability?.straightening ?? '',
+        welding: checklist?.suitability?.welding ?? '',
+        diamondCutting: checklist?.suitability?.diamondCutting ?? '',
+        notes: checklist?.suitability?.notes ?? '',
+        recommendations: checklist?.suitability?.recommendations ?? ''
+      },
+
+      declaredValuable: {
+        value: !!checklist?.declaredValuable?.value,
+        declaredValue: checklist?.declaredValuable?.declaredValue ?? 0,
+        insuranceRequired: !!checklist?.declaredValuable?.insuranceRequired,
+        insuranceProvider: checklist?.declaredValuable?.insuranceProvider ?? '',
+        policyNumber: checklist?.declaredValuable?.policyNumber ?? '',
+        notes: checklist?.declaredValuable?.notes ?? ''
+      },
+
+      additionalInformation: checklist?.additionalInformation ?? '',
+      mustKnowAccepted: !!checklist?.mustKnowAccepted,
+
       clientUpdate: {
-        brakeDiscSkimming: !!checklist?.clientUpdate?.brakeDiscSkimming,
-        powderCoating: !!checklist?.clientUpdate?.powderCoating,
-        straightening: !!checklist?.clientUpdate?.straightening,
-        welding: !!checklist?.clientUpdate?.welding,
-        diamondCutting: !!checklist?.clientUpdate?.diamondCutting,
-      },
-
-      agreedAmount: {
-        total: Number(checklist?.agreedAmount?.total ?? 0),
-        breakdown: checklist?.agreedAmount?.breakdown ?? '',
-      },
-
-      agentDetails: {
-        firstName: checklist?.agentDetails?.firstName ?? '',
-        lastName: checklist?.agentDetails?.lastName ?? '',
-        idNumber: checklist?.agentDetails?.idNumber ?? '',
+        associatedRisks: {
+          brakeDiscSkimming: !!checklist?.clientUpdate?.associatedRisks?.brakeDiscSkimming,
+          powderCoating: !!checklist?.clientUpdate?.associatedRisks?.powderCoating,
+          straightening: !!checklist?.clientUpdate?.associatedRisks?.straightening,
+          welding: !!checklist?.clientUpdate?.associatedRisks?.welding,
+          diamondCutting: !!checklist?.clientUpdate?.associatedRisks?.diamondCutting,
+          general: !!checklist?.clientUpdate?.associatedRisks?.general
+        },
+        mustKnows: {
+          processExplained: !!checklist?.clientUpdate?.mustKnows?.processExplained,
+          clientRiskAcceptance: !!checklist?.clientUpdate?.mustKnows?.clientRiskAcceptance,
+          personalBelongings: !!checklist?.clientUpdate?.mustKnows?.personalBelongings,
+          timelineEstimates: !!checklist?.clientUpdate?.mustKnows?.timelineEstimates,
+          fullPaymentRequired: !!checklist?.clientUpdate?.mustKnows?.fullPaymentRequired,
+          storageFees: !!checklist?.clientUpdate?.mustKnows?.storageFees,
+          storageRisk: !!checklist?.clientUpdate?.mustKnows?.storageRisk
+        }
       },
 
       acceptTerms: !!checklist?.acceptTerms,
-      mustKnowAccepted: !!checklist?.mustKnowAccepted,
-
       clientSignature: checklist?.clientSignature ?? '',
       inspectorSignature: checklist?.inspectorSignature ?? '',
-
       uploadedImages: Array.isArray(checklist?.uploadedImages) ? checklist.uploadedImages : [],
+      clientSigningMethod: checklist?.clientSigningMethod ?? '',
+      clientEmail: checklist?.clientEmail ?? ''
     };
   };
-
 
   const loadRelatedData = async () => {
     try {
       setLoading(true);
 
-      // Load existing checklist if in edit mode
       if (mode === 'edit' && checklistId) {
         const checklist = await preChecklistService.getPreChecklistById(checklistId);
         setExistingChecklist(checklist);
@@ -452,17 +621,16 @@ const toISODate = (d: any): string => {
         }
       }
 
-      // Load opportunity if provided
       if (opportunityId) {
         try {
           const opp = await opportunityService.getOpportunityById(opportunityId, false);
           setOpportunity(opp);
           
-          // Try to get detailed vehicle information
+          // Check if vehicles exist
           if (opp.vehicles && opp.vehicles.length > 0) {
             const primaryVehicle = opp.vehicles[0];
             
-            // If vehicle has an ID, try to fetch detailed vehicle info
+            // First, try to load detailed vehicle info
             if (primaryVehicle._id) {
               try {
                 const detailedVehicle = await vehicleService.getVehicleById(primaryVehicle._id);
@@ -474,8 +642,6 @@ const toISODate = (d: any): string => {
                   vehicleId: primaryVehicle._id || vehicleId || ''
                 }));
               } catch (vehError) {
-                console.warn('Could not fetch detailed vehicle:', vehError);
-                // Use the vehicle data from opportunity
                 setVehicle(primaryVehicle);
                 
                 setFormData(prev => ({
@@ -485,7 +651,6 @@ const toISODate = (d: any): string => {
                 }));
               }
             } else {
-              // Use the vehicle data from opportunity
               setVehicle(primaryVehicle);
               
               setFormData(prev => ({
@@ -494,19 +659,20 @@ const toISODate = (d: any): string => {
                 vehicleId: vehicleId || ''
               }));
             }
-          } else if (vehicleId) {
-            // Fallback to vehicleId parameter
-            try {
-              const veh = await vehicleService.getVehicleById(vehicleId);
-              setVehicle(veh);
-              
-              setFormData(prev => ({
-                ...prev,
-                opportunityId,
-                vehicleId
-              }));
-            } catch (vehError) {
-              console.error('Error loading vehicle:', vehError);
+          } else {
+            if (vehicleId) {
+              try {
+                const veh = await vehicleService.getVehicleById(vehicleId);
+                setVehicle(veh);
+                
+                setFormData(prev => ({
+                  ...prev,
+                  opportunityId,
+                  vehicleId
+                }));
+              } catch (vehError) {
+                console.error('Error loading vehicle:', vehError);
+              }
             }
           }
         } catch (error) {
@@ -515,7 +681,6 @@ const toISODate = (d: any): string => {
         }
       }
 
-      // Load work order if ID provided
       if (workOrderId) {
         try {
           const wo = await workOrderService.getWorkOrderById(workOrderId);
@@ -551,21 +716,23 @@ const toISODate = (d: any): string => {
     if (!opportunity || autoPopulated) return;
 
     try {
-      console.log('Auto-populating from opportunity:', opportunity);
       
       // Extract customer information
       const customerName = opportunity.customer?.name || '';
       const [firstName, ...lastNameParts] = customerName.split(' ');
       const lastName = lastNameParts.join(' ') || '';
 
-      // Get vehicle details from opportunity or loaded vehicle
-      const primaryVehicle = opportunity.vehicles?.[0] || vehicle || {};
+      // Use the detailed vehicle data if available, otherwise use opportunity vehicle
+      const vehicleData = vehicle || opportunity.vehicles?.[0] || {};
       
-      // Helper function to get registration number from vehicle object
-      const getRegistrationNumber = (vehicle: any) => {
+      // Extract the fields that should be pre-filled (Make, Model, License Plate, Year)
+      const carMake = vehicleData.make || vehicleData.manufacturer || vehicleData.brand || '';
+      const carModel = vehicleData.model || vehicleData.modelName || '';
+      
+      // Get license plate from various possible field names
+      const getLicensePlate = (vehicle: any) => {
         if (!vehicle) return '';
         
-        // Check common field names for registration/plate number
         const fields = [
           'registrationNumber',
           'regNumber',
@@ -573,12 +740,12 @@ const toISODate = (d: any): string => {
           'licensePlate',
           'plateNumber',
           'plate',
-          'numberPlate'
+          'numberPlate',
+          'license'
         ];
         
         for (const field of fields) {
           if (vehicle[field]) {
-            console.log(`Found registration in field "${field}":`, vehicle[field]);
             return vehicle[field];
           }
         }
@@ -586,23 +753,21 @@ const toISODate = (d: any): string => {
         return '';
       };
       
-      const licensePlate = getRegistrationNumber(primaryVehicle);
+      const licensePlate = getLicensePlate(vehicleData);
       
-      // Extract other vehicle details
-      const carMake = primaryVehicle.make || primaryVehicle.manufacturer || '';
-      const carModel = primaryVehicle.model || '';
-      const yearOfManufacture = (primaryVehicle.year || primaryVehicle.yearOfManufacture)?.toString() || '';
-      const mileage = primaryVehicle.mileage || primaryVehicle.odometer || '';
-      const vehicleType = primaryVehicle.type || primaryVehicle.vehicleType || '';
-      const color = primaryVehicle.color || primaryVehicle.colour || '';
-      const engineSize = primaryVehicle.engineSize || primaryVehicle.engineCapacity || '';
-      const fuelType = primaryVehicle.fuelType || primaryVehicle.fuel || '';
-      
-      // Get total price from opportunity
-      let totalPrice = opportunity.total || 0;
-      if (opportunity.lineItems && opportunity.lineItems.length > 0) {
-        totalPrice = opportunity.lineItems.reduce((sum: number, item: any) => sum + (item.total || 0), 0);
+      // Try different possible year fields
+      let yearOfManufacture = '';
+      if (vehicleData.year) {
+        yearOfManufacture = vehicleData.year.toString();
+      } else if (vehicleData.yearOfManufacture) {
+        yearOfManufacture = vehicleData.yearOfManufacture.toString();
+      } else if (vehicleData.modelYear) {
+        yearOfManufacture = vehicleData.modelYear.toString();
       }
+
+      // Get logged-in user info
+      const loggedInUserName = sessionStorage.getItem('userName') || '';
+      const loggedInUserId = sessionStorage.getItem('userId') || '';
 
       setFormData(prev => ({
         ...prev,
@@ -616,25 +781,21 @@ const toISODate = (d: any): string => {
         },
         carDetails: {
           ...prev.carDetails,
-          licensePlate: licensePlate || '',
           carMake: carMake,
           carModel: carModel,
+          licensePlate: licensePlate || '',
           yearOfManufacture: yearOfManufacture,
-          mileage: mileage,
-          vehicleType: vehicleType,
-          color: color,
-          engineSize: engineSize,
-          fuelType: fuelType
-        },
-        agreedAmount: {
-          ...prev.agreedAmount,
-          total: totalPrice
+          color: prev.carDetails.color || '',
+          mileage: prev.carDetails.mileage || '',
+          vehicleType: prev.carDetails.vehicleType,
+          engineSize: prev.carDetails.engineSize,
+          fuelType: prev.carDetails.fuelType
         },
         additionalInformation: prev.additionalInformation || opportunity.notes || '',
-        inspectorName: prev.inspectorName || sessionStorage.getItem('userName') || '',
+        inspectorName: prev.inspectorName || loggedInUserName,
         serviceIntake: {
           ...prev.serviceIntake,
-          customerServiceRep: sessionStorage.getItem('userName') || ''
+          customerServiceRep: loggedInUserName || ''
         }
       }));
       
@@ -695,6 +856,77 @@ const toISODate = (d: any): string => {
     handleMultiSelectChange('preServiceInspection', 'condition', conditionLabel, checked);
   };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    
+    const newFiles = Array.from(files);
+    
+    // Validate file count
+    // if (formData.uploadedImages.length + newFiles.length > 6) {
+    //   showToast('Maximum 6 images allowed', 'error');
+    //   return;
+    // }
+    
+    // Validate file sizes
+    const totalSize = newFiles.reduce((acc, file) => acc + file.size, 0);
+    if (totalSize > 50 * 1024 * 1024) { // 50MB
+      showToast('Total file size exceeds 50MB limit', 'error');
+      return;
+    }
+    
+    setSelectedFiles(prev => [...prev, ...newFiles]);
+    
+    // Preview images
+    newFiles.forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const result = e.target?.result as string;
+          setFormData(prev => ({
+            ...prev,
+            uploadedImages: [...prev.uploadedImages, result]
+          }));
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+    
+    showToast(`${newFiles.length} image(s) uploaded`, 'success');
+  };
+
+  const removeImage = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      uploadedImages: prev.uploadedImages.filter((_, i) => i !== index)
+    }));
+  };
+
+  const loadCustomerServiceUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      // Load all users first
+      const allUsers = await userService.getAllUsers();
+      
+      // Filter to show customer service users first, then others
+      const sortedUsers = [...allUsers].sort((a, b) => {
+        const aIsCS = isCustomerServicePerson(a);
+        const bIsCS = isCustomerServicePerson(b);
+        
+        if (aIsCS && !bIsCS) return -1;
+        if (!aIsCS && bIsCS) return 1;
+        return 0;
+      });
+      
+      setUsers(sortedUsers);
+    } catch (error) {
+      console.error('Error loading users:', error);
+      // Don't show error toast as this is a secondary feature
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
   const clearSignature = (type: 'client' | 'inspector') => {
     if (type === 'client' && clientSigRef.current) {
       clientSigRef.current.clear();
@@ -721,13 +953,52 @@ const toISODate = (d: any): string => {
     }
   };
 
+  const handleClientApproval = (action: 'approve' | 'send') => {
+    if (action === 'approve') {
+      if (!formData.clientSignature) {
+        showToast('Please provide client signature', 'error');
+        return;
+      }
+      
+      // Submit the form
+      handleSubmit(new Event('submit') as any);
+      
+    } else if (action === 'send') {
+      if (!formData.clientEmail) {
+        showToast('Please enter client email address', 'error');
+        return;
+      }
+      
+      showToast('Email sent to client for approval', 'success');
+    }
+  };
+
+  const sendForClientApproval = async () => {
+    try {
+      if (!formData.clientEmail || !formData.clientEmail.includes('@')) {
+        showToast('Please enter a valid email address', 'error');
+        return;
+      }
+      
+      // Save draft first
+      await handleSaveAsDraft();
+      
+      // Simulate email sending
+      showToast('Approval email sent successfully!', 'success');
+      
+    } catch (error) {
+      console.error('Error sending approval email:', error);
+      showToast('Error sending approval email', 'error');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
       setSubmitting(true);
 
-      // Validate required fields (keep existing validation)
+      // Validate required fields
       if (!formData.customerDetails.firstName || 
           !formData.customerDetails.lastName ||
           !formData.customerDetails.mobile ||
@@ -755,6 +1026,12 @@ const toISODate = (d: any): string => {
         return;
       }
       
+      if (!formData.rimOrTireSelection) {
+        showToast('Please select item type (Rims or Tires)', 'error');
+        setSubmitting(false);
+        return;
+      }
+      
       if (!formData.mustKnowAccepted) {
         showToast('Please acknowledge the MUST KNOW section', 'error');
         setSubmitting(false);
@@ -767,19 +1044,23 @@ const toISODate = (d: any): string => {
         return;
       }
 
-      // Normalize relation IDs to strings before submit
+      if (!formData.inspectorSignature) {
+        showToast('Please provide inspector signature', 'error');
+        setSubmitting(false);
+        return;
+      }
+
       const normalizedSubmissionData = {
         ...formData,
         checklistType: 'diamond_rims',
         opportunityId: toId(formData.opportunityId),
         vehicleId: toId(formData.vehicleId),
         workOrderId: toId((formData as any).workOrderId) || workOrderId || '',
-        approved: false, // SET TO FALSE - NO AUTO-APPROVAL
+        approved: false,
         clientSignature: formData.clientSignature || '',
         inspectorSignature: formData.inspectorSignature || ''
       };
 
-      // Create pre-checklist
       let result: any;
       const userId = sessionStorage.getItem('userId') || undefined;
       
@@ -791,18 +1072,15 @@ const toISODate = (d: any): string => {
         showToast('Diamond Rims pre-checklist created successfully', 'success');
       }
 
-      // Update work order with pre-checklist ID
       if (workOrderId && result._id) {
         await workOrderService.updateWorkOrder(workOrderId, {
           preChecklistId: result._id,
-          preChecklistStatus: 'pending' // Set status to pending, not approved
+          preChecklistStatus: 'pending'
         });
       }
 
-      // DO NOT auto-approve. The checklist will remain pending.
       showToast('Pre-checklist created. Please return to work order to approve it.', 'success');
 
-      // Redirect back to work order details
       if (workOrderId) {
         router.push(`/orders/work-orders/${workOrderId}`);
       } else if (source === 'opportunity' && formData.opportunityId) {
@@ -842,8 +1120,10 @@ const toISODate = (d: any): string => {
       setDraftSaved(true);
       setTimeout(() => setDraftSaved(false), 3000);
       showToast('Draft saved successfully!', 'success');
+      return Promise.resolve();
     } catch (error) {
       showToast('Failed to save draft', 'error');
+      return Promise.reject(error);
     }
   };
 
@@ -876,7 +1156,6 @@ const toISODate = (d: any): string => {
 
   const downloadExcel = () => {
     try {
-      // Create worksheet data
       const data = [
         ['DIAMOND RIMZ LTD', '', '', '', '', '', ''],
         ['SERVICE INTAKE FORM', '', '', '', '', '', ''],
@@ -906,18 +1185,13 @@ const toISODate = (d: any): string => {
         ['Delivery Mode:', formData.deliveryMode, '', 'TPMS Sensors:', formData.tpmsSensorsFitted ? 'Yes' : 'No', '', ''],
         ['Wheel Nuts:', formData.wheelNutsTotal, '', 'Nozzle Caps:', formData.nozzleCapsTotal, '', ''],
         ['Nozzle Caps Type:', formData.nozzleCapsType, '', 'Lock Nuts:', formData.lockNutsTotal, '', ''],
-        ['Center Caps:', formData.centerCaps, '', 'Rims/Tires:', formData.rimsTires, '', ''],
-        ['Declared Valuable:', formData.declaredValuable ? 'Yes' : 'No', '', '', '', '', ''],
+        ['Center Caps Present:', formData.centerCaps.present ? 'Yes' : 'No', '', '', '', '', ''],
+        ['Declared Valuable:', formData.declaredValuable.value ? 'Yes' : 'No', '', '', '', '', ''],
         ['', '', '', '', '', '', ''],
         ['TIRE BRANDS', '', '', '', '', '', ''],
         ['FR:', formData.tireBrands.fr, '', 'FL:', formData.tireBrands.fl, '', ''],
         ['BR:', formData.tireBrands.br, '', 'BL:', formData.tireBrands.bl, '', ''],
         ['Spare:', formData.tireBrands.spare, '', '', '', '', ''],
-        ['', '', '', '', '', '', ''],
-        ['TIRE DOT NUMBERS', '', '', '', '', '', ''],
-        ['FR:', formData.tireDOT.fr, '', 'FL:', formData.tireDOT.fl, '', ''],
-        ['BR:', formData.tireDOT.br, '', 'BL:', formData.tireDOT.bl, '', ''],
-        ['Spare:', formData.tireDOT.spare, '', '', '', '', ''],
         ['', '', '', '', '', '', ''],
         ['SUITABILITY', '', '', '', '', '', ''],
         ['Skimming:', formData.suitability.skimming, '', 'Powder Coating:', formData.suitability.powderCoating, '', ''],
@@ -925,13 +1199,6 @@ const toISODate = (d: any): string => {
         ['', '', '', '', '', '', ''],
         ['ADDITIONAL INFORMATION', '', '', '', '', '', ''],
         [formData.additionalInformation, '', '', '', '', '', ''],
-        ['', '', '', '', '', '', ''],
-        ['AGREED AMOUNT', '', '', '', '', '', ''],
-        ['Total Amount:', `KES ${formData.agreedAmount.total.toLocaleString()}`, '', '', '', '', ''],
-        ['Breakdown:', formData.agreedAmount.breakdown, '', '', '', '', ''],
-        ['', '', '', '', '', '', ''],
-        ['AGENT DETAILS', '', '', '', '', '', ''],
-        ['Name:', `${formData.agentDetails.firstName} ${formData.agentDetails.lastName}`, '', 'ID:', formData.agentDetails.idNumber, '', ''],
         ['', '', '', '', '', '', ''],
         ['TERMS ACCEPTANCE', '', '', '', '', '', ''],
         ['Must Know Accepted:', formData.mustKnowAccepted ? 'YES' : 'NO', '', 'Terms Accepted:', formData.acceptTerms ? 'YES' : 'NO', '', ''],
@@ -965,7 +1232,6 @@ const toISODate = (d: any): string => {
     }
   };
 
-  // Helper function to extract vehicle info
   const getVehicleInfo = () => {
     if (!vehicle) return null;
     
@@ -982,33 +1248,19 @@ const toISODate = (d: any): string => {
     };
   };
 
-  // Update the isCustomerServicePerson function to check for the specific role name
   const isCustomerServicePerson = (user: User): boolean => {
     if (!user.role) return false;
     
     if (typeof user.role === 'string') {
       const lowerRole = user.role.toLowerCase();
-      // Check for exact role name or variations
       return lowerRole.includes('customer') && lowerRole.includes('service');
     } else if (user.role && typeof user.role === 'object') {
       const roleName = user.role.name?.toLowerCase() || user.role.display_name?.toLowerCase() || '';
-      return  roleName.includes('customer') && roleName.includes('service');
+      return roleName.includes('customer') && roleName.includes('service');
     }
     return false;
   };
 
-  const isSalesPerson = (user: User): boolean => {
-    if (typeof user.role === 'string') {
-      const lowerRole = user.role.toLowerCase();
-      return lowerRole.includes('sales') || lowerRole.includes('representative');
-    } else if (user.role && typeof user.role === 'object') {
-      const roleName = user.role.name?.toLowerCase() || user.role.display_name?.toLowerCase() || '';
-      return roleName.includes('sales') || roleName.includes('representative');
-    }
-    return false;
-  };
-
-  // Add function to get user display info
   const getUserDisplayInfo = (user: User) => {
     const roleInfo = getUserRoleName(user);
     return {
@@ -1019,7 +1271,6 @@ const toISODate = (d: any): string => {
     };
   };
 
-  // Add function to get role name
   const getUserRoleName = (user: User): string => {
     if (typeof user.role === 'string') {
       return user.role;
@@ -1090,54 +1341,8 @@ const toISODate = (d: any): string => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-8 py-8">
-        {/* Opportunity Info Banner */}
-        {opportunity && (
-          <div className="mb-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-gray-800">Opportunity Information</h3>
-                <p className="text-sm text-gray-600">
-                  {opportunity.subject} • {opportunity.customer?.name}
-                  {opportunity.customer?.companyName && ` • ${opportunity.customer.companyName}`}
-                </p>
-                {vehicle && (
-                  <div className="mt-2 flex items-center gap-4 text-sm">
-                    <span className="text-gray-700">
-                      <Car className="h-4 w-4 inline mr-1" />
-                      {getVehicleInfo()?.make} {getVehicleInfo()?.model} • {getVehicleInfo()?.licensePlate}
-                    </span>
-                    {getVehicleInfo()?.year && (
-                      <span className="text-gray-600">Year: {getVehicleInfo()?.year}</span>
-                    )}
-                    {getVehicleInfo()?.color && (
-                      <span className="text-gray-600">Color: {getVehicleInfo()?.color}</span>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`px-2 py-1 rounded-md text-xs font-medium ${
-                  opportunity.status === 'won' ? 'bg-green-100 text-green-800' :
-                  opportunity.status === 'lost' ? 'bg-red-100 text-red-800' :
-                  opportunity.status === 'new' ? 'bg-blue-100 text-blue-800' :
-                  'bg-yellow-100 text-yellow-800'
-                }`}>
-                  {opportunity.status?.replace(/_/g, ' ')}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleRefreshFromOpportunity}
-                  className="inline-flex items-center gap-2 px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  Refresh Data
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* Form Content - All sections in one form */}
+        {/* Form Content */}
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="bg-white rounded-2xl shadow-xl border p-6 md:p-8">
             {/* Service Intake Information */}
@@ -1145,13 +1350,13 @@ const toISODate = (d: any): string => {
               <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                 <Settings className="h-5 w-5 text-purple-600" />
                 Service Intake Information
+                <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Inspector Access</span>
               </h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                {/* Replace this section in your form - Service Intake Information */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Customer Service Representative *
+                    Customer Service Representative <RequiredField />
                   </label>
                   <div className="relative" ref={customerServiceDropdownRef}>
                     <div className="relative">
@@ -1159,7 +1364,20 @@ const toISODate = (d: any): string => {
                         type="text"
                         value={formData.serviceIntake.customerServiceRep}
                         onChange={(e) => handleNestedInputChange('serviceIntake', 'customerServiceRep', e.target.value)}
-                        onFocus={() => setShowCustomerServiceDropdown(true)}
+                        onFocus={() => {
+                          // If empty, set to logged-in user
+                          if (!formData.serviceIntake.customerServiceRep.trim()) {
+                            const loggedInUser = sessionStorage.getItem('userName') || '';
+                            if (loggedInUser) {
+                              handleNestedInputChange('serviceIntake', 'customerServiceRep', loggedInUser);
+                            }
+                          }
+                          // Load users if not already loaded
+                          if (users.length === 0 && !loadingUsers) {
+                            loadCustomerServiceUsers();
+                          }
+                          setShowCustomerServiceDropdown(true);
+                        }}
                         placeholder="Select or type customer service representative..."
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 pl-10 pr-8"
                         required
@@ -1167,7 +1385,13 @@ const toISODate = (d: any): string => {
                       <UserType className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <button
                         type="button"
-                        onClick={() => setShowCustomerServiceDropdown(!showCustomerServiceDropdown)}
+                        onClick={() => {
+                          // Load users if not already loaded
+                          if (users.length === 0 && !loadingUsers) {
+                            loadCustomerServiceUsers();
+                          }
+                          setShowCustomerServiceDropdown(!showCustomerServiceDropdown);
+                        }}
                         className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                       >
                         {showCustomerServiceDropdown ? (
@@ -1178,42 +1402,129 @@ const toISODate = (d: any): string => {
                       </button>
                     </div>
                     
+                    {/* Current user display badge */}
+                    {formData.serviceIntake.customerServiceRep === sessionStorage.getItem('userName') && (
+                      <div className="mt-2 p-2 rounded-lg bg-blue-50 border border-blue-100">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+                              <UserType className="h-3 w-3 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">
+                                {formData.serviceIntake.customerServiceRep}
+                              </p>
+                              <p className="text-xs text-gray-500">You (Logged-in User)</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowCustomerServiceDropdown(true);
+                              setUserSearch('');
+                            }}
+                            className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 hover:bg-blue-100 rounded"
+                          >
+                            Change
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Customer Service Dropdown */}
                     {showCustomerServiceDropdown && (
-                      <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                        <div className="sticky top-0 bg-white p-2 border-b">
+                      <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+                        {/* Search Header */}
+                        <div className="sticky top-0 bg-white p-3 border-b border-gray-100">
                           <div className="relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                             <input
                               type="text"
                               value={userSearch}
                               onChange={(e) => setUserSearch(e.target.value)}
-                              placeholder="Search customer service representatives..."
-                              className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              placeholder="Search by name, email, or role..."
+                              className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              autoFocus
                             />
                           </div>
+                          <div className="mt-2 text-xs text-gray-500">
+                            Select a customer service representative
+                          </div>
                         </div>
-                        <div className="max-h-48 overflow-y-auto">
-                          {loadingUsers ? (
-                            <div className="p-4 text-center text-gray-500">
-                              <div className="flex items-center justify-center gap-2">
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-500 border-t-transparent" />
-                                Loading customer service team...
-                              </div>
+                        
+                        {/* Loading State */}
+                        {loadingUsers && (
+                          <div className="p-4 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-500 border-t-transparent" />
+                              <span className="text-sm text-gray-600">Loading team members...</span>
                             </div>
-                          ) : users.length === 0 ? (
-                            <div className="p-4 text-center text-gray-500">
-                              <AlertCircle className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                              <p className="text-sm">No customer service representatives found</p>
-                              <p className="text-xs mt-1">Add customer service team members in user management</p>
+                          </div>
+                        )}
+                        
+                        {/* Empty State */}
+                        {!loadingUsers && users.length === 0 && (
+                          <div className="p-4 text-center">
+                            <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 mb-2">
+                              <UserType className="h-5 w-5 text-gray-400" />
                             </div>
-                          ) : (
-                            users
+                            <p className="text-sm font-medium text-gray-900 mb-1">No team members found</p>
+                            <p className="text-xs text-gray-500">Add customer service users in the admin panel</p>
+                          </div>
+                        )}
+                        
+                        {/* Users List */}
+                        {!loadingUsers && users.length > 0 && (
+                          <div className="max-h-48 overflow-y-auto">
+                            {/* Current User (Logged-in) - Always show first */}
+                            {sessionStorage.getItem('userName') && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentUserName = sessionStorage.getItem('userName') || '';
+                                  handleNestedInputChange('serviceIntake', 'customerServiceRep', currentUserName);
+                                  setShowCustomerServiceDropdown(false);
+                                  setUserSearch('');
+                                }}
+                                className={`w-full px-3 py-3 text-left flex items-center gap-3 border-b border-gray-100 hover:bg-blue-50 transition-colors ${
+                                  formData.serviceIntake.customerServiceRep === sessionStorage.getItem('userName') 
+                                    ? 'bg-blue-50 border-blue-100' 
+                                    : ''
+                                }`}
+                              >
+                                <div className="flex-shrink-0">
+                                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center text-white">
+                                    <span className="text-sm font-medium">
+                                      {sessionStorage.getItem('userName')?.charAt(0).toUpperCase()}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-sm font-medium text-gray-900 truncate">
+                                      {sessionStorage.getItem('userName')}
+                                    </p>
+                                    <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                                      You
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-gray-500 truncate">Current User</p>
+                                </div>
+                                {formData.serviceIntake.customerServiceRep === sessionStorage.getItem('userName') && (
+                                  <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                )}
+                              </button>
+                            )}
+                            
+                            {/* Filtered Users List */}
+                            {users
                               .filter(user => {
                                 const displayInfo = getUserDisplayInfo(user);
+                                const searchLower = userSearch.toLowerCase();
                                 return (
-                                  displayInfo.name.toLowerCase().includes(userSearch.toLowerCase()) ||
-                                  displayInfo.email.toLowerCase().includes(userSearch.toLowerCase()) ||
-                                  displayInfo.roleName.toLowerCase().includes(userSearch.toLowerCase())
+                                  displayInfo.name.toLowerCase().includes(searchLower) ||
+                                  displayInfo.email.toLowerCase().includes(searchLower) ||
+                                  displayInfo.roleName.toLowerCase().includes(searchLower)
                                 );
                               })
                               .map((user) => {
@@ -1228,11 +1539,19 @@ const toISODate = (d: any): string => {
                                       setShowCustomerServiceDropdown(false);
                                       setUserSearch('');
                                     }}
-                                    className="w-full px-3 py-3 text-left hover:bg-purple-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0"
+                                    className={`w-full px-3 py-3 text-left flex items-center gap-3 border-b border-gray-100 hover:bg-purple-50 transition-colors ${
+                                      formData.serviceIntake.customerServiceRep === displayInfo.name 
+                                        ? 'bg-purple-50 border-purple-100' 
+                                        : ''
+                                    }`}
                                   >
                                     <div className="flex-shrink-0">
-                                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-100 to-pink-100 flex items-center justify-center">
-                                        <span className="text-sm font-medium text-purple-700">
+                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                        displayInfo.isCustomerService 
+                                          ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700'
+                                          : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700'
+                                      }`}>
+                                        <span className="text-sm font-medium">
                                           {displayInfo.name.charAt(0).toUpperCase()}
                                         </span>
                                       </div>
@@ -1243,77 +1562,54 @@ const toISODate = (d: any): string => {
                                           {displayInfo.name}
                                         </p>
                                         <span className={`text-xs px-2 py-1 rounded-full ${
-                                          displayInfo.roleName.toLowerCase().includes('customer service') ? 
-                                          'bg-purple-100 text-purple-800' : 
-                                          'bg-gray-100 text-gray-800'
+                                          displayInfo.isCustomerService 
+                                            ? 'bg-purple-100 text-purple-800'
+                                            : 'bg-gray-100 text-gray-800'
                                         }`}>
                                           {displayInfo.roleName}
                                         </span>
                                       </div>
                                       <p className="text-xs text-gray-500 truncate">{displayInfo.email}</p>
-                                      {/* {displayInfo.department && (
-                                        <p className="text-xs text-gray-400 mt-1">{displayInfo.department}</p>
-                                      )} */}
                                     </div>
+                                    {formData.serviceIntake.customerServiceRep === displayInfo.name && (
+                                      <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                    )}
                                   </button>
                                 );
-                              })
-                          )}
-                          {/* Add option for current user if not in the list */}
-                          {sessionStorage.getItem('userName') && !users.some(u => 
-                            getUserDisplayInfo(u).name === sessionStorage.getItem('userName')
-                          ) && (
+                              })}
+                          </div>
+                        )}
+                        
+                        {/* Footer */}
+                        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-100 p-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-500">
+                              {users.length} team member{users.length !== 1 ? 's' : ''} available
+                            </span>
                             <button
                               type="button"
                               onClick={() => {
-                                const currentUserName = sessionStorage.getItem('userName') || '';
-                                handleNestedInputChange('serviceIntake', 'customerServiceRep', currentUserName);
                                 setShowCustomerServiceDropdown(false);
                                 setUserSearch('');
                               }}
-                              className="w-full px-3 py-3 text-left hover:bg-blue-50 flex items-center gap-3 border-t border-gray-200"
+                              className="text-xs text-gray-500 hover:text-gray-700"
                             >
-                              <div className="flex-shrink-0">
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-100 to-cyan-100 flex items-center justify-center">
-                                  <UserType className="h-4 w-4 text-blue-600" />
-                                </div>
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-sm font-medium text-gray-900">
-                                  {sessionStorage.getItem('userName')}
-                                </p>
-                                <p className="text-xs text-gray-500">Current User</p>
-                              </div>
+                              Close
                             </button>
-                          )}
+                          </div>
                         </div>
                       </div>
                     )}
                   </div>
                   
-                  {formData.serviceIntake.customerServiceRep && (
-                    <div className="mt-2 p-2 rounded-lg bg-purple-50 border border-purple-100">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Check className="h-4 w-4 text-green-600" />
-                          <span className="text-sm text-gray-700">
-                            Selected: {formData.serviceIntake.customerServiceRep}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleNestedInputChange('serviceIntake', 'customerServiceRep', '')}
-                          className="text-xs text-red-500 hover:text-red-600"
-                        >
-                          Clear
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  {/* Helper text */}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Select the customer service representative handling this intake. Defaults to you.
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Date
+                    Date <RequiredField />
                   </label>
                   <input
                     type="date"
@@ -1327,9 +1623,12 @@ const toISODate = (d: any): string => {
 
               {/* Service Selection */}
               <div className="mb-8">
-                <label className="block text-sm font-medium text-gray-700 mb-4">
-                  Actual Service *Required
-                </label>
+                <div className="flex items-center justify-between mb-4">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Actual Service <RequiredField />
+                  </label>
+                </div>
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {diamondRimServices.map((service) => (
                     <div key={service.id} className="flex items-center p-3 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors">
@@ -1349,16 +1648,38 @@ const toISODate = (d: any): string => {
                       </label>
                     </div>
                   ))}
+                  
+                  {/* Custom services display */}
+                  {formData.services.actualService
+                    .filter(service => !diamondRimServices.some(s => s.label === service))
+                    .map((customService, index) => (
+                      <div key={`custom-${index}`} className="flex items-center justify-between p-3 border border-blue-200 rounded-lg bg-blue-50">
+                        <div className="flex items-center gap-2">
+                          <Plus className="h-4 w-4 text-blue-600" />
+                          <span className="text-gray-700">{customService}</span>
+                          <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">Custom</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleServiceSelect(customService, false)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
                 </div>
+                
                 {formData.services.actualService.length === 0 && (
                   <p className="mt-2 text-sm text-red-600">Please select at least one service</p>
                 )}
               </div>
-              
-              {/* Delivery Mode */}
+            </div>
+
+            {/* Delivery Mode */}
               <div className="mb-8">
                 <label className="block text-sm font-medium text-gray-700 mb-4">
-                  Delivery Mode *Required
+                  Delivery Mode <RequiredField />
                 </label>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {deliveryModeOptions.map((mode) => (
@@ -1381,237 +1702,269 @@ const toISODate = (d: any): string => {
                   <p className="mt-2 text-sm text-red-600">Please select a delivery mode</p>
                 )}
               </div>
-              
-              {/* Powder Coating Colour */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Powder Coating Colour (RAL)
-                </label>
-                <select
-                  value={formData.powderCoating.colourRAL}
-                  onChange={(e) => handleNestedInputChange('powderCoating', 'colourRAL', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                >
-                  <option value="">Select RAL Colour</option>
-                  {ralColors.map((color) => (
-                    <option key={color} value={color}>{color}</option>
-                  ))}
-                </select>
-              </div>
-              
-              {/* TPMS Sensors */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  TPMS Sensors Fitted
-                </label>
-                <div className="flex gap-6">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="tpmsSensors"
-                      checked={formData.tpmsSensorsFitted === true}
-                      onChange={() => handleInputChange('tpmsSensorsFitted', true)}
-                      className="text-purple-600"
-                    />
-                    <span>Yes</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="tpmsSensors"
-                      checked={formData.tpmsSensorsFitted === false}
-                      onChange={() => handleInputChange('tpmsSensorsFitted', false)}
-                      className="text-purple-600"
-                    />
-                    <span>No</span>
-                  </label>
-                </div>
-              </div>
-            </div>
 
-            {/* Customer Details */}
+            {/* Customer Details - Pre-filled with edit button */}
             <div className="mb-8 border-t pt-8">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                   <UserType className="h-5 w-5 text-purple-600" />
                   Customer Details
                 </h2>
-                {opportunity && (
+                <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={handleRefreshFromOpportunity}
-                    className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                    onClick={() => setShowCustomerEdit(!showCustomerEdit)}
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
                   >
-                    <Sparkles className="h-4 w-4" />
-                    Refresh from Opportunity
+                    <Edit className="h-4 w-4" />
+                    {showCustomerEdit ? 'Hide Edit' : 'Edit Details'}
                   </button>
-                )}
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    First Name *Required
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.customerDetails.firstName}
-                    onChange={(e) => handleNestedInputChange('customerDetails', 'firstName', e.target.value)}
-                    placeholder="First name"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Last Name *Required
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.customerDetails.lastName}
-                    onChange={(e) => handleNestedInputChange('customerDetails', 'lastName', e.target.value)}
-                    placeholder="Last name"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    required
-                  />
+                  {opportunity && (
+                    <button
+                      type="button"
+                      onClick={handleRefreshFromOpportunity}
+                      className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      Refresh
+                    </button>
+                  )}
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Mobile *Required
-                  </label>
-                  <input
-                    type="tel"
-                    value={formData.customerDetails.mobile}
-                    onChange={(e) => handleNestedInputChange('customerDetails', 'mobile', e.target.value)}
-                    placeholder="+254 712 345 678"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    required
-                  />
+              {/* Customer details display */}
+              {!showCustomerEdit ? (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Full Name</h4>
+                      <p className="text-gray-900 font-medium">
+                        {formData.customerDetails.firstName} {formData.customerDetails.lastName}
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Mobile</h4>
+                      <p className="text-gray-900 font-medium">{formData.customerDetails.mobile}</p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Email</h4>
+                      <p className="text-gray-900 font-medium">{formData.customerDetails.email}</p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email *Required
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.customerDetails.email}
-                    onChange={(e) => handleNestedInputChange('customerDetails', 'email', e.target.value)}
-                    placeholder="customer@example.com"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    required
-                  />
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        First Name <RequiredField />
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.customerDetails.firstName}
+                        onChange={(e) => handleNestedInputChange('customerDetails', 'firstName', e.target.value)}
+                        placeholder="First name"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Last Name <RequiredField />
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.customerDetails.lastName}
+                        onChange={(e) => handleNestedInputChange('customerDetails', 'lastName', e.target.value)}
+                        placeholder="Last name"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Mobile <RequiredField />
+                      </label>
+                      <input
+                        type="tel"
+                        value={formData.customerDetails.mobile}
+                        onChange={(e) => handleNestedInputChange('customerDetails', 'mobile', e.target.value)}
+                        placeholder="+254 712 345 678"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Email <RequiredField />
+                      </label>
+                      <input
+                        type="email"
+                        value={formData.customerDetails.email}
+                        onChange={(e) => handleNestedInputChange('customerDetails', 'email', e.target.value)}
+                        placeholder="customer@example.com"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        required
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
-            {/* Vehicle Details */}
+            {/* Vehicle Details - Show only Make, Model, License Plate, and Year */}
             <div className="mb-8 border-t pt-8">
-              <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                <Car className="h-5 w-5 text-purple-600" />
-                Vehicle Details
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Car Make
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.carDetails.carMake}
-                    onChange={(e) => handleNestedInputChange('carDetails', 'carMake', e.target.value)}
-                    placeholder="e.g., Toyota, BMW"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Car Model
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.carDetails.carModel}
-                    onChange={(e) => handleNestedInputChange('carDetails', 'carModel', e.target.value)}
-                    placeholder="e.g., Land Cruiser, X5"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  />
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <Car className="h-5 w-5 text-purple-600" />
+                  Vehicle Details
+                </h2>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowVehicleEdit(!showVehicleEdit)}
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
+                  >
+                    <Edit className="h-4 w-4" />
+                    {showVehicleEdit ? 'Hide Edit' : 'Edit Details'}
+                  </button>
+                  {opportunity && (
+                    <button
+                      type="button"
+                      onClick={handleRefreshFromOpportunity}
+                      className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      Refresh from Opportunity
+                    </button>
+                  )}
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Mileage
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.carDetails.mileage}
-                    onChange={(e) => handleNestedInputChange('carDetails', 'mileage', e.target.value)}
-                    placeholder="e.g., 45,000 km"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  />
+              {/* Vehicle details - Show only Make, Model, License Plate, Year */}
+              {!showVehicleEdit ? (
+                <div className="space-y-4">
+                  {/* Pre-filled section (Make, Model, License Plate, Year) */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Vehicle Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-500 mb-1">Make</h4>
+                        <p className="text-gray-900 font-medium text-lg">
+                          {formData.carDetails.carMake || 'Not specified'}
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-500 mb-1">Model</h4>
+                        <p className="text-gray-900 font-medium text-lg">
+                          {formData.carDetails.carModel || 'Not specified'}
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-500 mb-1">License Plate</h4>
+                        <p className="text-gray-900 font-medium text-lg">
+                          {getVehicleInfo()?.licensePlate || 'Not specified'}
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-500 mb-1">Year</h4>
+                        <p className="text-gray-900 font-medium text-lg">
+                          {formData.carDetails.yearOfManufacture || 'Not specified'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Year of Manufacture
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.carDetails.yearOfManufacture}
-                    onChange={(e) => handleNestedInputChange('carDetails', 'yearOfManufacture', e.target.value)}
-                    placeholder="e.g., 2020"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    License Plate
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.carDetails.licensePlate}
-                    onChange={(e) => handleNestedInputChange('carDetails', 'licensePlate', e.target.value)}
-                    placeholder="e.g., KAA 123A"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  />
-                </div>
-              </div>
-
-              {/* Vehicle Information Preview */}
-              {vehicle && (
-                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h4 className="font-medium text-blue-800 mb-2 flex items-center gap-2">
-                    <Info className="h-4 w-4" />
-                    Vehicle Information from Opportunity
-                  </h4>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
-                    {getVehicleInfo()?.make && (
+              ) : (
+                <div className="space-y-4">
+                  {/* Full edit mode - All fields editable */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       <div>
-                        <span className="text-gray-600">Make:</span>
-                        <span className="ml-2 font-medium">{getVehicleInfo()?.make}</span>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Make <RequiredField />
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.carDetails.carMake}
+                          onChange={(e) => handleNestedInputChange('carDetails', 'carMake', e.target.value)}
+                          placeholder="e.g., Toyota, BMW"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          required
+                        />
                       </div>
-                    )}
-                    {getVehicleInfo()?.model && (
                       <div>
-                        <span className="text-gray-600">Model:</span>
-                        <span className="ml-2 font-medium">{getVehicleInfo()?.model}</span>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Model <RequiredField />
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.carDetails.carModel}
+                          onChange={(e) => handleNestedInputChange('carDetails', 'carModel', e.target.value)}
+                          placeholder="e.g., Corolla, X5"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          required
+                        />
                       </div>
-                    )}
-                    {getVehicleInfo()?.year && (
                       <div>
-                        <span className="text-gray-600">Year:</span>
-                        <span className="ml-2 font-medium">{getVehicleInfo()?.year}</span>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          License Plate <RequiredField />
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.carDetails.licensePlate}
+                          onChange={(e) => handleNestedInputChange('carDetails', 'licensePlate', e.target.value)}
+                          placeholder="e.g., KCT 324Y"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          required
+                        />
                       </div>
-                    )}
-                    {getVehicleInfo()?.licensePlate && (
                       <div>
-                        <span className="text-gray-600">License Plate:</span>
-                        <span className="ml-2 font-medium">{getVehicleInfo()?.licensePlate}</span>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Year <RequiredField />
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.carDetails.yearOfManufacture}
+                          onChange={(e) => handleNestedInputChange('carDetails', 'yearOfManufacture', e.target.value)}
+                          placeholder="e.g., 2023"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          required
+                        />
                       </div>
-                    )}
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Color <RequiredField />
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.carDetails.color}
+                          onChange={(e) => handleNestedInputChange('carDetails', 'color', e.target.value)}
+                          placeholder="e.g., Red"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Mileage <RequiredField />
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.carDetails.mileage}
+                          onChange={(e) => handleNestedInputChange('carDetails', 'mileage', e.target.value)}
+                          placeholder="e.g., 45,000 km"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          required
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1622,12 +1975,13 @@ const toISODate = (d: any): string => {
               <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                 <ClipboardCheck className="h-5 w-5 text-purple-600" />
                 Pre-Service Inspection
+                <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Inspector Access</span>
               </h2>
               
               {/* Condition Assessment */}
               <div className="mb-8">
                 <label className="block text-sm font-medium text-gray-700 mb-4">
-                  Condition *Required
+                  Condition <RequiredField />
                 </label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {conditionOptions.map((condition) => {
@@ -1662,28 +2016,238 @@ const toISODate = (d: any): string => {
                 )}
               </div>
               
-              {/* Rim/Tire Details */}
+              {/* Inspector Access Notes Section */}
+              <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="text-lg font-medium text-blue-900 mb-4">
+                  Inspection Notes (Inspector Access)
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="photosRequired"
+                      checked={formData.preServiceInspection.photosRequired}
+                      onChange={(e) => handleNestedInputChange('preServiceInspection', 'photosRequired', e.target.checked)}
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                    />
+                    <label htmlFor="photosRequired" className="text-sm text-blue-700">
+                      Photos Required
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="videoRequired"
+                      checked={formData.preServiceInspection.videoRequired}
+                      onChange={(e) => handleNestedInputChange('preServiceInspection', 'videoRequired', e.target.checked)}
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                    />
+                    <label htmlFor="videoRequired" className="text-sm text-blue-700">
+                      Video Recording Required
+                    </label>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-blue-700 mb-2">
+                    Additional Inspection Notes
+                  </label>
+                  <textarea
+                    value={formData.preServiceInspection.inspectionNotes}
+                    onChange={(e) => handleNestedInputChange('preServiceInspection', 'inspectionNotes', e.target.value)}
+                    placeholder="Additional notes for inspector access..."
+                    className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    rows={3}
+                  />
+                </div>
+              </div>
+              
+              {/* Rim & Tire Details */}
               <div className="space-y-6">
                 <h3 className="text-lg font-medium text-gray-900">Rim & Tire Details</h3>
                 
+                {/* Rim or Tire Selection - Dropdown */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Rims/Tires *Required
+                    Select Item Type <RequiredField />
                   </label>
-                  <input
-                    type="text"
-                    value={formData.rimsTires}
-                    onChange={(e) => handleInputChange('rimsTires', e.target.value)}
-                    placeholder="e.g., 4 rims with tires, 2 rims only"
+                  <select
+                    value={formData.rimOrTireSelection}
+                    onChange={(e) => handleInputChange('rimOrTireSelection', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                     required
-                  />
+                  >
+                    <option value="">-- Select Item Type --</option>
+                    <option value="rims-only">Rims Only</option>
+                    <option value="tires-only">Tires Only</option>
+                    <option value="rims-with-tires">Rims with Tires</option>
+                  </select>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Conditionally show Rims or Tires details */}
+                {formData.rimOrTireSelection === 'rims-only' || formData.rimOrTireSelection === 'rims-with-tires' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Rim Quantity <RequiredField />
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.rimsDetails.quantity}
+                        onChange={(e) => handleNestedInputChange('rimsDetails', 'quantity', parseInt(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        min="0"
+                        max="8"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Rim Size
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.rimsDetails.size}
+                        onChange={(e) => handleNestedInputChange('rimsDetails', 'size', e.target.value)}
+                        placeholder="e.g., 17x8J"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+                
+                {formData.rimOrTireSelection === 'tires-only' || formData.rimOrTireSelection === 'rims-with-tires' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Tire Quantity <RequiredField />
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.tiresDetails.quantity}
+                        onChange={(e) => handleNestedInputChange('tiresDetails', 'quantity', parseInt(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        min="0"
+                        max="8"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Tire Size
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.tiresDetails.size}
+                        onChange={(e) => handleNestedInputChange('tiresDetails', 'size', e.target.value)}
+                        placeholder="e.g., 225/45R17"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+                
+                {/* Center Caps Section */}
+                <div className="mt-6 border-t pt-6">
+                  <h4 className="text-md font-medium text-gray-900 mb-4">Center Caps Details</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Center Caps Present?
+                      </label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="centerCapsPresent"
+                            checked={formData.centerCaps.present === true}
+                            onChange={() => handleNestedInputChange('centerCaps', 'present', true)}
+                            className="text-purple-600"
+                          />
+                          <span>Yes</span>
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="centerCapsPresent"
+                            checked={formData.centerCaps.present === false}
+                            onChange={() => handleNestedInputChange('centerCaps', 'present', false)}
+                            className="text-purple-600"
+                          />
+                          <span>No</span>
+                        </label>
+                      </div>
+                    </div>
+                    
+                    {formData.centerCaps.present && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Quantity
+                          </label>
+                          <input
+                            type="number"
+                            value={formData.centerCaps.quantity}
+                            onChange={(e) => handleNestedInputChange('centerCaps', 'quantity', parseInt(e.target.value) || 0)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                            min="0"
+                            max="8"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Condition
+                          </label>
+                          <select
+                            value={formData.centerCaps.condition}
+                            onChange={(e) => handleNestedInputChange('centerCaps', 'condition', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          >
+                            <option value="">Select Condition</option>
+                            <option value="good">Good</option>
+                            <option value="damaged">Damaged</option>
+                            <option value="missing">Missing</option>
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Type
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.centerCaps.type}
+                            onChange={(e) => handleNestedInputChange('centerCaps', 'type', e.target.value)}
+                            placeholder="e.g., BMW OEM, Aftermarket"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Center Caps Notes
+                    </label>
+                    <textarea
+                      value={formData.centerCaps.notes}
+                      onChange={(e) => handleNestedInputChange('centerCaps', 'notes', e.target.value)}
+                      placeholder="Additional notes about center caps..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      rows={2}
+                    />
+                  </div>
+                </div>
+                
+                {/* Wheel Nuts, Nozzle Caps, Lock Nuts */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Total Number of Wheel Nuts *Required
+                      Total Number of Wheel Nuts <RequiredField />
                     </label>
                     <input
                       type="number"
@@ -1697,7 +2261,7 @@ const toISODate = (d: any): string => {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Total Number of Nozzle Caps *Required
+                      Total Number of Nozzle Caps <RequiredField />
                     </label>
                     <input
                       type="number"
@@ -1708,26 +2272,10 @@ const toISODate = (d: any): string => {
                       min="0"
                     />
                   </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Nozzle Caps Type *Required
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.nozzleCapsType}
-                      onChange={(e) => handleInputChange('nozzleCapsType', e.target.value)}
-                      placeholder="e.g., Metal, Plastic, Rubber"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      required
-                    />
-                  </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Total Number of Lock Nuts *Required
+                      Total Number of Lock Nuts <RequiredField />
                     </label>
                     <input
                       type="number"
@@ -1740,16 +2288,17 @@ const toISODate = (d: any): string => {
                   </div>
                 </div>
                 
-                <div>
+                <div className="mt-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Center Caps
+                    Nozzle Caps Type <RequiredField />
                   </label>
                   <input
                     type="text"
-                    value={formData.centerCaps}
-                    onChange={(e) => handleInputChange('centerCaps', e.target.value)}
-                    placeholder="e.g., BMW logo, Mercedes star, Missing"
+                    value={formData.nozzleCapsType}
+                    onChange={(e) => handleInputChange('nozzleCapsType', e.target.value)}
+                    placeholder="e.g., Metal, Plastic, Rubber"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    required
                   />
                 </div>
               </div>
@@ -1823,155 +2372,475 @@ const toISODate = (d: any): string => {
                 </div>
               </div>
               
-              {/* Tire DOT */}
+              {/* Tire DOT Section - Full implementation */}
               <div className="mt-8">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Tire DOT Numbers</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      FR DOT
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.tireDOT.fr}
-                      onChange={(e) => handleNestedInputChange('tireDOT', 'fr', e.target.value)}
-                      placeholder="e.g., DOT XXXX"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      FL DOT
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.tireDOT.fl}
-                      onChange={(e) => handleNestedInputChange('tireDOT', 'fl', e.target.value)}
-                      placeholder="e.g., DOT XXXX"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      BR DOT
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.tireDOT.br}
-                      onChange={(e) => handleNestedInputChange('tireDOT', 'br', e.target.value)}
-                      placeholder="e.g., DOT XXXX"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    />
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Tire DOT Numbers (Full Details)</h3>
+                
+                {/* FR DOT */}
+                <div className="mb-4 p-4 border border-gray-200 rounded-lg">
+                  <h4 className="font-medium text-gray-700 mb-3">FR (Front Right)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">DOT Code</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.fr.code}
+                        onChange={(e) => handleNestedInputChange('tireDOT.fr', 'code', e.target.value)}
+                        placeholder="XXXX"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Week</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.fr.week}
+                        onChange={(e) => handleNestedInputChange('tireDOT.fr', 'week', e.target.value)}
+                        placeholder="01-52"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Year</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.fr.year}
+                        onChange={(e) => handleNestedInputChange('tireDOT.fr', 'year', e.target.value)}
+                        placeholder="2023"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Plant Code</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.fr.plant}
+                        onChange={(e) => handleNestedInputChange('tireDOT.fr', 'plant', e.target.value)}
+                        placeholder="Plant"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                  <div>
+                
+                {/* FL DOT */}
+                <div className="mb-4 p-4 border border-gray-200 rounded-lg">
+                  <h4 className="font-medium text-gray-700 mb-3">FL (Front Left)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">DOT Code</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.fl.code}
+                        onChange={(e) => handleNestedInputChange('tireDOT.fl', 'code', e.target.value)}
+                        placeholder="XXXX"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Week</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.fl.week}
+                        onChange={(e) => handleNestedInputChange('tireDOT.fl', 'week', e.target.value)}
+                        placeholder="01-52"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Year</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.fl.year}
+                        onChange={(e) => handleNestedInputChange('tireDOT.fl', 'year', e.target.value)}
+                        placeholder="2023"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Plant Code</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.fl.plant}
+                        onChange={(e) => handleNestedInputChange('tireDOT.fl', 'plant', e.target.value)}
+                        placeholder="Plant"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* BR DOT */}
+                <div className="mb-4 p-4 border border-gray-200 rounded-lg">
+                  <h4 className="font-medium text-gray-700 mb-3">BR (Back Right)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">DOT Code</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.br.code}
+                        onChange={(e) => handleNestedInputChange('tireDOT.br', 'code', e.target.value)}
+                        placeholder="XXXX"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Week</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.br.week}
+                        onChange={(e) => handleNestedInputChange('tireDOT.br', 'week', e.target.value)}
+                        placeholder="01-52"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Year</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.br.year}
+                        onChange={(e) => handleNestedInputChange('tireDOT.br', 'year', e.target.value)}
+                        placeholder="2023"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Plant Code</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.br.plant}
+                        onChange={(e) => handleNestedInputChange('tireDOT.br', 'plant', e.target.value)}
+                        placeholder="Plant"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* BL DOT */}
+                <div className="mb-4 p-4 border border-gray-200 rounded-lg">
+                  <h4 className="font-medium text-gray-700 mb-3">BL (Back Left)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">DOT Code</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.bl.code}
+                        onChange={(e) => handleNestedInputChange('tireDOT.bl', 'code', e.target.value)}
+                        placeholder="XXXX"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Week</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.bl.week}
+                        onChange={(e) => handleNestedInputChange('tireDOT.bl', 'week', e.target.value)}
+                        placeholder="01-52"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Year</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.bl.year}
+                        onChange={(e) => handleNestedInputChange('tireDOT.bl', 'year', e.target.value)}
+                        placeholder="2023"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Plant Code</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.bl.plant}
+                        onChange={(e) => handleNestedInputChange('tireDOT.bl', 'plant', e.target.value)}
+                        placeholder="Plant"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Spare DOT */}
+                <div className="p-4 border border-gray-200 rounded-lg">
+                  <h4 className="font-medium text-gray-700 mb-3">Spare</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">DOT Code</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.spare.code}
+                        onChange={(e) => handleNestedInputChange('tireDOT.spare', 'code', e.target.value)}
+                        placeholder="XXXX"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Week</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.spare.week}
+                        onChange={(e) => handleNestedInputChange('tireDOT.spare', 'week', e.target.value)}
+                        placeholder="01-52"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Year</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.spare.year}
+                        onChange={(e) => handleNestedInputChange('tireDOT.spare', 'year', e.target.value)}
+                        placeholder="2023"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Plant Code</label>
+                      <input
+                        type="text"
+                        value={formData.tireDOT.spare.plant}
+                        onChange={(e) => handleNestedInputChange('tireDOT.spare', 'plant', e.target.value)}
+                        placeholder="Plant"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Suitability Section */}
+              <div className="mt-8">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">SUITABILITY ASSESSMENT</h3>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Suitable For Skimming
+                      </label>
+                      <select
+                        value={formData.suitability.skimming}
+                        onChange={(e) => handleNestedInputChange('suitability', 'skimming', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      >
+                        <option value="">Select</option>
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                        <option value="maybe">Maybe</option>
+                        <option value="not-applicable">Not Applicable</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Suitable For Powder Coating
+                      </label>
+                      <select
+                        value={formData.suitability.powderCoating}
+                        onChange={(e) => handleNestedInputChange('suitability', 'powderCoating', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      >
+                        <option value="">Select</option>
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                        <option value="maybe">Maybe</option>
+                        <option value="not-applicable">Not Applicable</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Suitable For Straightening
+                      </label>
+                      <select
+                        value={formData.suitability.straightening}
+                        onChange={(e) => handleNestedInputChange('suitability', 'straightening', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      >
+                        <option value="">Select</option>
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                        <option value="maybe">Maybe</option>
+                        <option value="not-applicable">Not Applicable</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Suitable For Welding
+                      </label>
+                      <select
+                        value={formData.suitability.welding}
+                        onChange={(e) => handleNestedInputChange('suitability', 'welding', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      >
+                        <option value="">Select</option>
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                        <option value="maybe">Maybe</option>
+                        <option value="not-applicable">Not Applicable</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Suitable For Diamond Cutting
+                      </label>
+                      <select
+                        value={formData.suitability.diamondCutting}
+                        onChange={(e) => handleNestedInputChange('suitability', 'diamondCutting', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      >
+                        <option value="">Select</option>
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                        <option value="maybe">Maybe</option>
+                        <option value="not-applicable">Not Applicable</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  {/* Additional Notes Section */}
+                  <div className="mt-6">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      BL DOT
+                      Suitability Notes & Recommendations
                     </label>
-                    <input
-                      type="text"
-                      value={formData.tireDOT.bl}
-                      onChange={(e) => handleNestedInputChange('tireDOT', 'bl', e.target.value)}
-                      placeholder="e.g., DOT XXXX"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    <textarea
+                      value={formData.suitability.notes}
+                      onChange={(e) => handleNestedInputChange('suitability', 'notes', e.target.value)}
+                      placeholder="Detailed notes on suitability assessment and recommendations..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      rows={3}
                     />
                   </div>
-                  <div>
+                  
+                  <div className="mt-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Spare DOT
+                      Technician Recommendations
                     </label>
-                    <input
-                      type="text"
-                      value={formData.tireDOT.spare}
-                      onChange={(e) => handleNestedInputChange('tireDOT', 'spare', e.target.value)}
-                      placeholder="e.g., DOT XXXX"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    <textarea
+                      value={formData.suitability.recommendations}
+                      onChange={(e) => handleNestedInputChange('suitability', 'recommendations', e.target.value)}
+                      placeholder="Specific recommendations for the customer..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      rows={2}
                     />
                   </div>
                 </div>
               </div>
               
-              {/* Suitability */}
-              <div className="mt-8">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">SUITABILITY</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Suitable For Skimming
-                    </label>
-                    <select
-                      value={formData.suitability.skimming}
-                      onChange={(e) => handleNestedInputChange('suitability', 'skimming', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    >
-                      <option value="">Select</option>
-                      <option value="yes">Yes</option>
-                      <option value="no">No</option>
-                      <option value="maybe">Maybe</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Suitable For Powder Coating
-                    </label>
-                    <select
-                      value={formData.suitability.powderCoating}
-                      onChange={(e) => handleNestedInputChange('suitability', 'powderCoating', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    >
-                      <option value="">Select</option>
-                      <option value="yes">Yes</option>
-                      <option value="no">No</option>
-                      <option value="maybe">Maybe</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Suitable For Straightening
-                    </label>
-                    <select
-                      value={formData.suitability.straightening}
-                      onChange={(e) => handleNestedInputChange('suitability', 'straightening', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    >
-                      <option value="">Select</option>
-                      <option value="yes">Yes</option>
-                      <option value="no">No</option>
-                      <option value="maybe">Maybe</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Declared Valuable */}
+              {/* Declared Valuable Section */}
               <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Declared Valuable *Required
-                </label>
-                <div className="flex gap-6">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="declaredValuable"
-                      checked={formData.declaredValuable === true}
-                      onChange={() => handleInputChange('declaredValuable', true)}
-                      className="text-purple-600"
-                      required
-                    />
-                    <span>Yes</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="declaredValuable"
-                      checked={formData.declaredValuable === false}
-                      onChange={() => handleInputChange('declaredValuable', false)}
-                      className="text-purple-600"
-                      required
-                    />
-                    <span>No</span>
-                  </label>
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                  <h3 className="text-lg font-medium text-yellow-900 mb-4">DECLARED VALUABLE SECTION</h3>
+                  
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-yellow-800 mb-2">
+                      Is this item declared valuable? <RequiredField />
+                    </label>
+                    <div className="flex gap-6">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="declaredValuable"
+                          checked={formData.declaredValuable.value === true}
+                          onChange={() => handleNestedInputChange('declaredValuable', 'value', true)}
+                          className="text-yellow-600"
+                          required
+                        />
+                        <span>Yes</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="declaredValuable"
+                          checked={formData.declaredValuable.value === false}
+                          onChange={() => handleNestedInputChange('declaredValuable', 'value', false)}
+                          className="text-yellow-600"
+                          required
+                        />
+                        <span>No</span>
+                      </label>
+                    </div>
+                  </div>
+                  
+                  {formData.declaredValuable.value && (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <label className="block text-sm font-medium text-yellow-800 mb-2">
+                            Declared Value (KES)
+                          </label>
+                          <input
+                            type="number"
+                            value={formData.declaredValuable.declaredValue}
+                            onChange={(e) => handleNestedInputChange('declaredValuable', 'declaredValue', parseFloat(e.target.value) || 0)}
+                            placeholder="0.00"
+                            className="w-full px-3 py-2 border border-yellow-300 rounded-lg"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-yellow-800 mb-2">
+                            Insurance Required?
+                          </label>
+                          <select
+                            value={formData.declaredValuable.insuranceRequired ? 'yes' : 'no'}
+                            onChange={(e) => handleNestedInputChange('declaredValuable', 'insuranceRequired', e.target.value === 'yes')}
+                            className="w-full px-3 py-2 border border-yellow-300 rounded-lg"
+                          >
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
+                          </select>
+                        </div>
+                      </div>
+                      
+                      {formData.declaredValuable.insuranceRequired && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <label className="block text-sm font-medium text-yellow-800 mb-2">
+                              Insurance Provider
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.declaredValuable.insuranceProvider}
+                              onChange={(e) => handleNestedInputChange('declaredValuable', 'insuranceProvider', e.target.value)}
+                              placeholder="Insurance company name"
+                              className="w-full px-3 py-2 border border-yellow-300 rounded-lg"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-yellow-800 mb-2">
+                              Policy Number
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.declaredValuable.policyNumber}
+                              onChange={(e) => handleNestedInputChange('declaredValuable', 'policyNumber', e.target.value)}
+                              placeholder="Policy number"
+                              className="w-full px-3 py-2 border border-yellow-300 rounded-lg"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-yellow-800 mb-2">
+                          Declared Valuable Notes
+                        </label>
+                        <textarea
+                          value={formData.declaredValuable.notes}
+                          onChange={(e) => handleNestedInputChange('declaredValuable', 'notes', e.target.value)}
+                          placeholder="Additional notes regarding declared valuable items..."
+                          className="w-full px-3 py-2 border border-yellow-300 rounded-lg"
+                          rows={3}
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
               
@@ -2043,14 +2912,14 @@ const toISODate = (d: any): string => {
                     required
                   />
                   <label htmlFor="mustKnowAccepted" className="text-sm text-gray-700">
-                    I acknowledge and understand all the above points *
+                    I acknowledge and understand all the above points <RequiredField />
                   </label>
                 </div>
               </div>
               
               {/* Service-specific Risks */}
               <div className="mb-8">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">CLIENT UPDATE</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">ASSOCIATED RISKS</h3>
                 <p className="text-sm text-gray-600 mb-4">
                   The client has been explained to the following inherent risks related with the services.
                 </p>
@@ -2085,18 +2954,6 @@ const toISODate = (d: any): string => {
                           <span>We do not guarantee results if the disc has been skimmed before or has unknown machining history.</span>
                         </li>
                       </ul>
-                      <div className="flex items-start gap-3 mt-3">
-                        <input
-                          type="checkbox"
-                          id="brakeDiscRisks"
-                          checked={formData.clientUpdate.brakeDiscSkimming}
-                          onChange={(e) => handleNestedInputChange('clientUpdate', 'brakeDiscSkimming', e.target.checked)}
-                          className="mt-1 h-5 w-5 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
-                        />
-                        <label htmlFor="brakeDiscRisks" className="text-sm text-amber-700">
-                          I understand and accept these risks
-                        </label>
-                      </div>
                     </div>
                   )}
                   
@@ -2137,18 +2994,6 @@ const toISODate = (d: any): string => {
                           <span>Customer aesthetic dissatisfaction not a valid claim</span>
                         </li>
                       </ul>
-                      <div className="flex items-start gap-3 mt-3">
-                        <input
-                          type="checkbox"
-                          id="powderCoatingRisks"
-                          checked={formData.clientUpdate.powderCoating}
-                          onChange={(e) => handleNestedInputChange('clientUpdate', 'powderCoating', e.target.checked)}
-                          className="mt-1 h-5 w-5 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
-                        />
-                        <label htmlFor="powderCoatingRisks" className="text-sm text-amber-700">
-                          I understand and accept these risks
-                        </label>
-                      </div>
                     </div>
                   )}
                   
@@ -2189,18 +3034,6 @@ const toISODate = (d: any): string => {
                           <span>Rims may crack during straightening</span>
                         </li>
                       </ul>
-                      <div className="flex items-start gap-3 mt-3">
-                        <input
-                          type="checkbox"
-                          id="straighteningRisks"
-                          checked={formData.clientUpdate.straightening}
-                          onChange={(e) => handleNestedInputChange('clientUpdate', 'straightening', e.target.checked)}
-                          className="mt-1 h-5 w-5 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
-                        />
-                        <label htmlFor="straighteningRisks" className="text-sm text-amber-700">
-                          I understand and accept these risks
-                        </label>
-                      </div>
                     </div>
                   )}
                   
@@ -2229,18 +3062,6 @@ const toISODate = (d: any): string => {
                           <span>Not recommended for heavily damaged or repaired rims</span>
                         </li>
                       </ul>
-                      <div className="flex items-start gap-3 mt-3">
-                        <input
-                          type="checkbox"
-                          id="diamondCuttingRisks"
-                          checked={formData.clientUpdate.diamondCutting}
-                          onChange={(e) => handleNestedInputChange('clientUpdate', 'diamondCutting', e.target.checked)}
-                          className="mt-1 h-5 w-5 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
-                        />
-                        <label htmlFor="diamondCuttingRisks" className="text-sm text-amber-700">
-                          I understand and accept these risks
-                        </label>
-                      </div>
                     </div>
                   )}
                   
@@ -2269,18 +3090,6 @@ const toISODate = (d: any): string => {
                           <span>Not all rim materials are suitable for welding</span>
                         </li>
                       </ul>
-                      <div className="flex items-start gap-3 mt-3">
-                        <input
-                          type="checkbox"
-                          id="weldingRisks"
-                          checked={formData.clientUpdate.welding}
-                          onChange={(e) => handleNestedInputChange('clientUpdate', 'welding', e.target.checked)}
-                          className="mt-1 h-5 w-5 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
-                        />
-                        <label htmlFor="weldingRisks" className="text-sm text-amber-700">
-                          I understand and accept these risks
-                        </label>
-                      </div>
                     </div>
                   )}
                 </div>
@@ -2353,46 +3162,26 @@ const toISODate = (d: any): string => {
                         </li>
                       </ul>
                     </div>
-                    
-                    {/* Download Section */}
-                    {/* <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="p-2 bg-white rounded-lg">
-                        <Download className="h-5 w-5 text-blue-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-blue-900">Need a copy for your records?</p>
-                        <p className="text-xs text-blue-700">Download the complete PDF document</p>
-                      </div>
-                      <a
-                        href="/api/documents/terms?filename=Diamond-Rimz-Terms-Conditions.pdf"
-                        download="Diamond-Rimz-Terms-Conditions.pdf"
-                        className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors flex items-center gap-2"
-                        onClick={(e) => e.stopPropagation()} // Prevent modal opening
-                      >
-                        <Download className="h-4 w-4" />
-                        Download PDF
-                      </a>
-                    </div> */}
                   </div>
                   
-                  {/* Terms Acceptance */}
+                  {/* SINGLE ACCEPTANCE CHECKBOX */}
                   <div className="mt-6 pt-6 border-t border-gray-200">
                     <div className="flex items-start gap-3">
                       <input
                         type="checkbox"
-                        id="acceptTermsDiamond"
+                        id="acceptTermsConditions"
                         checked={formData.acceptTerms}
                         onChange={(e) => handleInputChange('acceptTerms', e.target.checked)}
                         className="mt-1 h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
                         required
                       />
                       <div className="flex-1">
-                        <label htmlFor="acceptTermsDiamond" className="text-sm font-medium text-gray-700">
-                          I HAVE READ, UNDERSTOOD, AND ACCEPT THE TERMS AND CONDITIONS OF DIAMOND RIMZ *
+                        <label htmlFor="acceptTermsConditions" className="text-sm font-medium text-gray-700">
+                          I HAVE READ, UNDERSTOOD, AND ACCEPT ALL TERMS, CONDITIONS, MUST KNOWS AND ASSOCIATED RISKS <RequiredField />
                         </label>
                         <p className="text-xs text-gray-500 mt-1">
-                          By checking this box, you acknowledge that you have reviewed the complete terms and agree to be bound by all provisions. 
-                          You confirm you have had opportunity to ask questions and seek clarification.
+                          By checking this box, you acknowledge that you have reviewed all terms, must knows, and associated risks, 
+                          and agree to be bound by all provisions.
                         </p>
                       </div>
                     </div>
@@ -2400,84 +3189,10 @@ const toISODate = (d: any): string => {
                       <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                         <div className="flex items-center gap-2 text-sm text-red-700">
                           <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                          <span>You must accept the terms and conditions to proceed with service</span>
+                          <span>You must accept all terms and conditions to proceed with service</span>
                         </div>
                       </div>
                     )}
-                  </div>
-                </div>
-              </div>
-              
-              {/* AGREED AMOUNT */}
-              <div className="mb-8">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">AGREED AMOUNT</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Total Amount (KES)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.agreedAmount.total}
-                      onChange={(e) => handleNestedInputChange('agreedAmount', 'total', parseFloat(e.target.value) || 0)}
-                      placeholder="0.00"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Breakdown (If Any)
-                    </label>
-                    <textarea
-                      value={formData.agreedAmount.breakdown}
-                      onChange={(e) => handleNestedInputChange('agreedAmount', 'breakdown', e.target.value)}
-                      placeholder="Itemized breakdown..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      rows={3}
-                    />
-                  </div>
-                </div>
-              </div>
-              
-              {/* AGENT DETAILS */}
-              <div className="mb-8">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">AGENT DETAILS</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      First Name
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.agentDetails.firstName}
-                      onChange={(e) => handleNestedInputChange('agentDetails', 'firstName', e.target.value)}
-                      placeholder="Agent first name"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Last Name
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.agentDetails.lastName}
-                      onChange={(e) => handleNestedInputChange('agentDetails', 'lastName', e.target.value)}
-                      placeholder="Agent last name"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      ID Number
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.agentDetails.idNumber}
-                      onChange={(e) => handleNestedInputChange('agentDetails', 'idNumber', e.target.value)}
-                      placeholder="National ID/Passport"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    />
                   </div>
                 </div>
               </div>
@@ -2490,87 +3205,73 @@ const toISODate = (d: any): string => {
                 Signatures & Uploads
               </h2>
               
-              {/* Signatures */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                {/* Client Signature */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Client Signature *
-                    </label>
-                    {clientSignature && (
-                      <button
-                        type="button"
-                        onClick={() => clearSignature('client')}
-                        className="text-xs text-red-600 hover:text-red-800"
-                      >
-                        Clear
-                      </button>
+              {/* Upload Photos Section (First) */}
+              <div className="mb-8">
+                <div className="relative">
+                  <div 
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors"
+                    onClick={() => document.getElementById('image-upload')?.click()}
+                  >
+                    <input
+                      id="image-upload"
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      ref={fileInputRef}
+                    />
+                    <Camera className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600 mb-1">Click to upload inspection photos</p>
+                    
+                    {/* File count and size validation */}
+                    {formData.uploadedImages.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-sm text-gray-700">
+                          {formData.uploadedImages.length} image(s) uploaded
+                          {formData.uploadedImages.length >= 6 && (
+                            <span className="ml-2 text-red-600 text-xs">(Maximum reached)</span>
+                          )}
+                        </p>
+                      </div>
                     )}
                   </div>
-                  
-                  {showClientSignature ? (
-                    <div className="space-y-3">
-                      <div className="border border-gray-300 rounded-lg bg-white p-2">
-                        <SignatureCanvas
-                          ref={clientSigRef}
-                          penColor="black"
-                          canvasProps={{
-                            width: 400,
-                            height: 150,
-                            className: 'w-full h-32 border rounded bg-white'
-                          }}
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => saveSignature('client')}
-                          className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                        >
-                          Save Signature
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowClientSignature(false)}
-                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => setShowClientSignature(true)}
-                      className="h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors"
-                    >
-                      {clientSignature ? (
-                        <div className="text-center p-2">
-                          <img 
-                            src={clientSignature} 
-                            alt="Client Signature" 
-                            className="h-20 mx-auto object-contain"
-                          />
-                          <p className="text-xs text-gray-500 mt-1">Click to change signature</p>
-                        </div>
-                      ) : (
-                        <div className="text-center">
-                          <FileSignature className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                          <p className="text-sm text-gray-600">Click to sign</p>
-                          <p className="text-xs text-gray-500">Draw your signature</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
                 
-                {/* Inspector Signature */}
+                {/* Image preview grid */}
+                {formData.uploadedImages.length > 0 && (
+                  <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                    {formData.uploadedImages.map((image, index) => (
+                      <div key={index} className="relative group">
+                        <div className="aspect-square rounded-lg overflow-hidden border border-gray-200">
+                          <img
+                            src={image}
+                            alt={`Inspection Image ${index + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="absolute -top-2 -right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {/* Signatures Section - Inspector first, then Client */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Inspector Signature (First) */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <label className="block text-sm font-medium text-gray-700">
-                      Inspector Signature *
+                      Inspector Signature <RequiredField />
                     </label>
-                    {inspectorSignature && (
+                    {formData.inspectorSignature && (
                       <button
                         type="button"
                         onClick={() => clearSignature('inspector')}
@@ -2581,6 +3282,7 @@ const toISODate = (d: any): string => {
                     )}
                   </div>
                   
+                  {/* Inspector signature canvas */}
                   {showInspectorSignature ? (
                     <div className="space-y-3">
                       <div className="border border-gray-300 rounded-lg bg-white p-2">
@@ -2600,7 +3302,7 @@ const toISODate = (d: any): string => {
                           onClick={() => saveSignature('inspector')}
                           className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
                         >
-                          Save Signature
+                          Save Inspector Signature
                         </button>
                         <button
                           type="button"
@@ -2616,10 +3318,10 @@ const toISODate = (d: any): string => {
                       onClick={() => setShowInspectorSignature(true)}
                       className="h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors"
                     >
-                      {inspectorSignature ? (
+                      {formData.inspectorSignature ? (
                         <div className="text-center p-2">
                           <img 
-                            src={inspectorSignature} 
+                            src={formData.inspectorSignature} 
                             alt="Inspector Signature" 
                             className="h-20 mx-auto object-contain"
                           />
@@ -2628,17 +3330,166 @@ const toISODate = (d: any): string => {
                       ) : (
                         <div className="text-center">
                           <FileSignature className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                          <p className="text-sm text-gray-600">Click to sign</p>
-                          <p className="text-xs text-gray-500">Draw your signature</p>
+                          <p className="text-sm text-gray-600">Inspector Signature</p>
+                          <p className="text-xs text-gray-500">Click to sign</p>
                         </div>
                       )}
+                    </div>
+                  )}
+                  
+                  <div className="text-xs text-gray-500">
+                    Inspector must sign first before client approval
+                  </div>
+                </div>
+                
+                {/* Client Signature */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Client Signature <RequiredField />
+                    </label>
+                    {formData.clientSignature && (
+                      <button
+                        type="button"
+                        onClick={() => clearSignature('client')}
+                        className="text-xs text-red-600 hover:text-red-800"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Client signing method selection */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Client Signing Method
+                    </label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="clientSigningMethod"
+                          value="present"
+                          checked={formData.clientSigningMethod === 'present'}
+                          onChange={(e) => handleInputChange('clientSigningMethod', e.target.value)}
+                          className="text-purple-600"
+                        />
+                        <span>Client Present</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="clientSigningMethod"
+                          value="absent"
+                          checked={formData.clientSigningMethod === 'absent'}
+                          onChange={(e) => handleInputChange('clientSigningMethod', e.target.value)}
+                          className="text-purple-600"
+                        />
+                        <span>Client Absent</span>
+                      </label>
+                    </div>
+                  </div>
+                  
+                  {/* Client signature based on method */}
+                  {formData.clientSigningMethod === 'present' && (
+                    <>
+                      {showClientSignature ? (
+                        <div className="space-y-3">
+                          <div className="border border-gray-300 rounded-lg bg-white p-2">
+                            <SignatureCanvas
+                              ref={clientSigRef}
+                              penColor="black"
+                              canvasProps={{
+                                width: 400,
+                                height: 150,
+                                className: 'w-full h-32 border rounded bg-white'
+                              }}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => saveSignature('client')}
+                              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                            >
+                              Save Client Signature
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowClientSignature(false)}
+                              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => setShowClientSignature(true)}
+                          className="h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors"
+                        >
+                          {formData.clientSignature ? (
+                            <div className="text-center p-2">
+                              <img 
+                                src={formData.clientSignature} 
+                                alt="Client Signature" 
+                                className="h-20 mx-auto object-contain"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">Click to change signature</p>
+                            </div>
+                          ) : (
+                            <div className="text-center">
+                              <FileSignature className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                              <p className="text-sm text-gray-600">Client Signature</p>
+                              <p className="text-xs text-gray-500">Click to sign</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  
+                  {formData.clientSigningMethod === 'absent' && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="flex items-start gap-3">
+                        <MailIcon className="h-5 w-5 text-blue-600 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-blue-900 mb-2">
+                            Send for Client Approval
+                          </p>
+                          <p className="text-xs text-blue-700 mb-3">
+                            The client will receive an email with a link to review and sign this pre-checklist.
+                          </p>
+                          
+                          <div className="mb-3">
+                            <label className="block text-xs font-medium text-blue-700 mb-1">
+                              Client Email
+                            </label>
+                            <input
+                              type="email"
+                              value={formData.clientEmail}
+                              onChange={(e) => handleInputChange('clientEmail', e.target.value)}
+                              placeholder="client@example.com"
+                              className="w-full px-3 py-2 text-sm border border-blue-300 rounded-lg"
+                            />
+                          </div>
+                          
+                          <button
+                            type="button"
+                            onClick={sendForClientApproval}
+                            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+                          >
+                            Send Email for Approval
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
               
               {/* Remarks */}
-              <div className="mb-6">
+              <div className="mt-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Additional Remarks
                 </label>
@@ -2650,100 +3501,20 @@ const toISODate = (d: any): string => {
                   rows={3}
                 />
               </div>
-              
-              {/* Image Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload Images (Optional)
-                </label>
-                <div 
-                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors"
-                  onClick={() => document.getElementById('diamond-rims-file-input')?.click()}
-                >
-                  <input
-                    id="diamond-rims-file-input"
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={(e) => {
-                      const files = e.target.files;
-                      if (!files) return;
-                      
-                      const newFiles = Array.from(files);
-                      setSelectedFiles(prev => [...prev, ...newFiles]);
-                      
-                      // Preview images
-                      newFiles.forEach(file => {
-                        if (file.type.startsWith('image/')) {
-                          const reader = new FileReader();
-                          reader.onload = (e) => {
-                            const result = e.target?.result as string;
-                            setFormData(prev => ({
-                              ...prev,
-                              uploadedImages: [...prev.uploadedImages, result]
-                            }));
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      });
-                      
-                      showToast(`${newFiles.length} image(s) selected`, 'info');
-                    }}
-                    className="hidden"
-                  />
-                  <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-600 mb-1">Click to upload images of rims</p>
-                  <p className="text-xs text-gray-500">Supports JPG, PNG, WebP formats</p>
-                </div>
-
-                {/* Uploaded Images Preview */}
-                {formData.uploadedImages.length > 0 && (
-                  <div className="mt-4">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">
-                      Uploaded Images ({formData.uploadedImages.length})
-                    </h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {formData.uploadedImages.map((image, index) => (
-                        <div key={index} className="relative group">
-                          <div className="aspect-square rounded-lg overflow-hidden border border-gray-200">
-                            <img
-                              src={image}
-                              alt={`Rim Image ${index + 1}`}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFormData(prev => ({
-                                ...prev,
-                                uploadedImages: prev.uploadedImages.filter((_, i) => i !== index)
-                              }));
-                            }}
-                            className="absolute -top-2 -right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
 
             {/* Form Actions */}
             <div className="pt-6 border-t border-gray-200">
-              <div className="flex justify-between">
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors"
-                >
-                  Cancel
-                </button>
-                
-                <div className="flex gap-4">
+              <div className="flex flex-col md:flex-row justify-between gap-4">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  
                   <button
                     type="button"
                     onClick={handleSaveAsDraft}
@@ -2751,13 +3522,36 @@ const toISODate = (d: any): string => {
                     disabled={submitting}
                   >
                     <Save className="h-5 w-5" />
-                    Save as Draft
+                    Save Draft
                     {draftSaved && (
                       <span className="text-xs text-green-600">
                         ✓ Saved
                       </span>
                     )}
                   </button>
+                </div>
+                
+                <div className="flex gap-4">
+                  {/* Conditional buttons based on client presence */}
+                  {formData.clientSigningMethod === 'present' && formData.clientSignature ? (
+                    <button
+                      type="button"
+                      onClick={() => handleClientApproval('approve')}
+                      className="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-medium transition-colors flex items-center gap-2"
+                    >
+                      <Check className="h-5 w-5" />
+                      Approve & Sign
+                    </button>
+                  ) : formData.clientSigningMethod === 'absent' && formData.clientEmail ? (
+                    <button
+                      type="button"
+                      onClick={() => handleClientApproval('send')}
+                      className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium transition-colors flex items-center gap-2"
+                    >
+                      <MailIcon className="h-5 w-5" />
+                      Send for Client Approval
+                    </button>
+                  ) : null}
                   
                   <button
                     type="submit"

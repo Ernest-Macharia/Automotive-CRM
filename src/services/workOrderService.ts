@@ -111,6 +111,8 @@ export interface WorkOrder {
     hours?: number;
     minutes?: number;
   };
+
+  assignedTechnicians?: string;
   
   // Add the missing properties
   invoicePaid?: boolean;
@@ -208,27 +210,27 @@ export interface UpdateWorkOrderData {
   partsCost?: number;
   totalCost?: number;
   notes?: string;
+  
+  // Accept either string IDs or full objects, but ensure consistency
   jobCards?: string[] | Array<{
     _id: string;
     jobTitle?: string;
     status?: string;
   }>;
+  
   delayInfo?: Partial<DelayInfo>;
   
-  // Add missing properties for stage approvals
+  // Add missing properties
   waiverId?: string;
   invoicePaid?: boolean;
   autoApproved?: boolean;
   invoiceId?: string;
   invoicePaymentDate?: string;
-  
-  // Add the missing properties from the error
-  preChecklistStatus?: 'pending' | 'in_progress' | 'completed' | 'cancelled'; // ADD THIS
-  postChecklistId?: string; // Already exists
-  preChecklistId?: string; // Already exists
+  preChecklistStatus?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  postChecklistId?: string;
+  preChecklistId?: string;
   postChecklistStatus?: string;
   
-  // Add stage approvals object
   stageApprovals?: {
     pre_checklist?: {
       needsApproval?: boolean;
@@ -278,7 +280,6 @@ export interface UpdateWorkOrderData {
     };
   };
   
-  // Add completion dates for stages
   preChecklistCompletionDate?: string;
   jobCardCompletionDate?: string;
   postChecklistCompletionDate?: string;
@@ -308,6 +309,7 @@ export interface WorkOrderFilterParams {
   sort?: string;
   page?: number;
   limit?: number;
+  signal?: AbortSignal;
 }
 
 export interface WorkOrderStats {
@@ -446,60 +448,51 @@ class WorkOrderService {
 
   // GET /api/v1/workorder - Get all work orders with filtering
   // In workOrderService.ts - Update the getAllWorkOrders method:
-  async getAllWorkOrders(params?: WorkOrderFilterParams): Promise<WorkOrdersResponse> {
+  async getAllWorkOrders(
+    params?: WorkOrderFilterParams
+  ): Promise<WorkOrdersResponse> {
     try {
       const queryParams = new URLSearchParams();
-      
+
       if (params) {
         Object.entries(params).forEach(([key, value]) => {
           if (value !== undefined && value !== null && value !== '') {
-            if (key === 'page' || key === 'limit' || key === 'search' || key === 'status' || 
-                key === 'fromDate' || key === 'toDate' || key === 'sort') {
+            if (
+              key === 'page' || key === 'limit' || key === 'search' || key === 'status' ||
+              key === 'fromDate' || key === 'toDate' || key === 'sort'
+            ) {
               queryParams.append(key, value.toString());
             }
           }
         });
       }
-      
-      // Default pagination
+
       if (!params?.page) queryParams.append('page', '1');
       if (!params?.limit) queryParams.append('limit', '20');
-      
-      
+
       const queryString = queryParams.toString();
       const endpoint = `${this.basePath}${queryString ? `?${queryString}` : ''}`;
 
-      console.log('Fetching from:', endpoint);
-      
-      const response = await apiClient.get<WorkOrdersResponse>(endpoint);
-      
-      // Ensure response has proper structure
+      // If apiClient.get DOES support { signal }, this enables cancellation.
+      // If it doesn't, remove the second argument and it still works.
+      const response = await apiClient.get<WorkOrdersResponse>(endpoint, { 
+        signal: params?.signal 
+      });
+
       if (!response) {
         return {
           data: [],
-          pagination: {
-            total: 0,
-            page: 1,
-            limit: 20,
-            totalPages: 0
-          }
+          pagination: { total: 0, page: 1, limit: 20, totalPages: 0 }
         };
       }
-      
-      // If response is an array, wrap it in WorkOrdersResponse
+
       if (Array.isArray(response)) {
         return {
           data: response,
-          pagination: {
-            total: response.length,
-            page: 1,
-            limit: response.length,
-            totalPages: 1
-          }
+          pagination: { total: response.length, page: 1, limit: response.length, totalPages: 1 }
         };
       }
-      
-      // Ensure pagination exists
+
       if (!response.pagination && 'data' in response) {
         response.pagination = {
           total: response.data?.length || 0,
@@ -508,19 +501,13 @@ class WorkOrderService {
           totalPages: Math.ceil((response.data?.length || 0) / (params?.limit || 20))
         };
       }
-      
+
       return response as WorkOrdersResponse;
     } catch (error) {
       console.error('Error fetching work orders:', error);
-      // Return empty response structure instead of throwing
       return {
         data: [],
-        pagination: {
-          total: 0,
-          page: 1,
-          limit: 20,
-          totalPages: 0
-        }
+        pagination: { total: 0, page: 1, limit: 20, totalPages: 0 }
       };
     }
   }
@@ -528,19 +515,15 @@ class WorkOrderService {
   // GET /api/v1/workorder/{id}
   async getWorkOrderById(id: string): Promise<WorkOrder> {
     try {
-      const response = await apiClient.get<WorkOrder>(`${this.basePath}/${id}`);
-      console.log('📥 Get work order by ID response:', response);
-      
-      // Handle nested structure
-      if (response.success && response) {
+        const response = await apiClient.get<WorkOrder>(`${this.basePath}/${id}`);
+        console.log('📥 Get work order by ID response:', response);
+        
         return response;
+      } catch (error) {
+        console.error(`Error fetching work order ${id}:`, error);
+        throw error;
       }
-      return response;
-    } catch (error) {
-      console.error(`Error fetching work order ${id}:`, error);
-      throw error;
     }
-  }
 
   // PATCH /api/v1/workorder/{id}
   async updateWorkOrder(id: string, data: UpdateWorkOrderData): Promise<WorkOrder> {
@@ -618,8 +601,9 @@ class WorkOrderService {
     }
   }
 
-  // POST /api/v1/workorder/{id}/generate-invoice
+    // POST /api/v1/workorder/{id}/generate-invoice
 
+    // Fix in generateInvoice method (around line 629):
   async generateInvoice(id: string): Promise<{
     workOrder: WorkOrder;
     invoice: {
@@ -633,16 +617,24 @@ class WorkOrderService {
       // Use the invoice service to create invoice from work order
       const result = await invoiceService.createInvoiceFromWorkOrder(id);
       
+      // Map the invoice to match the expected type
+      const mappedInvoice = {
+        _id: result.invoice._id || result.invoice.id || '',
+        invoiceNumber: result.invoice.invoiceNumber || '',
+        total: result.invoice.total || 0,
+        status: result.invoice.status || 'draft'
+      };
+      
       // Try to send email
       try {
-        await invoiceService.sendInvoiceEmail(result.invoice.id);
+        await invoiceService.sendInvoiceEmail(result.invoice.id || result.invoice._id);
       } catch (emailError) {
         console.warn('Invoice created but email sending failed:', emailError);
       }
       
       return {
         workOrder: result.workOrder,
-        invoice: result.invoice
+        invoice: mappedInvoice
       };
     } catch (error) {
       console.error(`Error generating invoice for work order ${id}:`, error);
@@ -858,7 +850,7 @@ class WorkOrderService {
   }
 
   // GET /api/v1/workorder/stats/summary
-  async getWorkOrderStats(): Promise<WorkOrderStats> {
+  async getWorkOrderStats(options?: { signal?: AbortSignal }): Promise<WorkOrderStats> {
     try {
       return await apiClient.get<WorkOrderStats>(`${this.basePath}/stats/summary`);
     } catch (error) {
@@ -868,7 +860,7 @@ class WorkOrderService {
   }
 
   // GET /api/v1/workorder/stats/stages
-  async getStageStats(): Promise<StageStats> {
+  async getStageStats(options?: { signal?: AbortSignal }): Promise<StageStats> {
     try {
       return await apiClient.get<StageStats>(`${this.basePath}/stats/stages`);
     } catch (error) {
@@ -1593,26 +1585,40 @@ getStageStatusConfig(stage: any) {
   /**
    * Add a job card to work order
    */
-  async addJobCard(workOrderId: string, jobCardId: string): Promise<WorkOrder> {
-    try {
-      const workOrder = await this.getWorkOrderById(workOrderId);
-      
-      const existingJobCards = workOrder.jobCards || [];
-      const newJobCards = Array.isArray(existingJobCards) 
-        ? [...existingJobCards, jobCardId]
-        : [jobCardId];
-      
-      return await this.updateWorkOrder(workOrderId, {
-        jobCards: newJobCards,
-        currentStage: 'job_card',
-        status: 'in_progress',
-        updatedAt: new Date().toISOString()
-      });
-    } catch (error) {
-      console.error(`Error adding job card to work order ${workOrderId}:`, error);
-      throw error;
+  // Fix in addJobCard method (around line 1590):
+async addJobCard(workOrderId: string, jobCardId: string): Promise<WorkOrder> {
+  try {
+    const workOrder = await this.getWorkOrderById(workOrderId);
+    
+    const existingJobCards = workOrder.jobCards || [];
+    
+    // Ensure we only store job card IDs (strings)
+    let existingIds: string[] = [];
+    
+    if (Array.isArray(existingJobCards)) {
+      existingIds = existingJobCards.map(jc => {
+        if (typeof jc === 'string') return jc;
+        if (jc && typeof jc === 'object') return jc._id || '';
+        return '';
+      }).filter(id => id); // Remove empty strings
     }
+    
+    // Add the new job card ID if not already present
+    if (!existingIds.includes(jobCardId)) {
+      existingIds.push(jobCardId);
+    }
+    
+    return await this.updateWorkOrder(workOrderId, {
+      jobCards: existingIds, // Pass as string array
+      currentStage: 'job_card',
+      status: 'in_progress',
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error(`Error adding job card to work order ${workOrderId}:`, error);
+    throw error;
   }
+}
 
   /**
    * Get all job cards for a work order (populated)
@@ -1622,113 +1628,43 @@ getStageStatusConfig(stage: any) {
  * Get all job cards for a work order (populated)
  */
 // In workOrderService.ts - Update the getWorkOrderJobCards method:
-async getWorkOrderJobCards(workOrderId: string): Promise<JobCard[]> {
-  try {
-    console.log(`🔍 Getting job cards for work order: ${workOrderId}`);
-    await this.cleanupWorkOrderJobCards(workOrderId);
-    const workOrder = await this.getWorkOrderById(workOrderId);
-    
-    console.log(`📦 Work order jobCards field:`, workOrder.jobCards);
-    
-    // Check if jobCards is an array and filter out null values
-    if (!workOrder.jobCards || !Array.isArray(workOrder.jobCards)) {
-      console.log(`📭 No job cards array found for work order ${workOrderId}`);
-      return [];
-    }
-    
-    // Filter out null values
-    const validJobCardRefs = workOrder.jobCards.filter(ref => ref !== null && ref !== undefined);
-    
-    if (validJobCardRefs.length === 0) {
-      console.log(`📭 No valid job card references found for work order ${workOrderId}`);
-      return [];
-    }
-    
-    console.log(`🔢 Found ${validJobCardRefs.length} valid job card references out of ${workOrder.jobCards.length} total`);
-    
-    // Fetch job cards using jobCardService
-    const jobCardPromises = validJobCardRefs.map(async (jobCardRef, index) => {
-      try {
-        console.log(`   Processing reference [${index}]:`, jobCardRef);
-        
-        // Extract job card ID safely
-        let jobCardId: string;
-        
-        if (typeof jobCardRef === 'string') {
-          jobCardId = jobCardRef.trim();
-        } else if (jobCardRef && typeof jobCardRef === 'object') {
-          // Check for _id or id property
-          if (jobCardRef._id) {
-            jobCardId = jobCardRef._id;
-          } else if (jobCardRef.id) {
-            jobCardId = jobCardRef.id;
-          } else {
-            return null;
-          }
-        } else {
-          return null;
-        }
-        
-        // Validate job card ID
-        if (!jobCardId || typeof jobCardId !== 'string' || jobCardId.trim().length === 0) {
-          console.warn(`   ⚠️ Empty job card ID at index ${index}:`, jobCardId);
-          return null;
-        }
-        
-        console.log(`   🔍 Fetching job card with ID: ${jobCardId}`);
-        
-        // Try to fetch the job card
-        const jobCard = await jobCardService.getJobCardById(jobCardId);
-        console.log(`   ✅ Successfully loaded job card:`, jobCard._id, jobCard.jobTitle);
-        return jobCard;
-      } catch (error) {
-        console.error(`   ❌ Error loading job card at index ${index}:`, error);
-        return null;
-      }
-    });
-    
-    const results = await Promise.all(jobCardPromises);
-    // Filter out null values and ensure we have JobCard objects
-    const validJobCards = results.filter((jobCard): jobCard is JobCard => 
-      jobCard !== null && jobCard !== undefined && 'id' in jobCard
-    );
-    
-    console.log(`📊 Loaded ${validJobCards.length} valid job cards`);
-    return validJobCards;
-  } catch (error) {
-    console.error(`❌ Error fetching job cards for work order ${workOrderId}:`, error);
-    throw error;
-  }
+// Fix the normalizeJobCardId method to be more robust
+private normalizeJobCardId(ref: any): string | null {
+  if (typeof ref === 'string') return ref.trim() || null;
+  if (ref && typeof ref === 'object') return (ref._id || ref.id || '').toString().trim() || null;
+  return null;
 }
 
-// In workOrderService.ts - Add a method to clean up null job card references:
-async cleanupWorkOrderJobCards(workOrderId: string): Promise<WorkOrder> {
+// Update getWorkOrderJobCards method to handle mixed types
+async getWorkOrderJobCards(workOrderId: string): Promise<JobCard[]> {
   try {
     const workOrder = await this.getWorkOrderById(workOrderId);
-    
-    if (!workOrder.jobCards || !Array.isArray(workOrder.jobCards)) {
-      return workOrder;
-    }
-    
-    // Filter out null values
-    const cleanedJobCards = workOrder.jobCards.filter(ref => 
-      ref !== null && ref !== undefined
+
+    if (!Array.isArray(workOrder.jobCards) || workOrder.jobCards.length === 0) return [];
+
+    // Extract all job card IDs from mixed array
+    const jobCardIds = workOrder.jobCards
+      .map(ref => this.normalizeJobCardId(ref))
+      .filter((id): id is string => !!id); // Type guard to filter out nulls
+
+    // Deduplicate IDs
+    const uniqueIds = Array.from(new Set(jobCardIds));
+
+    // Fetch all job cards
+    const jobCards = await Promise.all(
+      uniqueIds.map(async (id) => {
+        try {
+          return await jobCardService.getJobCardById(id);
+        } catch (error) {
+          console.error(`Error fetching job card ${id}:`, error);
+          return null;
+        }
+      })
     );
-    
-    // If there are null values, update the work order
-    if (cleanedJobCards.length !== workOrder.jobCards.length) {
-      console.log(`🧹 Cleaning up null job card references for work order ${workOrderId}`);
-      console.log(`📊 Before: ${workOrder.jobCards.length} items, After: ${cleanedJobCards.length} items`);
-      
-      return await this.updateWorkOrder(workOrderId, {
-        jobCards: cleanedJobCards,
-        updatedAt: new Date().toISOString()
-      });
-    }
-    
-    return workOrder;
+
+    return jobCards.filter((jc): jc is JobCard => jc !== null);
   } catch (error) {
-    console.error(`Error cleaning up work order job cards ${workOrderId}:`, error);
+    console.error(`Error fetching job cards for work order ${workOrderId}:`, error);
     throw error;
   }
 }
@@ -2064,14 +2000,14 @@ async cleanupWorkOrderJobCards(workOrderId: string): Promise<WorkOrder> {
   }
 
   // Add this method to workOrderService to fetch opportunity with proper typing
-async getFullOpportunityDetails(opportunityId: string): Promise<Opportunity> {
-  try {
-    return await opportunityService.getOpportunityById(opportunityId, false);
-  } catch (error) {
-    console.error(`Error fetching opportunity ${opportunityId}:`, error);
-    throw error;
+  async getFullOpportunityDetails(opportunityId: string, signal?: AbortSignal): Promise<Opportunity> {
+    try {
+      return await this.getCachedOpportunity(opportunityId, signal);
+    } catch (error) {
+      console.error(`Error fetching opportunity ${opportunityId}:`, error);
+      throw error;
+    }
   }
-}
 
 // Enhanced createWorkOrder that pulls data from opportunity
 async createWorkOrderFromOpportunity(

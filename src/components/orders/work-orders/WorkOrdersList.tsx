@@ -263,6 +263,8 @@ export default function WorkOrdersList() {
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // NEW: State for showing/hiding filters
   const [showFilters, setShowFilters] = useState(true);
 
   // Row data displayed in UI (kept same shape)
@@ -377,12 +379,12 @@ export default function WorkOrdersList() {
             setRowData((prev) => ({ ...prev, ...collected }));
           }
         } catch {
-          // swallow: row details are optional, don’t block UX
+          // swallow: row details are optional, don't block UX
         }
       })();
 
       // Return-like cleanup for this scheduled task:
-      // We can’t actually return from runWhenIdle, but we can
+      // We can't actually return from runWhenIdle, but we can
       // tie cancellation to unmount via a ref-based effect below.
       return cancelFlag;
     });
@@ -463,7 +465,7 @@ export default function WorkOrdersList() {
     };
   }, [debouncedSearchTerm, statusFilter, dateRange, currentPage, itemsPerPage, showToast, hydrateRowDetails]);
 
-  // Fetch stats (cached TTL) so it doesn’t slow down typing/pagination
+  // Fetch stats (cached TTL) so it doesn't slow down typing/pagination
   useEffect(() => {
     let alive = true;
 
@@ -496,7 +498,7 @@ export default function WorkOrdersList() {
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
         console.error('Error fetching stats:', err);
-        // keep UI: stats just won’t show; don’t hard-fail the page
+        // keep UI: stats just won't show; don't hard-fail the page
       } finally {
         if (alive) setStatsLoading(false);
       }
@@ -515,7 +517,7 @@ export default function WorkOrdersList() {
       setRefreshing(true);
       setError(null);
 
-      // Bust stats cache so refresh is “real”
+      // Bust stats cache so refresh is "real"
       statsCacheRef.current = { value: null, fetchedAt: 0 };
 
       const [ordersResponse, statsData] = await Promise.all([
@@ -862,212 +864,90 @@ export default function WorkOrdersList() {
           </div>
         )}
 
-        {/* Filters */}
-        {/* Enhanced Filters Section */}
-<div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
-  <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6">
-    <div>
-      <h3 className="text-lg font-semibold text-gray-900">Filters & Search</h3>
-      <p className="text-sm text-gray-500 mt-1">Refine your work orders using filters</p>
-    </div>
-    <div className="flex items-center gap-3 mt-3 sm:mt-0">
-      {hasActiveFilters && (
-        <button
-          onClick={handleClearFilters}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-        >
-          <XCircle className="h-4 w-4" />
-          Clear all
-        </button>
-      )}
-      <button
-        onClick={handleRefresh}
-        disabled={refreshing}
-        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
-      >
-        <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-        {refreshing ? 'Refreshing...' : 'Refresh'}
-      </button>
-    </div>
-  </div>
-
-  {/* Search Bar */}
-  <div className="mb-6">
-    <div className="relative">
-      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-        <Search className="h-5 w-5 text-gray-400" />
-      </div>
-      <input
-        type="text"
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        placeholder="Search work orders, customers, order numbers..."
-        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-sm transition-all"
-      />
-      {searchTerm && (
-        <button
-          onClick={() => setSearchTerm('')}
-          className="absolute inset-y-0 right-0 pr-3 flex items-center"
-        >
-          <XCircle className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-        </button>
-      )}
-    </div>
-  </div>
-
-  {/* Main Filters */}
-  <div className="space-y-6">
-    {/* Status Filter - Chip Style */}
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-3">Status</label>
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => {
-            setStatusFilter('all');
-            setCurrentPage(1);
-          }}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            statusFilter === 'all'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          All Status
-        </button>
-        {STATUS_OPTIONS.filter(opt => opt.value !== 'all').map((option) => {
-          const config = STATUS_CONFIG[option.value as keyof typeof STATUS_CONFIG];
-          return (
-            <button
-              key={option.value}
-              onClick={() => {
-                setStatusFilter(option.value);
-                setCurrentPage(1);
-              }}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                statusFilter === option.value
-                  ? `${config.color.split(' ')[0]} ${config.color.split(' ')[1]} shadow-sm`
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {config.icon && <config.icon className="h-3.5 w-3.5" />}
-              {option.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-
-    {/* Date Range */}
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">From Date</label>
-        <div className="relative">
-          <input
-            type="date"
-            value={dateRange.from}
-            onChange={(e) => {
-              setDateRange((prev) => ({ ...prev, from: e.target.value }));
-              setCurrentPage(1);
-            }}
-            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-          />
-          {dateRange.from && (
-            <button
-              onClick={() => setDateRange(prev => ({ ...prev, from: '' }))}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2"
-            >
-              <XCircle className="h-4 w-4 text-gray-400 hover:text-gray-600" />
-            </button>
-          )}
+        {/* Toggle Button for Filters */}
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Filter className="h-4 w-4" />
+            {showFilters ? 'Hide Filters' : 'Show Filters'}
+          </button>
         </div>
-      </div>
-      
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">To Date</label>
-        <div className="relative">
-          <input
-            type="date"
-            value={dateRange.to}
-            onChange={(e) => {
-              setDateRange((prev) => ({ ...prev, to: e.target.value }));
-              setCurrentPage(1);
-            }}
-            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-          />
-          {dateRange.to && (
-            <button
-              onClick={() => setDateRange(prev => ({ ...prev, to: '' }))}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2"
-            >
-              <XCircle className="h-4 w-4 text-gray-400 hover:text-gray-600" />
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
 
-    {/* Active Filters Display */}
-    {hasActiveFilters && (
-      <div className="pt-4 border-t border-gray-200">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-medium text-gray-700">Active Filters</span>
-          <span className="text-xs text-gray-500">
-            {workOrders.length} of {totalItems} results
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {searchTerm && (
-            <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm">
-              Search: "{searchTerm}"
-              <button
-                onClick={() => setSearchTerm('')}
-                className="ml-1 hover:text-blue-900"
-              >
-                <XCircle className="h-3.5 w-3.5" />
-              </button>
-            </span>
-          )}
-          
-          {statusFilter !== 'all' && (
-            <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm">
-              Status: {STATUS_OPTIONS.find(s => s.value === statusFilter)?.label}
-              <button
-                onClick={() => setStatusFilter('all')}
-                className="ml-1 hover:text-blue-900"
-              >
-                <XCircle className="h-3.5 w-3.5" />
-              </button>
-            </span>
-          )}
-          
-          {dateRange.from && (
-            <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm">
-              From: {format(new Date(dateRange.from), 'MMM dd, yyyy')}
-              <button
-                onClick={() => setDateRange(prev => ({ ...prev, from: '' }))}
-                className="ml-1 hover:text-blue-900"
-              >
-                <XCircle className="h-3.5 w-3.5" />
-              </button>
-            </span>
-          )}
-          
-          {dateRange.to && (
-            <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-sm">
-              To: {format(new Date(dateRange.to), 'MMM dd, yyyy')}
-              <button
-                onClick={() => setDateRange(prev => ({ ...prev, to: '' }))}
-                className="ml-1 hover:text-blue-900"
-              >
-                <XCircle className="h-3.5 w-3.5" />
-              </button>
-            </span>
-          )}
-        </div>
-      </div>
-    )}
-  </div>
-</div>
+        {/* Filters Section - Conditionally Rendered */}
+        {showFilters && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900">Filters</h3>
+              {hasActiveFilters && (
+                <button onClick={handleClearFilters} className="text-sm text-blue-600 hover:text-blue-700">
+                  Clear all filters
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search by order number, customer..."
+                    className="w-full pl-11 pr-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="relative">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => {
+                      setStatusFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="w-full appearance-none pl-4 pr-10 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  >
+                    {STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">From Date</label>
+                  <input
+                    type="date"
+                    value={dateRange.from}
+                    onChange={(e) => {
+                      setDateRange((prev) => ({ ...prev, from: e.target.value }));
+                      setCurrentPage(1);
+                    }}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">To Date</label>
+                  <input
+                    type="date"
+                    value={dateRange.to}
+                    onChange={(e) => {
+                      setDateRange((prev) => ({ ...prev, to: e.target.value }));
+                      setCurrentPage(1);
+                    }}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Results Count */}
         {!loading && workOrders.length > 0 && (
