@@ -12,16 +12,17 @@ import {
   AlertTriangle, Info, Sparkles, FileSignature, Upload, X,
   FileCheck, ClipboardList, Check, RotateCw,
   PaintBucket, Hammer, Gauge, Sparkles as DiamondIcon,
-  Layers, Hexagon, Award, ShieldOff, FileText as NotesIcon
+  Layers, Hexagon, Award, ShieldOff, FileText as NotesIcon,
+  UserCheck, Users, CalendarDays, Clock as ClockIcon
 } from 'lucide-react';
 import { jobCardService, CreateJobCardData } from '@/services/jobCardService';
 import { opportunityService, Opportunity } from '@/services/opportunityService';
 import { userService, User } from '@/services/settings/userService';
 import { vehicleService, Vehicle } from '@/services/vehicleService';
 import { workOrderService } from '@/services/workOrderService';
-import { preChecklistService } from '@/services/preChecklistService';
+import { preChecklistService, PreChecklist } from '@/services/preChecklistService';
 import { useToast } from '@/contexts/ToastContext';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import debounce from 'lodash/debounce';
 import SignatureCanvas from 'react-signature-canvas';
 import { lifecycleIntegrationService } from '@/services/lifecycleIntegrationService';
@@ -39,7 +40,11 @@ interface FormData {
   partsCost: number;
   totalCost: number;
   startDate: string;
+  startTime: string;
   endDate: string;
+  endTime: string;
+  estimatedCompletionDate: string;
+  estimatedCompletionTime: string;
   completedDate: string;
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   notes: string[];
@@ -90,7 +95,7 @@ interface FormData {
   hasPreviousRepairs: boolean;
   structuralIntegrity: 'intact' | 'compromised' | 'unknown';
   
-  // Rim Services Required
+  // Rim Services Required - Auto-populated from pre-checklist
   servicesRequired: {
     brakeDiscSkimming: boolean;
     diamondCutting: boolean;
@@ -219,7 +224,7 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [vehicleDetails, setVehicleDetails] = useState<Vehicle | null>(null);
   const [workOrder, setWorkOrder] = useState<any>(null);
-  const [preChecklist, setPreChecklist] = useState<any>(null);
+  const [preChecklist, setPreChecklist] = useState<PreChecklist | null>(null);
   const [technicians, setTechnicians] = useState<User[]>([]);
   const [selectedTechnician, setSelectedTechnician] = useState<User | null>(null);
   const [parts, setParts] = useState<any[]>([]);
@@ -228,6 +233,10 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
   const [showTechnicianSignature, setShowTechnicianSignature] = useState(false);
   const customerSigRef = useRef<SignatureCanvas>(null);
   const technicianSigRef = useRef<SignatureCanvas>(null);
+  
+  // Set default time to current time + 1 hour
+  const defaultStartTime = format(new Date(Date.now() + 60 * 60 * 1000), 'HH:mm');
+  const defaultEndTime = format(new Date(Date.now() + 8 * 60 * 60 * 1000), 'HH:mm'); // 8 hours later
   
   const [formData, setFormData] = useState<FormData>({
     opportunityId: opportunityId || '',
@@ -241,7 +250,11 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
     partsCost: 0,
     totalCost: 0,
     startDate: format(new Date(), 'yyyy-MM-dd'),
+    startTime: defaultStartTime,
     endDate: format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
+    endTime: defaultEndTime,
+    estimatedCompletionDate: format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
+    estimatedCompletionTime: defaultEndTime,
     completedDate: '',
     status: 'pending',
     notes: [],
@@ -282,7 +295,7 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
     hasPreviousRepairs: false,
     structuralIntegrity: 'intact',
     
-    // Rim Services Required
+    // Rim Services Required - Auto-populated from pre-checklist
     servicesRequired: {
       brakeDiscSkimming: false,
       diamondCutting: false,
@@ -478,12 +491,12 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
     }
   }, [opportunityId]);
 
-  // Auto-populate form when opportunity is loaded
+  // Auto-populate form when pre-checklist is loaded
   useEffect(() => {
-    if (opportunity && !autoPopulated) {
-      autoPopulateFromOpportunity();
+    if (preChecklist && !autoPopulated) {
+      autoPopulateFromPreChecklist();
     }
-  }, [opportunity]);
+  }, [preChecklist]);
 
   const loadRelatedData = async () => {
     try {
@@ -493,7 +506,6 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
       if (opportunityId) {
         const opp = await opportunityService.getOpportunityById(opportunityId, false);
         setOpportunity(opp);
-        console.log('Loaded opportunity:', opp);
         
         // Get vehicle from opportunity
         if (opp.vehicles && opp.vehicles.length > 0) {
@@ -515,7 +527,7 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
             const veh = await vehicleService.getVehicleById(vehicleId);
             setVehicleDetails(veh);
           } catch (vehError) {
-            console.error('Error loading vehicle:', vehError);
+            //
           }
         }
       }
@@ -535,13 +547,9 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
         try {
           const pc = await preChecklistService.getPreChecklistById(preChecklistId);
           setPreChecklist(pc);
-          
-          // If pre-checklist has diamond rims data, populate form
-          if (pc.checklistType === 'diamond_rims') {
-            populateFromDiamondRimsPreChecklist(pc);
-          }
         } catch (error) {
           console.error('Error loading pre-checklist:', error);
+          showToast('Failed to load pre-checklist', 'warning');
         }
       }
 
@@ -559,135 +567,290 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
     }
   };
 
-  const populateFromDiamondRimsPreChecklist = (preChecklist: any) => {
-    try {
-      console.log('Populating from Diamond Rims pre-checklist:', preChecklist);
+  // Add this effect to auto-populate from opportunity when loaded
+  useEffect(() => {
+    if (opportunity && !autoPopulated) {
+      autoPopulateFromOpportunity();
+    }
+  }, [opportunity]);
+
+  // Function to auto-populate from opportunity with servicesProducts
+// Function to auto-populate from opportunity
+const autoPopulateFromOpportunity = () => {
+  if (!opportunity || autoPopulated) return;
+
+  try {
+    
+    // Extract customer information
+    const customerName = opportunity.customer?.name || '';
+    
+    // Get vehicle details
+    const vehicleData = vehicleDetails || opportunity.vehicles?.[0] || {};
+    const carMake = vehicleData.make || vehicleData.manufacturer || vehicleData.brand || '';
+    const carModel = vehicleData.model || vehicleData.modelName || '';
+    
+    // Get license plate
+    const getLicensePlate = (vehicle: any) => {
+      if (!vehicle) return '';
+      const fields = ['registrationNumber', 'regNumber', 'licensePlate', 'plateNumber'];
+      for (const field of fields) {
+        if (vehicle[field]) return vehicle[field];
+      }
+      return '';
+    };
+    
+    const licensePlate = getLicensePlate(vehicleData);
+    
+    // Get year
+    let yearOfManufacture = '';
+    if (vehicleData.year) yearOfManufacture = vehicleData.year.toString();
+    else if (vehicleData.yearOfManufacture) yearOfManufacture = vehicleData.yearOfManufacture.toString();
+    else if (vehicleData.modelYear) yearOfManufacture = vehicleData.modelYear.toString();
+
+    // Get mileage
+    const mileage = vehicleData.mileage || '';
+
+    // JOB TITLE: From opportunity subject (in uppercase)
+    let jobTitle = 'DIAMOND RIMS SERVICE'; // Default
+    
+    if (opportunity.subject) {
+      jobTitle = opportunity.subject.toUpperCase();
+    } else if (customerName) {
+      const firstName = customerName.split(' ')[0] || customerName;
+      jobTitle = `${firstName.toUpperCase()}'S RIM SERVICE`;
+    }
+
+    // JOB DESCRIPTION: List services required and color selected ONLY
+    let jobDescription = '';
+    
+    // Check if we have services from pre-checklist
+    if (preChecklist && preChecklist.services && preChecklist.services.actualService) {
+      const services = preChecklist.services.actualService;
       
-      setFormData(prev => ({
-        ...prev,
-        customerName: preChecklist.customerDetails?.name || '',
-        customerPhone: preChecklist.customerDetails?.mobile || '',
-        customerEmail: preChecklist.customerDetails?.email || '',
-        regNumber: preChecklist.carDetails?.licensePlate || '',
-        carMake: preChecklist.carDetails?.carMake || '',
-        carModel: preChecklist.carDetails?.carModel || '',
-        yom: preChecklist.carDetails?.yearOfManufacture || '',
-        mileage: preChecklist.carDetails?.mileage || '',
-        
-        // Rim services from pre-checklist
-        servicesRequired: {
-          ...prev.servicesRequired,
-          brakeDiscSkimming: preChecklist.services?.actualService?.includes('Brake Disc Skimming') || false,
-          diamondCutting: preChecklist.services?.actualService?.includes('Diamond Cutting') || false,
-          powderCoating: preChecklist.services?.actualService?.includes('Powder Coating') || false,
-          rimStraightening: preChecklist.services?.actualService?.includes('Rim Straightening') || false,
-          welding: preChecklist.services?.actualService?.includes('Welding') || false,
-          wheelBalancing: preChecklist.services?.actualService?.includes('Wheel Balancing') || false,
-        },
+      // Get color from pre-checklist if powder coating is selected
+      let colorInfo = '';
+      if (preChecklist.powderCoating && preChecklist.powderCoating.colourRAL) {
+        colorInfo = ` | Color: ${preChecklist.powderCoating.colourRAL}`;
+      }
+      
+      // Create concise service list
+      jobDescription = services.join(', ') + colorInfo;
+    } 
+    // If no pre-checklist, create simple description
+    else {
+      jobDescription = 'Rim services requested';
+    }
+
+    // Map services from pre-checklist if available
+    let servicesRequired = formData.servicesRequired;
+    if (preChecklist && preChecklist.services && preChecklist.services.actualService) {
+      servicesRequired = mapPreChecklistServices(preChecklist.services.actualService);
+    }
+
+    // Get logged-in user info
+    const loggedInUserName = sessionStorage.getItem('userName') || '';
+
+    // Update form data
+    const updatedFormData: Partial<FormData> = {
+      opportunityId: opportunity._id || opportunityId || '',
+      customerName: customerName,
+      customerPhone: opportunity.customer?.phone || '',
+      customerEmail: opportunity.customer?.email || '',
+      jobCardOwner: loggedInUserName || 'Diamond Rims Technician',
+      
+      // Vehicle details
+      regNumber: licensePlate,
+      carMake: carMake,
+      carModel: carModel,
+      yom: yearOfManufacture,
+      mileage: mileage,
+      
+      // Job details
+      jobTitle: jobTitle,
+      jobDescription: jobDescription, // Only services and color, NO amounts
+      
+      // Services from pre-checklist
+      servicesRequired: servicesRequired,
+      
+      // Color from pre-checklist
+      powderCoatingRAL: preChecklist?.powderCoating?.colourRAL || '',
+      
+      // Customer information
+      customerSource: opportunity.source || 'None',
+      quotedAmount: opportunity.total || 0,
+    };
+    
+    setFormData(prev => ({ ...prev, ...updatedFormData }));
+    setAutoPopulated(true);
+    
+    showToast('Job card data loaded successfully', 'success');
+    
+  } catch (error) {
+    console.error('Error auto-populating from opportunity:', error);
+    showToast('Error loading opportunity data', 'warning');
+  }
+};
+
+// Helper function to map pre-checklist services
+const mapPreChecklistServices = (services: string[]) => {
+  const servicesRequired = {
+    brakeDiscSkimming: false,
+    diamondCutting: false,
+    powderCoating: false,
+    rimStraightening: false,
+    welding: false,
+    wheelBalancing: false,
+    rimPolishing: false,
+    rimRepair: false,
+  };
+
+  services.forEach(service => {
+    const serviceLower = service.toLowerCase();
+    
+    if (serviceLower.includes('brake') || serviceLower.includes('skimming')) {
+      servicesRequired.brakeDiscSkimming = true;
+    }
+    if (serviceLower.includes('diamond') || serviceLower.includes('cutting')) {
+      servicesRequired.diamondCutting = true;
+    }
+    if (serviceLower.includes('powder') || serviceLower.includes('coating')) {
+      servicesRequired.powderCoating = true;
+    }
+    if (serviceLower.includes('straight')) {
+      servicesRequired.rimStraightening = true;
+    }
+    if (serviceLower.includes('weld')) {
+      servicesRequired.welding = true;
+    }
+    if (serviceLower.includes('balance')) {
+      servicesRequired.wheelBalancing = true;
+    }
+    if (serviceLower.includes('polish')) {
+      servicesRequired.rimPolishing = true;
+    }
+    if (serviceLower.includes('repair')) {
+      servicesRequired.rimRepair = true;
+    }
+  });
+
+  return servicesRequired;
+};
+
+  // Update the autoPopulateFromPreChecklist function to not overwrite opportunity data
+  const autoPopulateFromPreChecklist = () => {
+    if (!preChecklist || autoPopulated) return;
+
+    try {
+      
+      // Extract services from pre-checklist
+      const servicesFromPreChecklist = preChecklist.services?.actualService || [];
+      
+      // Map pre-checklist services to our service structure
+      const mappedServices = {
+        brakeDiscSkimming: servicesFromPreChecklist.some(s => 
+          s.toLowerCase().includes('brake') || 
+          s.toLowerCase().includes('skimming')
+        ),
+        diamondCutting: servicesFromPreChecklist.some(s => 
+          s.toLowerCase().includes('diamond') || 
+          s.toLowerCase().includes('cutting')
+        ),
+        powderCoating: servicesFromPreChecklist.some(s => 
+          s.toLowerCase().includes('powder') || 
+          s.toLowerCase().includes('coating')
+        ),
+        rimStraightening: servicesFromPreChecklist.some(s => 
+          s.toLowerCase().includes('straight') || 
+          s.toLowerCase().includes('straightening')
+        ),
+        welding: servicesFromPreChecklist.some(s => 
+          s.toLowerCase().includes('weld')
+        ),
+        wheelBalancing: servicesFromPreChecklist.some(s => 
+          s.toLowerCase().includes('balance') || 
+          s.toLowerCase().includes('balancing')
+        ),
+        rimPolishing: servicesFromPreChecklist.some(s => 
+          s.toLowerCase().includes('polish')
+        ),
+        rimRepair: servicesFromPreChecklist.some(s => 
+          s.toLowerCase().includes('repair')
+        ),
+      };
+      
+      // Extract powder coating color
+      const powderCoatingRAL = preChecklist.powderCoating?.colourRAL || '';
+      
+      // Extract other details
+      const wheelNutsTotal = preChecklist.wheelNutsTotal || 16;
+      const nozzleCapsTotal = preChecklist.nozzleCapsTotal || 0;
+      const nozzleCapsType = preChecklist.nozzleCapsType || 'plastic';
+      const lockNutsTotal = preChecklist.lockNutsTotal || 4;
+      const centerCaps = preChecklist.centerCaps || '';
+      const tpmsSensors = preChecklist.tpmsSensorsFitted || false;
+      
+      // Extract tire brands
+      const tireBrands = preChecklist.tireBrands || {
+        fr: '',
+        fl: '',
+        br: '',
+        bl: '',
+        spare: '',
+      };
+      
+      // If pre-checklist has a date, use it for start date
+      let startDate = formData.startDate; // Keep existing date from opportunity
+      if (preChecklist.serviceIntake?.date) {
+        try {
+          startDate = format(parseISO(preChecklist.serviceIntake.date), 'yyyy-MM-dd');
+        } catch (e) {
+          console.warn('Could not parse pre-checklist date:', e);
+        }
+      }
+      
+      // Update form data with pre-checklist information
+      const updatedFormData: Partial<FormData> = {
+        // Services from pre-checklist
+        servicesRequired: mappedServices,
         
         // Powder coating details
-        powderCoatingRAL: preChecklist.powderCoating?.colourRAL || '',
+        powderCoatingRAL: powderCoatingRAL,
         
         // Accessories
-        wheelNutsTotal: preChecklist.wheelNutsTotal || 16,
-        nozzleCapsTotal: preChecklist.nozzleCapsTotal || 0,
-        nozzleCapsType: preChecklist.nozzleCapsType || 'plastic',
-        lockNutsTotal: preChecklist.lockNutsTotal || 4,
-        centerCaps: preChecklist.centerCaps || '',
-        tpmsSensors: preChecklist.tpmsSensorsFitted || false,
+        wheelNutsTotal: wheelNutsTotal,
+        nozzleCapsTotal: nozzleCapsTotal,
+        nozzleCapsType: nozzleCapsType,
+        lockNutsTotal: lockNutsTotal,
+        tpmsSensors: tpmsSensors,
         
-        // Tire details
-        tireBrands: preChecklist.tireBrands || prev.tireBrands,
-        tireDOT: preChecklist.tireDOT || prev.tireDOT,
+        // Start date from pre-checklist
+        startDate: startDate,
         
-        // Additional information
-        technicianNotes: preChecklist.additionalInformation || '',
-        
-        // Job title based on services - This should appear in Job Title segment
-        jobTitle: `${preChecklist.customerDetails?.name || 'Customer'}'s ${preChecklist.services?.actualService?.join(', ') || 'Wheel Alignment'}`,
-        jobDescription: `Rim services for ${preChecklist.carDetails?.carMake || ''} ${preChecklist.carDetails?.carModel || ''}. ${preChecklist.additionalInformation || ''}`
+        // Job description - enhance with pre-checklist services if needed
+        jobDescription: formData.jobDescription || getServiceDescriptionFromPreChecklist(servicesFromPreChecklist, powderCoatingRAL),
+      };
+      
+      setFormData(prev => ({ 
+        ...prev, 
+        ...updatedFormData,
+        // DO NOT overwrite job title from opportunity
       }));
       
-      showToast('Diamond Rims data loaded from pre-checklist', 'success');
+      showToast('Pre-checklist service data loaded successfully', 'success');
+      
     } catch (error) {
-      console.error('Error populating from pre-checklist:', error);
+      console.error('Error auto-populating from pre-checklist:', error);
+      showToast('Error loading pre-checklist service details', 'warning');
     }
   };
 
-  const autoPopulateFromOpportunity = () => {
-    if (!opportunity || autoPopulated) return;
-
-    try {
-      console.log('Auto-populating from opportunity:', opportunity);
-      
-      // Extract customer name
-      const customerName = opportunity.customer?.name || '';
-      const customerPhone = opportunity.customer?.phone || '';
-      const customerEmail = opportunity.customer?.email || '';
-      
-      // Get vehicle from opportunity vehicles array
-      const primaryVehicle = opportunity.vehicles?.[0] || vehicleDetails || {};
-      
-      // Simple registration number extraction
-      const getRegistrationNumber = (vehicle: any) => {
-        if (!vehicle) return '';
-        
-        // Check common field names
-        const fields = [
-          'registrationNumber',
-          'regNumber',
-          'regNo',
-          'licensePlate',
-          'plateNumber',
-          'plate',
-          'numberPlate'
-        ];
-        
-        for (const field of fields) {
-          if (vehicle[field]) {
-            console.log(`Found registration in field "${field}":`, vehicle[field]);
-            return vehicle[field];
-          }
-        }
-        
-        return '';
-      };
-      
-      const registrationNumber = getRegistrationNumber(primaryVehicle);
-      
-      // Update form data with opportunity information
-      const updatedFormData: Partial<FormData> = {
-        opportunityId: opportunity._id || opportunityId || '',
-        customerName: customerName,
-        customerPhone: customerPhone,
-        customerEmail: customerEmail,
-        jobCardOwner: sessionStorage.getItem('userName') || 'Diamond Rims Technician',
-        customerSource: opportunity.source || 'None',
-        
-        // Vehicle details
-        regNumber: registrationNumber || '',
-        carMake: primaryVehicle.make || '',
-        carModel: primaryVehicle.model || '',
-        yom: primaryVehicle.year?.toString() || '',
-        mileage: primaryVehicle.mileage || '',
-        
-        // Job title based on customer name
-        jobTitle: `${customerName}'s Wheel Alignment`,
-        jobDescription: '',
-        
-        // Pricing
-        quotedAmount: opportunity.total || 0,
-      };
-      
-      setFormData(prev => ({ ...prev, ...updatedFormData }));
-      setAutoPopulated(true);
-      
-      showToast('Opportunity data loaded successfully', 'success');
-      
-    } catch (error) {
-      console.error('Error auto-populating from opportunity:', error);
-      showToast('Error loading vehicle details from opportunity', 'warning');
+  // Helper function to generate service description from pre-checklist
+  const getServiceDescriptionFromPreChecklist = (services: string[], color?: string): string => {
+    const serviceList = services.join(', ');
+    if (color) {
+      return `${serviceList} • Color: ${color}`;
     }
+    return serviceList;
   };
 
   const fetchTechnicians = async () => {
@@ -725,10 +888,20 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
     let newValue: any = value;
     
     if (type === 'number') {
-      newValue = value ? parseFloat(value) : 0;
+        newValue = value ? parseFloat(value) : 0;
     } else if (type === 'checkbox') {
-      const target = e.target as HTMLInputElement;
-      newValue = target.checked;
+        const target = e.target as HTMLInputElement;
+        newValue = target.checked;
+    }
+    
+    // Automatically convert job title to uppercase
+    if (name === 'jobTitle') {
+        newValue = value.toUpperCase();
+    }
+    
+    if (name === 'assignedTo') {
+      const tech = technicians.find(t => t.id === value);
+      setSelectedTechnician(tech || null);
     }
     
     setFormData(prev => {
@@ -742,16 +915,6 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
       
       return updated;
     });
-  };
-
-  const handleNestedChange = (section: string, field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section as keyof FormData],
-        [field]: value
-      }
-    } as FormData));
   };
 
   const handleServiceToggle = (serviceId: string) => {
@@ -769,29 +932,6 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
       ...prev,
       [field]: value
     }));
-  };
-
-  // Signature handling functions
-  const clearSignature = (type: 'customer' | 'technician') => {
-    if (type === 'customer' && customerSigRef.current) {
-      customerSigRef.current.clear();
-      setFormData(prev => ({ ...prev, customerSignature: '' }));
-    } else if (type === 'technician' && technicianSigRef.current) {
-      technicianSigRef.current.clear();
-      setFormData(prev => ({ ...prev, technicianSignature: '' }));
-    }
-  };
-
-  const saveSignature = (type: 'customer' | 'technician') => {
-    if (type === 'customer' && customerSigRef.current) {
-      const dataUrl = customerSigRef.current.getTrimmedCanvas().toDataURL('image/png');
-      setFormData(prev => ({ ...prev, customerSignature: dataUrl }));
-      setShowCustomerSignature(false);
-    } else if (type === 'technician' && technicianSigRef.current) {
-      const dataUrl = technicianSigRef.current.getTrimmedCanvas().toDataURL('image/png');
-      setFormData(prev => ({ ...prev, technicianSignature: dataUrl }));
-      setShowTechnicianSignature(false);
-    }
   };
 
   const handleAddNote = () => {
@@ -812,84 +952,11 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
     }));
   };
 
-  const handlePartChange = (index: number, field: string, value: string | number) => {
-    setFormData(prev => {
-      const partsUsed = [...prev.partsUsed];
-      
-      if (partsUsed[index]) {
-        const updatedPart = {
-          ...partsUsed[index],
-          [field]: typeof value === 'string' && !['name', 'partNumber', 'description'].includes(field)
-            ? parseFloat(value) || 0
-            : value
-        };
-        
-        if (field === 'quantity' || field === 'unitPrice') {
-          updatedPart.totalCost = updatedPart.quantity * updatedPart.unitPrice;
-        }
-        
-        partsUsed[index] = updatedPart;
-      }
-      
-      const partsCost = partsUsed.reduce((sum, part) => sum + (part.totalCost || 0), 0);
-      const totalCost = partsCost + (prev.laborCost || 0);
-      
-      return {
-        ...prev,
-        partsUsed,
-        partsCost,
-        totalCost
-      };
-    });
-  };
-
-  const addPart = () => {
-    setFormData(prev => ({
-      ...prev,
-      partsUsed: [
-        ...prev.partsUsed,
-        {
-          partId: '',
-          partNumber: '',
-          name: '',
-          description: '',
-          quantity: 1,
-          unitPrice: 0,
-          totalCost: 0
-        }
-      ]
-    }));
-  };
-
-  const removePart = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      partsUsed: prev.partsUsed.filter((_, i) => i !== index)
-    }));
-  };
-
-  const handleSelectPart = (index: number, partId: string) => {
-    const selectedPart = parts.find(p => p._id === partId);
-    if (selectedPart) {
-      handlePartChange(index, 'partId', selectedPart._id);
-      handlePartChange(index, 'partNumber', selectedPart.partNumber);
-      handlePartChange(index, 'name', selectedPart.name);
-      handlePartChange(index, 'description', selectedPart.description || '');
-      handlePartChange(index, 'unitPrice', selectedPart.unitPrice);
-      showToast(`Added part: ${selectedPart.name}`, 'success');
-    }
-  };
-
   const validateForm = (): boolean => {
     const errors: string[] = [];
-    
-    if (!formData.opportunityId) errors.push('Opportunity ID is required');
-    if (!formData.jobTitle.trim()) errors.push('Job title is required');
-    if (!formData.customerName.trim()) errors.push('Customer name is required');
-    
-    // Check if at least one service is selected
-    const hasService = Object.values(formData.servicesRequired).some(value => value === true);
-    if (!hasService) errors.push('Please select at least one rim service');
+    if (!formData.assignedTo.trim()) errors.push('Technician assignment is required');
+    if (!formData.startDate) errors.push('Start date is required');
+    if (!formData.startTime) errors.push('Start time is required');
     
     if (errors.length > 0) {
       showToast(errors.join(', '), 'error');
@@ -899,16 +966,6 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
     return true;
   };
 
-  const calculateTotals = () => {
-    const partsTotal = formData.partsUsed.reduce((sum, part) => sum + (part.totalCost || 0), 0);
-    const laborCost = formData.laborCost || 0;
-    const totalCost = partsTotal + laborCost;
-    
-    return { partsTotal, laborCost, totalCost };
-  };
-
-  const totals = calculateTotals();
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -917,23 +974,20 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
     try {
       setSubmitting(true);
       
-      // Prepare job card data - simplified based on requirements
+      // Prepare job card data
       const createData: CreateJobCardData = {
         opportunityId: formData.opportunityId,
         workOrderId: workOrderId,
         jobTitle: formData.jobTitle,
         jobDescription: getServiceDescription(), // Use concise service description
-        assignedTo: '', // Removed as per requirements (first come first served)
+        assignedTo: formData.assignedTo, // Include technician assignment
         estimatedHours: formData.estimatedHours || 0,
         status: 'pending',
         priority: formData.priority || 'medium',
       };
       
-      console.log('🔧 Creating Diamond Rims job card with data:', createData);
-      
       // Create job card
       const newJobCard = await jobCardService.createJobCard(createData);
-      console.log('✅ Job card created successfully:', newJobCard);
       
       showToast('Diamond Rims Job Card created successfully!', 'success');
       
@@ -942,7 +996,6 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
         try {
           const jobCardId = newJobCard._id || newJobCard.id;
           await workOrderService.addJobCardToWorkOrder(workOrderId, jobCardId);
-          showToast('Job card linked to work order successfully!', 'success');
         } catch (updateError) {
           console.error('Error linking job card to work order:', updateError);
           showToast('Job card created but could not link to work order', 'warning');
@@ -957,7 +1010,6 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
       }
       
     } catch (error: any) {
-      console.error('❌ Error creating job card:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
       showToast(`Failed to create job card: ${errorMessage}`, 'error');
     } finally {
@@ -1017,6 +1069,9 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
       </div>
     );
   }
+
+  // Get pre-checklist services for display
+  const preChecklistServices = preChecklist?.services?.actualService || [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-bluee-50 via-white to-purple-50/30">
@@ -1084,13 +1139,13 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
                 <h4 className="font-medium text-gray-700 text-sm mb-2">Customer Information</h4>
                 <div className="space-y-1">
                   <p className="text-sm text-gray-600">
-                    <span className="font-medium">Name:</span> {formData.customerName || opportunity?.customer?.name || 'Not specified'}
+                    <span className="font-medium">Name:</span> {formData.customerName || preChecklist?.customerDetails?.name || opportunity?.customer?.name || 'Not specified'}
                   </p>
                   <p className="text-sm text-gray-600">
-                    <span className="font-medium">Phone:</span> {formData.customerPhone || opportunity?.customer?.phone || 'Not specified'}
+                    <span className="font-medium">Phone:</span> {formData.customerPhone || preChecklist?.customerDetails?.mobile || opportunity?.customer?.phone || 'Not specified'}
                   </p>
                   <p className="text-sm text-gray-600">
-                    <span className="font-medium">Email:</span> {formData.customerEmail || opportunity?.customer?.email || 'Not specified'}
+                    <span className="font-medium">Email:</span> {formData.customerEmail || preChecklist?.customerDetails?.email || opportunity?.customer?.email || 'Not specified'}
                   </p>
                 </div>
               </div>
@@ -1100,34 +1155,28 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
                 <h4 className="font-medium text-gray-700 text-sm mb-2">Vehicle Information</h4>
                 <div className="space-y-1">
                   <p className="text-sm text-gray-600">
-                    <span className="font-medium">Registration:</span> {formData.regNumber || vehicleDetails?.registrationNumber || 'Not specified'}
+                    <span className="font-medium">Registration:</span> {formData.regNumber || preChecklist?.carDetails?.licensePlate || vehicleDetails?.registrationNumber || 'Not specified'}
                   </p>
                   <p className="text-sm text-gray-600">
-                    <span className="font-medium">Make & Model:</span> {formData.carMake || vehicleDetails?.make || ''} {formData.carModel || vehicleDetails?.model || ''}
+                    <span className="font-medium">Make & Model:</span> {formData.carMake || preChecklist?.carDetails?.carMake || vehicleDetails?.make || ''} {formData.carModel || preChecklist?.carDetails?.carModel || vehicleDetails?.model || ''}
                   </p>
                   <p className="text-sm text-gray-600">
-                    <span className="font-medium">Year:</span> {formData.yom || vehicleDetails?.year || 'Not specified'}
+                    <span className="font-medium">Year:</span> {formData.yom || preChecklist?.carDetails?.yearOfManufacture || vehicleDetails?.year || 'Not specified'}
                   </p>
                 </div>
               </div>
             </div>
             
-            {/* Additional Pre-Checklist Details */}
-            {preChecklist && (
+            {/* Pre-Checklist Services Summary */}
+            {preChecklistServices.length > 0 && (
               <div className="mt-4 pt-4 border-t border-green-200">
                 <h4 className="font-medium text-gray-700 text-sm mb-2">Services Selected in Pre-Checklist</h4>
                 <div className="flex flex-wrap gap-2">
-                  {Object.entries(formData.servicesRequired).map(([key, value]) => {
-                    if (value) {
-                      const serviceName = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-                      return (
-                        <span key={key} className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-md">
-                          {serviceName}
-                        </span>
-                      );
-                    }
-                    return null;
-                  })}
+                  {preChecklistServices.map((service, index) => (
+                    <span key={index} className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-md">
+                      {service}
+                    </span>
+                  ))}
                 </div>
               </div>
             )}
@@ -1141,7 +1190,7 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
               <h2 className="text-lg font-bold text-gray-800 mb-4">Job Card Information</h2>
               
               <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-6 border border-purple-200">
-                {/* Job Title Segment */}
+                {/* Job Title - From opportunity in uppercase */}
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Job Title <span className="text-red-500">*</span>
@@ -1149,117 +1198,188 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
                   <input
                     type="text"
                     name="jobTitle"
-                    value={formData.jobTitle}
+                    value={formData.jobTitle.toUpperCase()}
                     onChange={handleChange}
-                    placeholder="e.g., James Mukabwa's Wheel Alignment"
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none bg-white"
+                    placeholder="e.g., JUSTIN JUSTIN'S SERVICE REQUEST"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none bg-white uppercase font-bold"
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Service already selected in pre-checklist should appear here
-                  </p>
                 </div>
 
-                {/* Services List - Brief and Concise */}
-                <div className="space-y-3">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Services Required
+                {/* Job Description - Services only, no amounts */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Services <span className="text-red-500">*</span>
                   </label>
-                  
-                  {/* Services Checkboxes */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {diamondRimServices.map((service) => (
-                      <div key={service.id} className="flex items-center p-3 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors">
+                  <textarea
+                    name="jobDescription"
+                    value={formData.jobDescription}
+                    onChange={handleChange}
+                    rows={2}
+                    placeholder="e.g., Powder Coating, Diamond Cutting | Color: RAL 9010"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none resize-none"
+                    required
+                  />
+                </div>
+
+                {/* Show services summary */}
+                {Object.values(formData.servicesRequired).some(value => value) && (
+                  <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-sm font-medium text-green-800 mb-1">Selected Services:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {diamondRimServices.map(service => {
+                        if (formData.servicesRequired[service.id as keyof typeof formData.servicesRequired]) {
+                          return (
+                            <span key={service.id} className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-md flex items-center gap-1">
+                              {service.icon}
+                              {service.label}
+                            </span>
+                          );
+                        }
+                        return null;
+                      })}
+                      {formData.powderCoatingRAL && (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-md flex items-center gap-1">
+                          <PaintBucket className="h-3 w-3" />
+                          Color: {formData.powderCoatingRAL}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Date and Time Section */}
+            <div>
+              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <CalendarDays className="h-5 w-5" />
+                Date & Time Information
+              </h2>
+              
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
+                <div className="space-y-6">
+                  {/* Start Date & Time */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Start Date <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                         <input
-                          type="checkbox"
-                          id={`service-${service.id}`}
-                          checked={formData.servicesRequired[service.id as keyof typeof formData.servicesRequired]}
-                          onChange={() => handleServiceToggle(service.id)}
-                          className="h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                          type="date"
+                          name="startDate"
+                          value={formData.startDate}
+                          onChange={handleChange}
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                          required
                         />
-                        <label
-                          htmlFor={`service-${service.id}`}
-                          className="ml-3 flex items-center gap-2 text-gray-700 cursor-pointer flex-1"
-                        >
-                          {service.icon}
-                          <span className="text-sm">{service.label}</span>
-                        </label>
                       </div>
-                    ))}
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Start Time <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <ClockIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <input
+                          type="time"
+                          name="startTime"
+                          value={formData.startTime}
+                          onChange={handleChange}
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                          required
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Service Details Section */}
-                  <div className="mt-4 p-4 bg-white rounded-lg border border-gray-200">
-                    <h4 className="font-medium text-gray-700 mb-3">Service Specifications</h4>
-                    
-                    {/* Powder Coating Color if selected */}
-                    {formData.servicesRequired.powderCoating && (
-                      <div className="mb-3">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Powder Coating Color
-                        </label>
-                        <select
-                          value={formData.powderCoatingRAL}
-                          onChange={(e) => handleInputChange('powderCoatingRAL', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        >
-                          <option value="">Select Color</option>
-                          {ralColors.map((color) => (
-                            <option key={color} value={color}>{color}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                    
-                    {/* Rim Details */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Rim Brand
-                        </label>
+                  {/* End Date & Time */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        End Date
+                      </label>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                         <input
-                          type="text"
-                          value={formData.rimBrand}
-                          onChange={(e) => handleInputChange('rimBrand', e.target.value)}
-                          placeholder="e.g., BBS"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          type="date"
+                          name="endDate"
+                          value={formData.endDate}
+                          onChange={handleChange}
+                          min={formData.startDate}
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
                         />
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Rim Size
-                        </label>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        End Time
+                      </label>
+                      <div className="relative">
+                        <ClockIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                         <input
-                          type="text"
-                          value={formData.rimSize}
-                          onChange={(e) => handleInputChange('rimSize', e.target.value)}
-                          placeholder="e.g., 18x8.5"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          type="time"
+                          name="endTime"
+                          value={formData.endTime}
+                          onChange={handleChange}
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
                         />
                       </div>
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
 
-                {/* Notes Section */}
-                <div className="mt-6">
-                  <div className="flex items-center gap-2 mb-3">
-                    <NotesIcon className="h-5 w-5 text-purple-600" />
-                    <label className="block text-sm font-medium text-gray-700">
-                      Notes & Specifications
+            {/* Technician Assignment Section */}
+            <div>
+              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <UserCheck className="h-5 w-5" />
+                Technician Assignment
+              </h2>
+              
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Assign Technician<span className="text-red-500">*</span>
                     </label>
+                    <div className="relative">
+                      <select
+                        name="assignedTo"
+                        value={formData.assignedTo}
+                        onChange={handleChange}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none appearance-none"
+                        required
+                      >
+                        <option value="">Select a Technician</option>
+                        {technicians.map(tech => (
+                          <option key={tech.id} value={tech.id}>
+                            {tech.name} ({tech.email})
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+                    </div>
                   </div>
-                  <textarea
-                    name="jobCardNotes"
-                    value={formData.jobCardNotes}
-                    onChange={handleChange}
-                    rows={3}
-                    placeholder="Any specifications the client may have concerning their vehicle or the service they have selected..."
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none resize-none"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    This section caters for any specifications the client may have concerning their vehicle or the service they have selected
-                  </p>
+
+                  {selectedTechnician && (
+                    <div className="p-4 bg-purple-50 rounded-xl border border-purple-100">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-semibold">
+                          {selectedTechnician.name?.charAt(0) || selectedTechnician.email?.charAt(0) || 'T'}
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900">{selectedTechnician.name}</div>
+                          <div className="text-sm text-gray-600">{selectedTechnician.email}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1282,74 +1402,6 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
                 <p className="text-xs text-gray-500 mt-1">
                   For technician use only - technical specifications and service details
                 </p>
-              </div>
-            </div>
-
-            {/* Priority & Settings */}
-            <div>
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Priority & Settings</h2>
-              
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Priority Level
-                    </label>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                      {priorityOptions.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => handleInputChange('priority', option.value)}
-                          className={`px-3 py-2.5 text-sm font-medium rounded-lg border transition-all flex items-center justify-center gap-2 ${
-                            formData.priority === option.value
-                              ? `${option.color} border-purple-500 ring-2 ring-purple-200`
-                              : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-                          }`}
-                        >
-                          <span>{option.icon}</span>
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Start Date
-                      </label>
-                      <div className="relative">
-                        <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <input
-                          type="date"
-                          name="startDate"
-                          value={formData.startDate}
-                          onChange={handleChange}
-                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
-                          required
-                        />
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Target Completion Date
-                      </label>
-                      <div className="relative">
-                        <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <input
-                          type="date"
-                          name="endDate"
-                          value={formData.endDate}
-                          onChange={handleChange}
-                          min={formData.startDate}
-                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
 
