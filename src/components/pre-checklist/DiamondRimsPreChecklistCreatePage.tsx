@@ -3029,20 +3029,6 @@ export default function DiamondRimsPreChecklistCreatePage({
                     </li>
                   </ul>
                 </div>
-                
-                <div className="flex items-start gap-3 mt-4">
-                  <input
-                    type="checkbox"
-                    id="mustKnowAccepted"
-                    checked={formData.mustKnowAccepted}
-                    onChange={(e) => handleInputChange('mustKnowAccepted', e.target.checked)}
-                    className="mt-1 h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-                    required
-                  />
-                  <label htmlFor="mustKnowAccepted" className="text-sm text-gray-700">
-                    I acknowledge and understand all the above points <RequiredField />
-                  </label>
-                </div>
               </div>
               
               {/* Service-specific Risks */}
