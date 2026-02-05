@@ -8,13 +8,21 @@ import {
   DollarSign, Loader2, Clock, Users,
   CheckSquare, AlertCircle,
   PartyPopper,
-  Trophy
+  Trophy,
+  Phone as PhoneIcon,
+  ChevronRight,
+  FileText,
+  CreditCard,
+  BarChart3
 } from 'lucide-react';
 import { WorkOrder } from '@/services/workOrderService';
 import { workOrderService } from '@/services/workOrderService';
 import { jobCardService, JobCard } from '@/services/jobCardService';
 import { useRouter } from 'next/navigation';
 import { invoiceService } from '@/services/invoiceService';
+import { format } from 'date-fns';
+
+// ==================== STAGE OVERVIEW COMPONENT ====================
 
 interface StageOverviewProps {
   workOrder: WorkOrder;
@@ -30,28 +38,32 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
   
   const stagesConfig = {
     pre_checklist: {
-      label: 'Pre-Checklist',
-      description: 'Pre-service inspection and validation',
-      icon: <ClipboardCheck className="h-5 w-5" />,
-      nextStage: 'job_card'
+      label: 'Pre-Service Checklist',
+      description: 'Initial inspection and requirements validation',
+      icon: <ClipboardCheck className="h-6 w-6" />,
+      nextStage: 'job_card',
+      color: 'from-blue-500 to-blue-600'
     },
     job_card: {
-      label: 'Job Card',
-      description: 'Technician work assignments and progress',
-      icon: <Wrench className="h-5 w-5" />,
-      nextStage: 'post_checklist'
+      label: 'Service Execution',
+      description: 'Technical work assignment and progress tracking',
+      icon: <Wrench className="h-6 w-6" />,
+      nextStage: 'post_checklist',
+      color: 'from-indigo-500 to-indigo-600'
     },
     post_checklist: {
-      label: 'Post-Checklist',
-      description: 'Post-service quality verification',
-      icon: <ClipboardList className="h-5 w-5" />,
-      nextStage: 'invoice'
+      label: 'Quality Assurance',
+      description: 'Post-service verification and sign-off',
+      icon: <ClipboardList className="h-6 w-6" />,
+      nextStage: 'invoice',
+      color: 'from-purple-500 to-purple-600'
     },
     invoice: {
-      label: 'Invoice',
-      description: 'Generate billing document',
-      icon: <ReceiptIcon className="h-5 w-5" />,
-      nextStage: 'completed'
+      label: 'Billing & Payment',
+      description: 'Invoice generation and payment processing',
+      icon: <ReceiptIcon className="h-6 w-6" />,
+      nextStage: 'completed',
+      color: 'from-green-500 to-green-600'
     }
   };
 
@@ -61,7 +73,6 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
     }
   }, [workOrder]);
 
-  // Check if work order is completed to show success message
   useEffect(() => {
     if (workOrder.status === 'completed' && !showCompletionSuccess) {
       setShowCompletionSuccess(true);
@@ -101,15 +112,15 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
     switch (stage) {
       case 'pre_checklist':
         if (!workOrder.preChecklistId) {
-          nextAction = 'Create Pre-Checklist';
+          nextAction = 'Begin Pre-Service Checklist';
           canProceed = true;
         } else {
           const isApproved = workOrder.stageApprovals?.pre_checklist?.approved || false;
           if (isApproved) {
-            nextAction = 'Create Job Card';
+            nextAction = 'Proceed to Service Execution';
             canProceed = true;
           } else {
-            nextAction = 'Approve Pre-Checklist';
+            nextAction = 'Review & Approve Checklist';
             canProceed = true;
           }
         }
@@ -118,15 +129,15 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
       case 'job_card':
         const hasJobCards = jobCards.length > 0;
         if (!hasJobCards) {
-          nextAction = 'Create Job Card';
+          nextAction = 'Create Service Assignment';
           canProceed = true;
         } else {
           const allCompleted = jobCards.every(jc => jc.status === 'completed');
           if (allCompleted) {
-            nextAction = 'Create Post-Checklist';
+            nextAction = 'Initiate Quality Assurance';
             canProceed = true;
           } else {
-            nextAction = 'Complete Job Cards';
+            nextAction = 'Complete Service Tasks';
             canProceed = false;
           }
         }
@@ -134,7 +145,7 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
 
       case 'post_checklist':
         if (!workOrder.postChecklistId) {
-          nextAction = 'Create Post-Checklist';
+          nextAction = 'Begin Quality Assurance';
           canProceed = true;
         } else {
           const isApproved = workOrder.stageApprovals?.post_checklist?.approved || false;
@@ -142,7 +153,7 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
             nextAction = 'Generate Invoice';
             canProceed = true;
           } else {
-            nextAction = 'Approve Post-Checklist';
+            nextAction = 'Approve Quality Check';
             canProceed = true;
           }
         }
@@ -158,7 +169,7 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
             nextAction = 'Work Order Completed';
             canProceed = false;
           } else {
-            nextAction = 'Mark Invoice as Paid';
+            nextAction = 'Process Payment & Complete';
             canProceed = true;
           }
         }
@@ -228,10 +239,8 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
 
   const handleGenerateInvoice = async () => {
     await onStageAction(async () => {
-      // Generate invoice and send email
       const invoiceResult = await workOrderService.generateInvoice(workOrder._id);
       
-      // Update work order
       await workOrderService.updateWorkOrder(workOrder._id, {
         invoiceId: invoiceResult.invoice._id,
         currentStage: 'invoice',
@@ -246,16 +255,14 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
     
     await onStageAction(async () => {
       try {
-        // 1. Mark invoice as paid using the PATCH /invoices/{id}/pay endpoint
         await invoiceService.markInvoiceAsPaid(
           workOrder.invoiceId,
           sessionStorage.getItem('userId'),
           sessionStorage.getItem('userRole'),
-          'cash', // Default payment method
+          'cash',
           `Payment for work order ${workOrder.workOrderNumber}`
         );
         
-        // 2. Complete the work order
         await workOrderService.updateWorkOrder(workOrder._id, {
           status: 'completed',
           invoicePaid: true,
@@ -264,7 +271,6 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
           updatedAt: new Date().toISOString()
         });
         
-        // 3. Show success message
         setShowCompletionSuccess(true);
         
       } catch (error) {
@@ -274,21 +280,18 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
     });
   };
 
-  // Remove the separate handleCompleteWorkOrder function since it's now part of handleMarkInvoicePaid
-
   const renderStageActions = () => {
     const stage = stageStatus.id;
 
-    // If work order is already completed, show completion message
     if (workOrder.status === 'completed') {
       return (
-        <div className="flex items-center gap-3">
-          <div className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg flex items-center gap-2">
+        <div className="flex items-center gap-4">
+          <div className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg flex items-center gap-3 shadow-lg">
             <Trophy className="h-5 w-5" />
-            Work Order Completed ✓
+            <span className="font-medium">Project Completed Successfully</span>
           </div>
           {workOrder.actualCompletionDate && (
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-gray-600 bg-white px-3 py-1.5 rounded-lg border">
               Completed on {new Date(workOrder.actualCompletionDate).toLocaleDateString()}
             </div>
           )}
@@ -296,6 +299,8 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
       );
     }
 
+    const baseButtonClass = "px-5 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed";
+    
     switch (stage) {
       case 'pre_checklist':
         if (!workOrder.preChecklistId) {
@@ -303,10 +308,14 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
             <button
               onClick={handleCreatePreChecklist}
               disabled={isTransitioning}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors disabled:opacity-50"
+              className={`${baseButtonClass} bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800`}
             >
-              <Plus className="h-4 w-4" />
-              Create Pre-Checklist
+              {isTransitioning ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileText className="h-4 w-4" />
+              )}
+              Begin Pre-Service Checklist
             </button>
           );
         } else if (!workOrder.stageApprovals?.pre_checklist?.approved) {
@@ -314,24 +323,22 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
             <div className="flex gap-3">
               <button
                 onClick={() => window.open(`/pre-checklist/${workOrder.preChecklistId}`, '_blank')}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
+                className={`${baseButtonClass} bg-white text-gray-700 border border-gray-300 hover:bg-gray-50`}
               >
                 <Eye className="h-4 w-4" />
-                View Pre-Checklist
+                View Checklist
               </button>
               <button
                 onClick={handleApprovePreChecklist}
                 disabled={isTransitioning}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
+                className={`${baseButtonClass} bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700`}
               >
                 {isTransitioning ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <>
-                    <Check className="h-4 w-4" />
-                    Approve Pre-Checklist
-                  </>
+                  <CheckCircle className="h-4 w-4" />
                 )}
+                Approve & Continue
               </button>
             </div>
           );
@@ -340,10 +347,10 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
             <button
               onClick={handleCreateJobCard}
               disabled={isTransitioning}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors disabled:opacity-50"
+              className={`${baseButtonClass} bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:from-indigo-700 hover:to-indigo-800`}
             >
-              <Plus className="h-4 w-4" />
-              Create Job Card
+              <ChevronRight className="h-4 w-4" />
+              Proceed to Service Execution
             </button>
           );
         }
@@ -355,10 +362,10 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
             <button
               onClick={handleCreateJobCard}
               disabled={isTransitioning}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors disabled:opacity-50"
+              className={`${baseButtonClass} bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:from-indigo-700 hover:to-indigo-800`}
             >
-              <Plus className="h-4 w-4" />
-              Create Job Card
+              <Wrench className="h-4 w-4" />
+              Create Service Assignment
             </button>
           );
         } else {
@@ -372,17 +379,17 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
                 <div className="flex gap-3">
                   <button
                     onClick={() => router.push(`/job-cards/${jobCards.find(jc => jc.status === 'pending')?._id}`)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                    className={`${baseButtonClass} bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700`}
                   >
                     <Clock className="h-4 w-4" />
-                    Start Pending Jobs
+                    Start Service Tasks
                   </button>
                   <button
                     onClick={() => router.push('/job-cards')}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
+                    className={`${baseButtonClass} bg-white text-gray-700 border border-gray-300 hover:bg-gray-50`}
                   >
                     <Eye className="h-4 w-4" />
-                    View All Jobs
+                    View All Tasks
                   </button>
                 </div>
               );
@@ -391,17 +398,17 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
                 <div className="flex gap-3">
                   <button
                     onClick={() => router.push(`/job-cards/${jobCards.find(jc => jc.status === 'in_progress')?._id}`)}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                    className={`${baseButtonClass} bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700`}
                   >
                     <CheckSquare className="h-4 w-4" />
-                    Complete In-Progress Jobs
+                    Complete Tasks
                   </button>
                   <button
                     onClick={() => router.push('/job-cards')}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
+                    className={`${baseButtonClass} bg-white text-gray-700 border border-gray-300 hover:bg-gray-50`}
                   >
-                    <Eye className="h-4 w-4" />
-                    View All Jobs
+                    <BarChart3 className="h-4 w-4" />
+                    View Progress
                   </button>
                 </div>
               );
@@ -410,31 +417,30 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
                 <div className="flex gap-3">
                   <button
                     onClick={handleCreateJobCard}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                    className={`${baseButtonClass} bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800`}
                   >
                     <Plus className="h-4 w-4" />
-                    Add Another Job Card
+                    Add Service Task
                   </button>
                   <button
-                    onClick={() => router.push('/job-cards')}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
+                    onClick={handleCreatePostChecklist}
+                    className={`${baseButtonClass} bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800`}
                   >
-                    <Eye className="h-4 w-4" />
-                    View Job Cards
+                    <ClipboardList className="h-4 w-4" />
+                    Initiate Quality Check
                   </button>
                 </div>
               );
             }
           } else {
-            // All job cards completed
             return (
               <button
                 onClick={handleCreatePostChecklist}
                 disabled={isTransitioning}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors disabled:opacity-50"
+                className={`${baseButtonClass} bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800`}
               >
-                <Plus className="h-4 w-4" />
-                Create Post-Checklist
+                <ChevronRight className="h-4 w-4" />
+                Proceed to Quality Assurance
               </button>
             );
           }
@@ -446,10 +452,10 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
             <button
               onClick={handleCreatePostChecklist}
               disabled={isTransitioning}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors disabled:opacity-50"
+              className={`${baseButtonClass} bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800`}
             >
-              <Plus className="h-4 w-4" />
-              Create Post-Checklist
+              <ClipboardList className="h-4 w-4" />
+              Begin Quality Assurance
             </button>
           );
         } else if (!workOrder.stageApprovals?.post_checklist?.approved) {
@@ -457,24 +463,22 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
             <div className="flex gap-3">
               <button
                 onClick={() => window.open(`/post-checklist/${workOrder.postChecklistId}`, '_blank')}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
+                className={`${baseButtonClass} bg-white text-gray-700 border border-gray-300 hover:bg-gray-50`}
               >
                 <Eye className="h-4 w-4" />
-                View Post-Checklist
+                View Quality Report
               </button>
               <button
                 onClick={handleApprovePostChecklist}
                 disabled={isTransitioning}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
+                className={`${baseButtonClass} bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700`}
               >
                 {isTransitioning ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <>
-                    <Check className="h-4 w-4" />
-                    Approve Post-Checklist
-                  </>
+                  <CheckCircle className="h-4 w-4" />
                 )}
+                Approve Quality Check
               </button>
             </div>
           );
@@ -483,9 +487,9 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
             <button
               onClick={handleGenerateInvoice}
               disabled={isTransitioning}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors disabled:opacity-50"
+              className={`${baseButtonClass} bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700`}
             >
-              <ReceiptIcon className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4" />
               Generate Invoice
             </button>
           );
@@ -497,7 +501,7 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
             <button
               onClick={handleGenerateInvoice}
               disabled={isTransitioning}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors disabled:opacity-50"
+              className={`${baseButtonClass} bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700`}
             >
               <ReceiptIcon className="h-4 w-4" />
               Generate Invoice
@@ -508,7 +512,7 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
             <div className="flex gap-3">
               <button
                 onClick={() => window.open(`/invoices/${workOrder.invoiceId}`, '_blank')}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
+                className={`${baseButtonClass} bg-white text-gray-700 border border-gray-300 hover:bg-gray-50`}
               >
                 <Eye className="h-4 w-4" />
                 View Invoice
@@ -516,28 +520,16 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
               <button
                 onClick={handleMarkInvoicePaid}
                 disabled={isTransitioning}
-                className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 flex items-center gap-2 disabled:opacity-50"
+                className={`${baseButtonClass} bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-700 hover:to-green-700 shadow-lg hover:shadow-xl`}
               >
                 {isTransitioning ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <CheckCircle className="h-4 w-4" />
+                  <CreditCard className="h-4 w-4" />
                 )}
-                Mark as Paid & Complete Work Order
+                Process Payment & Complete
               </button>
             </div>
-          );
-        } else if (workOrder.status !== 'completed') {
-          // This shouldn't happen anymore since handleMarkInvoicePaid completes the work order
-          return (
-            <button
-              onClick={handleMarkInvoicePaid}
-              disabled={isTransitioning}
-              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 transition-colors disabled:opacity-50"
-            >
-              <CheckCircle className="h-4 w-4" />
-              Complete Work Order
-            </button>
           );
         }
 
@@ -547,21 +539,19 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
   };
 
   const renderStageRequirements = () => {
-    // If work order is completed, show completion message
     if (workOrder.status === 'completed') {
       return (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-green-600">
-            <CheckCircle className="h-5 w-5" />
-            <span className="font-medium">Work Order Successfully Completed!</span>
-          </div>
-          <div className="ml-7 space-y-1 text-sm text-green-700">
-            <p>✓ All stages completed</p>
-            <p>✓ Invoice paid and closed</p>
-            <p>✓ Customer billing completed</p>
-            {workOrder.actualCompletionDate && (
-              <p>✓ Completed on {new Date(workOrder.actualCompletionDate).toLocaleDateString()}</p>
-            )}
+        <div className="bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-emerald-100 rounded-lg">
+              <CheckCircle className="h-5 w-5 text-emerald-600" />
+            </div>
+            <div>
+              <h4 className="font-semibold text-emerald-800">Work Order Successfully Completed</h4>
+              <p className="text-sm text-emerald-700 mt-1">
+                All stages completed, invoice paid, and customer billing finalized.
+              </p>
+            </div>
           </div>
         </div>
       );
@@ -573,20 +563,20 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
       case 'pre_checklist':
         return workOrder.preChecklistId ? (
           workOrder.stageApprovals?.pre_checklist?.approved ? (
-            <div className="flex items-center gap-2 text-green-600">
+            <div className="flex items-center gap-3 text-emerald-700 bg-emerald-50 px-4 py-2.5 rounded-lg border border-emerald-200">
               <CheckCircle className="h-4 w-4" />
-              <span>Pre-Checklist approved ✓ Ready to create Job Card</span>
+              <span className="font-medium">Pre-service checklist approved and verified</span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-yellow-600">
-              <AlertTriangle className="h-4 w-4" />
-              <span>Approve pre-checklist to create Job Card</span>
+            <div className="flex items-center gap-3 text-amber-700 bg-amber-50 px-4 py-2.5 rounded-lg border border-amber-200">
+              <AlertCircle className="h-4 w-4" />
+              <span>Pending approval of pre-service checklist</span>
             </div>
           )
         ) : (
-          <div className="flex items-center gap-2 text-blue-600">
+          <div className="flex items-center gap-3 text-blue-700 bg-blue-50 px-4 py-2.5 rounded-lg border border-blue-200">
             <Info className="h-4 w-4" />
-            <span>Create pre-checklist to start workflow</span>
+            <span>Initial inspection and requirements validation required</span>
           </div>
         );
 
@@ -594,9 +584,9 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
         const hasJobCards = jobCards.length > 0;
         if (!hasJobCards) {
           return (
-            <div className="flex items-center gap-2 text-blue-600">
+            <div className="flex items-center gap-3 text-blue-700 bg-blue-50 px-4 py-2.5 rounded-lg border border-blue-200">
               <Info className="h-4 w-4" />
-              <span>Create job card with technician assignments</span>
+              <span>Create service assignments for technicians</span>
             </div>
           );
         } else {
@@ -609,28 +599,28 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
           
           if (allCompleted) {
             return (
-              <div className="flex items-center gap-2 text-green-600">
+              <div className="flex items-center gap-3 text-emerald-700 bg-emerald-50 px-4 py-2.5 rounded-lg border border-emerald-200">
                 <CheckCircle className="h-4 w-4" />
-                <span>All {totalJobs} job card(s) completed ✓ Ready for Post-Checklist</span>
+                <span>All {totalJobs} service task(s) completed successfully</span>
               </div>
             );
           } else {
             return (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-blue-600">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 text-indigo-700 bg-indigo-50 px-4 py-2.5 rounded-lg border border-indigo-200">
                   <Users className="h-4 w-4" />
-                  <span>Job Cards Status: {completedJobs} completed, {inProgressJobs} in progress, {pendingJobs} pending</span>
+                  <span>Service Progress: {completedJobs} completed, {inProgressJobs} in progress, {pendingJobs} pending</span>
                 </div>
                 {inProgressJobs > 0 && (
-                  <div className="flex items-center gap-2 text-yellow-600 ml-6">
-                    <Clock className="h-3 w-3" />
-                    <span className="text-sm">Complete in-progress jobs to continue</span>
+                  <div className="flex items-center gap-2 text-amber-700 ml-6">
+                    <Clock className="h-3.5 w-3.5" />
+                    <span className="text-sm font-medium">Complete in-progress tasks to continue</span>
                   </div>
                 )}
                 {pendingJobs > 0 && (
-                  <div className="flex items-center gap-2 text-amber-600 ml-6">
-                    <AlertCircle className="h-3 w-3" />
-                    <span className="text-sm">Start pending jobs to begin work</span>
+                  <div className="flex items-center gap-2 text-amber-700 ml-6">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    <span className="text-sm font-medium">Start pending service tasks</span>
                   </div>
                 )}
               </div>
@@ -641,40 +631,40 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
       case 'post_checklist':
         return workOrder.postChecklistId ? (
           workOrder.stageApprovals?.post_checklist?.approved ? (
-            <div className="flex items-center gap-2 text-green-600">
+            <div className="flex items-center gap-3 text-emerald-700 bg-emerald-50 px-4 py-2.5 rounded-lg border border-emerald-200">
               <CheckCircle className="h-4 w-4" />
-              <span>Post-checklist approved ✓ Ready to create Invoice</span>
+              <span>Quality assurance completed and approved</span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-yellow-600">
-              <AlertTriangle className="h-4 w-4" />
-              <span>Approve post-checklist to create Invoice</span>
+            <div className="flex items-center gap-3 text-amber-700 bg-amber-50 px-4 py-2.5 rounded-lg border border-amber-200">
+              <AlertCircle className="h-4 w-4" />
+              <span>Pending quality verification approval</span>
             </div>
           )
         ) : (
-          <div className="flex items-center gap-2 text-blue-600">
+          <div className="flex items-center gap-3 text-purple-700 bg-purple-50 px-4 py-2.5 rounded-lg border border-purple-200">
             <Info className="h-4 w-4" />
-            <span>Create post-checklist for quality verification</span>
+            <span>Post-service quality verification required</span>
           </div>
         );
 
       case 'invoice':
         return workOrder.invoiceId ? (
           workOrder.invoicePaid ? (
-            <div className="flex items-center gap-2 text-green-600">
+            <div className="flex items-center gap-3 text-emerald-700 bg-emerald-50 px-4 py-2.5 rounded-lg border border-emerald-200">
               <CheckCircle className="h-4 w-4" />
-              <span>Invoice paid ✓ Work Order completed successfully</span>
+              <span>Payment received and processed successfully</span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-yellow-600">
-              <AlertTriangle className="h-4 w-4" />
-              <span>Invoice generated, mark as paid to complete work order</span>
+            <div className="flex items-center gap-3 text-amber-700 bg-amber-50 px-4 py-2.5 rounded-lg border border-amber-200">
+              <AlertCircle className="h-4 w-4" />
+              <span>Invoice generated, awaiting payment confirmation</span>
             </div>
           )
         ) : (
-          <div className="flex items-center gap-2 text-blue-600">
+          <div className="flex items-center gap-3 text-green-700 bg-green-50 px-4 py-2.5 rounded-lg border border-green-200">
             <Info className="h-4 w-4" />
-            <span>Generate invoice from completed work</span>
+            <span>Generate invoice from completed service work</span>
           </div>
         );
 
@@ -691,74 +681,89 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
     const inProgressJobs = jobCards.filter(jc => jc.status === 'in_progress').length;
     const pendingJobs = jobCards.filter(jc => jc.status === 'pending').length;
 
+    const progressPercentage = Math.round((completedJobs / totalJobs) * 100);
+
     return (
-      <div className="mt-4 p-4 bg-gradient-to-r from-gray-50 to-blue-50 border border-gray-200 rounded-lg">
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-            <Wrench className="h-4 w-4" />
-            Job Cards Summary
-          </h4>
-          <span className="text-sm text-gray-600">{totalJobs} total</span>
+      <div className="mt-4 p-5 bg-white border border-gray-200 rounded-xl shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-100 rounded-lg">
+              <BarChart3 className="h-5 w-5 text-indigo-600" />
+            </div>
+            <div>
+              <h4 className="font-semibold text-gray-900">Service Progress Dashboard</h4>
+              <p className="text-sm text-gray-600">{totalJobs} total service tasks</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-2xl font-bold text-gray-900">{progressPercentage}%</div>
+            <div className="text-xs text-gray-500">Overall Progress</div>
+          </div>
         </div>
         
-        <div className="grid grid-cols-3 gap-3">
-          <div className="text-center p-2 bg-green-50 border border-green-200 rounded">
-            <div className="text-lg font-bold text-green-700">{completedJobs}</div>
-            <div className="text-xs text-green-600">Completed</div>
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <CheckCircle className="h-4 w-4 text-emerald-600" />
+              <div className="text-lg font-bold text-emerald-700">{completedJobs}</div>
+            </div>
+            <div className="text-xs font-medium text-emerald-800">Completed</div>
           </div>
-          <div className="text-center p-2 bg-blue-50 border border-blue-200 rounded">
-            <div className="text-lg font-bold text-blue-700">{inProgressJobs}</div>
-            <div className="text-xs text-blue-600">In Progress</div>
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <Clock className="h-4 w-4 text-blue-600" />
+              <div className="text-lg font-bold text-blue-700">{inProgressJobs}</div>
+            </div>
+            <div className="text-xs font-medium text-blue-800">In Progress</div>
           </div>
-          <div className="text-center p-2 bg-yellow-50 border border-yellow-200 rounded">
-            <div className="text-lg font-bold text-yellow-700">{pendingJobs}</div>
-            <div className="text-xs text-yellow-600">Pending</div>
+          <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border border-amber-200 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <div className="text-lg font-bold text-amber-700">{pendingJobs}</div>
+            </div>
+            <div className="text-xs font-medium text-amber-800">Pending</div>
           </div>
         </div>
 
-        {totalJobs > 0 && (
-          <div className="mt-3">
-            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-green-500 via-blue-500 to-yellow-500"
-                style={{ 
-                  width: '100%',
-                  backgroundImage: `linear-gradient(to right, 
-                    #10b981 ${(completedJobs/totalJobs)*100}%, 
-                    #3b82f6 ${(completedJobs/totalJobs)*100}% ${((completedJobs+inProgressJobs)/totalJobs)*100}%, 
-                    #f59e0b ${((completedJobs+inProgressJobs)/totalJobs)*100}%)` 
-                }}
-              />
-            </div>
-            <div className="flex justify-between text-xs text-gray-500 mt-1">
-              <span>{Math.round((completedJobs/totalJobs)*100)}% completed</span>
-              <span>{Math.round(((completedJobs+inProgressJobs)/totalJobs)*100)}% started</span>
-            </div>
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm text-gray-600">
+            <span>Completion Status</span>
+            <span>{completedJobs} of {totalJobs} tasks</span>
           </div>
-        )}
+          <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-emerald-500 via-blue-500 to-amber-500 rounded-full transition-all duration-500"
+              style={{ 
+                width: `${progressPercentage}%`,
+                backgroundImage: `linear-gradient(to right, 
+                  #10b981 ${(completedJobs/totalJobs)*100}%, 
+                  #3b82f6 ${(completedJobs/totalJobs)*100}% ${((completedJobs+inProgressJobs)/totalJobs)*100}%, 
+                  #f59e0b ${((completedJobs+inProgressJobs)/totalJobs)*100}%)` 
+              }}
+            />
+          </div>
+        </div>
       </div>
     );
   };
 
   return (
-    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
-      {/* Completion Success Message */}
+    <div className="bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-2xl p-6 mb-6 shadow-sm">
       {showCompletionSuccess && (
-        <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl animate-pulse">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white rounded-lg shadow-sm">
-              <PartyPopper className="h-5 w-5 text-green-600" />
+        <div className="mb-6 p-5 bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-300 rounded-xl shadow-sm">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white rounded-xl shadow-sm">
+              <PartyPopper className="h-6 w-6 text-emerald-600" />
             </div>
             <div className="flex-1">
-              <h3 className="font-bold text-green-800">Work Order Completed Successfully!</h3>
-              <p className="text-sm text-green-700">
-                The invoice has been paid and the work order is now marked as completed.
-                All workflow stages are finished.
+              <h3 className="font-bold text-emerald-900">Project Successfully Completed!</h3>
+              <p className="text-sm text-emerald-800 mt-1">
+                The work order has been finalized, invoice paid, and all workflow stages are complete.
               </p>
             </div>
             <button
               onClick={() => setShowCompletionSuccess(false)}
-              className="text-green-600 hover:text-green-800"
+              className="text-emerald-600 hover:text-emerald-800 p-2 hover:bg-white rounded-lg transition-colors"
             >
               <AlertCircle className="h-5 w-5" />
             </button>
@@ -766,10 +771,10 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
         </div>
       )}
 
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-4">
-          <div className="p-3 bg-white rounded-lg shadow-sm">
-            <div className="text-blue-600">
+      <div className="mb-6">
+        <div className="flex items-center gap-4 mb-6">
+          <div className={`p-3.5 bg-gradient-to-br ${stageConfig?.color || 'from-blue-500 to-blue-600'} rounded-xl shadow-sm`}>
+            <div className="text-white">
               {stageConfig?.icon || <ClipboardCheck className="h-6 w-6" />}
             </div>
           </div>
@@ -777,61 +782,74 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
               <h2 className="text-2xl font-bold text-gray-900">
-                {workOrder.status === 'completed' ? 'Work Order Completed' : `Current Stage: ${stageConfig?.label}`}
+                {workOrder.status === 'completed' ? 'Project Completion Summary' : `Stage: ${stageConfig?.label}`}
               </h2>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                workOrder.status === 'completed' ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' :
-                workOrder.status === 'delayed' ? 'bg-orange-100 text-orange-800' :
-                'bg-blue-100 text-blue-800'
+              <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                workOrder.status === 'completed' ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white' :
+                workOrder.status === 'delayed' ? 'bg-orange-100 text-orange-800 border border-orange-200' :
+                'bg-blue-100 text-blue-800 border border-blue-200'
               }`}>
                 {workOrderService.getStatusLabel(workOrder.status)}
               </span>
             </div>
             
-            <p className="text-gray-600 mb-4">
+            <p className="text-gray-600">
               {workOrder.status === 'completed' 
-                ? 'All work completed, invoice paid, and customer billing finished.'
+                ? 'All service work completed and payment processed. Ready for final documentation.'
                 : stageConfig?.description}
             </p>
-            
-            {/* Stage Requirements */}
-            <div className="space-y-2 mb-6">
-              {renderStageRequirements()}
-            </div>
-
-            {/* Job Card Summary (only for job card stage) */}
-            {renderJobCardSummary()}
-            
-            {/* Action Button */}
-            <div className="mt-4">
-              {renderStageActions()}
-            </div>
-
-            {/* Additional Info for Completed Work Orders */}
-            {workOrder.status === 'completed' && (
-              <div className="mt-6 pt-4 border-t border-blue-200">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  {workOrder.actualCompletionDate && (
-                    <div>
-                      <p className="text-gray-600">Completion Date</p>
-                      <p className="font-medium text-gray-900">
-                        {new Date(workOrder.actualCompletionDate).toLocaleDateString()}
-                      </p>
-                    </div>
-                  )}
-                  {workOrder.invoicePaymentDate && (
-                    <div>
-                      <p className="text-gray-600">Payment Date</p>
-                      <p className="font-medium text-gray-900">
-                        {new Date(workOrder.invoicePaymentDate).toLocaleDateString()}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </div>
+        
+        <div className="mb-6">
+          {renderStageRequirements()}
+        </div>
+
+        {renderJobCardSummary()}
+        
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium text-gray-700 mb-1">Next Action Required</h4>
+              <p className="text-lg font-semibold text-gray-900">{stageStatus.nextAction}</p>
+            </div>
+            <div className="flex gap-3">
+              {renderStageActions()}
+            </div>
+          </div>
+        </div>
+
+        {workOrder.status === 'completed' && (
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <h4 className="font-medium text-gray-700 mb-4">Completion Details</h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {workOrder.actualCompletionDate && (
+                <div className="bg-white border border-gray-200 rounded-lg p-3">
+                  <p className="text-sm text-gray-600">Completion Date</p>
+                  <p className="font-semibold text-gray-900">
+                    {new Date(workOrder.actualCompletionDate).toLocaleDateString()}
+                  </p>
+                </div>
+              )}
+              {workOrder.invoicePaymentDate && (
+                <div className="bg-white border border-gray-200 rounded-lg p-3">
+                  <p className="text-sm text-gray-600">Payment Date</p>
+                  <p className="font-semibold text-gray-900">
+                    {new Date(workOrder.invoicePaymentDate).toLocaleDateString()}
+                  </p>
+                </div>
+              )}
+              <div className="bg-white border border-gray-200 rounded-lg p-3">
+                <p className="text-sm text-gray-600">Work Order #</p>
+                <p className="font-semibold text-gray-900">{workOrder.workOrderNumber}</p>
+              </div>
+              <div className="bg-white border border-gray-200 rounded-lg p-3">
+                <p className="text-sm text-gray-600">Final Status</p>
+                <p className="font-semibold text-emerald-600">COMPLETED</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

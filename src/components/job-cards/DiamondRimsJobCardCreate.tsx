@@ -12,7 +12,7 @@ import {
   AlertTriangle, Info, Sparkles, FileSignature, Upload, X,
   FileCheck, ClipboardList, Check, RotateCw,
   PaintBucket, Hammer, Gauge, Sparkles as DiamondIcon,
-  Layers, Hexagon, Award, ShieldOff
+  Layers, Hexagon, Award, ShieldOff, FileText as NotesIcon
 } from 'lucide-react';
 import { jobCardService, CreateJobCardData } from '@/services/jobCardService';
 import { opportunityService, Opportunity } from '@/services/opportunityService';
@@ -196,6 +196,9 @@ interface FormData {
   customerSignature: string;
   acceptTerms: boolean;
   acceptWarrantyTerms: boolean;
+
+  // New fields based on requirements
+  jobCardNotes: string;
 }
 
 export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: 'create' | 'edit' }) {
@@ -379,6 +382,7 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
     technicianNotes: '',
     qualityRemarks: '',
     deliveryInstructions: '',
+    jobCardNotes: '',
 
     // Signatures
     technicianSignature: '',
@@ -599,8 +603,8 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
         // Additional information
         technicianNotes: preChecklist.additionalInformation || '',
         
-        // Job title based on services
-        jobTitle: `Diamond Rims ${preChecklist.services?.actualService?.join(', ') || 'Service'}`,
+        // Job title based on services - This should appear in Job Title segment
+        jobTitle: `${preChecklist.customerDetails?.name || 'Customer'}'s ${preChecklist.services?.actualService?.join(', ') || 'Wheel Alignment'}`,
         jobDescription: `Rim services for ${preChecklist.carDetails?.carMake || ''} ${preChecklist.carDetails?.carModel || ''}. ${preChecklist.additionalInformation || ''}`
       }));
       
@@ -667,9 +671,9 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
         yom: primaryVehicle.year?.toString() || '',
         mileage: primaryVehicle.mileage || '',
         
-        // Job details from opportunity
-        jobTitle: opportunity.subject || 'Diamond Rims Service',
-        jobDescription: opportunity.notes || '',
+        // Job title based on customer name
+        jobTitle: `${customerName}'s Wheel Alignment`,
+        jobDescription: '',
         
         // Pricing
         quotedAmount: opportunity.total || 0,
@@ -725,11 +729,6 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
     } else if (type === 'checkbox') {
       const target = e.target as HTMLInputElement;
       newValue = target.checked;
-    }
-    
-    if (name === 'assignedTo') {
-      const tech = technicians.find(t => t.id === value);
-      setSelectedTechnician(tech || null);
     }
     
     setFormData(prev => {
@@ -887,9 +886,6 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
     if (!formData.opportunityId) errors.push('Opportunity ID is required');
     if (!formData.jobTitle.trim()) errors.push('Job title is required');
     if (!formData.customerName.trim()) errors.push('Customer name is required');
-    if (!formData.assignedTo.trim()) errors.push('Technician should be assigen');
-    // if (!formData.regNumber.trim()) errors.push('Vehicle registration number is required');
-    // if (!formData.acceptTerms) errors.push('Please accept terms and conditions');
     
     // Check if at least one service is selected
     const hasService = Object.values(formData.servicesRequired).some(value => value === true);
@@ -913,109 +909,92 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
 
   const totals = calculateTotals();
 
-  // In DiamondRimsJobCardCreate.tsx - Update the handleSubmit function:
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  if (!validateForm()) return;
-  
-  try {
-    setSubmitting(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-    // Prepare job card data
-    const createData: CreateJobCardData = {
-      opportunityId: formData.opportunityId,
-      workOrderId: workOrderId,
-      jobTitle: formData.jobTitle,
-      jobDescription: formData.jobDescription,
-      assignedTo: formData.assignedTo || undefined,
-      priority: formData.priority || 'medium',
-      estimatedHours: formData.estimatedHours || 0,
-      status: 'pending',
-      ...(vehicleDetails?._id && { vehicleId: vehicleDetails._id })
-    };
+    if (!validateForm()) return;
     
-    console.log('🔧 Creating Diamond Rims job card with data:', createData);
-    
-    // Create job card
-    const newJobCard = await jobCardService.createJobCard(createData);
-console.log('✅ Job card created response:', newJobCard);
-console.log('📊 Response keys:', Object.keys(newJobCard));
-console.log('🔍 Checking for ID:', {
-  hasId: 'id' in newJobCard,
-  has_id: '_id' in newJobCard,
-  id: newJobCard.id,
-  _id: newJobCard._id
-});
-    console.log('✅ Job card created successfully:', newJobCard);
-    console.log('📝 New job card ID:', newJobCard._id || newJobCard.id);
-    
-    showToast('Diamond Rims Job Card created successfully!', 'success');
-    
-    // CRITICAL: Use the proper API endpoint to add job card to work order
-    if (workOrderId && (newJobCard._id || newJobCard.id)) {
-      try {
-        console.log('🔗 Linking job card to work order using API endpoint...');
-        const jobCardId = newJobCard._id || newJobCard.id;
-        
-        // Use the proper API endpoint to add job card to work order
-        await workOrderService.addJobCardToWorkOrder(workOrderId, jobCardId);
-        
-        // Also update the work order stage if needed
-        await workOrderService.updateWorkOrder(workOrderId, {
-          currentStage: 'job_card',
-          status: 'in_progress',
-          updatedAt: new Date().toISOString()
-        });
-        
-        console.log('✅ Successfully linked job card to work order');
-        showToast('Job card linked to work order successfully!', 'success');
-        
-      } catch (updateError) {
-        console.error('❌ Error linking job card to work order:', updateError);
-        
-        // Fallback: Try to update the work order directly
+    try {
+      setSubmitting(true);
+      
+      // Prepare job card data - simplified based on requirements
+      const createData: CreateJobCardData = {
+        opportunityId: formData.opportunityId,
+        workOrderId: workOrderId,
+        jobTitle: formData.jobTitle,
+        jobDescription: getServiceDescription(), // Use concise service description
+        assignedTo: '', // Removed as per requirements (first come first served)
+        estimatedHours: formData.estimatedHours || 0,
+        status: 'pending',
+        priority: formData.priority || 'medium',
+      };
+      
+      console.log('🔧 Creating Diamond Rims job card with data:', createData);
+      
+      // Create job card
+      const newJobCard = await jobCardService.createJobCard(createData);
+      console.log('✅ Job card created successfully:', newJobCard);
+      
+      showToast('Diamond Rims Job Card created successfully!', 'success');
+      
+      // Link to work order if applicable
+      if (workOrderId && (newJobCard._id || newJobCard.id)) {
         try {
-          console.log('🔄 Trying fallback method...');
-          const currentWorkOrder = await workOrderService.getWorkOrderById(workOrderId);
-          const existingJobCards = Array.isArray(currentWorkOrder.jobCards) 
-            ? currentWorkOrder.jobCards.filter(Boolean) // Filter out nulls
-            : [];
-          
           const jobCardId = newJobCard._id || newJobCard.id;
-          const newJobCards = [...existingJobCards, jobCardId];
-          
-          await workOrderService.updateWorkOrder(workOrderId, {
-            jobCards: newJobCards,
-            currentStage: 'job_card',
-            status: 'in_progress',
-            updatedAt: new Date().toISOString()
-          });
-          
-          console.log('✅ Fallback method succeeded');
-          showToast('Work order updated (fallback method)', 'success');
-        } catch (fallbackError) {
-          console.error('❌ Fallback also failed:', fallbackError);
+          await workOrderService.addJobCardToWorkOrder(workOrderId, jobCardId);
+          showToast('Job card linked to work order successfully!', 'success');
+        } catch (updateError) {
+          console.error('Error linking job card to work order:', updateError);
           showToast('Job card created but could not link to work order', 'warning');
         }
       }
-    }
 
-    // Navigate back to work order details page
-    if (workOrderId) {
-      console.log('📍 Navigating back to work order...');
-      router.push(`/orders/work-orders/${workOrderId}?t=${Date.now()}`);
+      // Navigate back
+      if (workOrderId) {
+        router.push(`/orders/work-orders/${workOrderId}?t=${Date.now()}`);
+      } else {
+        router.push('/job-cards');
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Error creating job card:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
+      showToast(`Failed to create job card: ${errorMessage}`, 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Generate concise service description based on selected services
+  const getServiceDescription = () => {
+    const services: string[] = [];
+    
+    // Add selected services
+    Object.entries(formData.servicesRequired).forEach(([key, value]) => {
+      if (value) {
+        const serviceName = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+        services.push(serviceName);
+      }
+    });
+    
+    // Add color if powder coating is selected
+    if (formData.servicesRequired.powderCoating && formData.powderCoatingRAL) {
+      services.push(`Color: ${formData.powderCoatingRAL}`);
     }
     
-  } catch (error: any) {
-    console.error('❌ Error creating job card:', error);
-    console.error('📝 Error details:', error.message, error.response?.data);
-    const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
-    showToast(`Failed to create job card: ${errorMessage}`, 'error');
-  } finally {
-    setSubmitting(false);
-  }
-};
+    // Add rim condition
+    services.push(`Rim Condition: ${formData.rimConditionOverall}`);
+    
+    // Add rim details
+    if (formData.rimBrand) {
+      services.push(`Brand: ${formData.rimBrand}`);
+    }
+    if (formData.rimSize) {
+      services.push(`Size: ${formData.rimSize}`);
+    }
+    
+    return services.join(' • ');
+  };
 
   const handleCancel = () => {
     if (source === 'workflow' && workOrderId) {
@@ -1063,8 +1042,7 @@ console.log('🔍 Checking for ID:', {
               </div>
             </div>
             
-            <div className="flex justify-between items-center gap-4 mt-6 ">
-              {/* Cancel & Back Button */}
+            <div className="flex justify-between items-center gap-4 mt-6">
               <button
                 type="button"
                 onClick={() => {
@@ -1074,32 +1052,12 @@ console.log('🔍 Checking for ID:', {
                     router.push('/orders/work-orders');
                   }
                 }}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2 bg-white"
                 disabled={submitting}
               >
                 <ArrowLeft className="h-4 w-4" />
                 Cancel & Back to Work Order
               </button>
-              
-              {/* Create Job Card Button */}
-              {/* <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="px-6 py-3 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 flex items-center gap-2 shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transition-all hover:shadow-xl"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="h-4 w-4" />
-                    {mode === 'edit' ? 'Update Job Card' : 'Create Diamond Rims Job Card'}
-                  </>
-                )}
-              </button> */}
             </div>
           </div>
         </div>
@@ -1107,461 +1065,109 @@ console.log('🔍 Checking for ID:', {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto p-4">
-        {/* Opportunity Info Banner */}
-        {opportunity && (
-          <div className="mb-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-gray-800">Opportunity Information</h3>
-                <p className="text-sm text-gray-600">
-                  {opportunity.subject} • {opportunity.customer?.name}
-                  {opportunity.customer?.companyName && ` • ${opportunity.customer.companyName}`}
-                </p>
-              </div>
+        {/* Pre-Checklist Summary Section */}
+        {(preChecklist || opportunity || vehicleDetails) && (
+          <div className="mb-6 bg-gradient-to-r from-green-50 to-emerald-100 rounded-xl p-4 border border-green-200">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <span className={`px-2 py-1 rounded-md text-xs font-medium ${
-                  opportunity.status === 'won' ? 'bg-green-100 text-green-800' :
-                  opportunity.status === 'lost' ? 'bg-red-100 text-red-800' :
-                  opportunity.status === 'new' ? 'bg-blue-100 text-blue-800' :
-                  'bg-yellow-100 text-yellow-800'
-                }`}>
-                  {opportunity.status?.replace(/_/g, ' ')}
-                </span>
-                <button
-                  onClick={autoPopulateFromOpportunity}
-                  className="inline-flex items-center gap-2 px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  Refresh Data
-                </button>
+                <ClipboardList className="h-5 w-5 text-green-600" />
+                <h3 className="font-bold text-gray-800">Pre-Checklist Information</h3>
+              </div>
+              <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-md">
+                Loaded from Checklist
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Customer Summary */}
+              <div className="bg-white/60 p-3 rounded-lg">
+                <h4 className="font-medium text-gray-700 text-sm mb-2">Customer Information</h4>
+                <div className="space-y-1">
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Name:</span> {formData.customerName || opportunity?.customer?.name || 'Not specified'}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Phone:</span> {formData.customerPhone || opportunity?.customer?.phone || 'Not specified'}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Email:</span> {formData.customerEmail || opportunity?.customer?.email || 'Not specified'}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Vehicle Summary */}
+              <div className="bg-white/60 p-3 rounded-lg">
+                <h4 className="font-medium text-gray-700 text-sm mb-2">Vehicle Information</h4>
+                <div className="space-y-1">
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Registration:</span> {formData.regNumber || vehicleDetails?.registrationNumber || 'Not specified'}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Make & Model:</span> {formData.carMake || vehicleDetails?.make || ''} {formData.carModel || vehicleDetails?.model || ''}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Year:</span> {formData.yom || vehicleDetails?.year || 'Not specified'}
+                  </p>
+                </div>
               </div>
             </div>
+            
+            {/* Additional Pre-Checklist Details */}
+            {preChecklist && (
+              <div className="mt-4 pt-4 border-t border-green-200">
+                <h4 className="font-medium text-gray-700 text-sm mb-2">Services Selected in Pre-Checklist</h4>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(formData.servicesRequired).map(([key, value]) => {
+                    if (value) {
+                      const serviceName = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                      return (
+                        <span key={key} className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-md">
+                          {serviceName}
+                        </span>
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         <div className="bg-white rounded-2xl shadow-xl p-6 border border-purple-100">
           <form onSubmit={handleSubmit} className="space-y-8">
-            {/* Customer & Vehicle Information */}
+            {/* Job Card Information */}
             <div>
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Customer & Vehicle Information</h2>
+              <h2 className="text-lg font-bold text-gray-800 mb-4">Job Card Information</h2>
               
               <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-6 border border-purple-200">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Customer Information */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <UserIcon className="h-5 w-5 text-purple-600" />
-                      <h4 className="font-semibold text-gray-800">Customer Information</h4>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-                        <input
-                          type="text"
-                          name="customerName"
-                          value={formData.customerName}
-                          onChange={handleChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                          placeholder="Customer name"
-                          required
-                        />
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Phone No. *</label>
-                          <input
-                            type="text"
-                            name="customerPhone"
-                            value={formData.customerPhone}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                            placeholder="Phone number"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                          <input
-                            type="email"
-                            name="customerEmail"
-                            value={formData.customerEmail}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                            placeholder="Email address"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Job Card Owner</label>
-                        <input
-                          type="text"
-                          name="jobCardOwner"
-                          value={formData.jobCardOwner}
-                          onChange={handleChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                          placeholder="Job card owner"
-                        />
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Residence</label>
-                          <input
-                            type="text"
-                            name="customerResidence"
-                            value={formData.customerResidence}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                            placeholder="Residence"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Source</label>
-                          <select
-                            name="customerSource"
-                            value={formData.customerSource}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                          >
-                            <option value="None">None</option>
-                            <option value="Walk-in">Walk-in</option>
-                            <option value="Referral">Referral</option>
-                            <option value="Online">Online</option>
-                            <option value="Phone">Phone</option>
-                          </select>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Other</label>
-                          <input
-                            type="text"
-                            name="customerOther"
-                            value={formData.customerOther}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                            placeholder="Other information"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Occupation</label>
-                          <input
-                            type="text"
-                            name="customerOccupation"
-                            value={formData.customerOccupation}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                            placeholder="Occupation"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Car Details */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CarIcon className="h-5 w-5 text-purple-600" />
-                      <h4 className="font-semibold text-gray-800">Car Details</h4>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Reg Number</label>
-                        <input
-                          type="text"
-                          name="regNumber"
-                          value={formData.regNumber}
-                          onChange={handleChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                          placeholder="Registration number"
-                        />
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Car Model</label>
-                          <input
-                            type="text"
-                            name="carModel"
-                            value={formData.carModel}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                            placeholder="Car model"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">YOM</label>
-                          <input
-                            type="text"
-                            name="yom"
-                            value={formData.yom}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                            placeholder="Year of manufacture"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Mileage</label>
-                          <input
-                            type="text"
-                            name="mileage"
-                            value={formData.mileage}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                            placeholder="Mileage"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Car Make</label>
-                          <input
-                            type="text"
-                            name="carMake"
-                            value={formData.carMake}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                            placeholder="Car make"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Rim Details Section */}
-            <div>
-              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <DiamondIcon className="h-5 w-5" />
-                Rim Details & Services
-              </h2>
-              
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Rim Specifications */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Hexagon className="h-5 w-5 text-blue-600" />
-                      <h4 className="font-semibold text-gray-800">Rim Specifications</h4>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Rim Brand</label>
-                        <input
-                          type="text"
-                          name="rimBrand"
-                          value={formData.rimBrand}
-                          onChange={handleChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="e.g., BBS, Enkei, OEM"
-                        />
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Rim Model</label>
-                          <input
-                            type="text"
-                            name="rimModel"
-                            value={formData.rimModel}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder="Model number"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Rim Size</label>
-                          <input
-                            type="text"
-                            name="rimSize"
-                            value={formData.rimSize}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder="e.g., 18x8.5"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Rim Material</label>
-                          <select
-                            name="rimMaterial"
-                            value={formData.rimMaterial}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          >
-                            <option value="aluminum">Aluminum</option>
-                            <option value="steel">Steel</option>
-                            <option value="alloy">Alloy</option>
-                            <option value="forged">Forged</option>
-                            <option value="carbon_fiber">Carbon Fiber</option>
-                            <option value="magnesium">Magnesium</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Number of Rims</label>
-                          <input
-                            type="number"
-                            name="numberOfRims"
-                            value={formData.numberOfRims}
-                            onChange={handleChange}
-                            min="1"
-                            max="8"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Current Rim Color</label>
-                        <input
-                          type="text"
-                          name="rimColor"
-                          value={formData.rimColor}
-                          onChange={handleChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="e.g., Silver, Black, Chrome"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Rim Condition Assessment */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <ClipboardList className="h-5 w-5 text-blue-600" />
-                      <h4 className="font-semibold text-gray-800">Condition Assessment</h4>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Overall Condition</label>
-                        <div className="flex flex-wrap gap-2">
-                          {rimConditionOptions.map((option) => (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() => handleInputChange('rimConditionOverall', option.value)}
-                              className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
-                                formData.rimConditionOverall === option.value
-                                  ? 'bg-blue-100 text-blue-700 border-blue-300'
-                                  : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-                              }`}
-                            >
-                              {option.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <label className="block text-sm font-medium text-gray-700">Issues Found</label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={formData.hasCracks}
-                              onChange={(e) => handleInputChange('hasCracks', e.target.checked)}
-                              className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                            />
-                            <span className="text-sm text-gray-700">Cracks</span>
-                          </label>
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={formData.hasBends}
-                              onChange={(e) => handleInputChange('hasBends', e.target.checked)}
-                              className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                            />
-                            <span className="text-sm text-gray-700">Bends</span>
-                          </label>
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={formData.hasCurbRash}
-                              onChange={(e) => handleInputChange('hasCurbRash', e.target.checked)}
-                              className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                            />
-                            <span className="text-sm text-gray-700">Curb Rash</span>
-                          </label>
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={formData.hasCorrosion}
-                              onChange={(e) => handleInputChange('hasCorrosion', e.target.checked)}
-                              className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                            />
-                            <span className="text-sm text-gray-700">Corrosion</span>
-                          </label>
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={formData.hasPreviousRepairs}
-                              onChange={(e) => handleInputChange('hasPreviousRepairs', e.target.checked)}
-                              className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                            />
-                            <span className="text-sm text-gray-700">Previous Repairs</span>
-                          </label>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Structural Integrity</label>
-                        <div className="flex gap-3">
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="radio"
-                              name="structuralIntegrity"
-                              checked={formData.structuralIntegrity === 'intact'}
-                              onChange={() => handleInputChange('structuralIntegrity', 'intact')}
-                              className="h-4 w-4 text-blue-600"
-                            />
-                            <span className="text-sm text-gray-700">Intact</span>
-                          </label>
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="radio"
-                              name="structuralIntegrity"
-                              checked={formData.structuralIntegrity === 'compromised'}
-                              onChange={() => handleInputChange('structuralIntegrity', 'compromised')}
-                              className="h-4 w-4 text-blue-600"
-                            />
-                            <span className="text-sm text-gray-700">Compromised</span>
-                          </label>
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="radio"
-                              name="structuralIntegrity"
-                              checked={formData.structuralIntegrity === 'unknown'}
-                              onChange={() => handleInputChange('structuralIntegrity', 'unknown')}
-                              className="h-4 w-4 text-blue-600"
-                            />
-                            <span className="text-sm text-gray-700">Unknown</span>
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                {/* Job Title Segment */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Job Title <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="jobTitle"
+                    value={formData.jobTitle}
+                    onChange={handleChange}
+                    placeholder="e.g., James Mukabwa's Wheel Alignment"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none bg-white"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Service already selected in pre-checklist should appear here
+                  </p>
                 </div>
 
-                {/* Diamond Rim Services Selection */}
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Settings className="h-5 w-5 text-purple-600" />
-                    <h4 className="font-semibold text-gray-800">Select Services Required</h4>
-                  </div>
+                {/* Services List - Brief and Concise */}
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Services Required
+                  </label>
                   
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Services Checkboxes */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {diamondRimServices.map((service) => (
                       <div key={service.id} className="flex items-center p-3 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors">
                         <input
@@ -1581,892 +1187,169 @@ console.log('🔍 Checking for ID:', {
                       </div>
                     ))}
                   </div>
-                </div>
 
-                {/* Service Specific Details */}
-                {(formData.servicesRequired.powderCoating || formData.servicesRequired.diamondCutting) && (
-                  <div className="mt-6 pt-6 border-t border-gray-200">
-                    <h4 className="font-semibold text-gray-800 mb-4">Service Specifications</h4>
+                  {/* Service Details Section */}
+                  <div className="mt-4 p-4 bg-white rounded-lg border border-gray-200">
+                    <h4 className="font-medium text-gray-700 mb-3">Service Specifications</h4>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {formData.servicesRequired.powderCoating && (
-                        <div className="space-y-3">
-                          <h5 className="font-medium text-gray-700 flex items-center gap-2">
-                            <PaintBucket className="h-4 w-4" />
-                            Powder Coating Details
-                          </h5>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Powder Coating Color (RAL)
-                            </label>
-                            <select
-                              value={formData.powderCoatingRAL}
-                              onChange={(e) => handleInputChange('powderCoatingRAL', e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                            >
-                              <option value="">Select RAL Colour</option>
-                              {ralColors.map((color) => (
-                                <option key={color} value={color}>{color}</option>
-                              ))}
-                            </select>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Finish Type
-                              </label>
-                              <select
-                                value={formData.powderCoatingFinish}
-                                onChange={(e) => handleInputChange('powderCoatingFinish', e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                              >
-                                {finishOptions.map((option) => (
-                                  <option key={option.value} value={option.value}>{option.label}</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Coating Layers
-                              </label>
-                              <input
-                                type="number"
-                                value={formData.coatingLayers}
-                                onChange={(e) => handleInputChange('coatingLayers', parseInt(e.target.value) || 1)}
-                                min="1"
-                                max="5"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {formData.servicesRequired.diamondCutting && (
-                        <div className="space-y-3">
-                          <h5 className="font-medium text-gray-700 flex items-center gap-2">
-                            <DiamondIcon className="h-4 w-4" />
-                            Diamond Cutting Details
-                          </h5>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Cutting Pattern
-                            </label>
-                            <input
-                              type="text"
-                              value={formData.diamondCutPattern}
-                              onChange={(e) => handleInputChange('diamondCutPattern', e.target.value)}
-                              placeholder="e.g., Classic, Mesh, Spoke"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                            />
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Cutting Depth
-                              </label>
-                              <input
-                                type="text"
-                                value={formData.cuttingDepth}
-                                onChange={(e) => handleInputChange('cuttingDepth', e.target.value)}
-                                placeholder="e.g., 0.5mm, 1.0mm"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                              />
-                            </div>
-                            <div className="flex items-center pt-6">
-                              <label className="flex items-center gap-2">
-                                <input
-                                  type="checkbox"
-                                  checked={formData.preserveLogo}
-                                  onChange={(e) => handleInputChange('preserveLogo', e.target.checked)}
-                                  className="h-4 w-4 text-purple-600 border-gray-300 rounded"
-                                />
-                                <span className="text-sm text-gray-700">Preserve Logo</span>
-                              </label>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Tire Details Section */}
-            <div>
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Tire Details</h2>
-              
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Tire Brands */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Car className="h-5 w-5 text-blue-600" />
-                      <h4 className="font-semibold text-gray-800">Tire Brands</h4>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">FR (Front Right)</label>
-                          <input
-                            type="text"
-                            value={formData.tireBrands.fr}
-                            onChange={(e) => handleNestedChange('tireBrands', 'fr', e.target.value)}
-                            placeholder="e.g., Michelin"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">FL (Front Left)</label>
-                          <input
-                            type="text"
-                            value={formData.tireBrands.fl}
-                            onChange={(e) => handleNestedChange('tireBrands', 'fl', e.target.value)}
-                            placeholder="e.g., Bridgestone"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">BR (Back Right)</label>
-                          <input
-                            type="text"
-                            value={formData.tireBrands.br}
-                            onChange={(e) => handleNestedChange('tireBrands', 'br', e.target.value)}
-                            placeholder="e.g., Goodyear"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">BL (Back Left)</label>
-                          <input
-                            type="text"
-                            value={formData.tireBrands.bl}
-                            onChange={(e) => handleNestedChange('tireBrands', 'bl', e.target.value)}
-                            placeholder="e.g., Pirelli"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Spare Tire</label>
-                        <input
-                          type="text"
-                          value={formData.tireBrands.spare}
-                          onChange={(e) => handleNestedChange('tireBrands', 'spare', e.target.value)}
-                          placeholder="e.g., Dunlop"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Tire Specifications */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Gauge className="h-5 w-5 text-blue-600" />
-                      <h4 className="font-semibold text-gray-800">Tire Specifications</h4>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">FR Tread Depth</label>
-                          <input
-                            type="text"
-                            value={formData.tireTreadDepth.fr}
-                            onChange={(e) => handleNestedChange('tireTreadDepth', 'fr', e.target.value)}
-                            placeholder="e.g., 6mm"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">FL Tread Depth</label>
-                          <input
-                            type="text"
-                            value={formData.tireTreadDepth.fl}
-                            onChange={(e) => handleNestedChange('tireTreadDepth', 'fl', e.target.value)}
-                            placeholder="e.g., 6mm"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">BR Tread Depth</label>
-                          <input
-                            type="text"
-                            value={formData.tireTreadDepth.br}
-                            onChange={(e) => handleNestedChange('tireTreadDepth', 'br', e.target.value)}
-                            placeholder="e.g., 5mm"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">BL Tread Depth</label>
-                          <input
-                            type="text"
-                            value={formData.tireTreadDepth.bl}
-                            onChange={(e) => handleNestedChange('tireTreadDepth', 'bl', e.target.value)}
-                            placeholder="e.g., 5mm"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Spare Tread Depth</label>
-                        <input
-                          type="text"
-                          value={formData.tireTreadDepth.spare}
-                          onChange={(e) => handleNestedChange('tireTreadDepth', 'spare', e.target.value)}
-                          placeholder="e.g., 8mm"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Accessories & Installation */}
-            <div>
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Accessories & Installation</h2>
-              
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Accessories */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Package className="h-5 w-5 text-blue-600" />
-                      <h4 className="font-semibold text-gray-800">Accessories</h4>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Wheel Nuts Total
-                          </label>
-                          <input
-                            type="number"
-                            value={formData.wheelNutsTotal}
-                            onChange={(e) => handleInputChange('wheelNutsTotal', parseInt(e.target.value) || 0)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            min="0"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Lock Nuts Total
-                          </label>
-                          <input
-                            type="number"
-                            value={formData.lockNutsTotal}
-                            onChange={(e) => handleInputChange('lockNutsTotal', parseInt(e.target.value) || 0)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            min="0"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Nozzle Caps Total
-                          </label>
-                          <input
-                            type="number"
-                            value={formData.nozzleCapsTotal}
-                            onChange={(e) => handleInputChange('nozzleCapsTotal', parseInt(e.target.value) || 0)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            min="0"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Nozzle Caps Type
-                          </label>
-                          <input
-                            type="text"
-                            value={formData.nozzleCapsType}
-                            onChange={(e) => handleInputChange('nozzleCapsType', e.target.value)}
-                            placeholder="e.g., Metal, Plastic"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div>
+                    {/* Powder Coating Color if selected */}
+                    {formData.servicesRequired.powderCoating && (
+                      <div className="mb-3">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Center Caps
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.centerCaps}
-                          onChange={(e) => handleInputChange('centerCaps', e.target.value)}
-                          placeholder="e.g., BMW logo, Missing"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      
-                      <div className="flex items-center gap-6">
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={formData.tpmsSensors}
-                            onChange={(e) => handleInputChange('tpmsSensors', e.target.checked)}
-                            className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                          />
-                          <span className="text-sm text-gray-700">TPMS Sensors Installed</span>
-                        </label>
-                        
-                        {formData.tpmsSensors && (
-                          <select
-                            value={formData.tpmsSensorCondition}
-                            onChange={(e) => handleInputChange('tpmsSensorCondition', e.target.value)}
-                            className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                          >
-                            <option value="working">Working</option>
-                            <option value="needs_replacement">Needs Replacement</option>
-                            <option value="missing">Missing</option>
-                          </select>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Installation & Alignment */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Wrench className="h-5 w-5 text-blue-600" />
-                      <h4 className="font-semibold text-gray-800">Installation & Alignment</h4>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-6">
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={formData.wheelAlignmentNeeded}
-                            onChange={(e) => handleInputChange('wheelAlignmentNeeded', e.target.checked)}
-                            className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                          />
-                          <span className="text-sm text-gray-700">Wheel Alignment Needed</span>
-                        </label>
-                        
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={formData.wheelBalancingNeeded}
-                            onChange={(e) => handleInputChange('wheelBalancingNeeded', e.target.checked)}
-                            className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                          />
-                          <span className="text-sm text-gray-700">Wheel Balancing Needed</span>
-                        </label>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Torque Specification
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.torqueSpecification}
-                          onChange={(e) => handleInputChange('torqueSpecification', e.target.value)}
-                          placeholder="e.g., 110 Nm, 90 ft-lbs"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Delivery Instructions
-                        </label>
-                        <textarea
-                          value={formData.deliveryInstructions}
-                          onChange={(e) => handleInputChange('deliveryInstructions', e.target.value)}
-                          placeholder="Special delivery or installation instructions..."
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          rows={3}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Job Details Section */}
-            <div>
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Job Details</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Job Title <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="jobTitle"
-                    value={formData.jobTitle}
-                    onChange={handleChange}
-                    placeholder="e.g., Diamond Rims Powder Coating & Straightening"
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Job Description <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    name="jobDescription"
-                    value={formData.jobDescription}
-                    onChange={handleChange}
-                    rows={4}
-                    placeholder="Provide detailed description of rim services to be performed..."
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none resize-none"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Start Date <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <input
-                        type="date"
-                        name="startDate"
-                        value={formData.startDate}
-                        onChange={handleChange}
-                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Target Completion Date
-                    </label>
-                    <div className="relative">
-                      <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <input
-                        type="date"
-                        name="endDate"
-                        value={formData.endDate}
-                        onChange={handleChange}
-                        min={formData.startDate}
-                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Process Tracking */}
-            <div>
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Process Tracking</h2>
-              
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Current Stage */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Layers className="h-5 w-5 text-blue-600" />
-                      <h4 className="font-semibold text-gray-800">Current Process Stage</h4>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        {processStages.map((stage) => (
-                          <button
-                            key={stage.value}
-                            type="button"
-                            onClick={() => handleInputChange('processStage', stage.value)}
-                            className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all flex flex-col items-center gap-1 ${
-                              formData.processStage === stage.value
-                                ? 'bg-purple-100 text-purple-700 border-purple-300'
-                                : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-                            }`}
-                          >
-                            <span className="text-lg">{stage.icon}</span>
-                            <span>{stage.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Stage Progress (%)
-                        </label>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            value={formData.stageProgress}
-                            onChange={(e) => handleInputChange('stageProgress', parseInt(e.target.value))}
-                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                          />
-                          <span className="text-sm font-medium text-gray-700 w-12">
-                            {formData.stageProgress}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Quality Checks */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle className="h-5 w-5 text-blue-600" />
-                      <h4 className="font-semibold text-gray-800">Quality Checks</h4>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-6">
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={formData.visualInspectionPass}
-                            onChange={(e) => handleInputChange('visualInspectionPass', e.target.checked)}
-                            className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                          />
-                          <span className="text-sm text-gray-700">Visual Inspection Pass</span>
-                        </label>
-                        
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={formData.structuralTestPass}
-                            onChange={(e) => handleInputChange('structuralTestPass', e.target.checked)}
-                            className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                          />
-                          <span className="text-sm text-gray-700">Structural Test Pass</span>
-                        </label>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Finish Quality
-                          </label>
-                          <select
-                            value={formData.finishQuality}
-                            onChange={(e) => handleInputChange('finishQuality', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          >
-                            <option value="excellent">Excellent</option>
-                            <option value="good">Good</option>
-                            <option value="acceptable">Acceptable</option>
-                            <option value="poor">Poor</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Color Match
-                          </label>
-                          <select
-                            value={formData.colorMatch}
-                            onChange={(e) => handleInputChange('colorMatch', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          >
-                            <option value="perfect">Perfect</option>
-                            <option value="good">Good</option>
-                            <option value="acceptable">Acceptable</option>
-                            <option value="poor">Poor</option>
-                          </select>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Quality Remarks
-                        </label>
-                        <textarea
-                          value={formData.qualityRemarks}
-                          onChange={(e) => handleInputChange('qualityRemarks', e.target.value)}
-                          placeholder="Quality inspection remarks..."
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          rows={2}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Customer Requirements & Pricing */}
-            <div>
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Customer Requirements & Pricing</h2>
-              
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Customer Requirements */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <UserIcon className="h-5 w-5 text-blue-600" />
-                      <h4 className="font-semibold text-gray-800">Customer Requirements</h4>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Customer Requirements
-                        </label>
-                        <textarea
-                          value={formData.customerRequirements}
-                          onChange={(e) => handleInputChange('customerRequirements', e.target.value)}
-                          placeholder="Customer's specific requirements and expectations..."
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          rows={3}
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Special Requests
-                        </label>
-                        <textarea
-                          value={formData.specialRequests}
-                          onChange={(e) => handleInputChange('specialRequests', e.target.value)}
-                          placeholder="Any special requests or customizations..."
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          rows={2}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Pricing & Warranty */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <DollarSign className="h-5 w-5 text-blue-600" />
-                      <h4 className="font-semibold text-gray-800">Pricing & Warranty</h4>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Quoted Amount (KES)
-                        </label>
-                        <input
-                          type="number"
-                          value={formData.quotedAmount}
-                          onChange={(e) => handleInputChange('quotedAmount', parseFloat(e.target.value) || 0)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          min="0"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Payment Terms
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.paymentTerms}
-                          onChange={(e) => handleInputChange('paymentTerms', e.target.value)}
-                          placeholder="e.g., 50% deposit, 50% on completion"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Warranty Period
+                          Powder Coating Color
                         </label>
                         <select
-                          value={formData.warrantyPeriod}
-                          onChange={(e) => handleInputChange('warrantyPeriod', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          value={formData.powderCoatingRAL}
+                          onChange={(e) => handleInputChange('powderCoatingRAL', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                         >
-                          <option value="3 months">3 months</option>
-                          <option value="6 months">6 months</option>
-                          <option value="1 year">1 year</option>
-                          <option value="2 years">2 years</option>
-                          <option value="lifetime">Lifetime</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Assignment & Settings */}
-            <div>
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Assignment & Settings</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Assignment Section */}
-                <div>
-                  <h3 className="font-semibold text-gray-700 mb-3">Assignment</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Assign Technician<span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <select
-                          name="assignedTo"
-                          value={formData.assignedTo}
-                          onChange={handleChange}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none appearance-none"
-                          required
-                        >
-                          <option value="">Unassigned</option>
-                          {technicians.map(tech => (
-                            <option key={tech.id} value={tech.id}>
-                              {tech.name} ({tech.email})
-                            </option>
+                          <option value="">Select Color</option>
+                          {ralColors.map((color) => (
+                            <option key={color} value={color}>{color}</option>
                           ))}
                         </select>
-                        <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
-                      </div>
-                    </div>
-
-                    {selectedTechnician && (
-                      <div className="p-4 bg-purple-50 rounded-xl border border-purple-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-semibold">
-                            {selectedTechnician.name?.charAt(0) || selectedTechnician.email?.charAt(0) || 'T'}
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900">{selectedTechnician.name}</div>
-                            <div className="text-sm text-gray-600">{selectedTechnician.email}</div>
-                          </div>
-                        </div>
                       </div>
                     )}
+                    
+                    {/* Rim Details */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Rim Brand
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.rimBrand}
+                          onChange={(e) => handleInputChange('rimBrand', e.target.value)}
+                          placeholder="e.g., BBS"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Rim Size
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.rimSize}
+                          onChange={(e) => handleInputChange('rimSize', e.target.value)}
+                          placeholder="e.g., 18x8.5"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Settings Section */}
-                <div>
-                  <h3 className="font-semibold text-gray-700 mb-3">Settings</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Priority
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {priorityOptions.map((option) => (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => handleInputChange('priority', option.value)}
-                            className={`px-3 py-2.5 text-sm font-medium rounded-lg border transition-all flex items-center justify-center gap-2 ${
-                              formData.priority === option.value
-                                ? `${option.color} border-purple-500 ring-2 ring-purple-200`
-                                : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-                            }`}
-                          >
-                            <span>{option.icon}</span>
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Status
-                      </label>
-                      <div className="relative">
-                        <select
-                          name="status"
-                          value={formData.status}
-                          onChange={handleChange}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none appearance-none"
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="completed">Completed</option>
-                          <option value="cancelled">Cancelled</option>
-                        </select>
-                        <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
-                      </div>
-                    </div> */}
+                {/* Notes Section */}
+                <div className="mt-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <NotesIcon className="h-5 w-5 text-purple-600" />
+                    <label className="block text-sm font-medium text-gray-700">
+                      Notes & Specifications
+                    </label>
                   </div>
+                  <textarea
+                    name="jobCardNotes"
+                    value={formData.jobCardNotes}
+                    onChange={handleChange}
+                    rows={3}
+                    placeholder="Any specifications the client may have concerning their vehicle or the service they have selected..."
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none resize-none"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    This section caters for any specifications the client may have concerning their vehicle or the service they have selected
+                  </p>
                 </div>
               </div>
             </div>
 
-            
-
-            {/* Technician Notes */}
+            {/* Technical Notes Section */}
             <div>
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Technician Notes</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Technician Notes
-                  </label>
-                  <textarea
-                    value={formData.technicianNotes}
-                    onChange={(e) => handleInputChange('technicianNotes', e.target.value)}
-                    placeholder="Enter detailed notes about the rim service process, observations, and recommendations..."
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none resize-none"
-                    rows={4}
-                  />
-                </div>
+              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Technical Notes
+              </h2>
+              
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
+                <textarea
+                  value={formData.technicianNotes}
+                  onChange={(e) => handleInputChange('technicianNotes', e.target.value)}
+                  placeholder="Enter technical notes, observations, and recommendations..."
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none resize-none"
+                  rows={4}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  For technician use only - technical specifications and service details
+                </p>
+              </div>
+            </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleAddNote}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 rounded-xl text-sm font-medium hover:from-blue-100 hover:to-blue-200 shadow-sm border border-blue-200 hover:border-blue-300 transition-all"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Quick Note
-                  </button>
-                  <input
-                    type="text"
-                    value={formData.newNote}
-                    onChange={(e) => handleInputChange('newNote', e.target.value)}
-                    placeholder="Quick note..."
-                    className="flex-1 px-4 py-2 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
-                    onKeyPress={(e) => e.key === 'Enter' && handleAddNote()}
-                  />
-                </div>
-
-                {formData.notes.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    <h4 className="font-medium text-gray-700">Notes History</h4>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {formData.notes.map((note, index) => (
-                        <div key={index} className="flex items-start justify-between p-2 bg-gray-50 rounded-lg">
-                          <span className="text-sm text-gray-600">{note}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveNote(index)}
-                            className="p-1 hover:bg-red-50 rounded text-red-500"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
+            {/* Priority & Settings */}
+            <div>
+              <h2 className="text-lg font-bold text-gray-800 mb-4">Priority & Settings</h2>
+              
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Priority Level
+                    </label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {priorityOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => handleInputChange('priority', option.value)}
+                          className={`px-3 py-2.5 text-sm font-medium rounded-lg border transition-all flex items-center justify-center gap-2 ${
+                            formData.priority === option.value
+                              ? `${option.color} border-purple-500 ring-2 ring-purple-200`
+                              : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          <span>{option.icon}</span>
+                          {option.label}
+                        </button>
                       ))}
                     </div>
                   </div>
-                )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Start Date
+                      </label>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <input
+                          type="date"
+                          name="startDate"
+                          value={formData.startDate}
+                          onChange={handleChange}
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                          required
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Target Completion Date
+                      </label>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <input
+                          type="date"
+                          name="endDate"
+                          value={formData.endDate}
+                          onChange={handleChange}
+                          min={formData.startDate}
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
