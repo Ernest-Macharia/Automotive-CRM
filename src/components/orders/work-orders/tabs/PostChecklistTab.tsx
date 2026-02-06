@@ -1,431 +1,375 @@
-// src/components/orders/work-orders/tabs/PostChecklistTab.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { 
-  ClipboardList, Plus, Eye, Check, Loader2, 
-  CheckCircle, ArrowRight, AlertTriangle,
-  FileCheck, AlertCircle, FileText,
-  RefreshCw,
-  ReceiptIcon
+  ClipboardList, Eye, CheckCircle, ArrowRight, 
+  Loader2, AlertCircle, RefreshCw, Clock,
+  ShieldCheck, FileCheck, TrendingUp, BarChart3
 } from 'lucide-react';
 import { WorkOrder } from '@/services/workOrderService';
-import { workOrderService } from '@/services/workOrderService';
 import { postChecklistService } from '@/services/postChecklistService';
-import { format } from 'date-fns';
+import { workOrderService } from '@/services/workOrderService';
+import { useRouter } from 'next/navigation';
 import { useToast } from '@/contexts/ToastContext';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface PostChecklistTabProps {
   workOrder: WorkOrder;
   isTransitioning: boolean;
   onAction: (action: () => Promise<void>) => Promise<void>;
-  refreshInterval?: number; // Optional refresh interval in milliseconds
 }
 
 export default function PostChecklistTab({ 
   workOrder, 
   isTransitioning, 
-  onAction,
-  refreshInterval = 5000 // Default 5 seconds refresh
+  onAction 
 }: PostChecklistTabProps) {
   const router = useRouter();
   const { showToast } = useToast();
-  const [localLoading, setLocalLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [postChecklistStatus, setPostChecklistStatus] = useState({
+  const [status, setStatus] = useState({
     hasPostChecklist: false,
     isApproved: false,
-    needsApproval: false,
+    isPending: false,
     postChecklistId: '',
-    canGenerateInvoice: false,
-    lastUpdated: new Date().toISOString()
+    qualityScore: 0,
+    lastChecked: null as Date | null,
+    details: null as any
   });
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Load post-checklist status on component mount and when workOrder changes
   useEffect(() => {
-    loadPostChecklistStatus();
-    
-    // Set up interval for auto-refresh
-    const intervalId = setInterval(() => {
-      if (!refreshing && postChecklistStatus.needsApproval) {
-        refreshStatus();
+    loadStatus();
+    // Auto-refresh if pending
+    const interval = setInterval(() => {
+      if (status.isPending && !refreshing) {
+        loadStatus();
       }
-    }, refreshInterval);
+    }, 8000);
     
-    return () => clearInterval(intervalId);
-  }, [workOrder._id, refreshing, refreshInterval]);
+    return () => clearInterval(interval);
+  }, [workOrder._id]);
 
-  const loadPostChecklistStatus = async () => {
-    if (!workOrder._id) return;
-    
+  const loadStatus = async () => {
+    setLoading(true);
     try {
       const hasPostChecklist = !!workOrder.postChecklistId;
       let isApproved = false;
-      
+      let qualityScore = 0;
+      let details = null;
+
       if (hasPostChecklist && workOrder.postChecklistId) {
         try {
-          // Check for auto-approval status
           const checklist = await postChecklistService.getPostChecklistById(workOrder.postChecklistId);
           isApproved = checklist.approved || false;
-          
-          // Check for auto-approval indicators
-          const isAutoApproved = checklist.autoApproved || 
-                                checklist.approvedBy === 'system-auto' ||
-                                checklist.approvedBy === 'auto-approval-system';
-          
-          if (isAutoApproved && !isApproved) {
-            // Auto-approve if not already approved
-            isApproved = true;
-          }
+          qualityScore = checklist.qualityScore || 95;
+          details = checklist;
         } catch (error) {
-          console.error('Error loading post-checklist details:', error);
+          console.error('Error loading details:', error);
         }
       }
-      
-      setPostChecklistStatus({
+
+      setStatus({
         hasPostChecklist,
         isApproved,
-        needsApproval: hasPostChecklist && !isApproved,
+        isPending: hasPostChecklist && !isApproved,
         postChecklistId: workOrder.postChecklistId || '',
-        canGenerateInvoice: hasPostChecklist && isApproved && !workOrder.invoiceId,
-        lastUpdated: new Date().toISOString()
+        qualityScore,
+        lastChecked: new Date(),
+        details
       });
     } catch (error) {
-      console.error('Error loading post-checklist status:', error);
+      console.error('Error loading status:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
   const refreshStatus = async () => {
-    if (refreshing) return;
-    
     setRefreshing(true);
-    try {
-      await loadPostChecklistStatus();
-    } catch (error) {
-      console.error('Error refreshing post-checklist status:', error);
-    } finally {
-      setRefreshing(false);
-    }
+    await loadStatus();
+    setRefreshing(false);
+    showToast('Quality status refreshed', 'success');
   };
 
   const handleCreatePostChecklist = () => {
-    router.push(`/post-checklist/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}&source=workflow`);
+    router.push(`/post-checklist/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}`);
   };
 
   const handleViewPostChecklist = () => {
-    if (postChecklistStatus.postChecklistId) {
-      window.open(`/post-checklist/${postChecklistStatus.postChecklistId}`, '_blank');
+    if (status.postChecklistId) {
+      window.open(`/post-checklist/${status.postChecklistId}`, '_blank');
     }
   };
 
   const handleApprovePostChecklist = async () => {
-    setLocalLoading(true);
-    try {
-      await onAction(async () => {
-        if (!postChecklistStatus.postChecklistId) {
-          throw new Error('No post-checklist found to approve');
+    await onAction(async () => {
+      await postChecklistService.approvePostChecklist(
+        status.postChecklistId,
+        sessionStorage.getItem('userId')
+      );
+      await workOrderService.updateWorkOrder(workOrder._id, {
+        stageApprovals: {
+          ...workOrder.stageApprovals,
+          post_checklist: { approved: true, approvedAt: new Date().toISOString() }
         }
-
-        // Approve the post-checklist
-        await postChecklistService.approvePostChecklist(
-          postChecklistStatus.postChecklistId,
-          sessionStorage.getItem('userId') || undefined
-        );
-
-        // Update work order stage approvals and move to invoice stage
-        await workOrderService.updateWorkOrder(workOrder._id, {
-          stageApprovals: {
-            ...workOrder.stageApprovals,
-            post_checklist: {
-              ...workOrder.stageApprovals?.post_checklist,
-              approved: true,
-              approvedAt: new Date().toISOString(),
-              approvedBy: sessionStorage.getItem('userId') || 'manual'
-            }
-          },
-          postChecklistCompletionDate: new Date().toISOString(),
-          currentStage: 'invoice', // Move to invoice stage after approval
-          updatedAt: new Date().toISOString()
-        });
-
-        showToast('Post-checklist approved successfully', 'success');
-        await loadPostChecklistStatus();
       });
-    } catch (error: any) {
-      showToast(error.message || 'Failed to approve post-checklist', 'error');
-    } finally {
-      setLocalLoading(false);
-    }
+      await loadStatus();
+      showToast('Quality check approved', 'success');
+    });
   };
 
   const handleGenerateInvoice = async () => {
-    setLocalLoading(true);
-    try {
-      await onAction(async () => {
-        const invoiceResult = await workOrderService.generateInvoice(workOrder._id);
-        await workOrderService.updateWorkOrder(workOrder._id, {
-          invoiceId: invoiceResult.invoice._id,
-          currentStage: 'invoice',
-          status: 'ready_for_invoice',
-          updatedAt: new Date().toISOString()
-        });
-        showToast('Invoice generated successfully', 'success');
-        await loadPostChecklistStatus();
+    await onAction(async () => {
+      const result = await workOrderService.generateInvoice(workOrder._id);
+      await workOrderService.updateWorkOrder(workOrder._id, {
+        invoiceId: result.invoice._id,
+        currentStage: 'invoice'
       });
-    } catch (error: any) {
-      showToast(error.message || 'Failed to generate invoice', 'error');
-    } finally {
-      setLocalLoading(false);
-    }
+      showToast('Invoice generated successfully', 'success');
+    });
   };
 
-  const handleRefresh = async () => {
-    await refreshStatus();
-    showToast('Status refreshed', 'success');
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '—';
-    return format(new Date(dateString), 'MMM dd, yyyy HH:mm');
-  };
-
-  const handleViewInvoice = () => {
-    if (workOrder.invoiceId) {
-      window.open(`/invoices/${workOrder.invoiceId}`, '_blank');
-    }
-  };
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6">
-      <div className="flex items-center justify-between mb-6">
+  const QualityScoreCard = () => (
+    <div className="bg-gradient-to-br from-purple-50 to-blue-50 border-2 border-purple-200 rounded-2xl p-5">
+      <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Post-Checklist</h3>
-          <p className="text-sm text-gray-600">Post-service quality verification</p>
+          <h4 className="font-semibold text-purple-900">Quality Score</h4>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-3xl font-bold text-purple-700">{status.qualityScore}</span>
+            <span className="text-purple-600">/100</span>
+          </div>
         </div>
-        
-        <div className="flex items-center gap-2">
-          {/* Refresh button */}
-          {postChecklistStatus.hasPostChecklist && !postChecklistStatus.isApproved && (
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-              title="Refresh status"
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            </button>
-          )}
-          
-          {/* Dynamic button based on status */}
-          {!postChecklistStatus.hasPostChecklist && (
-            <button
-              onClick={handleCreatePostChecklist}
-              disabled={isTransitioning || localLoading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
-            >
-              <Plus className="h-4 w-4" />
-              Create Post-Checklist
-            </button>
-          )}
+        <div className="p-3 bg-white rounded-xl shadow-sm">
+          <TrendingUp className="h-6 w-6 text-purple-600" />
         </div>
       </div>
-      
-      {/* Auto-refresh indicator */}
-      {postChecklistStatus.needsApproval && !refreshing && (
-        <div className="mb-4 text-xs text-blue-600 flex items-center gap-1">
-          <Loader2 className="h-3 w-3 animate-spin" />
-          Auto-refreshing every {refreshInterval/1000} seconds...
+      <div className="mt-3">
+        <div className="h-2 bg-purple-200 rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full transition-all duration-1000"
+            style={{ width: `${status.qualityScore}%` }}
+          />
         </div>
-      )}
-      
-      {postChecklistStatus.hasPostChecklist ? (
-        <div className="space-y-6">
-          {/* Status Card */}
-          <div className={`rounded-xl p-6 ${
-            postChecklistStatus.isApproved 
-              ? 'bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200' 
-              : 'bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200'
-          }`}>
+        <div className="flex justify-between text-xs text-purple-600 mt-1">
+          <span>Poor</span>
+          <span>Excellent</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  const StatusCard = () => {
+    if (status.hasPostChecklist) {
+      if (status.isApproved) {
+        return (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-br from-emerald-50 to-green-50 border-2 border-emerald-200 rounded-2xl p-6"
+          >
             <div className="flex items-center gap-4">
-              {postChecklistStatus.isApproved ? (
-                <CheckCircle className="h-8 w-8 text-green-600" />
-              ) : (
-                <AlertCircle className="h-8 w-8 text-amber-600" />
-              )}
+              <div className="p-3 bg-emerald-100 rounded-xl">
+                <ShieldCheck className="h-8 w-8 text-emerald-600" />
+              </div>
               <div className="flex-1">
-                <h4 className="text-lg font-bold text-gray-900">
-                  {postChecklistStatus.isApproved ? 'Post-Checklist Approved' : 'Post-Checklist Created'}
-                </h4>
-                <p className="text-gray-600">
-                  {postChecklistStatus.isApproved 
-                    ? 'Ready to proceed to Invoice generation' 
-                    : 'Needs approval before proceeding to Invoice'}
-                </p>
-                {!postChecklistStatus.isApproved && (
-                  <p className="text-xs text-amber-600 mt-2">
-                    ✓ Auto-detects approval status in real-time
-                  </p>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleViewPostChecklist}
-                  className="px-3 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
-                >
-                  <Eye className="h-4 w-4" />
-                  View
-                </button>
-              </div>
-            </div>
-          </div>
-          
-          {/* Action Buttons */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* View/Edit Button */}
-            <div className="border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <Eye className="h-5 w-5 text-blue-600" />
-                <h5 className="font-medium text-gray-900">View/Edit</h5>
-              </div>
-              <p className="text-sm text-gray-600 mb-4">
-                Review or modify the post-checklist details
-              </p>
-              <button
-                onClick={handleViewPostChecklist}
-                className="w-full px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200"
-              >
-                Open Post-Checklist
-              </button>
-            </div>
-            
-            {/* Approval/Next Step Button */}
-            <div className="border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center gap-3 mb-3">
-                {postChecklistStatus.isApproved ? (
-                  <ReceiptIcon className="h-5 w-5 text-green-600" />
-                ) : (
-                  <Check className="h-5 w-5 text-amber-600" />
-                )}
-                <h5 className="font-medium text-gray-900">
-                  {postChecklistStatus.isApproved ? 'Next Step' : 'Approval'}
-                </h5>
-              </div>
-              <p className="text-sm text-gray-600 mb-4">
-                {postChecklistStatus.isApproved 
-                  ? 'Proceed to create Invoice' 
-                  : 'Approve the post-checklist to continue'}
-              </p>
-              <button
-                onClick={postChecklistStatus.isApproved ? handleGenerateInvoice : handleApprovePostChecklist}
-                disabled={isTransitioning || localLoading || refreshing}
-                className="w-full px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {(isTransitioning || localLoading || refreshing) ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    {postChecklistStatus.isApproved ? (
-                      <>
-                        Generate Invoice
-                        <ArrowRight className="h-4 w-4" />
-                      </>
-                    ) : (
-                      <>
-                        <Check className="h-4 w-4" />
-                        Approve Post-Checklist
-                      </>
-                    )}
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-          
-          {/* Status Indicators */}
-          <div className="flex items-center justify-center space-x-8 pt-6 border-t border-gray-200">
-            <div className="text-center">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2 ${
-                postChecklistStatus.hasPostChecklist ? 'bg-green-100' : 'bg-gray-100'
-              }`}>
-                <ClipboardList className={`h-5 w-5 ${
-                  postChecklistStatus.hasPostChecklist ? 'text-green-600' : 'text-gray-400'
-                }`} />
-              </div>
-              <span className="text-sm font-medium">Created</span>
-            </div>
-            
-            <div className="flex-1 h-0.5 bg-gray-200"></div>
-            
-            <div className="text-center">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2 ${
-                postChecklistStatus.isApproved ? 'bg-green-100' : 'bg-gray-100'
-              }`}>
-                <Check className={`h-5 w-5 ${
-                  postChecklistStatus.isApproved ? 'text-green-600' : 'text-gray-400'
-                }`} />
-              </div>
-              <span className="text-sm font-medium">Approved</span>
-            </div>
-            
-            <div className="flex-1 h-0.5 bg-gray-200"></div>
-            
-            <div className="text-center">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2 ${
-                postChecklistStatus.isApproved ? 'bg-blue-100' : 'bg-gray-100'
-              }`}>
-                <ReceiptIcon className={`h-5 w-5 ${
-                  postChecklistStatus.isApproved ? 'text-blue-600' : 'text-gray-400'
-                }`} />
-              </div>
-              <span className="text-sm font-medium">Next: Invoice</span>
-            </div>
-          </div>
-          
-          {/* Invoice Status */}
-          {postChecklistStatus.isApproved && workOrder.invoiceId && (
-            <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-teal-50 border border-green-200 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-white rounded-lg">
-                    <FileText className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900">Invoice Generated</h4>
-                    <p className="text-sm text-gray-600">
-                      Invoice has been created and is ready for payment
-                    </p>
+                <h3 className="text-xl font-bold text-emerald-800">Quality Verified ✓</h3>
+                <p className="text-emerald-700">Service quality meets all standards</p>
+                <div className="flex items-center gap-4 mt-3">
+                  <div className="flex items-center gap-2 text-sm text-emerald-600">
+                    <Clock className="h-4 w-4" />
+                    <span>Verified: {status.lastChecked ? formatTime(status.lastChecked) : 'Just now'}</span>
                   </div>
                 </div>
-                <button
-                  onClick={handleViewInvoice}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
-                >
-                  <Eye className="h-4 w-4" />
-                  View Invoice
-                </button>
+              </div>
+              <div className="p-2 bg-white rounded-lg shadow-sm">
+                <CheckCircle className="h-6 w-6 text-emerald-500" />
               </div>
             </div>
-          )}
+          </motion.div>
+        );
+      }
+
+      return (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-6"
+        >
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-amber-100 rounded-xl">
+              <AlertCircle className="h-8 w-8 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-xl font-bold text-amber-800">Quality Review Required</h3>
+              <p className="text-amber-700">Final verification needed before invoicing</p>
+              <div className="flex items-center gap-3 mt-3">
+                <div className="flex items-center gap-2 text-sm text-amber-600">
+                  <RefreshCw className="h-3 w-3 animate-spin" />
+                  <span>Auto-refreshing every 8s</span>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={refreshStatus}
+              disabled={refreshing}
+              className="p-2 hover:bg-white rounded-lg transition-colors"
+            >
+              <RefreshCw className={`h-5 w-5 text-amber-600 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </motion.div>
+      );
+    }
+
+    return (
+      <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-2xl p-8 text-center">
+        <div className="p-4 bg-white rounded-2xl inline-block mb-4">
+          <ClipboardList className="h-12 w-12 text-purple-600" />
         </div>
-      ) : (
-        // No post-checklist state
-        <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-xl">
-          <ClipboardList className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h4 className="text-xl font-semibold text-gray-900 mb-2">No Post-Checklist Created</h4>
-          <p className="text-gray-600 mb-6">
-            Create a post-service quality verification checklist.
-          </p>
+        <h3 className="text-xl font-bold text-purple-900 mb-2">Complete Quality Assurance</h3>
+        <p className="text-purple-700 mb-6 max-w-md mx-auto">
+          Verify service completion, document results, and ensure customer satisfaction
+        </p>
+        <button
+          onClick={handleCreatePostChecklist}
+          disabled={isTransitioning}
+          className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 flex items-center gap-2 mx-auto disabled:opacity-50"
+        >
+          <ClipboardList className="h-5 w-5" />
+          Create Quality Report
+        </button>
+      </div>
+    );
+  };
+
+  const ActionButtons = () => {
+    if (!status.hasPostChecklist) return null;
+
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <button
+          onClick={handleViewPostChecklist}
+          className="p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-50 rounded-lg group-hover:bg-purple-100">
+              <Eye className="h-5 w-5 text-purple-600" />
+            </div>
+            <div className="text-left">
+              <h4 className="font-semibold text-gray-900">View Report</h4>
+              <p className="text-sm text-gray-600">Inspect quality verification</p>
+            </div>
+          </div>
+        </button>
+
+        {!status.isApproved ? (
           <button
-            onClick={handleCreatePostChecklist}
-            disabled={isTransitioning || localLoading}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 mx-auto disabled:opacity-50"
+            onClick={handleApprovePostChecklist}
+            disabled={isTransitioning}
+            className="p-4 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl hover:from-amber-600 hover:to-orange-700 disabled:opacity-50 transition-all group"
           >
-            <Plus className="h-4 w-4" />
-            Create Post-Checklist
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="h-5 w-5" />
+                <div className="text-left">
+                  <h4 className="font-semibold">Approve Quality</h4>
+                  <p className="text-sm text-amber-100">Verify service completion</p>
+                </div>
+              </div>
+              <ArrowRight className="h-5 w-5 group-hover:rotate-90 transition-transform" />
+            </div>
           </button>
+        ) : (
+          <button
+            onClick={handleGenerateInvoice}
+            disabled={isTransitioning || !!workOrder.invoiceId}
+            className="p-4 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl hover:from-emerald-600 hover:to-green-700 disabled:opacity-50 transition-all group"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FileCheck className="h-5 w-5" />
+                <div className="text-left">
+                  <h4 className="font-semibold">Generate Invoice</h4>
+                  <p className="text-sm text-emerald-100">Proceed to billing</p>
+                </div>
+              </div>
+              <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </button>
+        )}
+
+        <QualityScoreCard />
+      </div>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-purple-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading quality assurance status...</p>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Quality Assurance</h2>
+          <p className="text-gray-600">Post-service verification and sign-off</p>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <BarChart3 className="h-4 w-4" />
+          <span>Quality Metrics</span>
+        </div>
+      </div>
+
+      <StatusCard />
+      
+      <AnimatePresence mode="wait">
+        {status.hasPostChecklist && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ delay: 0.2 }}
+          >
+            <div className="mt-6">
+              <ActionButtons />
+              
+              {/* Progress Steps */}
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <h4 className="font-semibold text-gray-900 mb-4">Quality Verification Steps</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[
+                    { icon: <ClipboardList />, label: 'Documentation', status: status.hasPostChecklist },
+                    { icon: <Eye />, label: 'Review', status: status.hasPostChecklist },
+                    { icon: <ShieldCheck />, label: 'Approval', status: status.isApproved }
+                  ].map((step, index) => (
+                    <div key={step.label} className={`p-4 rounded-xl border-2 ${step.status ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-gray-50'}`}>
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${step.status ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
+                        {step.icon}
+                      </div>
+                      <h5 className="font-semibold text-gray-900">{step.label}</h5>
+                      <div className={`mt-2 text-sm ${step.status ? 'text-emerald-600' : 'text-gray-500'}`}>
+                        {step.status ? '✓ Completed' : 'Pending'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
