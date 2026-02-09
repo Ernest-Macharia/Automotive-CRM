@@ -18,24 +18,31 @@ export default function KPIListPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [frequencyFilter, setFrequencyFilter] = useState<string>('all');
 
-  useEffect(() => {
-    fetchKPIs();
-  }, []);
+  // useEffect(() => {
+  //   fetchKPIs();
+  // }, []);
 
-  const fetchKPIs = async () => {
-    try {
-      setLoading(true);
-      // If user is admin/management, they can see all KPIs
-      // Otherwise, they should only see their own KPIs
-      const data = await kpiService.getAllKpis(); 
-      setKpis(data);
-    } catch (error) {
-      console.error('Error fetching KPIs:', error);
-      showToast('Failed to load KPIs', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // const fetchKPIs = async () => {
+  //   try {
+  //     setLoading(true);
+  //     const params: any = {};
+  //     if (selectedStatus !== 'all') {
+  //       params.status = selectedStatus;
+  //     }
+  //     if (searchQuery) {
+  //       params.search = searchQuery;
+  //     }
+      
+  //     const response = await kpiService.getAllKpis(params);
+  //     // Extract the data property from the response
+  //     setKpis(response.data || []);
+  //   } catch (error) {
+  //     console.error('Error fetching KPIs:', error);
+  //     showToast('Failed to load KPIs', 'error');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   const filteredKpis = kpis.filter(kpi => {
     // Search filter
@@ -104,7 +111,7 @@ export default function KPIListPage() {
     try {
       await kpiService.deleteKpi(id);
       showToast('KPI deleted successfully', 'success');
-      fetchKPIs();
+      // fetchKPIs();
     } catch (error) {
       console.error('Error deleting KPI:', error);
       showToast('Failed to delete KPI', 'error');
