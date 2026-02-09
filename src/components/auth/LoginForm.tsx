@@ -102,7 +102,6 @@ export default function LoginForm({
     }
   };
 
-  // ✅ Prefetch likely destinations (good)
   useEffect(() => {
     router.prefetch('/dashboard');
     router.prefetch('/auth/force-change-password');

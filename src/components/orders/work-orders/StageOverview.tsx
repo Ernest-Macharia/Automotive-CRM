@@ -68,9 +68,7 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
   };
 
   useEffect(() => {
-    if (workOrder && workOrder._id) {
-      loadJobCards();
-    }
+    if (workOrder?._id) loadJobCards();
   }, [workOrder]);
 
   useEffect(() => {
