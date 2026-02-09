@@ -17,34 +17,34 @@ export default function KPIListPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
 
-  useEffect(() => {
-    fetchKPIs();
-  }, [selectedStatus]);
+  // useEffect(() => {
+  //   fetchKPIs();
+  // }, [selectedStatus]);
 
-  const fetchKPIs = async () => {
-    try {
-      setLoading(true);
-      const params: any = {};
-      if (selectedStatus !== 'all') {
-        params.status = selectedStatus;
-      }
-      if (searchQuery) {
-        params.search = searchQuery;
-      }
+  // const fetchKPIs = async () => {
+  //   try {
+  //     setLoading(true);
+  //     const params: any = {};
+  //     if (selectedStatus !== 'all') {
+  //       params.status = selectedStatus;
+  //     }
+  //     if (searchQuery) {
+  //       params.search = searchQuery;
+  //     }
       
-      const response = await kpiService.getAllKpis(params);
-      setKpis(response);
-    } catch (error) {
-      console.error('Error fetching KPIs:', error);
-      showToast('Failed to load KPIs', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+  //     const response = await kpiService.getAllKpis(params);
+  //     setKpis(response);
+  //   } catch (error) {
+  //     console.error('Error fetching KPIs:', error);
+  //     showToast('Failed to load KPIs', 'error');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchKPIs();
+    // fetchKPIs();
   };
 
   const getStatusIcon = (status: Kpi['status']) => {
@@ -198,7 +198,7 @@ export default function KPIListPage() {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {kpis.map((kpi) => {
-                  const progress = kpiService.calculateKPIProgress(kpi);
+                  // const progress = kpiService.calculateKPIProgress(kpi);
                   const statusColor = kpiService.getStatusColor(kpi.status);
                   
                   return (
@@ -235,7 +235,7 @@ export default function KPIListPage() {
                         </div>
                       </td>
                       
-                      <td className="px-6 py-4">
+                      {/* <td className="px-6 py-4">
                         <div className="w-32">
                           <div className="flex justify-between text-xs text-gray-500 mb-1">
                             <span>Progress</span>
@@ -253,7 +253,7 @@ export default function KPIListPage() {
                             />
                           </div>
                         </div>
-                      </td>
+                      </td> */}
                       
                       <td className="px-6 py-4">
                         <span className={`px-3 py-1 text-xs rounded-full ${statusColor}`}>
