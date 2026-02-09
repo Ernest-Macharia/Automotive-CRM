@@ -30,7 +30,10 @@ export interface DelayInfo {
   daysDelayed?: number;
   hoursDelayed?: number;
   category?: string;
+  createdBy?: string;
   expectedCompletionDateTime?: string;
+  impact?: string;
+  estimatedResolutionHours?: number;
 }
 
 export interface WorkOrder {
