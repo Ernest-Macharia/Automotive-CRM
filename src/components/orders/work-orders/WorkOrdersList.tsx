@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Wrench,
@@ -96,6 +96,213 @@ const SkeletonStats = () => (
   </div>
 );
 
+// Optimized row component to prevent unnecessary re-renders
+const WorkOrderRow = React.memo(({
+  order,
+  expandedRow,
+  updatingStatus,
+  handleRowClick,
+  handleStatusChange,
+  handleDelete,
+  setExpandedRow,
+  getNextStatus,
+  canComplete,
+}: {
+  order: WorkOrder;
+  expandedRow: string | null;
+  updatingStatus: string | null;
+  handleRowClick: (id: string) => void;
+  handleStatusChange: (id: string, status: string) => void;
+  handleDelete: (id: string) => void;
+  setExpandedRow: (id: string | null) => void;
+  getNextStatus: (status: string) => { label: string; value: string } | null;
+  canComplete: (status: string) => boolean;
+}) => {
+  // Helper functions to extract data from order object
+  const getCustomerName = () => {
+    if (typeof order.opportunityId === 'object' && order.opportunityId.customer) {
+      return order.opportunityId.customer.name;
+    }
+    return '—';
+  };
+
+  const getCustomerCompany = () => {
+    if (typeof order.opportunityId === 'object' && order.opportunityId.customer) {
+      return order.opportunityId.customer.companyName;
+    }
+    return '';
+  };
+
+  const getAssigneeName = () => {
+    if (typeof order.assignedTo === 'object') {
+      return `${order.assignedTo.firstName || ''} ${order.assignedTo.lastName || ''}`.trim();
+    }
+    return 'Unassigned';
+  };
+
+  const statusConfig = STATUS_CONFIG[order.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.draft;
+  const IconComponent = statusConfig.icon;
+  const nextStatus = getNextStatus(order.status);
+  
+  return (
+    <tr
+      key={order._id}
+      className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
+      onClick={() => handleRowClick(order._id)}
+    >
+      <td className="py-4 px-4">
+        <div className="hover:text-blue-600 transition-colors">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-gray-900">{order.workOrderNumber || 'N/A'}</span>
+          </div>
+          <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+            {order.createdAt ? format(new Date(order.createdAt), 'MM/dd/yyyy') : '—'}
+          </div>
+        </div>
+      </td>
+
+      <td className="py-4 px-4">
+        <div className="hover:text-blue-600 transition-colors cursor-pointer" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-2">
+            <UserCircle className="h-5 w-5 text-gray-400 flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="font-medium text-gray-900 truncate">
+                {getCustomerName()}
+              </p>
+              {getCustomerCompany() && (
+                <p className="text-xs text-gray-500 truncate flex items-center gap-1 mt-0.5">
+                  <Building className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">{getCustomerCompany()}</span>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </td>
+
+      <td className="py-4 px-4">
+        <div className="flex flex-col gap-1">
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig.color}`}>
+            <IconComponent className="h-3 w-3" />
+            {statusConfig.label}
+          </span>
+          {order.delayDays && order.delayDays > 0 && (
+            <span className="text-xs text-amber-600 flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              Delayed by {order.delayDays} day{order.delayDays !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+      </td>
+
+      <td className="py-4 px-4">
+        <div className="hover:text-blue-600 transition-colors cursor-pointer" onClick={(e) => e.stopPropagation()}>
+          <span className="text-sm text-gray-700">{getAssigneeName()}</span>
+        </div>
+      </td>
+
+      <td className="py-4 px-4 font-semibold text-gray-900 hover:text-blue-600 transition-colors">
+        {workOrderService.formatCurrency(order.totalCost || 0)}
+      </td>
+
+      <td className="py-4 px-4" onClick={(e) => e.stopPropagation()}>
+        <div className="relative">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpandedRow(expandedRow === order._id ? null : order._id);
+            }}
+            className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+            aria-label="More actions"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+
+          {expandedRow === order._id && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setExpandedRow(null)} />
+              <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                <Link
+                  href={`/orders/work-orders/${order._id}`}
+                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                  onClick={() => setExpandedRow(null)}
+                >
+                  <Eye className="h-4 w-4" />
+                  View Details
+                </Link>
+
+                <Link
+                  href={`/orders/work-orders/${order._id}/edit`}
+                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                  onClick={() => setExpandedRow(null)}
+                >
+                  <Edit className="h-4 w-4" />
+                  Edit
+                </Link>
+
+                {nextStatus && (
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setExpandedRow(null);
+                      handleStatusChange(order._id, nextStatus.value);
+                    }}
+                    disabled={updatingStatus === order._id}
+                    className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 w-full text-left disabled:opacity-50"
+                  >
+                    {updatingStatus === order._id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                    {nextStatus.label}
+                  </button>
+                )}
+
+                {canComplete(order.status) && (
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setExpandedRow(null);
+                      handleStatusChange(order._id, 'completed');
+                    }}
+                    disabled={updatingStatus === order._id}
+                    className="flex items-center gap-2 px-4 py-2 text-sm text-green-600 hover:bg-green-50 w-full text-left disabled:opacity-50"
+                  >
+                    {updatingStatus === order._id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle className="h-4 w-4" />
+                    )}
+                    Complete Order
+                  </button>
+                )}
+
+                <div className="border-t border-gray-200 my-1" />
+
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setExpandedRow(null);
+                    handleDelete(order._id);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+});
+
+WorkOrderRow.displayName = 'WorkOrderRow';
+
+// Pagination component
 const Pagination = ({
   currentPage,
   totalPages,
@@ -215,37 +422,6 @@ const Pagination = ({
   );
 };
 
-/**
- * Small helper to run work when browser is idle (or fallback quickly).
- * Keeps initial paint fast.
- */
-function runWhenIdle(fn: () => void) {
-  if (typeof window === 'undefined') return;
-  if (window.requestIdleCallback) {
-    window.requestIdleCallback(() => fn(), { timeout: 800 });
-  } else {
-    setTimeout(fn, 50);
-  }
-}
-
-/**
- * Concurrency limiter (tiny "p-limit" replacement)
- */
-async function runWithConcurrency<T>(
-  items: T[],
-  limit: number,
-  worker: (item: T) => Promise<void>
-) {
-  let index = 0;
-  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (index < items.length) {
-      const current = items[index++];
-      await worker(current);
-    }
-  });
-  await Promise.all(runners);
-}
-
 export default function WorkOrdersList() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -264,14 +440,18 @@ export default function WorkOrdersList() {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   
-  // NEW: State for showing/hiding filters
+  // State for showing/hiding filters
   const [showFilters, setShowFilters] = useState(true);
 
-  // Row data displayed in UI (kept same shape)
-  const [rowData, setRowData] = useState<Record<string, { customer?: any; assignee?: any }>>({});
+  // Pagination state - REDUCED TO 10 ITEMS PER PAGE
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [itemsPerPage] = useState(10); // Changed from 20 to 10
 
-  // Cache to avoid re-fetching row details across pagination/filters
-  const rowDataCacheRef = useRef<Map<string, { customer?: any; assignee?: any }>>(new Map());
+  // Abort controllers
+  const ordersAbortRef = useRef<AbortController | null>(null);
+  const statsAbortRef = useRef<AbortController | null>(null);
 
   // Stats cache (short TTL) to avoid refetching on every minor change
   const statsCacheRef = useRef<{ value: WorkOrderStats | null; fetchedAt: number }>({
@@ -280,24 +460,20 @@ export default function WorkOrdersList() {
   });
   const STATS_TTL_MS = 30_000; // 30s
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
-  const [itemsPerPage] = useState(20);
+  // Debounced search effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setCurrentPage(1);
+    }, 300);
 
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Memoized functions to prevent recreation
   const hasActiveFilters = useMemo(() => {
     return !!(searchTerm || statusFilter !== 'all' || dateRange.from || dateRange.to);
   }, [searchTerm, statusFilter, dateRange]);
-
-  const formatDate = useCallback((dateString?: string) => {
-    if (!dateString) return 'Not scheduled';
-    try {
-      return format(new Date(dateString), 'MMM dd, yyyy');
-    } catch {
-      return 'Invalid date';
-    }
-  }, []);
 
   const getNextStatus = useCallback((currentStatus: string) => {
     switch (currentStatus) {
@@ -314,87 +490,7 @@ export default function WorkOrdersList() {
     return ['in_progress', 'job_card', 'post_checklist', 'ready_for_invoice'].includes(status);
   }, []);
 
-  // Debounced search effect
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-      setCurrentPage(1);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  /**
-   * Fetch + hydrate row details (customer/assignee) WITHOUT blocking initial paint.
-   * - Uses cache
-   * - Only fetches missing ids
-   * - Concurrency-limited
-   * - Updates rowData state in one go per run
-   */
-  const hydrateRowDetails = useCallback((orders: WorkOrder[]) => {
-    if (!orders?.length) return;
-
-    // Prime rowData from cache immediately (fast paint)
-    const prime: Record<string, { customer?: any; assignee?: any }> = {};
-    for (const o of orders) {
-      const cached = rowDataCacheRef.current.get(o._id);
-      if (cached) prime[o._id] = cached;
-    }
-    if (Object.keys(prime).length) {
-      setRowData((prev) => ({ ...prev, ...prime }));
-    }
-
-    const missing = orders.filter((o) => !rowDataCacheRef.current.has(o._id));
-    if (missing.length === 0) return;
-
-    // Defer heavy work so the table shows ASAP
-    runWhenIdle(() => {
-      let cancelled = false;
-
-      // if component unmounts quickly, stop updating state
-      const cancelFlag = () => { cancelled = true; };
-
-      (async () => {
-        const collected: Record<string, { customer?: any; assignee?: any }> = {};
-
-        try {
-          await runWithConcurrency(missing, 6, async (order) => {
-            try {
-              const [customer, assignee] = await Promise.all([
-                workOrderService.getCustomerDetails(order),
-                workOrderService.getAssignedToDetails(order),
-              ]);
-
-              const value = { customer, assignee };
-              rowDataCacheRef.current.set(order._id, value);
-              collected[order._id] = value;
-            } catch {
-              const value = { customer: null, assignee: null };
-              rowDataCacheRef.current.set(order._id, value);
-              collected[order._id] = value;
-            }
-          });
-
-          if (!cancelled && Object.keys(collected).length) {
-            setRowData((prev) => ({ ...prev, ...collected }));
-          }
-        } catch {
-          // swallow: row details are optional, don't block UX
-        }
-      })();
-
-      // Return-like cleanup for this scheduled task:
-      // We can't actually return from runWhenIdle, but we can
-      // tie cancellation to unmount via a ref-based effect below.
-      return cancelFlag;
-    });
-  }, []);
-
-  // Abort controllers to cancel in-flight fetches when inputs change
-  const ordersAbortRef = useRef<AbortController | null>(null);
-  const statsAbortRef = useRef<AbortController | null>(null);
-
-  // Fetch orders whenever filters/page change (fast path)
+  // Fetch orders whenever filters/page change (optimized)
   useEffect(() => {
     ordersAbortRef.current?.abort();
     const controller = new AbortController();
@@ -411,13 +507,11 @@ export default function WorkOrdersList() {
           page: currentPage,
           limit: itemsPerPage,
           sort: 'createdAt:desc',
+          // Removed 'populate' parameter since it's not in the interface
           ...(debouncedSearchTerm.trim() && { search: debouncedSearchTerm }),
           ...(statusFilter !== 'all' && { status: statusFilter }),
           ...(dateRange.from && { fromDate: dateRange.from }),
           ...(dateRange.to && { toDate: dateRange.to }),
-          // If your service supports it, pass the signal through.
-          // @ts-expect-error - optional support in service
-          signal: controller.signal,
         });
 
         if (!alive) return;
@@ -433,14 +527,10 @@ export default function WorkOrdersList() {
             setTotalItems(response.data.length);
             setTotalPages(Math.max(1, Math.ceil(response.data.length / itemsPerPage)));
           }
-
-          // Hydrate row details after paint
-          hydrateRowDetails(response.data);
         } else {
           setWorkOrders([]);
           setTotalItems(0);
           setTotalPages(1);
-          setRowData({});
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
@@ -451,19 +541,20 @@ export default function WorkOrdersList() {
         setWorkOrders([]);
         setTotalItems(0);
         setTotalPages(1);
-        setRowData({});
       } finally {
         if (alive) setLoading(false);
       }
     };
 
-    fetchOrders();
-
+    // Add small delay to prioritize initial render
+    const timer = setTimeout(fetchOrders, 50);
+    
     return () => {
       alive = false;
+      clearTimeout(timer);
       controller.abort();
     };
-  }, [debouncedSearchTerm, statusFilter, dateRange, currentPage, itemsPerPage, showToast, hydrateRowDetails]);
+  }, [debouncedSearchTerm, statusFilter, dateRange, currentPage, itemsPerPage, showToast]);
 
   // Fetch stats (cached TTL) so it doesn't slow down typing/pagination
   useEffect(() => {
@@ -486,10 +577,7 @@ export default function WorkOrdersList() {
     const fetchStats = async () => {
       try {
         setStatsLoading(true);
-        const statsData = await workOrderService.getWorkOrderStats(
-          // @ts-expect-error - optional support in service
-          { signal: controller.signal }
-        );
+        const statsData = await workOrderService.getWorkOrderStats();
 
         if (!alive) return;
 
@@ -504,10 +592,12 @@ export default function WorkOrdersList() {
       }
     };
 
-    fetchStats();
+    // Delay stats fetch to prioritize orders
+    const timer = setTimeout(fetchStats, 200);
 
     return () => {
       alive = false;
+      clearTimeout(timer);
       controller.abort();
     };
   }, [debouncedSearchTerm, statusFilter, dateRange, currentPage]);
@@ -525,6 +615,7 @@ export default function WorkOrdersList() {
           page: currentPage,
           limit: itemsPerPage,
           sort: 'createdAt:desc',
+          // Removed 'populate' parameter
         }),
         workOrderService.getWorkOrderStats(),
       ]);
@@ -539,8 +630,6 @@ export default function WorkOrdersList() {
           setTotalItems(ordersResponse.data.length);
           setTotalPages(Math.max(1, Math.ceil(ordersResponse.data.length / itemsPerPage)));
         }
-
-        hydrateRowDetails(ordersResponse.data);
       }
 
       setStats(statsData);
@@ -553,7 +642,7 @@ export default function WorkOrdersList() {
     } finally {
       setRefreshing(false);
     }
-  }, [currentPage, itemsPerPage, showToast, hydrateRowDetails]);
+  }, [currentPage, itemsPerPage, showToast]);
 
   const handleStatusChange = useCallback(async (orderId: string, newStatus: string) => {
     try {
@@ -562,7 +651,9 @@ export default function WorkOrdersList() {
       showToast('Work order status updated successfully!', 'success');
 
       setWorkOrders((prev) =>
-        prev.map((order) => (order._id === orderId ? { ...order, status: newStatus } : order))
+        prev.map((order) => 
+          order._id === orderId ? { ...order, status: newStatus as WorkOrder['status'] } : order
+        )
       );
 
       setExpandedRow(null);
@@ -608,181 +699,36 @@ export default function WorkOrdersList() {
     }
   }, [totalPages]);
 
+  // Optimized table rows memoization
   const tableRows = useMemo(() => {
     if (loading) return null;
 
     return workOrders.map((order) => {
-      const statusConfig = STATUS_CONFIG[order.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.draft;
-      const rowInfo = rowData[order._id];
-      const IconComponent = statusConfig.icon;
-
       return (
-        <tr
+        <WorkOrderRow
           key={order._id}
-          className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
-          onClick={() => handleRowClick(order._id)}
-        >
-          <td className="py-4 px-4">
-            <div className="hover:text-blue-600 transition-colors">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-900">{order.workOrderNumber || 'N/A'}</span>
-              </div>
-              <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
-                {formatDate(order.createdAt)}
-              </div>
-            </div>
-          </td>
-
-          <td className="py-4 px-4">
-            <div className="hover:text-blue-600 transition-colors cursor-pointer" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center gap-2">
-                <UserCircle className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                <div className="min-w-0">
-                  <p className="font-medium text-gray-900 truncate">
-                    {rowInfo?.customer?.name || '—'}
-                  </p>
-                  {rowInfo?.customer?.companyName && (
-                    <p className="text-xs text-gray-500 truncate flex items-center gap-1 mt-0.5">
-                      <Building className="h-3 w-3 flex-shrink-0" />
-                      <span className="truncate">{rowInfo.customer.companyName}</span>
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </td>
-
-          <td className="py-4 px-4">
-            <div className="flex flex-col gap-1">
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig.color}`}>
-                <IconComponent className="h-3 w-3" />
-                {statusConfig.label}
-              </span>
-              {order.delayDays && order.delayDays > 0 && (
-                <span className="text-xs text-amber-600 flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3" />
-                  Delayed by {order.delayDays} day{order.delayDays !== 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-          </td>
-
-          <td className="py-4 px-4">
-            <div className="hover:text-blue-600 transition-colors cursor-pointer" onClick={(e) => e.stopPropagation()}>
-              <span className="text-sm text-gray-700">{rowInfo?.assignee?.name || 'Unassigned'}</span>
-            </div>
-          </td>
-
-          <td className="py-4 px-4 font-semibold text-gray-900 hover:text-blue-600 transition-colors">
-            {workOrderService.formatCurrency(order.totalCost || 0)}
-          </td>
-
-          <td className="py-4 px-4" onClick={(e) => e.stopPropagation()}>
-            <div className="relative">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setExpandedRow(expandedRow === order._id ? null : order._id);
-                }}
-                className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-                aria-label="More actions"
-              >
-                <MoreVertical className="h-4 w-4" />
-              </button>
-
-              {expandedRow === order._id && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setExpandedRow(null)} />
-                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
-                    <Link
-                      href={`/orders/work-orders/${order._id}`}
-                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
-                      onClick={() => setExpandedRow(null)}
-                    >
-                      <Eye className="h-4 w-4" />
-                      View Details
-                    </Link>
-
-                    <Link
-                      href={`/orders/work-orders/${order._id}/edit`}
-                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
-                      onClick={() => setExpandedRow(null)}
-                    >
-                      <Edit className="h-4 w-4" />
-                      Edit
-                    </Link>
-
-                    {getNextStatus(order.status) && (
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setExpandedRow(null);
-                          handleStatusChange(order._id, getNextStatus(order.status)!.value);
-                        }}
-                        disabled={updatingStatus === order._id}
-                        className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 w-full text-left disabled:opacity-50"
-                      >
-                        {updatingStatus === order._id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                        {getNextStatus(order.status)!.label}
-                      </button>
-                    )}
-
-                    {canComplete(order.status) && (
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setExpandedRow(null);
-                          handleStatusChange(order._id, 'completed');
-                        }}
-                        disabled={updatingStatus === order._id}
-                        className="flex items-center gap-2 px-4 py-2 text-sm text-green-600 hover:bg-green-50 w-full text-left disabled:opacity-50"
-                      >
-                        {updatingStatus === order._id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <CheckCircle className="h-4 w-4" />
-                        )}
-                        Complete Order
-                      </button>
-                    )}
-
-                    <div className="border-t border-gray-200 my-1" />
-
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setExpandedRow(null);
-                        handleDelete(order._id);
-                      }}
-                      className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </td>
-        </tr>
+          order={order}
+          expandedRow={expandedRow}
+          updatingStatus={updatingStatus}
+          handleRowClick={handleRowClick}
+          handleStatusChange={handleStatusChange}
+          handleDelete={handleDelete}
+          setExpandedRow={setExpandedRow}
+          getNextStatus={getNextStatus}
+          canComplete={canComplete}
+        />
       );
     });
   }, [
     workOrders,
     loading,
-    rowData,
-    handleRowClick,
-    formatDate,
     expandedRow,
     updatingStatus,
-    getNextStatus,
-    canComplete,
+    handleRowClick,
     handleStatusChange,
     handleDelete,
+    getNextStatus,
+    canComplete,
   ]);
 
   // Error state
@@ -834,6 +780,28 @@ export default function WorkOrdersList() {
             <h1 className="text-xl font-bold text-white">Work Orders</h1>
             <p className="text-blue-100 text-sm">Manage and track all work orders</p>
           </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing || loading}
+            className="p-2 hover:bg-white/20 rounded-xl transition-colors disabled:opacity-50"
+            aria-label="Refresh"
+          >
+            {refreshing ? (
+              <Loader2 className="h-5 w-5 text-white animate-spin" />
+            ) : (
+              <RefreshCw className="h-5 w-5 text-white" />
+            )}
+          </button>
+          <Link
+            href="/orders/work-orders/create"
+            className="px-4 py-2 bg-white text-blue-600 font-semibold rounded-xl hover:bg-gray-100 flex items-center gap-2 transition-colors"
+          >
+            <Plus className="h-5 w-5" />
+            <span className="hidden sm:inline">New Work Order</span>
+          </Link>
         </div>
       </div>
 

@@ -380,12 +380,12 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
           .map(job => ({
             make: job.vehicles[0].make,
             model: job.vehicles[0].model,
-            status: job.partsRequired.length > 0 ? 'waiting_parts' : 'in_shop',
+            status: (job.partsRequired.length > 0 ? 'waiting_parts' : 'in_shop') as VehicleStatus['status'],
             since: formatTimeAgo(job.createdAt),
             technician: job.assignedTo || 'You'
           }))
           .slice(0, 5);
-        
+
         setVehiclesInShop(vehiclesStatus);
       }
 
