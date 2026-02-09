@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -58,10 +58,6 @@ function validateLoginClient(data: LoginData): {
   };
 }
 
-/**
- * Convert any thrown error into a safe, descriptive frontend message.
- * IMPORTANT: Do NOT show raw backend messages here.
- */
 function toUserFriendlyError(err: unknown): string {
   if (err instanceof ValidationError) return err.message;
   if (err instanceof AuthenticationError)
@@ -87,36 +83,34 @@ export default function LoginForm({
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // banner (top) error
   const [error, setError] = useState('');
-
-  // field-level errors
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
-  const canSubmit = useMemo(() => {
-    return !isLoading;
-  }, [isLoading]);
+  const canSubmit = useMemo(() => !isLoading, [isLoading]);
 
   const updateField = <K extends keyof LoginData>(key: K, value: LoginData[K]) => {
     setFormData(prev => ({ ...prev, [key]: value }));
-
-    // clear banner on edit
     if (error) setError('');
 
-    // clear field error for that field as user types
     if (key === 'email' || key === 'password') {
       setFieldErrors(prev => {
         const next = { ...prev };
+        // If you want live-clear per field, uncomment:
         // delete next[key];
         return next;
       });
     }
   };
 
+  // ✅ Prefetch likely destinations (good)
+  useEffect(() => {
+    router.prefetch('/dashboard');
+    router.prefetch('/auth/force-change-password');
+  }, [router]);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    // Frontend-first validation
     const check = validateLoginClient(formData);
     if (!check.ok) {
       setFieldErrors(check.fieldErrors);
@@ -135,17 +129,17 @@ export default function LoginForm({
         email: formData.email.trim(),
       });
 
+      // ✅ Use replace to avoid back loops and keep SPA navigation fast
       if (resp.user.requiresPasswordChange) {
-        router.push('/auth/force-change-password');
+        router.replace('/auth/force-change-password');
         return;
       }
 
       if (onSuccess) onSuccess();
-      else window.location.href = '/dashboard';
+      else router.replace('/dashboard'); // ✅ faster than window.location.href
     } catch (err: unknown) {
       const msg = toUserFriendlyError(err);
 
-      // Make auth errors feel “descriptive” with field hints
       if (err instanceof AuthenticationError) {
         setFieldErrors({
           email: 'Check your email address.',
@@ -160,32 +154,8 @@ export default function LoginForm({
     }
   };
 
-  const handleDemoLogin = async () => {
-    setIsLoading(true);
-    setError('');
-    setFieldErrors({});
-
-    try {
-      const resp = await authService.demoLogin();
-
-      if (resp.user.requiresPasswordChange) {
-        router.push('/auth/force-change-password');
-        return;
-      }
-
-      router.push('/dashboard');
-    } catch {
-      const msg = 'Demo login failed. Please try manual login.';
-      setError(msg);
-      onError?.(msg);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <div className="space-y-6">
-      {/* Banner error */}
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
           <div className="flex items-start gap-3">
@@ -332,9 +302,6 @@ export default function LoginForm({
               </>
             )}
           </button>
-          <p className="text-xs text-center text-gray-500 mt-2">
-            Use: superadmin@crm.local / Testme123!
-          </p>
         </div>
       </form>
     </div>
