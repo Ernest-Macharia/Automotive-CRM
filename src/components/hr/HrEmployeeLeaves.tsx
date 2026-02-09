@@ -71,7 +71,7 @@ export default function HREmployeeLeaves({ profileId }: HREmployeeLeavesProps) {
     }
   };
 
-  const handleLeaveAction = async (employeeProfileId: string) => {
+  const handleLeaveAction = async (employeeProfileId: string, requestId: string) => {
     try {
       const actionData: LeaveActionData = {
         action: selectedAction,
@@ -79,7 +79,8 @@ export default function HREmployeeLeaves({ profileId }: HREmployeeLeavesProps) {
         days: selectedAction === 'approved' ? actionDays : undefined,
       };
 
-      await hrService.handleLeaveAction(employeeProfileId, actionData);
+      // Pass all 3 arguments
+      await hrService.handleLeaveAction(employeeProfileId, requestId, actionData);
       showToast(`Leave request ${selectedAction} successfully`, 'success');
       setShowActionModal(false);
       setActionComments('');
@@ -305,7 +306,7 @@ export default function HREmployeeLeaves({ profileId }: HREmployeeLeavesProps) {
                   Cancel
                 </button>
                 <button
-                  onClick={() => handleLeaveAction(profileId!)}
+                  onClick={() => handleLeaveAction(leaveData!.profileId!, 'TEMP_REQUEST_ID_PLACEHOLDER')}
                   className={`px-4 py-2 text-white rounded-lg ${
                     selectedAction === 'approved' 
                       ? 'bg-green-600 hover:bg-green-700' 
