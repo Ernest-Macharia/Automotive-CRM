@@ -581,7 +581,6 @@ const OpportunityCard = memo(function OpportunityCard({
         }
         break;
       case 'message':
-        console.log('Message customer');
         break;
       case 'view':
         handleClick(e);

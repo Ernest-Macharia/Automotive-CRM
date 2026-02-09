@@ -351,12 +351,9 @@ export class LifecycleIntegrationService {
         
         // If no pre-checklist exists, workflow is not started yet
         if (!preChecklists || preChecklists.length === 0) {
-          console.log('No pre-checklist found for opportunity, workflow not started');
           return null;
         }
       } catch (preChecklistError) {
-        console.log('Error checking pre-checklist:', preChecklistError);
-        // Continue anyway, let the workflow UI handle it
       }
 
       let workflowUI;
@@ -368,8 +365,6 @@ export class LifecycleIntegrationService {
           return null;
         }
       } catch (error) {
-        // Workflow not initialized or error fetching, return null
-        console.log('Workflow not initialized or error fetching workflow UI:', error);
         return null;
       }
       
@@ -1189,7 +1184,6 @@ public async canStageAutoTransition(stage: string, document: any): Promise<boole
       } catch (error) {
         // If no lifecycle exists, create it automatically when creating first document
         if (stage === 'prechecklist' || stage === 'pre_checklist') {
-          console.log('Auto-initializing workflow for opportunity:', opportunityId);
           
           lifecycle = await lifecycleService.initializeOpportunity(opportunityId, {
             packageType: 'work_order'
@@ -1203,8 +1197,6 @@ public async canStageAutoTransition(stage: string, document: any): Promise<boole
               triggeredBy: `first-document-creation-${stage}`
             }
           });
-          
-          console.log('Workflow auto-initialized successfully');
         } else {
           console.error('Cannot create document without workflow initialization');
           throw new Error('Workflow not initialized. Please create pre-checklist first.');
@@ -1577,12 +1569,6 @@ async transitionToStage(opportunityId: string, targetStage: string, options?: an
     
     // Perform transition
     const result = await lifecycleService.transitionToStage(opportunityId, targetStage, options);
-    
-    // CRITICAL: Do NOT auto-create job card
-    // Only transition the stage, let user create job card manually
-    
-    // For debugging/logging
-    console.log(`Transitioned from ${currentStage} to ${targetStage} - Job card must be created manually`);
     
     return {
       success: true,
@@ -2196,7 +2182,6 @@ private async shouldAutoTransition(
 
   async autoCreateInvoiceForSalesOrder(opportunityId: string): Promise<any> {
     try {
-      console.log('Auto-creating invoice for sales order...');
       
       // Get sales order for this opportunity
       const salesOrders = await salesOrderService.getSalesOrdersByOpportunity(opportunityId);
@@ -2209,7 +2194,6 @@ private async shouldAutoTransition(
       
       // Check if invoice already exists and is properly linked
       if (salesOrder.invoiceId) {
-        console.log('Invoice already exists:', salesOrder.invoiceId);
         
         // If it's just an ID string, fetch the full invoice object
         if (typeof salesOrder.invoiceId === 'string') {
@@ -2258,19 +2242,13 @@ private async shouldAutoTransition(
         paymentTerms: 'Due within 30 days'
       };
       
-      console.log('Creating invoice with data:', invoiceData);
-      
       // Create the invoice
       const invoice = await invoiceService.createInvoice(invoiceData);
-      
-      console.log('Invoice created:', invoice);
       
       // IMPORTANT: Update sales order with invoice ID
       const updatedSalesOrder = await salesOrderService.updateSalesOrder(salesOrder._id || salesOrder.id, {
         invoiceId: invoice._id || invoice.id
       });
-      
-      console.log('Sales order updated with invoice ID:', updatedSalesOrder);
       
       // Return the full invoice object
       return invoice;
@@ -3392,9 +3370,6 @@ async autoTransitionOnPreChecklistComplete(
     document: any
   ): any[] {
     const actions = [];
-    
-    // Add debug logging
-    console.log(`Stage: ${stage}, Completed: ${completed}, IsCurrent: ${isCurrent}, HasDoc: ${!!document}`);
     
     // For completed stages
     if (completed && document) {

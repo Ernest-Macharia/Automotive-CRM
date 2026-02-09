@@ -95,6 +95,10 @@ export interface WorkOrder {
   laborCost: number;
   partsCost: number;
   totalCost?: number;
+  
+  // Add missing properties
+  additionalCosts?: number; // ADD THIS LINE
+  
   notes?: string;
   createdBy?: {
     _id: string;
@@ -112,14 +116,20 @@ export interface WorkOrder {
     minutes?: number;
   };
 
-  assignedTechnicians?: string;
+  // Fix the type - should be an array, not a string
+  assignedTechnicians?: Array<{
+    _id: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  } | string>; // FIX THIS LINE
   
   // Add the missing properties
   invoicePaid?: boolean;
   invoicePaymentDate?: string;
   
   // Add preChecklistStatus property
-  preChecklistStatus?: 'pending' | 'in_progress' | 'completed' | 'cancelled'; // ADD THIS
+  preChecklistStatus?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   
   // Add stage approvals
   stageApprovals?: {
@@ -309,7 +319,6 @@ export interface WorkOrderFilterParams {
   sort?: string;
   page?: number;
   limit?: number;
-  signal?: AbortSignal;
 }
 
 export interface WorkOrderStats {
@@ -400,7 +409,7 @@ class WorkOrderService {
   // Tune this: longer = fewer requests, shorter = fresher data
   private OPPORTUNITY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-  private getCachedOpportunity(id: string, signal?: AbortSignal): Promise<Opportunity> {
+  private getCachedOpportunity(id: string): Promise<Opportunity> {
     const now = Date.now();
     const cached = this.opportunityCache.get(id);
 
@@ -413,8 +422,6 @@ class WorkOrderService {
 
     const promise = (async () => {
       try {
-        // If your opportunityService/apiClient supports signal, pass it through.
-        // If not supported, this is still safe.
         const opp = await opportunityService.getOpportunityById(id, false /* keep your existing arg */);
         this.opportunityCache.set(id, { value: opp, expiresAt: now + this.OPPORTUNITY_CACHE_TTL_MS });
         return opp;
@@ -447,7 +454,6 @@ class WorkOrderService {
   }
 
   // GET /api/v1/workorder - Get all work orders with filtering
-  // In workOrderService.ts - Update the getAllWorkOrders method:
   async getAllWorkOrders(
     params?: WorkOrderFilterParams
   ): Promise<WorkOrdersResponse> {
@@ -457,12 +463,7 @@ class WorkOrderService {
       if (params) {
         Object.entries(params).forEach(([key, value]) => {
           if (value !== undefined && value !== null && value !== '') {
-            if (
-              key === 'page' || key === 'limit' || key === 'search' || key === 'status' ||
-              key === 'fromDate' || key === 'toDate' || key === 'sort'
-            ) {
-              queryParams.append(key, value.toString());
-            }
+            queryParams.append(key, value.toString());
           }
         });
       }
@@ -473,11 +474,7 @@ class WorkOrderService {
       const queryString = queryParams.toString();
       const endpoint = `${this.basePath}${queryString ? `?${queryString}` : ''}`;
 
-      // If apiClient.get DOES support { signal }, this enables cancellation.
-      // If it doesn't, remove the second argument and it still works.
-      const response = await apiClient.get<WorkOrdersResponse>(endpoint, { 
-        signal: params?.signal 
-      });
+      const response = await apiClient.get<WorkOrdersResponse>(endpoint);
 
       if (!response) {
         return {
@@ -516,12 +513,10 @@ class WorkOrderService {
   async getWorkOrderById(id: string): Promise<WorkOrder> {
     try {
         const response = await apiClient.get<WorkOrder>(`${this.basePath}/${id}`);
-        console.log('📥 Get work order by ID response:', response);
         
         return response;
       } catch (error) {
-        console.error(`Error fetching work order ${id}:`, error);
-        throw error;
+        return 
       }
     }
 
@@ -668,15 +663,10 @@ class WorkOrderService {
   // POST /api/v1/workorder/{id}/jobcards/{jobCardId}
   async addJobCardToWorkOrder(workOrderId: string, jobCardId: string): Promise<WorkOrder> {
     try {
-      console.log(`🔗 Adding job card ${jobCardId} to work order ${workOrderId}`);
-      
-      // Use the proper API endpoint
       const response = await apiClient.post<any, any>(
         `${this.basePath}/${workOrderId}/jobcards/${jobCardId}`,
         {}
       );
-      
-      console.log('📥 Add job card to work order response:', response);
       
       // Handle nested structure
       if (response.success && response.data) {
@@ -850,7 +840,7 @@ class WorkOrderService {
   }
 
   // GET /api/v1/workorder/stats/summary
-  async getWorkOrderStats(options?: { signal?: AbortSignal }): Promise<WorkOrderStats> {
+  async getWorkOrderStats(): Promise<WorkOrderStats> {
     try {
       return await apiClient.get<WorkOrderStats>(`${this.basePath}/stats/summary`);
     } catch (error) {
@@ -860,7 +850,7 @@ class WorkOrderService {
   }
 
   // GET /api/v1/workorder/stats/stages
-  async getStageStats(options?: { signal?: AbortSignal }): Promise<StageStats> {
+  async getStageStats(): Promise<StageStats> {
     try {
       return await apiClient.get<StageStats>(`${this.basePath}/stats/stages`);
     } catch (error) {
@@ -2000,9 +1990,9 @@ async getWorkOrderJobCards(workOrderId: string): Promise<JobCard[]> {
   }
 
   // Add this method to workOrderService to fetch opportunity with proper typing
-  async getFullOpportunityDetails(opportunityId: string, signal?: AbortSignal): Promise<Opportunity> {
+  async getFullOpportunityDetails(opportunityId: string): Promise<Opportunity> {
     try {
-      return await this.getCachedOpportunity(opportunityId, signal);
+      return await this.getCachedOpportunity(opportunityId);
     } catch (error) {
       console.error(`Error fetching opportunity ${opportunityId}:`, error);
       throw error;

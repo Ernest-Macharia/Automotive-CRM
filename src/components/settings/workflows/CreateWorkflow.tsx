@@ -457,7 +457,6 @@ export default function CreateWorkflow() {
     
     try {
       const submitData = prepareSubmitData();
-      console.log('Submitting workflow data:', submitData);
       
       const validation = await workflowService.validateWorkflowConfiguration(submitData);
       
@@ -468,9 +467,6 @@ export default function CreateWorkflow() {
       }
       
       const createdWorkflow = await workflowService.createWorkflow(submitData);
-
-      console.log('Created workflow object:', createdWorkflow);
-      console.log('Workflow ID to redirect to:', createdWorkflow.id);
       
       if (createdWorkflow && createdWorkflow.id) {
         showToast('Workflow created successfully', 'success');

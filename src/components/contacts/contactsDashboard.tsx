@@ -651,7 +651,6 @@ export default function ContactsDashboard() {
     try {
       setLoading(true);
       setError(null);
-      console.log('Loading opportunities for contacts...');
       
       // Load opportunities with their customers
       const response = await opportunityService.getAllOpportunities({
@@ -660,17 +659,11 @@ export default function ContactsDashboard() {
       });
       
       const opportunitiesData = response.data || [];
-      console.log('Opportunities loaded:', opportunitiesData.length, 'opportunities');
-      
-      if (opportunitiesData.length > 0) {
-        console.log('Sample opportunity:', opportunitiesData[0]);
-      }
       
       setOpportunities(opportunitiesData);
       
       // Convert opportunities to contacts
       const contactsData = convertOpportunitiesToContacts(opportunitiesData);
-      console.log('Converted to contacts:', contactsData.length, 'contacts');
       setContacts(contactsData);
       
       // Initialize filtered contacts
@@ -738,8 +731,6 @@ export default function ContactsDashboard() {
     const startIndex = (pagination.currentPage - 1) * pagination.itemsPerPage;
     const endIndex = startIndex + pagination.itemsPerPage;
     setPaginatedContacts(filtered.slice(startIndex, endIndex));
-    
-    console.log('Filtered contacts:', filtered.length, 'out of', contacts.length);
   }, [contacts, searchTerm, filterType, filterWhatsApp, filterOpportunityType, filterLeadTier, pagination.currentPage, pagination.itemsPerPage]);
 
   // Handle page change

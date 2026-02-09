@@ -240,10 +240,19 @@ class CustomerService {
         limit: 1000,
       });
       
-      // Handle different response formats
-      const opportunities = opportunitiesResponse.data || opportunitiesResponse || [];
+      // Handle different response formats - ensure we have an array
+      let opportunities: any[] = [];
       
-      // Aggregate customers from opportunities
+      if (Array.isArray(opportunitiesResponse)) {
+        opportunities = opportunitiesResponse;
+      } else if (opportunitiesResponse && typeof opportunitiesResponse === 'object' && 'data' in opportunitiesResponse) {
+        opportunities = Array.isArray(opportunitiesResponse.data) ? opportunitiesResponse.data : [];
+      } else if (opportunitiesResponse && typeof opportunitiesResponse === 'object') {
+        // If it's a single object, wrap it in an array
+        opportunities = [opportunitiesResponse];
+      }
+      
+      // Now opportunities is guaranteed to be an array
       const customerMap = new Map<string, Customer>();
       
       opportunities.forEach((opportunity: any) => {
@@ -376,13 +385,24 @@ class CustomerService {
     }
   }
 
-  // Get customer by ID
   async getCustomerById(id: string): Promise<Customer> {
     try {
       // Try to find customer from opportunities
       const opportunitiesResponse = await this.fetchWithFallback<ApiResponse>('/opportunities');
-      const opportunities = opportunitiesResponse.data || opportunitiesResponse || [];
       
+      // Handle different response formats - ensure we have an array
+      let opportunities: any[] = [];
+      
+      if (Array.isArray(opportunitiesResponse)) {
+        opportunities = opportunitiesResponse;
+      } else if (opportunitiesResponse && typeof opportunitiesResponse === 'object' && 'data' in opportunitiesResponse) {
+        opportunities = Array.isArray(opportunitiesResponse.data) ? opportunitiesResponse.data : [];
+      } else if (opportunitiesResponse && typeof opportunitiesResponse === 'object') {
+        // If it's a single object, wrap it in an array
+        opportunities = [opportunitiesResponse];
+      }
+      
+      // Now opportunities is guaranteed to be an array
       // Find all opportunities for this customer
       const customerOpportunities = opportunities.filter((opp: any) => 
         opp.customer && opp.customer._id === id
@@ -781,9 +801,6 @@ class CustomerService {
   // Delete customer (soft delete by updating status)
   async deleteCustomer(id: string): Promise<boolean> {
     try {
-      // In a real implementation, you would mark customer as deleted
-      // For now, we'll just return success
-      console.log(`Customer ${id} marked as deleted`);
       return true;
     } catch (error) {
       console.error(`Error deleting customer ${id}:`, error);
@@ -827,8 +844,6 @@ class CustomerService {
   // Bulk update customers
   async bulkUpdateCustomers(ids: string[], updates: Partial<Customer>): Promise<boolean> {
     try {
-      console.log(`Bulk updating customers ${ids.join(', ')} with:`, updates);
-      // In a real implementation, you would update multiple customers
       return true;
     } catch (error) {
       console.error('Error bulk updating customers:', error);

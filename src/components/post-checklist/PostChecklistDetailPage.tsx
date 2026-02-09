@@ -350,21 +350,12 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
       // Create approval message
       const comments = `Post-service verification approved by ${userName} on ${new Date().toLocaleDateString()}`;
       
-      console.log('🔍 Starting approval process:', {
-        checklistId: checklist._id,
-        approvedBy,
-        userName,
-        comments
-      });
-      
       // Call the updated service method
       const approvedChecklist = await postChecklistService.approvePostChecklist(
         checklist._id,
         approvedBy,
         comments
       );
-      
-      console.log('✅ Approval successful:', approvedChecklist);
       
       // Update state
       setChecklist(approvedChecklist);
@@ -739,11 +730,11 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
                       <User className="h-3.5 w-3.5" />
                       Inspected By
                     </p>
-                    <p className="text-sm text-gray-800">
+                    {/* <p className="text-sm text-gray-800">
                       {typeof preChecklist.inspectedBy === 'object'
                         ? `${preChecklist.inspectedBy.firstName} ${preChecklist.inspectedBy.lastName}`
                         : 'Technician'}
-                    </p>
+                    </p> */}
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 mb-2">Inspection Summary</p>

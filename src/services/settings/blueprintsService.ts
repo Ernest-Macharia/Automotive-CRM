@@ -110,8 +110,6 @@ class BlueprintsService {
   // Update your createBlueprint method with better debugging
   async createBlueprint(data: CreateBlueprintData): Promise<Blueprint> {
     try {
-      console.log('🔍 ORIGINAL FRONTEND DATA:', JSON.stringify(data, null, 2));
-      
       // Transform to match EXACTLY what backend CreateBlueprintDto expects
       // Based on your DTO: only name, module, stages
       const backendData = {
@@ -137,34 +135,29 @@ class BlueprintsService {
         }))
         // DO NOT include description, active, isActive if not in DTO
       };
-
-      console.log('🔍 BACKEND DATA (EXACT DTO MATCH):', JSON.stringify(backendData, null, 2));
-      console.log('🔍 POSTing to: /blueprints');
       
       // Make sure the endpoint is correct
       const response = await apiClient.post<typeof backendData, any>(
         '/blueprints',
         backendData
       );
-      
-      console.log('✅ SUCCESS Response:', JSON.stringify(response, null, 2));
       return normalizeBlueprint(response);
     } catch (error: any) {
-      console.error('❌ CREATE BLUEPRINT ERROR:');
+      console.error('CREATE BLUEPRINT ERROR:');
       
       // Log full error details
       if (error.isAxiosError) {
-        console.error('❌ Full Axios Error:', error);
-        console.error('❌ Request URL:', error.config?.url);
-        console.error('❌ Request Method:', error.config?.method);
-        console.error('❌ Request Data:', error.config?.data);
-        console.error('❌ Response Status:', error.response?.status);
-        console.error('❌ Response Headers:', error.response?.headers);
-        console.error('❌ Response Data:', error.response?.data);
+        console.error('Full Axios Error:', error);
+        console.error('Request URL:', error.config?.url);
+        console.error('Request Method:', error.config?.method);
+        console.error('Request Data:', error.config?.data);
+        console.error('Response Status:', error.response?.status);
+        console.error('Response Headers:', error.response?.headers);
+        console.error('Response Data:', error.response?.data);
         
         // Try to parse validation errors
         if (error.response?.data?.message) {
-          console.error('❌ Validation Errors:', error.response.data.message);
+          console.error('Validation Errors:', error.response.data.message);
         }
       }
       

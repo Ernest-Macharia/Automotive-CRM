@@ -7,6 +7,10 @@ export interface VehicleImage {
   mimetype: string;
   size: number;
   isPrimary: boolean;
+  uploadedAt?: string;
+  uploadedBy?: string;
+  caption?: string;
+  tags?: string[];
 }
 
 export interface Vehicle {
@@ -143,7 +147,21 @@ export interface SetPrimaryImageData {
   imageUrl: string;
 }
 
+export interface UploadImageResponse {
+  success: boolean;
+  message: string;
+  image: VehicleImage;
+}
+
+export interface UpdateImageData {
+  caption?: string;
+  tags?: string[];
+  isPrimary?: boolean;
+}
+
 class VehicleService {
+  private basePath = '/vehicles';
+
   // Helper method to handle FormData uploads
   private async uploadFormData<T>(endpoint: string, formData: FormData): Promise<T> {
     const url = `${process.env.NEXT_PUBLIC_API_URL || ''}${endpoint}`;
@@ -184,7 +202,7 @@ class VehicleService {
   // POST /api/v1/vehicles - Create a new vehicle
   async createVehicle(data: CreateVehicleData): Promise<Vehicle> {
     try {
-      return await apiClient.post<CreateVehicleData, Vehicle>('/vehicles', data);
+      return await apiClient.post<CreateVehicleData, Vehicle>(this.basePath, data);
     } catch (error) {
       console.error('Error creating vehicle:', error);
       throw error;
@@ -205,7 +223,7 @@ class VehicleService {
       }
       
       const queryString = queryParams.toString();
-      const endpoint = `/vehicles${queryString ? `?${queryString}` : ''}`;
+      const endpoint = `${this.basePath}${queryString ? `?${queryString}` : ''}`;
       return await apiClient.get<Vehicle[]>(endpoint);
     } catch (error) {
       console.error('Error fetching vehicles:', error);
@@ -216,7 +234,7 @@ class VehicleService {
   // GET /api/v1/vehicles/opportunity/{opportunityId} - Get vehicles by opportunity ID
   async getVehiclesByOpportunity(opportunityId: string): Promise<Vehicle[]> {
     try {
-      return await apiClient.get<Vehicle[]>(`/vehicles/opportunity/${opportunityId}`);
+      return await apiClient.get<Vehicle[]>(`${this.basePath}/opportunity/${opportunityId}`);
     } catch (error) {
       console.error(`Error fetching vehicles for opportunity ${opportunityId}:`, error);
       throw error;
@@ -226,7 +244,7 @@ class VehicleService {
   // GET /api/v1/vehicles/{id} - Get a vehicle by ID
   async getVehicleById(id: string): Promise<Vehicle> {
     try {
-      return await apiClient.get<Vehicle>(`/vehicles/${id}`);
+      return await apiClient.get<Vehicle>(`${this.basePath}/${id}`);
     } catch (error) {
       console.error(`Error fetching vehicle ${id}:`, error);
       throw error;
@@ -236,7 +254,7 @@ class VehicleService {
   // PUT /api/v1/vehicles/{id} - Update a vehicle
   async updateVehicle(id: string, data: UpdateVehicleData): Promise<Vehicle> {
     try {
-      return await apiClient.put<UpdateVehicleData, Vehicle>(`/vehicles/${id}`, data);
+      return await apiClient.put<UpdateVehicleData, Vehicle>(`${this.basePath}/${id}`, data);
     } catch (error) {
       console.error(`Error updating vehicle ${id}:`, error);
       throw error;
@@ -246,17 +264,17 @@ class VehicleService {
   // DELETE /api/v1/vehicles/{id} - Delete a vehicle
   async deleteVehicle(id: string): Promise<{ message: string }> {
     try {
-      return await apiClient.delete<{ message: string }>(`/vehicles/${id}`);
+      return await apiClient.delete<{ message: string }>(`${this.basePath}/${id}`);
     } catch (error) {
       console.error(`Error deleting vehicle ${id}:`, error);
       throw error;
     }
   }
 
-  // POST /api/v1/vehicles/{id}/images - Add images to a vehicle
+  // POST /api/v1/vehicles/{id}/images - Add images to a vehicle via JSON data
   async addImages(id: string, data: AddImagesData): Promise<Vehicle> {
     try {
-      return await apiClient.post<AddImagesData, Vehicle>(`/vehicles/${id}/images`, data);
+      return await apiClient.post<AddImagesData, Vehicle>(`${this.basePath}/${id}/images`, data);
     } catch (error) {
       console.error(`Error adding images to vehicle ${id}:`, error);
       throw error;
@@ -267,7 +285,7 @@ class VehicleService {
   async removeImage(id: string, imageUrl: string): Promise<Vehicle> {
     try {
       const encodedImageUrl = encodeURIComponent(imageUrl);
-      return await apiClient.delete<Vehicle>(`/vehicles/${id}/images/${encodedImageUrl}`);
+      return await apiClient.delete<Vehicle>(`${this.basePath}/${id}/images/${encodedImageUrl}`);
     } catch (error) {
       console.error(`Error removing image from vehicle ${id}:`, error);
       throw error;
@@ -278,7 +296,7 @@ class VehicleService {
   async setPrimaryImage(id: string, imageUrl: string): Promise<Vehicle> {
     try {
       return await apiClient.put<SetPrimaryImageData, Vehicle>(
-        `/vehicles/${id}/images/primary`, 
+        `${this.basePath}/${id}/images/primary`, 
         { imageUrl }
       );
     } catch (error) {
@@ -290,14 +308,16 @@ class VehicleService {
   // GET /api/v1/vehicles/{id}/images - Get all images for a vehicle
   async getVehicleImages(id: string): Promise<VehicleImage[]> {
     try {
-      return await apiClient.get<VehicleImage[]>(`/vehicles/${id}/images`);
+      return await apiClient.get<VehicleImage[]>(`${this.basePath}/${id}/images`);
     } catch (error) {
       console.error(`Error fetching images for vehicle ${id}:`, error);
       throw error;
     }
   }
 
-  // POST /api/v1/vehicles/{id}/upload-images - Upload images to a vehicle via multipart form data
+  // ============ NEW IMAGE API METHODS ============
+
+  // POST /api/v1/vehicles/{id}/upload-images - Upload images via multipart form data
   async uploadVehicleImages(id: string, files: File[]): Promise<Vehicle> {
     try {
       const formData = new FormData();
@@ -305,20 +325,143 @@ class VehicleService {
         formData.append('images', file);
       });
       
-      return await this.uploadFormData<Vehicle>(`/vehicles/${id}/upload-images`, formData);
+      return await this.uploadFormData<Vehicle>(`${this.basePath}/${id}/upload-images`, formData);
     } catch (error) {
       console.error(`Error uploading images for vehicle ${id}:`, error);
       throw error;
     }
   }
 
-  // DELETE /api/v1/vehicles/{id}/images/{filename} - Delete a specific image file from a vehicle
+  // POST /api/v1/vehicles/{id}/upload-image - Upload single image
+  async uploadImage(id: string, file: File): Promise<UploadImageResponse> {
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      
+      return await this.uploadFormData<UploadImageResponse>(`${this.basePath}/${id}/upload-image`, formData);
+    } catch (error) {
+      console.error(`Error uploading image for vehicle ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // PATCH /api/v1/vehicles/{id}/images/{imageId} - Update image metadata
+  async updateImage(id: string, imageId: string, data: UpdateImageData): Promise<Vehicle> {
+    try {
+      return await apiClient.patch<UpdateImageData, Vehicle>(
+        `${this.basePath}/${id}/images/${imageId}`,
+        data
+      );
+    } catch (error) {
+      console.error(`Error updating image ${imageId} for vehicle ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // GET /api/v1/vehicles/{id}/images/{imageId} - Get specific image info
+  async getImageInfo(id: string, imageId: string): Promise<VehicleImage> {
+    try {
+      return await apiClient.get<VehicleImage>(`${this.basePath}/${id}/images/${imageId}`);
+    } catch (error) {
+      console.error(`Error fetching image ${imageId} for vehicle ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // DELETE /api/v1/vehicles/{id}/images/{filename} - Delete a specific image file
   async deleteVehicleImageFile(id: string, filename: string): Promise<{ message: string }> {
     try {
       const encodedFilename = encodeURIComponent(filename);
-      return await apiClient.delete<{ message: string }>(`/vehicles/${id}/images/${encodedFilename}`);
+      return await apiClient.delete<{ message: string }>(`${this.basePath}/${id}/images/file/${encodedFilename}`);
     } catch (error) {
       console.error(`Error deleting image file ${filename} from vehicle ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // POST /api/v1/vehicles/{id}/images/sort - Reorder images
+  async reorderImages(id: string, imageUrls: string[]): Promise<Vehicle> {
+    try {
+      return await apiClient.post<{ imageUrls: string[] }, Vehicle>(
+        `${this.basePath}/${id}/images/sort`,
+        { imageUrls }
+      );
+    } catch (error) {
+      console.error(`Error reordering images for vehicle ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // ============ BULK IMAGE OPERATIONS ============
+
+  // POST /api/v1/vehicles/{id}/images/bulk-delete - Delete multiple images
+  async bulkDeleteImages(id: string, imageUrls: string[]): Promise<Vehicle> {
+    try {
+      return await apiClient.post<{ imageUrls: string[] }, Vehicle>(
+        `${this.basePath}/${id}/images/bulk-delete`,
+        { imageUrls }
+      );
+    } catch (error) {
+      console.error(`Error bulk deleting images for vehicle ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // POST /api/v1/vehicles/{id}/images/bulk-update - Update multiple images
+  async bulkUpdateImages(id: string, updates: Array<{ imageUrl: string; data: UpdateImageData }>): Promise<Vehicle> {
+    try {
+      return await apiClient.post<{ updates: Array<{ imageUrl: string; data: UpdateImageData }> }, Vehicle>(
+        `${this.basePath}/${id}/images/bulk-update`,
+        { updates }
+      );
+    } catch (error) {
+      console.error(`Error bulk updating images for vehicle ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // ============ IMAGE PROCESSING ============
+
+  // POST /api/v1/vehicles/{id}/images/process - Process images (resize, compress, etc.)
+  async processImages(id: string, options?: {
+    resize?: { width?: number; height?: number };
+    compress?: boolean;
+    format?: 'webp' | 'jpeg' | 'png';
+  }): Promise<Vehicle> {
+    try {
+      return await apiClient.post<any, Vehicle>(
+        `${this.basePath}/${id}/images/process`,
+        { options }
+      );
+    } catch (error) {
+      console.error(`Error processing images for vehicle ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // ============ UTILITY METHODS ============
+
+  // Helper method to upload image and get direct URL
+  async uploadImageToVehicle(vehicleId: string, file: File): Promise<string> {
+    try {
+      const response = await this.uploadImage(vehicleId, file);
+      return response.image.url;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      throw error;
+    }
+  }
+
+  // Helper method to download image as blob
+  async downloadImage(imageUrl: string): Promise<Blob> {
+    try {
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to download image: ${response.statusText}`);
+      }
+      return await response.blob();
+    } catch (error) {
+      console.error('Error downloading image:', error);
       throw error;
     }
   }
@@ -326,8 +469,6 @@ class VehicleService {
   // Vehicle stats method
   async getVehicleStats(): Promise<VehicleStats> {
     try {
-      // This would typically call a dedicated stats endpoint
-      // For now, we'll fetch all vehicles and calculate stats
       const vehicles = await this.getAllVehicles();
       
       const stats: VehicleStats = {
@@ -345,31 +486,25 @@ class VehicleService {
       const now = new Date();
 
       vehicles.forEach(vehicle => {
-        // Count by status
         if (vehicle.status) {
           stats.byStatus[vehicle.status] = (stats.byStatus[vehicle.status] || 0) + 1;
         }
 
-        // Count by condition
         if (vehicle.condition) {
           stats.byCondition[vehicle.condition] = (stats.byCondition[vehicle.condition] || 0) + 1;
         }
 
-        // Count by make
         stats.byMake[vehicle.make] = (stats.byMake[vehicle.make] || 0) + 1;
 
-        // Calculate total value
         if (vehicle.currentValue) {
           stats.totalValue += vehicle.currentValue;
         }
 
-        // Calculate average mileage
         if (vehicle.mileage) {
           totalMileage += vehicle.mileage;
           mileageCount++;
         }
 
-        // Count upcoming services
         if (vehicle.nextServiceDate) {
           const dueDate = new Date(vehicle.nextServiceDate);
           const daysUntil = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
@@ -388,7 +523,65 @@ class VehicleService {
     }
   }
 
-  // Utility methods with proper null/undefined handling
+  // ============ IMAGE UI HELPERS ============
+
+  // Helper method to get primary image URL
+  getPrimaryImage(vehicle: Vehicle): string | null {
+    if (!vehicle.images || vehicle.images.length === 0) return null;
+    const primary = vehicle.images.find(img => img.isPrimary);
+    return primary ? primary.url : vehicle.images[0].url;
+  }
+
+  // Get image thumbnail URL (assuming backend provides thumbnails)
+  getImageThumbnail(imageUrl: string): string {
+    // This would typically append a query parameter or replace path for thumbnail
+    // For now, return original URL - in production you'd implement proper thumbnail logic
+    return imageUrl;
+  }
+
+  // Get image dimensions from URL (if available)
+  getImageDimensions(image: VehicleImage): { width?: number; height?: number } {
+    // You could extract from filename or store dimensions in metadata
+    return { width: 800, height: 600 }; // Default placeholder
+  }
+
+  // Format file size for display
+  formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  // Get image type icon
+  getImageTypeIcon(mimetype: string): string {
+    if (mimetype.includes('jpeg') || mimetype.includes('jpg')) return '🖼️';
+    if (mimetype.includes('png')) return '🖼️';
+    if (mimetype.includes('webp')) return '🖼️';
+    if (mimetype.includes('gif')) return '🎬';
+    if (mimetype.includes('svg')) return '📐';
+    return '📎';
+  }
+
+  // Validate image file before upload
+  validateImageFile(file: File): { valid: boolean; message?: string } {
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+
+    if (!allowedTypes.includes(file.type)) {
+      return { valid: false, message: 'Invalid file type. Allowed: JPG, PNG, WebP, GIF' };
+    }
+
+    if (file.size > maxSize) {
+      return { valid: false, message: `File too large. Maximum size: ${this.formatFileSize(maxSize)}` };
+    }
+
+    return { valid: true };
+  }
+
+  // ============ OTHER UTILITY METHODS ============
+
   formatCurrency(amount?: number): string {
     if (amount === undefined || amount === null) return 'KES 0.00';
     return new Intl.NumberFormat('en-US', {
@@ -478,26 +671,14 @@ class VehicleService {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
 
-  // Helper method to get primary image URL
-  getPrimaryImage(vehicle: Vehicle): string | null {
-    if (!vehicle.images || vehicle.images.length === 0) return null;
-    const primary = vehicle.images.find(img => img.isPrimary);
-    return primary ? primary.url : vehicle.images[0].url;
-  }
-
-  // Helper method to validate VIN
   validateVIN(vin: string): boolean {
-    // Basic VIN validation (17 characters, alphanumeric)
     return /^[A-HJ-NPR-Z0-9]{17}$/.test(vin);
   }
 
-  // Helper method to validate registration number
   validateRegistrationNumber(regNumber: string): boolean {
-    // Basic validation for alphanumeric with possible spaces/dashes
     return /^[A-Z0-9][A-Z0-9\s\-]*[A-Z0-9]$/.test(regNumber);
   }
 
-  // Get available makes (could be populated from backend or static list)
   getAvailableMakes(): string[] {
     return [
       'Toyota', 'Honda', 'Ford', 'BMW', 'Mercedes-Benz',
@@ -506,7 +687,6 @@ class VehicleService {
     ];
   }
 
-  // Get available colors
   getAvailableColors(): string[] {
     return [
       'Red', 'Blue', 'Black', 'White', 'Silver',
@@ -515,22 +695,18 @@ class VehicleService {
     ];
   }
 
-  // Get available statuses
   getAvailableStatuses(): string[] {
     return ['available', 'sold', 'reserved', 'in_service', 'awaiting_parts'];
   }
 
-  // Get available conditions
   getAvailableConditions(): string[] {
     return ['new', 'used', 'reconditioned'];
   }
 
-  // Get available fuel types
   getAvailableFuelTypes(): string[] {
     return ['petrol', 'diesel', 'electric', 'hybrid', 'cng', 'lpg'];
   }
 
-  // Get available transmission types
   getAvailableTransmissions(): string[] {
     return ['manual', 'automatic', 'semi-automatic'];
   }

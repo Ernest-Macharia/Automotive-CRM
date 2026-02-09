@@ -251,10 +251,14 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
         }))
       ]);
 
+      const sumOpportunityTotals = (opportunities: Opportunity[] = []): number => {
+        return opportunities.reduce((sum: number, opp: Opportunity) => 
+          sum + (Number(opp.total) || 0), 0
+        );
+      };
+
       // Calculate revenue from won opportunities
-      const revenue = wonOpportunities.data?.reduce((sum, opp) => 
-        sum + (opp.total || 0), 0
-      ) || 0;
+      const revenue = sumOpportunityTotals(wonOpportunities.data);
 
       // Calculate previous period for growth
       const prevDate = new Date(dateRange.start);
@@ -268,9 +272,7 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
         limit: 100
       }).catch(() => ({ data: [] }));
 
-      const prevRevenue = prevOpportunities.data?.reduce((sum, opp) => 
-        sum + (opp.total || 0), 0
-      ) || 0;
+      const prevRevenue = sumOpportunityTotals(prevOpportunities.data);
 
       const revenueGrowth = prevRevenue > 0 
         ? ((revenue - prevRevenue) / prevRevenue) * 100 
@@ -293,9 +295,7 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
         limit: 50
       }).catch(() => ({ data: [] }));
 
-      const accountsReceivable = openOpportunities.data?.reduce((sum, opp) => 
-        sum + (opp.total || 0), 0
-      ) || 0;
+      const accountsReceivable = sumOpportunityTotals(openOpportunities.data);
 
       // Accounts payable (mock - would come from vendor system)
       const accountsPayable = expenses * 0.6;

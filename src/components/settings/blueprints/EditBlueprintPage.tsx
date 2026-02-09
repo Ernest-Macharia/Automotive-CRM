@@ -670,8 +670,6 @@ export default function EditBlueprintPage({ blueprintId }: EditBlueprintPageProp
         })),
       };
       
-      console.log('Updating blueprint with data:', blueprintData);
-      
       await blueprintsService.updateBlueprint(blueprintId, blueprintData);
       showToast('Blueprint updated successfully', 'success');
       router.push('/settings/blueprints');

@@ -238,8 +238,6 @@ export default function BlueprintDetailsPage({ blueprintId }: BlueprintDetailsPr
         description: blueprint.description || '',
       };
       
-      console.log('Duplicating blueprint with data:', duplicateData);
-      
       const newBlueprint = await blueprintsService.createBlueprint(duplicateData);
       showToast('Blueprint duplicated successfully', 'success');
       router.push(`/settings/blueprints/${newBlueprint.id}`);

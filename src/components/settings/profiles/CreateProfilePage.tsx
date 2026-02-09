@@ -289,9 +289,6 @@ export default function CreateProfilePage() {
         languages: (formData.languages || []).length > 0 ? formData.languages : undefined, // Fixed here
       };
       
-      console.log('Creating profile with data:', profileData);
-      console.log('For user ID:', formData.userId);
-      
       const newProfile = await profileService.createProfile(formData.userId, profileData);
       
       showToast('Profile created successfully!', 'success');

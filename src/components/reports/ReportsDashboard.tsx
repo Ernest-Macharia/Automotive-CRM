@@ -161,14 +161,6 @@ export default function ReportsDashboard() {
   if (filters.branchId) params.branchId = filters.branchId;
   if (filters.salesRepId) params.salesRepId = filters.salesRepId;
 
-  console.log('📅 Date range calculated:', {
-    dateRange: filters.dateRange,
-    from: params.from,
-    to: params.to,
-    fromDate: from.toDateString(),
-    toDate: to.toDateString()
-  });
-
   return params;
 }, [filters]);
 
@@ -257,7 +249,6 @@ export default function ReportsDashboard() {
       const result = await reportService.testConnection();
       if (result.success) {
         showToast('API connection successful!', 'success');
-        console.log('API Test Result:', result);
       } else {
         showToast(`API connection failed: ${result.message}`, 'error');
       }

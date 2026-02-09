@@ -281,10 +281,6 @@ class WorkflowService {
         if (!workflowData.id && workflowData._id) {
             workflowData.id = workflowData._id;
         }
-        
-        // 1. LOG THE RESPONSE to see its structure
-        console.log('Create workflow response:', response);
-        console.log('Extracted workflow data:', workflowData);
         return workflowData;
     } catch (error) {
       console.error('Error creating workflow:', error);
@@ -328,7 +324,7 @@ class WorkflowService {
         workflows = result.items;
         pagination.total = result.total || result.items.length;
       } else {
-        console.warn('⚠️ Unexpected API response format:', result);
+        console.warn('Unexpected API response format:', result);
         workflows = [];
       }
       
@@ -339,7 +335,7 @@ class WorkflowService {
       return response;
       
     } catch (error) {
-      console.error('❌ Error getting all workflows:', error);
+      console.error('Error getting all workflows:', error);
       
       // Return empty structure on error
       return {
@@ -355,16 +351,11 @@ class WorkflowService {
   }
 
   // 4. Get a workflow by ID
-  // 4. Get a workflow by ID
   async getWorkflowById(id: string): Promise<Workflow> {
     try {
-        console.log('Fetching workflow with ID:', id); // Debug log
         
         // Make the API call
         const response = await extendedApiClient.get<any>(`/workflows/${id}`);
-        
-        // 1. LOG THE RESPONSE to see its structure
-        console.log('Get workflow response:', response);
         
         let workflowData;
         if (response.data) {
@@ -387,8 +378,6 @@ class WorkflowService {
             console.error('Workflow data missing ID:', workflowData);
             throw new Error('Invalid workflow data: missing ID');
         }
-        
-        console.log('Extracted workflow data:', workflowData);
         return workflowData;
         
     } catch (error) {

@@ -422,7 +422,6 @@ export default function DiamondRimsPreChecklistCreatePage({
   };
 
   const mapChecklistToForm = (checklist: PreChecklist) => {
-    console.log('Mapping checklist to form:', checklist);
     
     return {
       checklistType: checklist?.checklistType || 'diamond_rims',
@@ -1141,8 +1140,6 @@ export default function DiamondRimsPreChecklistCreatePage({
         clientEmail: formData.clientEmail
       };
 
-      console.log('Submitting pre-checklist data:', submissionData);
-
       let result: PreChecklist;
       const userId = sessionStorage.getItem('userId') || undefined;
       
@@ -1153,8 +1150,6 @@ export default function DiamondRimsPreChecklistCreatePage({
         result = await preChecklistService.createPreChecklist(submissionData, userId);
         showToast('Diamond Rims pre-checklist created successfully', 'success');
       }
-
-      console.log('Pre-checklist saved:', result);
 
       if (workOrderId && result._id) {
         await workOrderService.updateWorkOrder(workOrderId, {

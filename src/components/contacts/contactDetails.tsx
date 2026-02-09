@@ -110,8 +110,6 @@ export default function ContactDetails({ contactId }: ContactDetailsProps) {
             await loadOpportunityData(contactData.opportunityId);
           }
         } catch (contactError) {
-          // If contact not found, try loading as opportunity
-          console.log('Contact not found, trying opportunity...');
           await loadOpportunityContact(contactId);
         }
       }

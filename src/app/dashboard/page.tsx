@@ -37,8 +37,6 @@ export default function DashboardPage() {
 
   const userRole = user.role?.name || user.role;
   
-  console.log('User Role:', userRole, 'User:', user);
-  
   switch (userRole) {
     case 'admin':
       return <AdminDashboard user={user} />;

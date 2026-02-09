@@ -441,8 +441,6 @@ export default function EditProfilePage() {
         languages: formData.languages.length > 0 ? formData.languages : undefined,
       };
       
-      console.log('Updating profile with data:', updateData);
-      
       const updatedProfile = await profileService.updateProfile(profileId, updateData);
       
       showToast('Profile updated successfully!', 'success');

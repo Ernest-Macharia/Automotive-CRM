@@ -260,8 +260,6 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
         notes: formData.notes?.trim() || ''
       };
       
-      console.log('Creating KPI with data:', requestData);
-      
       // Use the service method
       const createdKpi = await kpiService.createKPI(requestData);
       showToast('KPI created successfully!', 'success');

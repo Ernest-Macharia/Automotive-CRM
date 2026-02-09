@@ -326,7 +326,6 @@ export default function JobCardCreate(mode = 'create',) {
       if (opportunityId) {
         const opp = await opportunityService.getOpportunityById(opportunityId, false);
         setOpportunity(opp);
-        console.log('Loaded opportunity:', opp);
         
         // Get vehicle from opportunity
         if (opp.vehicles && opp.vehicles.length > 0) {
@@ -391,7 +390,6 @@ export default function JobCardCreate(mode = 'create',) {
     if (!opportunity || autoPopulated) return;
 
     try {
-      console.log('Auto-populating from opportunity:', opportunity);
       
       // Extract customer name
       const customerName = opportunity.customer?.name || '';
@@ -418,7 +416,6 @@ export default function JobCardCreate(mode = 'create',) {
         
         for (const field of fields) {
           if (vehicle[field]) {
-            console.log(`Found registration in field "${field}":`, vehicle[field]);
             return vehicle[field];
           }
         }
@@ -676,8 +673,6 @@ export default function JobCardCreate(mode = 'create',) {
       estimatedHours: formData.estimatedHours || 0,
       status: formData.status || 'pending'
     };
-    
-    console.log('Creating job card with data:', createData);
     
     // Create job card
     const newJobCard = await jobCardService.createJobCard(createData);

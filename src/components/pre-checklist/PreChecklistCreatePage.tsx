@@ -207,7 +207,7 @@ export default function HeadlightPreChecklistCreatePage({
 
   // Load related data and auto-populate from opportunity
   useEffect(() => {
-    loadRelatedData();
+    // loadRelatedData();
   }, [opportunityId, workOrderId, vehicleId, checklistId, mode]);
 
   useEffect(() => {
@@ -228,7 +228,6 @@ export default function HeadlightPreChecklistCreatePage({
           // Initialize workflow only when creating the first pre-checklist
           await lifecycleIntegrationService.initializeWorkOrderLifecycle(opportunityId);
         } catch (error) {
-          console.log('Workflow may already be initialized');
         }
       }
     };
@@ -267,7 +266,6 @@ export default function HeadlightPreChecklistCreatePage({
     if (!opportunity || autoPopulated) return;
 
     try {
-      console.log('Auto-populating from opportunity:', opportunity);
       
       // Extract customer name
       const customerName = opportunity.customer?.name || '';
@@ -276,8 +274,6 @@ export default function HeadlightPreChecklistCreatePage({
 
       // Get vehicle from opportunity vehicles array
       const primaryVehicle = opportunity.vehicles?.[0] || {};
-      
-      console.log('Primary vehicle data:', primaryVehicle);
       
       // Simple registration number extraction
       const getRegistrationNumber = (vehicle: any) => {
@@ -296,7 +292,6 @@ export default function HeadlightPreChecklistCreatePage({
         
         for (const field of fields) {
           if (vehicle[field]) {
-            console.log(`Found registration in field "${field}":`, vehicle[field]);
             return vehicle[field];
           }
         }
@@ -316,17 +311,14 @@ export default function HeadlightPreChecklistCreatePage({
       // 1. First check if opportunity has a direct total field
       if (opportunity.total !== undefined && opportunity.total !== null) {
         totalPrice = opportunity.total;
-        console.log('Using opportunity.total:', totalPrice);
       }
       // 2. Check if there's a current quote with pricing
       else if (opportunity.currentQuote && typeof opportunity.currentQuote === 'object') {
         // If currentQuote is populated with data
         if (opportunity.currentQuote.total) {
           totalPrice = opportunity.currentQuote.total;
-          console.log('Using currentQuote.total:', totalPrice);
         } else if (opportunity.currentQuote.items && Array.isArray(opportunity.currentQuote.items)) {
           totalPrice = opportunity.currentQuote.items.reduce((sum, item) => sum + (item.total || item.price || 0), 0);
-          console.log('Calculated from currentQuote.items:', totalPrice);
         }
       }
       // 3. Check if quotes array has pricing
@@ -334,21 +326,16 @@ export default function HeadlightPreChecklistCreatePage({
         const latestQuote = opportunity.quotes[0]; // Get most recent quote
         if (latestQuote.total) {
           totalPrice = latestQuote.total;
-          console.log('Using latest quote total:', totalPrice);
         } else if (latestQuote.items && Array.isArray(latestQuote.items)) {
           totalPrice = latestQuote.items.reduce((sum, item) => sum + (item.total || item.price || 0), 0);
-          console.log('Calculated from quote items:', totalPrice);
         }
       }
       // 4. Check if there's a workOrder with pricing
       else if (opportunity.workOrder && typeof opportunity.workOrder === 'object') {
         if (opportunity.workOrder.total) {
           totalPrice = opportunity.workOrder.total;
-          console.log('Using workOrder.total:', totalPrice);
         }
       }
-      
-      console.log('Final total price:', totalPrice);
       
       // Update form data
       setFormData(prev => ({
@@ -374,12 +361,6 @@ export default function HeadlightPreChecklistCreatePage({
         additionalInformation: prev.additionalInformation || opportunity.notes || '',
         inspectorName: prev.inspectorName || sessionStorage.getItem('userName') || ''
       }));
-
-      console.log('Updated form data:', {
-        registration: registrationNumber || 'Empty - needs manual entry',
-        price: totalPrice,
-        productService: productServiceNeeded
-      });
       
       setAutoPopulated(true);
       
@@ -389,171 +370,171 @@ export default function HeadlightPreChecklistCreatePage({
     }
   };
 
-  const loadRelatedData = async () => {
-    try {
-      setLoading(true);
+  // const loadRelatedData = async () => {
+  //   try {
+  //     setLoading(true);
 
-      await fetchTechnicians();
+  //     await fetchTechnicians();
 
-      // Load existing checklist if in edit mode
-      if (mode === 'edit' && checklistId) {
-        const checklist = await preChecklistService.getPreChecklistById(checklistId);
-        setExistingChecklist(checklist);
+  //     // Load existing checklist if in edit mode
+  //     if (mode === 'edit' && checklistId) {
+  //       const checklist = await preChecklistService.getPreChecklistById(checklistId);
+  //       setExistingChecklist(checklist);
 
-        const transformedInspectionItems = checklist.inspectionItems?.map(item => ({
-          item: item.item || '',
-          status: (item.status || 'pending') as 'ok' | 'fault' | 'n/a' | 'pending',
-          remarks: item.remarks || '',
-          side: item.side || 'both'
-        })) || [];
+  //       const transformedInspectionItems = checklist.inspectionItems?.map(item => ({
+  //         item: item.item || '',
+  //         status: (item.status || 'pending') as 'ok' | 'fault' | 'n/a' | 'pending',
+  //         remarks: item.remarks || '',
+  //         side: item.side || 'both'
+  //       })) || [];
         
-        setFormData({
-          opportunityId: typeof checklist.opportunityId === 'object' 
-            ? checklist.opportunityId._id 
-            : checklist.opportunityId,
-          vehicleId: typeof checklist.vehicleId === 'object' 
-            ? checklist.vehicleId._id 
-            : checklist.vehicleId,
-          inspectedBy: checklist.inspectedBy 
-            ? (typeof checklist.inspectedBy === 'object' 
-                ? checklist.inspectedBy._id 
-                : checklist.inspectedBy)
-            : sessionStorage.getItem('userId') || '',
-          remarks: checklist.remarks || '',
-          approved: checklist.approved || false,
-          serviceType: checklist.serviceType || 'workshop_installation',
-          inspectorName: checklist.inspectorName || '',
-          customerDetails: checklist.customerDetails || {
-            firstName: '',
-            lastName: '',
-            email: '',
-            phone: '',
-          },
-          carDetails: checklist.carDetails || {
-            regNo: '',
-            make: '',
-            year: '',
-            model: '',
-            vin: ''
-          },
-          productServiceNeeded: checklist.productServiceNeeded || '',
-          productPrice: checklist.productPrice || 0,
-          servicePrice: checklist.servicePrice || 0,
-          additionalInformation: checklist.additionalInformation || '',
-          installationDetails: checklist.installationDetails || {
-            estimatedTime: '1_2_hours',
-            assignedTechnician: '',
-            workStartTime: new Date().toISOString()
-          },
-          deliveryPickupMethod: checklist.deliveryPickupMethod || 'customer_pickup',
-          inspectionItems: transformedInspectionItems,
-          acceptTerms: checklist.acceptTerms || false,
-          acceptDiagnosticCharges: checklist.acceptDiagnosticCharges || false,
-          clientSignature: checklist.clientSignature || '',
-          inspectorSignature: checklist.inspectorSignature || '',
-          uploadedImages: checklist.uploadedImages || []
-        });
+  //       setFormData({
+  //         opportunityId: typeof checklist.opportunityId === 'object' 
+  //           ? checklist.opportunityId._id 
+  //           : checklist.opportunityId,
+  //         vehicleId: typeof checklist.vehicleId === 'object' 
+  //           ? checklist.vehicleId._id 
+  //           : checklist.vehicleId,
+  //         inspectedBy: checklist.inspectedBy 
+  //           ? (typeof checklist.inspectedBy === 'object' 
+  //               ? checklist.inspectedBy._id 
+  //               : checklist.inspectedBy)
+  //           : sessionStorage.getItem('userId') || '',
+  //         remarks: checklist.remarks || '',
+  //         approved: checklist.approved || false,
+  //         serviceType: checklist.serviceType || 'workshop_installation',
+  //         inspectorName: checklist.inspectorName || '',
+  //         customerDetails: checklist.customerDetails || {
+  //           firstName: '',
+  //           lastName: '',
+  //           email: '',
+  //           phone: '',
+  //         },
+  //         carDetails: checklist.carDetails || {
+  //           regNo: '',
+  //           make: '',
+  //           year: '',
+  //           model: '',
+  //           vin: ''
+  //         },
+  //         productServiceNeeded: checklist.productServiceNeeded || '',
+  //         productPrice: checklist.productPrice || 0,
+  //         servicePrice: checklist.servicePrice || 0,
+  //         additionalInformation: checklist.additionalInformation || '',
+  //         installationDetails: checklist.installationDetails || {
+  //           estimatedTime: '1_2_hours',
+  //           assignedTechnician: '',
+  //           workStartTime: new Date().toISOString()
+  //         },
+  //         deliveryPickupMethod: checklist.deliveryPickupMethod || 'customer_pickup',
+  //         inspectionItems: transformedInspectionItems,
+  //         acceptTerms: checklist.acceptTerms || false,
+  //         acceptDiagnosticCharges: checklist.acceptDiagnosticCharges || false,
+  //         clientSignature: checklist.clientSignature || '',
+  //         inspectorSignature: checklist.inspectorSignature || '',
+  //         uploadedImages: checklist.uploadedImages || []
+  //       });
 
-        // Set opportunity and vehicle from existing checklist
-        if (typeof checklist.opportunityId === 'object') {
-          setOpportunity(checklist.opportunityId);
-        }
-        if (typeof checklist.vehicleId === 'object') {
-          setVehicle(checklist.vehicleId);
-        }
-      }
+  //       // Set opportunity and vehicle from existing checklist
+  //       if (typeof checklist.opportunityId === 'object') {
+  //         setOpportunity(checklist.opportunityId);
+  //       }
+  //       if (typeof checklist.vehicleId === 'object') {
+  //         setVehicle(checklist.vehicleId);
+  //       }
+  //     }
 
-      // Load opportunity if provided
-      if (opportunityId) {
-      try {
-        // Load opportunity with quotes populated
-        const opp = await opportunityService.getOpportunityById(opportunityId, false); // false means get full data
+  //     // Load opportunity if provided
+  //     if (opportunityId) {
+  //     try {
+  //       // Load opportunity with quotes populated
+  //       const opp = await opportunityService.getOpportunityById(opportunityId, false); // false means get full data
         
-        // If quotes array exists but isn't populated, fetch quotes separately
-        if (opp.quotes && opp.quotes.length > 0 && typeof opp.quotes[0] === 'string') {
-          try {
-            // You might need a separate API call to get quote details
-            // This depends on your API structure
-          } catch (quoteError) {
-            console.error('Error loading quote details:', quoteError);
-          }
-        }
+  //       // If quotes array exists but isn't populated, fetch quotes separately
+  //       if (opp.quotes && opp.quotes.length > 0 && typeof opp.quotes[0] === 'string') {
+  //         try {
+  //           // You might need a separate API call to get quote details
+  //           // This depends on your API structure
+  //         } catch (quoteError) {
+  //           console.error('Error loading quote details:', quoteError);
+  //         }
+  //       }
         
-        setOpportunity(opp);
+  //       setOpportunity(opp);
         
-        // Get vehicle from opportunity vehicles
-        if (opp.vehicles && opp.vehicles.length > 0) {
-          const primaryVehicle = opp.vehicles[0];
-          setVehicle(primaryVehicle);
+  //       // Get vehicle from opportunity vehicles
+  //       if (opp.vehicles && opp.vehicles.length > 0) {
+  //         const primaryVehicle = opp.vehicles[0];
+  //         setVehicle(primaryVehicle);
           
-          // Set vehicle ID
-          setFormData(prev => ({
-            ...prev,
-            opportunityId,
-            vehicleId: primaryVehicle._id || vehicleId || ''
-          }));
-        } else if (vehicleId) {
-          // Fallback to provided vehicleId
-          try {
-            const veh = await vehicleService.getVehicleById(vehicleId);
-            setVehicle(veh);
+  //         // Set vehicle ID
+  //         setFormData(prev => ({
+  //           ...prev,
+  //           opportunityId,
+  //           vehicleId: primaryVehicle._id || vehicleId || ''
+  //         }));
+  //       } else if (vehicleId) {
+  //         // Fallback to provided vehicleId
+  //         try {
+  //           const veh = await vehicleService.getVehicleById(vehicleId);
+  //           setVehicle(veh);
             
-            setFormData(prev => ({
-              ...prev,
-              opportunityId,
-              vehicleId
-            }));
-          } catch (vehError) {
-            console.error('Error loading vehicle:', vehError);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading opportunity:', error);
-        showToast('Could not load opportunity details', 'warning');
-      }
-    }
+  //           setFormData(prev => ({
+  //             ...prev,
+  //             opportunityId,
+  //             vehicleId
+  //           }));
+  //         } catch (vehError) {
+  //           console.error('Error loading vehicle:', vehError);
+  //         }
+  //       }
+  //     } catch (error) {
+  //       console.error('Error loading opportunity:', error);
+  //       showToast('Could not load opportunity details', 'warning');
+  //     }
+  //   }
 
-      // Load work order if ID provided
-      if (workOrderId) {
-        try {
-          const wo = await workOrderService.getWorkOrderById(workOrderId);
-          setWorkOrder(wo);
+  //     // Load work order if ID provided
+  //     if (workOrderId) {
+  //       try {
+  //         const wo = await workOrderService.getWorkOrderById(workOrderId);
+  //         setWorkOrder(wo);
           
-          if (wo.opportunityId) {
-            const oppId = typeof wo.opportunityId === 'object' ? wo.opportunityId._id : wo.opportunityId;
-            if (!opportunityId) {
-              const opp = await opportunityService.getOpportunityById(oppId);
-              setOpportunity(opp);
+  //         if (wo.opportunityId) {
+  //           const oppId = typeof wo.opportunityId === 'object' ? wo.opportunityId._id : wo.opportunityId;
+  //           if (!opportunityId) {
+  //             const opp = await opportunityService.getOpportunityById(oppId);
+  //             setOpportunity(opp);
               
-              setFormData(prev => ({
-                ...prev,
-                opportunityId: oppId
-              }));
-            }
-          }
-        } catch (error) {
-          console.error('Error loading work order:', error);
-          showToast('Could not load work order details', 'warning');
-        }
-      }
+  //             setFormData(prev => ({
+  //               ...prev,
+  //               opportunityId: oppId
+  //             }));
+  //           }
+  //         }
+  //       } catch (error) {
+  //         console.error('Error loading work order:', error);
+  //         showToast('Could not load work order details', 'warning');
+  //       }
+  //     }
 
-      // If we still don't have opportunity, but have IDs in formData, try to load them
-      if (!opportunity && formData.opportunityId) {
-        try {
-          const opp = await opportunityService.getOpportunityById(formData.opportunityId);
-          setOpportunity(opp);
-        } catch (error) {
-          console.error('Error loading opportunity by form ID:', error);
-        }
-      }
+  //     // If we still don't have opportunity, but have IDs in formData, try to load them
+  //     if (!opportunity && formData.opportunityId) {
+  //       try {
+  //         const opp = await opportunityService.getOpportunityById(formData.opportunityId);
+  //         setOpportunity(opp);
+  //       } catch (error) {
+  //         console.error('Error loading opportunity by form ID:', error);
+  //       }
+  //     }
 
-    } catch (error) {
-      console.error('Error loading related data:', error);
-      showToast('Failed to load related information', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+  //   } catch (error) {
+  //     console.error('Error loading related data:', error);
+  //     showToast('Failed to load related information', 'error');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -594,13 +575,10 @@ export default function HeadlightPreChecklistCreatePage({
         
         // Get role name using the user service method
         const roleName = userService.getUserRoleName(user);
-        console.log(`User ${user.name} has role: ${roleName}`);
         
         // Check if role matches technician (case insensitive)
         return roleName?.toLowerCase() === 'technician';
       });
-      
-      console.log('Filtered technicians:', technicianUsers);
       setTechnicians(technicianUsers);
       
       // Auto-select first technician if none selected (optional)
@@ -712,275 +690,156 @@ export default function HeadlightPreChecklistCreatePage({
   };
 
   // Add this function to your PreChecklistCreatePage component
-  const handleSubmitWithAutoTransition = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // const handleSubmitWithAutoTransition = async (e: React.FormEvent) => {
+  //   e.preventDefault();
     
-    try {
-      setSubmitting(true);
+  //   try {
+  //     setSubmitting(true);
 
-      // Validate required fields
-      if (!formData.carDetails.regNo.trim()) {
-        showToast('Vehicle registration number is required', 'error');
-        setCurrentStep(3); // Go to vehicle step
-        setSubmitting(false);
-        return;
-      }
+  //     // Validate required fields
+  //     if (!formData.carDetails.regNo.trim()) {
+  //       showToast('Vehicle registration number is required', 'error');
+  //       setCurrentStep(3); // Go to vehicle step
+  //       setSubmitting(false);
+  //       return;
+  //     }
 
-      if (!formData.acceptTerms || !formData.acceptDiagnosticCharges) {
-        showToast('Please accept all terms and conditions', 'error');
-        setCurrentStep(5); // Go to terms step
-        setSubmitting(false);
-        return;
-      }
+  //     if (!formData.acceptTerms || !formData.acceptDiagnosticCharges) {
+  //       showToast('Please accept all terms and conditions', 'error');
+  //       setCurrentStep(5); // Go to terms step
+  //       setSubmitting(false);
+  //       return;
+  //     }
 
-      // Prepare inspection items - convert pending to n/a
-      const submissionItems = formData.inspectionItems.map(item => ({
-        item: item.item,
-        status: item.status === 'pending' ? 'n/a' : item.status,
-        remarks: item.remarks || '',
-        side: item.side || 'both'
-      }));
+  //     // Prepare inspection items - convert pending to n/a
+  //     const submissionItems = formData.inspectionItems.map(item => ({
+  //       item: item.item,
+  //       status: item.status === 'pending' ? 'n/a' : item.status,
+  //       remarks: item.remarks || '',
+  //       side: item.side || 'both'
+  //     }));
 
-      // Check if we can auto-approve based on inspection items
-      const hasFaults = submissionItems.some(item => item.status === 'fault');
-      const allItemsChecked = submissionItems.every(item => 
-        item.status === 'ok' || item.status === 'n/a' || item.status === 'fault'
-      );
+  //     // Check if we can auto-approve based on inspection items
+  //     const hasFaults = submissionItems.some(item => item.status === 'fault');
+  //     const allItemsChecked = submissionItems.every(item => 
+  //       item.status === 'ok' || item.status === 'n/a' || item.status === 'fault'
+  //     );
       
-      // Auto-approve if all items are checked and there are no faults
-      const shouldAutoApprove = allItemsChecked && !hasFaults;
+  //     // Auto-approve if all items are checked and there are no faults
+  //     const shouldAutoApprove = allItemsChecked && !hasFaults;
 
-      // Create submission data
-      const submissionData = {
-        opportunityId: formData.opportunityId,
-        vehicleId: formData.vehicleId,
-        inspectionItems: submissionItems,
-        remarks: formData.remarks || '',
-        approved: shouldAutoApprove, // Set initial approval status
+  //     // Create submission data
+  //     const submissionData = {
+  //       opportunityId: formData.opportunityId,
+  //       vehicleId: formData.vehicleId,
+  //       inspectionItems: submissionItems,
+  //       remarks: formData.remarks || '',
+  //       approved: shouldAutoApprove, // Set initial approval status
         
-        // Include headlight-specific data
-        serviceType: formData.serviceType,
-        inspectorName: formData.inspectorName,
-        customerDetails: formData.customerDetails,
-        carDetails: formData.carDetails,
-        productServiceNeeded: formData.productServiceNeeded,
-        productPrice: formData.productPrice,
-        servicePrice: formData.servicePrice,
-        additionalInformation: formData.additionalInformation,
-        installationDetails: formData.installationDetails,
-        deliveryPickupMethod: formData.deliveryPickupMethod,
-        acceptTerms: formData.acceptTerms,
-        acceptDiagnosticCharges: formData.acceptDiagnosticCharges,
-        clientSignature: formData.clientSignature,
-        inspectorSignature: formData.inspectorSignature,
-        uploadedImages: formData.uploadedImages
-      };
+  //       // Include headlight-specific data
+  //       serviceType: formData.serviceType,
+  //       inspectorName: formData.inspectorName,
+  //       customerDetails: formData.customerDetails,
+  //       carDetails: formData.carDetails,
+  //       productServiceNeeded: formData.productServiceNeeded,
+  //       productPrice: formData.productPrice,
+  //       servicePrice: formData.servicePrice,
+  //       additionalInformation: formData.additionalInformation,
+  //       installationDetails: formData.installationDetails,
+  //       deliveryPickupMethod: formData.deliveryPickupMethod,
+  //       acceptTerms: formData.acceptTerms,
+  //       acceptDiagnosticCharges: formData.acceptDiagnosticCharges,
+  //       clientSignature: formData.clientSignature,
+  //       inspectorSignature: formData.inspectorSignature,
+  //       uploadedImages: formData.uploadedImages
+  //     };
 
-      console.log('Submitting pre-checklist:', submissionData);
-
-      let result;
+  //     let result;
     
-      if (mode === 'edit' && checklistId) {
-        result = await preChecklistService.updatePreChecklist(checklistId, submissionData);
-        showToast('Pre-checklist updated successfully', 'success');
-      } else {
-        const userId = sessionStorage.getItem('userId') || undefined;
-        result = await preChecklistService.createPreChecklist(submissionData, userId);
-        showToast('Pre-checklist created successfully', 'success');
+  //     if (mode === 'edit' && checklistId) {
+  //       result = await preChecklistService.updatePreChecklist(checklistId, submissionData);
+  //       showToast('Pre-checklist updated successfully', 'success');
+  //     } else {
+  //       const userId = sessionStorage.getItem('userId') || undefined;
+  //       result = await preChecklistService.createPreChecklist(submissionData, userId);
+  //       showToast('Pre-checklist created successfully', 'success');
         
-        // Update work order with pre-checklist ID
-        if (workOrderId && result._id) {
-          try {
-            await workOrderService.updateWorkOrder(workOrderId, {
-              preChecklistId: result._id,
-              preChecklistStatus: shouldAutoApprove ? 'completed' : 'in_progress',
-              updatedAt: new Date().toISOString()
-            });
-          } catch (updateError) {
-            console.error('Error updating work order:', updateError);
-          }
-        }
+  //       // Update work order with pre-checklist ID
+  //       if (workOrderId && result._id) {
+  //         try {
+  //           await workOrderService.updateWorkOrder(workOrderId, {
+  //             preChecklistId: result._id,
+  //             preChecklistStatus: shouldAutoApprove ? 'completed' : 'in_progress',
+  //             updatedAt: new Date().toISOString()
+  //           });
+  //         } catch (updateError) {
+  //           console.error('Error updating work order:', updateError);
+  //         }
+  //       }
         
-        // AUTO-APPROVE AND AUTO-TRANSITION
-        if (shouldAutoApprove) {
-          try {
-            // Step 1: Auto-approve the checklist
-            const approvedChecklist = await preChecklistService.approvePreChecklist(result._id, userId);
+  //       // AUTO-APPROVE AND AUTO-TRANSITION
+  //       if (shouldAutoApprove) {
+  //         try {
+  //           // Step 1: Auto-approve the checklist
+  //           const approvedChecklist = await preChecklistService.approvePreChecklist(result._id, userId);
             
-            // Step 2: Auto-transition to Job Card stage using lifecycle service
-            const opportunityId = result.opportunityId || formData.opportunityId;
-            if (opportunityId) {
-              // Use lifecycle integration service for transition
-              await lifecycleIntegrationService.transitionToStage(
-                opportunityId,
-                'jobcard',
-                {
-                  skipValidation: true,
-                  metadata: {
-                    autoTransition: true,
-                    checklistId: result._id,
-                    triggeredBy: 'pre-checklist-auto-approval'
-                  }
-                }
-              );
+  //           // Step 2: Auto-transition to Job Card stage using lifecycle service
+  //           const opportunityId = result.opportunityId || formData.opportunityId;
+  //           if (opportunityId) {
+  //             // Use lifecycle integration service for transition
+  //             await lifecycleIntegrationService.transitionToStage(
+  //               opportunityId,
+  //               'jobcard',
+  //               {
+  //                 skipValidation: true,
+  //                 metadata: {
+  //                   autoTransition: true,
+  //                   checklistId: result._id,
+  //                   triggeredBy: 'pre-checklist-auto-approval'
+  //                 }
+  //               }
+  //             );
               
-              // Step 3: Update work order stage
-              if (workOrderId) {
-                await workOrderService.updateWorkOrder(workOrderId, {
-                  currentStage: 'job_card',
-                  updatedAt: new Date().toISOString()
-                });
-              }
+  //             // Step 3: Update work order stage
+  //             if (workOrderId) {
+  //               await workOrderService.updateWorkOrder(workOrderId, {
+  //                 currentStage: 'job_card',
+  //                 updatedAt: new Date().toISOString()
+  //               });
+  //             }
               
-              showToast('Pre-checklist auto-approved! Moved to Job Card stage.', 'success');
-            }
-          } catch (autoError) {
-            console.error('Auto-transition failed:', autoError);
-            showToast('Pre-checklist created and auto-approved, but transition failed.', 'warning');
-          }
-        } else {
-          showToast('Pre-checklist created. Please review and approve checklist to proceed.', 'info');
-        }
-      }
+  //             showToast('Pre-checklist auto-approved! Moved to Job Card stage.', 'success');
+  //           }
+  //         } catch (autoError) {
+  //           console.error('Auto-transition failed:', autoError);
+  //           showToast('Pre-checklist created and auto-approved, but transition failed.', 'warning');
+  //         }
+  //       } else {
+  //         showToast('Pre-checklist created. Please review and approve checklist to proceed.', 'info');
+  //       }
+  //     }
 
-      // NAVIGATE BACK TO WORK ORDER DETAILS PAGE
-      if (workOrderId) {
-        // Redirect back to work order details
-        router.push(`/orders/work-orders/${workOrderId}`);
-      } else if (source === 'opportunity' && formData.opportunityId) {
-        // If coming from opportunity, go to opportunity page
-        router.push(`/opportunities/${formData.opportunityId}`);
-      } else if (result._id) {
-        // Fallback: Go to pre-checklist details
-        router.push(`/pre-checklist/${result._id}`);
-      } else {
-        router.push('/prechecklists');
-      }
+  //     // NAVIGATE BACK TO WORK ORDER DETAILS PAGE
+  //     if (workOrderId) {
+  //       // Redirect back to work order details
+  //       router.push(`/orders/work-orders/${workOrderId}`);
+  //     } else if (source === 'opportunity' && formData.opportunityId) {
+  //       // If coming from opportunity, go to opportunity page
+  //       router.push(`/opportunities/${formData.opportunityId}`);
+  //     } else if (result._id) {
+  //       // Fallback: Go to pre-checklist details
+  //       router.push(`/pre-checklist/${result._id}`);
+  //     } else {
+  //       router.push('/prechecklists');
+  //     }
 
-    } catch (error: any) {
-      console.error('Error submitting pre-checklist:', error);
-      showToast(error.message || 'Failed to save pre-checklist', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    try {
-      setSubmitting(true);
-
-      // Validate required fields
-      if (!formData.carDetails.regNo.trim()) {
-        showToast('Vehicle registration number is required', 'error');
-        setCurrentStep(3); // Go to vehicle step
-        setSubmitting(false);
-        return;
-      }
-
-      if (!formData.acceptTerms || !formData.acceptDiagnosticCharges) {
-        showToast('Please accept all terms and conditions', 'error');
-        setCurrentStep(5); // Go to terms step
-        setSubmitting(false);
-        return;
-      }
-
-      // if (!formData.clientSignature) {
-      //   showToast('Client signature is required', 'error');
-      //   setCurrentStep(5); // Go to terms step
-      //   setSubmitting(false);
-      //   return;
-      // }
-
-      // if (!formData.inspectorSignature) {
-      //   showToast('Inspector signature is required', 'error');
-      //   setCurrentStep(5); // Go to terms step
-      //   setSubmitting(false);
-      //   return;
-      // }
-
-      if (formData.serviceType === 'workshop_installation' && !formData.installationDetails.assignedTechnician) {
-      showToast('Please assign a technician for workshop installation', 'error');
-      setCurrentStep(4);
-      setSubmitting(false);
-      return;
-    }
-
-      // Prepare inspection items - convert pending to n/a
-      const submissionItems = formData.inspectionItems.map(item => ({
-        item: item.item,
-        status: item.status === 'pending' ? 'n/a' : item.status,
-        remarks: item.remarks || '',
-        side: item.side || 'both'
-      }));
-
-      // Create submission data matching the CreatePreChecklistDto interface
-      const submissionData = {
-        opportunityId: formData.opportunityId,
-        vehicleId: formData.vehicleId,
-        inspectionItems: submissionItems,
-        remarks: formData.remarks || '',
-        approved: false,
-        
-        // Include headlight-specific data
-        serviceType: formData.serviceType,
-        inspectorName: formData.inspectorName,
-        customerDetails: formData.customerDetails,
-        carDetails: formData.carDetails,
-        productServiceNeeded: formData.productServiceNeeded,
-        productPrice: formData.productPrice,
-        servicePrice: formData.servicePrice,
-        additionalInformation: formData.additionalInformation,
-        installationDetails: formData.installationDetails,
-        deliveryPickupMethod: formData.deliveryPickupMethod,
-        acceptTerms: formData.acceptTerms,
-        acceptDiagnosticCharges: formData.acceptDiagnosticCharges,
-        clientSignature: formData.clientSignature,
-        inspectorSignature: formData.inspectorSignature,
-        uploadedImages: formData.uploadedImages
-      };
-
-      console.log('Submitting pre-checklist:', submissionData);
-
-      let result;
-      
-      if (mode === 'edit' && checklistId) {
-        result = await preChecklistService.updatePreChecklist(checklistId, submissionData);
-        showToast('Pre-checklist updated successfully', 'success');
-      } else {
-        const userId = sessionStorage.getItem('userId') || undefined;
-        result = await preChecklistService.createPreChecklist(submissionData, userId);
-        showToast('Pre-checklist created successfully', 'success');
-        
-        // Update work order with pre-checklist ID if needed
-        if (workOrderId && result._id) {
-          try {
-            await workOrderService.updateWorkOrder(workOrderId, {
-              preChecklistId: result._id
-            });
-          } catch (updateError) {
-            console.error('Error updating work order:', updateError);
-          }
-        }
-      }
-
-      // Navigate based on source
-      if (source === 'workflow' && workOrderId) {
-        router.push(`/orders/work-orders/${workOrderId}`);
-      } else if (result._id) {
-        router.push(`/pre-checklist/${result._id}`);
-      } else {
-        router.push('/prechecklists');
-      }
-
-    } catch (error: any) {
-      console.error('Error submitting pre-checklist:', error);
-      showToast(error.message || 'Failed to save pre-checklist', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  //   } catch (error: any) {
+  //     console.error('Error submitting pre-checklist:', error);
+  //     showToast(error.message || 'Failed to save pre-checklist', 'error');
+  //   } finally {
+  //     setSubmitting(false);
+  //   }
+  // };
 
   const handleCancel = () => {
     if (source === 'workflow' && workOrderId) {
@@ -2716,7 +2575,7 @@ const PDFDownloadButton = () => (
                 </button>
               ) : (
                 <button
-                  onClick={handleSubmitWithAutoTransition}
+                  // onClick={handleSubmitWithAutoTransition}
                   disabled={submitting}
                   className="px-6 py-3 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
                 >

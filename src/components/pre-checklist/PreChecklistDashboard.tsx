@@ -483,15 +483,6 @@ export default function PreChecklistDashboard() {
                             )}
                           </td>
                           <td className="px-4 py-3">
-                            <div className="text-sm text-gray-900">{formatDate(checklist.createdAt as string)}</div>
-                            <div className="text-xs text-gray-500 mt-0.5">
-                              {typeof checklist.inspectedBy === 'object' 
-                                ? `${checklist.inspectedBy.firstName?.charAt(0)}. ${checklist.inspectedBy.lastName}`
-                                : 'System'
-                              }
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
                             <div className="flex items-center gap-1.5">
                               {getStatusBadge(checklist.approved)}
                               {faultItems.length > 0 && (

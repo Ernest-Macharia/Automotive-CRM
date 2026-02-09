@@ -122,8 +122,6 @@ export default function EditLeadForm({ leadId, onBack, onSave }: EditLeadFormPro
       const cleanedData = Object.fromEntries(
         Object.entries(updateData).filter(([_, value]) => value !== undefined)
       );
-
-      console.log('Updating lead with data:', cleanedData);
       
       await leadService.updateLead(leadId, cleanedData);
       showToast('Lead updated successfully!', 'success');

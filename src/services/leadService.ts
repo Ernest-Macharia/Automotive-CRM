@@ -184,7 +184,6 @@ export interface LISConfig {
 class LeadService {
   async createLead(data: CreateLeadData): Promise<Lead> {
     try {
-      console.log('Creating lead with data:', data);
 
       const leadData = {
         ...data,
@@ -312,7 +311,6 @@ class LeadService {
       // Handle 404 error specifically - means no lead exists for this opportunity
       if (error.message?.includes('404') || error.message?.includes('not found') || 
           (error.statusCode === 404) || error.message?.includes('Lead not found')) {
-        console.log(`No lead found for opportunity ${opportunityId}`);
         return {
           data: [],
           pagination: {
