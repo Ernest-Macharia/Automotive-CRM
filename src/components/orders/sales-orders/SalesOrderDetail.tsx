@@ -427,15 +427,12 @@ const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
 
     const invId = getInvoiceIdFromOrder(refreshed);
     if (invId) {
-      console.log(`Invoice found after ${i + 1} attempts: ${invId}`);
       return invId;
     }
 
-    console.log(`Waiting for invoice... attempt ${i + 1}/${maxAttempts}`);
     await sleep(delayMs);
   }
-  
-  console.log('Invoice not found after maximum attempts');
+
   return null;
 }, [orderId]);
 

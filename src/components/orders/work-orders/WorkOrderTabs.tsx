@@ -5,7 +5,7 @@ import {
   BarChart3, Users, Target
 } from 'lucide-react';
 import { WorkOrder } from '@/services/workOrderService';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 interface WorkOrderTabsProps {
   activeTab: string;
@@ -35,19 +35,26 @@ export default function WorkOrderTabs({
   });
 
   useEffect(() => {
-    // Calculate notification counts
     const delayCount = workOrder.status === 'delayed' ? 1 : 0;
-    const jobCardCount = Array.isArray(workOrder.jobCards) 
-      ? workOrder.jobCards.filter((jc: any) => jc.status === 'pending' || jc.status === 'in_progress').length 
+
+    const jobCardCount = Array.isArray((workOrder as any).jobCards)
+      ? (workOrder as any).jobCards.filter(
+          (jc: any) => jc.status === 'pending' || jc.status === 'in_progress'
+        ).length
       : 0;
+
     const noteCount = counts.notes || 0;
 
-    setNotifications({
-      delays: delayCount,
-      jobCards: jobCardCount,
-      notes: noteCount
+    setNotifications(prev => {
+      const next = { delays: delayCount, jobCards: jobCardCount, notes: noteCount };
+      if (
+        prev.delays === next.delays &&
+        prev.jobCards === next.jobCards &&
+        prev.notes === next.notes
+      ) return prev; // ✅ prevents unnecessary updates
+      return next;
     });
-  }, [workOrder, counts]);
+  }, [workOrder.status, (workOrder as any).jobCards, counts.notes]);
 
   const tabs = [
     { 
