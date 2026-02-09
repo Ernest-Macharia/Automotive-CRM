@@ -598,9 +598,6 @@ export default function EditOpportunityPage() {
           | 'appointment_scheduled' | 'non_progressive' | 'lost' | 'won' | undefined
       };
 
-      console.log('Updating opportunity with data:', updateData);
-      console.log('Services/Products data:', mappedServicesProducts);
-
       const result = await opportunityService.updateOpportunity(opportunityId!, updateData);
       
       showToast('Opportunity updated successfully!', 'success', 3000);

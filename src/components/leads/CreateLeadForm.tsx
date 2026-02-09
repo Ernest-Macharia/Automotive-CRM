@@ -149,8 +149,6 @@ export default function CreateLeadForm({ opportunityId }: CreateLeadFormProps) {
         nationalId: formData.nationalId?.trim() || undefined,
       };
       
-      console.log('Creating lead with data:', finalData);
-      
       const createdLead = await leadService.createLead(finalData);
       
       setShowConfirmation(false);

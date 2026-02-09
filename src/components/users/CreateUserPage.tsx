@@ -118,11 +118,12 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({
 
     setLoading(true);
     try {
+      // Prepare user data with correct property names
       const userData = {
         name: formData.name || formData.email.split('@')[0],
         email: formData.email,
         password: formData.password,
-        role: formData.role,
+        roleName: formData.role, // Use roleName instead of role
         active: formData.active,
         canViewSummary: formData.canViewSummary,
         ...(formData.phone && { phone: formData.phone }),
@@ -132,10 +133,27 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({
 
       let newUser;
       if (isAdminRegister) {
-        newUser = await userService.registerUser(userData);
+        // For registerUser, we need to pass RegisterUserData
+        newUser = await userService.registerUser({
+          name: userData.name,
+          email: userData.email,
+          password: userData.password,
+          roleName: userData.roleName,
+        });
         toast.success('User registered successfully with admin privileges!');
       } else {
-        newUser = await userService.createUser(userData);
+        // For createUser, we need to pass CreateUserData
+        newUser = await userService.createUser({
+          name: userData.name,
+          email: userData.email,
+          roleName: userData.roleName,
+          // Only include additional fields if they exist
+          ...(userData.phone && { phone: userData.phone }),
+          ...(userData.department && { department: userData.department }),
+          ...(userData.permissions && userData.permissions.length > 0 && { permissions: userData.permissions }),
+          active: userData.active,
+          canViewSummary: userData.canViewSummary,
+        });
         toast.success('User created successfully!');
       }
 

@@ -363,23 +363,23 @@ export default function HeadlightPostChecklistCreatePage({
           const preChecklistData = await preChecklistService.getPreChecklistById(preChecklistId);
           setPreChecklist(preChecklistData);
           
-          if (preChecklistData.customerDetails && typeof preChecklistData.customerDetails === 'object') {
-            customerDetails = {
-              firstName: preChecklistData.customerDetails.firstName || '',
-              lastName: preChecklistData.customerDetails.lastName || '',
-              email: preChecklistData.customerDetails.email || '',
-              phone: preChecklistData.customerDetails.phone || '',
-            };
-          }
+          // if (preChecklistData.customerDetails && typeof preChecklistData.customerDetails === 'object') {
+          //   customerDetails = {
+          //     firstName: preChecklistData.customerDetails.firstName || '',
+          //     lastName: preChecklistData.customerDetails.lastName || '',
+          //     email: preChecklistData.customerDetails.email || '',
+          //     phone: preChecklistData.customerDetails.phone || '',
+          //   };
+          // }
           
-          if (preChecklistData.carDetails && typeof preChecklistData.carDetails === 'object') {
-            vehicleDetails = {
-              regNo: preChecklistData.carDetails.regNo || '',
-              make: preChecklistData.carDetails.make || '',
-              model: preChecklistData.carDetails.model || '',
-              year: preChecklistData.carDetails.year || '',
-            };
-          }
+          // if (preChecklistData.carDetails && typeof preChecklistData.carDetails === 'object') {
+          //   vehicleDetails = {
+          //     regNo: preChecklistData.carDetails.regNo || '',
+          //     make: preChecklistData.carDetails.make || '',
+          //     model: preChecklistData.carDetails.model || '',
+          //     year: preChecklistData.carDetails.year || '',
+          //   };
+          // }
           
           serviceDetails = {
             productServiceNeeded: preChecklistData.productServiceNeeded || '',
@@ -670,8 +670,6 @@ export default function HeadlightPostChecklistCreatePage({
         additionalComments: formData.additionalComments,
         approved: allItemsCompleted
       };
-
-      console.log('Submitting post-checklist:', submissionData);
 
       let result;
       

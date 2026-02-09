@@ -787,7 +787,6 @@ class ContactService {
       try {
         return await this.getContactsStats();
       } catch (apiError) {
-        console.log('Contacts stats API failed, calculating locally...');
         const contacts = await this.getAllContactsWithFallback();
         return this.calculateLocalStats(contacts);
       }

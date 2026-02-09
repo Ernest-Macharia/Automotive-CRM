@@ -70,28 +70,18 @@ export default function CreateQuotePage() {
   const opportunityId = searchParams.get('opportunityId');
   const vehicleId = searchParams.get('vehicleId');
 
-  console.log('CreateQuotePage rendering with:', {
-    searchParams: Object.fromEntries(searchParams.entries()),
-    opportunityId,
-    vehicleId,
-    formDataOpportunityId: formData.opportunityId
-  });
-
   useEffect(() => {
-    console.log('Component mounted, opportunityId:', opportunityId, 'vehicleId:', vehicleId);
     
     // Generate quote number immediately
     generateQuoteNumber();
     
     // Load opportunity data if ID is provided
     if (opportunityId) {
-      console.log('Loading opportunity with ID:', opportunityId);
       loadOpportunityData(opportunityId);
     }
     
     // Load vehicle data if ID is provided directly (not from opportunity)
     if (vehicleId && !opportunityId) {
-      console.log('Loading standalone vehicle with ID:', vehicleId);
       loadVehicleData(vehicleId);
     }
   }, [opportunityId, vehicleId]);
@@ -167,11 +157,9 @@ export default function CreateQuotePage() {
 
   const loadOpportunityData = async (id: string) => {
     try {
-      console.log('Loading opportunity data for ID:', id);
       setLoadingOpportunity(true);
       
       const opportunityData = await opportunityService.getOpportunityById(id);
-      console.log('Opportunity data loaded:', opportunityData);
       
       if (!opportunityData) {
         throw new Error('Opportunity not found');
@@ -189,8 +177,6 @@ export default function CreateQuotePage() {
         serviceId: item.serviceId
       })) || [];
       
-      console.log('Generated items from opportunity:', items);
-      
       // If no servicesProducts, create a default item
       if (items.length === 0) {
         items.push({
@@ -199,7 +185,6 @@ export default function CreateQuotePage() {
           unitPrice: opportunityData.total || 0,
           total: opportunityData.total || 0
         });
-        console.log('Added default item:', items[0]);
       }
       
       const subtotal = parseFloat(items.reduce((sum, item) => sum + item.total, 0).toFixed(2));
@@ -208,7 +193,6 @@ export default function CreateQuotePage() {
       
       // Get vehicle ID from vehicles array if available
       const vehicleIdFromOpp = opportunityData.vehicles?.[0]?._id || opportunityData.vehicles?.[0]?.id || '';
-      console.log('Extracted vehicle ID:', vehicleIdFromOpp);
       
       // Always use the provided ID, not opportunityData._id
       setFormData(prev => {
@@ -222,14 +206,12 @@ export default function CreateQuotePage() {
           notes: `Quote for opportunity: ${opportunityData.subject}`,
           vehicleId: vehicleIdFromOpp
         };
-        console.log('Setting form data:', newData);
         return newData;
       });
       
       // Load vehicle data from opportunity
       if (opportunityData.vehicles?.[0]) {
         const vehicleDataId = opportunityData.vehicles[0]._id || opportunityData.vehicles[0].id;
-        console.log('Loading vehicle data for ID:', vehicleDataId);
         await loadVehicleData(vehicleDataId);
       }
       
@@ -249,7 +231,6 @@ export default function CreateQuotePage() {
             total: 0
           }] : prev.items
         };
-        console.log('Setting form data after error:', newData);
         return newData;
       });
     } finally {
@@ -381,12 +362,6 @@ export default function CreateQuotePage() {
   };
 
   const validateForm = (): boolean => {
-    console.log('Validating form data:', {
-      opportunityId: formData.opportunityId,
-      items: formData.items,
-      totalAmount: formData.totalAmount,
-      opportunityIdFromParam: opportunityId
-    });
     
     // Check opportunity ID - allow manual entry if not from URL
     if (!formData.opportunityId || !formData.opportunityId.trim()) {
@@ -433,17 +408,11 @@ export default function CreateQuotePage() {
       showToast('Total amount must be greater than 0', 'error');
       return false;
     }
-    
-    console.log('Form validation passed');
     return true;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    console.log('Submitting form...');
-    console.log('Current form data:', formData);
-    console.log('Opportunity ID from params:', opportunityId);
     
     if (!validateForm()) {
       console.error('Form validation failed');
@@ -460,15 +429,6 @@ export default function CreateQuotePage() {
         throw new Error('Opportunity ID is missing');
       }
       
-      console.log('Creating quote with data:', {
-        quoteNumber: formData.quoteNumber,
-        opportunityId: finalOpportunityId,
-        vehicleId: formData.vehicleId,
-        items: formData.items,
-        totalAmount: formData.totalAmount,
-        notes: formData.notes
-      });
-      
       // Prepare data matching backend DTO
       const quoteData = {
         quoteNumber: formData.quoteNumber || undefined,
@@ -484,11 +444,7 @@ export default function CreateQuotePage() {
         notes: formData.notes || undefined,
       };
       
-      console.log('Sending to API:', quoteData);
-      
       const quote = await quoteService.createQuote(quoteData);
-      
-      console.log('Quote created successfully:', quote);
       showToast('Quote created successfully!', 'success');
       router.push(`/quotes/${quote.id}`);
       

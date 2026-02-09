@@ -395,12 +395,6 @@ class PostChecklistService {
       
       // If approved and updating items, handle specially
       if (currentChecklist.approved && data.inspectionItems) {
-        // Create audit log entry
-        console.log(`Audit: Post-checklist ${id} updated after approval`, {
-          previousItems: currentChecklist.inspectionItems,
-          newItems: data.inspectionItems,
-          timestamp: new Date().toISOString()
-        });
         
         // Keep approval status
         const updateData: UpdatePostChecklistDto = {
@@ -603,21 +597,12 @@ class PostChecklistService {
   // 9. Approve a post-checklist
   async approvePostChecklist(id: string, approvedBy?: string, comments?: string): Promise<PostChecklist> {
     try {
-      console.log('🔍 Approving post-checklist:', {
-        id,
-        approvedBy,
-        comments,
-        endpoint: `/postchecklist/${id}/approve`
-      });
-      
       // Create request body matching the API spec
       const requestBody = {
         isApproved: true,
         overallRemarks: comments || 'Post-service verification approved',
         approvalNotes: `Approved by: ${approvedBy || 'system'}`
       };
-      
-      console.log('🔍 Request body:', requestBody);
       
       const headers: Record<string, string> = {};
       if (approvedBy) {
@@ -631,12 +616,9 @@ class PostChecklistService {
         headers
       );
       
-      console.log('✅ Approval response:', approvalResult);
-      
       // IMPORTANT: The API returns approval details, not the full checklist
       // We need to fetch the updated checklist
       const updatedChecklist = await this.getPostChecklistById(id);
-      console.log('✅ Updated checklist:', updatedChecklist);
       
       return updatedChecklist;
       

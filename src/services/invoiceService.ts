@@ -64,7 +64,7 @@ export interface Invoice {
   _id?: string;
   invoiceNumber: string;
   opportunityId: OpportunityRef | string;
-  workOrderId: WorkOrderRef | string;
+  workOrderId?: WorkOrderRef | string;
   quoteId?: QuoteRef | string;
   jobCardId?: JobCardRef | string;
   vehicleId?: VehicleRef | string;
@@ -72,7 +72,7 @@ export interface Invoice {
   items: InvoiceItem[];
   subtotal: number;
   tax: number;
-  total: number;
+  total?: number;
   status: 'draft' | 'sent' | 'approved' | 'cancelled';
   paymentStatus: 'unpaid' | 'paid' | 'partially_paid';
   dueDate?: string;
@@ -249,10 +249,6 @@ class InvoiceService {
   }
 
   /**
-   * Update invoice
-   * PATCH /api/v1/invoices/{id}
-   */
-  /**
  * Update invoice
  * PATCH /api/v1/invoices/{id}
  */
@@ -309,16 +305,39 @@ class InvoiceService {
    * PATCH /api/v1/invoices/{id}/pay
    */
   async markInvoiceAsPaid(
-    id: string, 
-    userId?: string, 
-    userRole?: string, 
-    paymentMethod?: string, 
-    paymentReference?: string
+    id: string,
+    userId?: string | { // Accept either string or object
+      userId?: string;
+      userRole?: string;
+      paymentMethod?: string;
+      paymentReference?: string;
+      amount?: number;
+    },
+    userRole?: string, // Keep as optional third param for backward compatibility
+    paymentMethod?: string, // Optional fourth param
+    paymentReference?: string // Optional fifth param
   ): Promise<Invoice> {
     try {
+      let options: any = {};
+      
+      // Handle both signatures
+      if (typeof userId === 'object') {
+        // New signature: second param is options object
+        options = userId;
+      } else {
+        // Old signature: individual params
+        options = {
+          userId: userId,
+          userRole: userRole,
+          paymentMethod: paymentMethod,
+          paymentReference: paymentReference
+        };
+      }
+      
       const requestData: any = {};
-      if (paymentMethod) requestData.paymentMethod = paymentMethod;
-      if (paymentReference) requestData.paymentReference = paymentReference;
+      if (options?.paymentMethod) requestData.paymentMethod = options.paymentMethod;
+      if (options?.paymentReference) requestData.paymentReference = options.paymentReference;
+      if (options?.amount) requestData.amount = options.amount;
 
       const response = await apiClient.patch<any, any>(`/invoices/${id}/pay`, requestData);
       return this.normalizeInvoice(response);

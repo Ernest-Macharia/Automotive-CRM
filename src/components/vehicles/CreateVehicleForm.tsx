@@ -39,6 +39,7 @@ export default function CreateVehicleForm({ opportunityId, onSuccess, onCancel }
   
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState<VehicleImage[]>([]);
+  const [vehicleId, setVehicleId] = useState<string>('');
   const [formData, setFormData] = useState<CreateVehicleData>({
     vin: '',
     registrationNumber: '',
@@ -86,29 +87,147 @@ export default function CreateVehicleForm({ opportunityId, onSuccess, onCancel }
     const files = e.target.files;
     if (!files) return;
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        showToast(`File ${file.name} is too large (max 10MB)`, 'error');
-        continue;
-      }
-
-      try {
-        const image = await vehicleService.uploadImage(file);
-        const newImage: VehicleImage = {
-          ...image,
-          isPrimary: images.length === 0 // First image is primary
+    // If vehicle hasn't been created yet, store the files temporarily
+    if (!vehicleId) {
+      // Store files to upload after vehicle creation
+      const fileArray = Array.from(files);
+      const tempImages: VehicleImage[] = [];
+      
+      for (let i = 0; i < fileArray.length; i++) {
+        const file = fileArray[i];
+        const validation = vehicleService.validateImageFile(file);
+        if (!validation.valid) {
+          showToast(`File ${file.name}: ${validation.message}`, 'error');
+          continue;
+        }
+        
+        // Create temporary image object (you'll need to upload later)
+        const tempImage: VehicleImage = {
+          url: URL.createObjectURL(file), // Temporary local URL
+          filename: file.name,
+          mimetype: file.type,
+          size: file.size,
+          isPrimary: images.length === 0,
         };
-        setImages(prev => [...prev, newImage]);
-      } catch (error) {
-        console.error('Error uploading image:', error);
-        showToast('Failed to upload image', 'error');
+        
+        tempImages.push(tempImage);
       }
+      
+      setImages(prev => [...prev, ...tempImages]);
+      showToast('Images will be uploaded after vehicle creation', 'info');
+      return;
+    }
+
+    // If vehicle already exists, upload images immediately
+    const filesArray = Array.from(files);
+    const validFiles: File[] = [];
+
+    filesArray.forEach(file => {
+      const validation = vehicleService.validateImageFile(file);
+      if (validation.valid) {
+        validFiles.push(file);
+      } else {
+        showToast(`File ${file.name}: ${validation.message}`, 'error');
+      }
+    });
+
+    if (validFiles.length === 0) return;
+
+    try {
+      const updatedVehicle = await vehicleService.uploadVehicleImages(vehicleId, validFiles);
+      
+      if (updatedVehicle.images) {
+        setImages(prev => {
+          const existingImages = [...prev];
+          const newImages = updatedVehicle.images!.filter(newImage => 
+            !existingImages.some(existing => existing.url === newImage.url)
+          );
+          
+          // Set first new image as primary if no images exist yet
+          if (existingImages.length === 0 && newImages.length > 0) {
+            newImages[0].isPrimary = true;
+          }
+          
+          return [...existingImages, ...newImages];
+        });
+        showToast(`${validFiles.length} image(s) uploaded successfully`, 'success');
+      }
+    } catch (error: any) {
+      console.error('Error uploading images:', error);
+      showToast(`Failed to upload images: ${error.message || 'Unknown error'}`, 'error');
+    }
+    
+    e.target.value = '';
+  };
+
+  // Update handleSubmit to create vehicle first, then upload images
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm()) return;
+    
+    setLoading(true);
+
+    try {
+      // First create the vehicle without images
+      const vehicleData: CreateVehicleData = {
+        ...formData,
+        images: [] // Start with empty images array
+      };
+
+      const vehicle = await vehicleService.createVehicle(vehicleData);
+      const createdVehicleId = vehicle.id || vehicle._id || '';
+      setVehicleId(createdVehicleId); // Store the vehicle ID
+      
+      // Upload any pending images
+      const imagesWithFiles = images.filter(img => (img as any).file);
+      if (imagesWithFiles.length > 0) {
+        const files = imagesWithFiles.map(img => (img as any).file);
+        
+        const updatedVehicle = await vehicleService.uploadVehicleImages(createdVehicleId, files);
+        
+        // Update images with actual URLs from server
+        if (updatedVehicle.images) {
+          const serverImages = updatedVehicle.images.map((img, index) => ({
+            ...img,
+            isPrimary: index === 0 // Set first image as primary
+          }));
+          
+          setImages(serverImages);
+          
+          // Update vehicle with primary image if needed
+          if (serverImages.length > 0) {
+            await vehicleService.setPrimaryImage(createdVehicleId, serverImages[0].url);
+          }
+        }
+      }
+      
+      showToast('Vehicle created successfully!', 'success');
+      
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        router.push(`/vehicles/${createdVehicleId}`);
+      }
+    } catch (error) {
+      console.error('Error creating vehicle:', error);
+      showToast('Failed to create vehicle', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Update handleRemoveImage to handle temporary files
   const handleRemoveImage = (index: number) => {
+    const imageToRemove = images[index];
+    
+    // Revoke object URL if it's a temporary file
+    if (imageToRemove.url.startsWith('blob:')) {
+      URL.revokeObjectURL(imageToRemove.url);
+    }
+    
     setImages(prev => prev.filter((_, i) => i !== index));
+    
     // If we removed the primary image and there are other images, make the first one primary
     if (images[index].isPrimary && images.length > 1) {
       const newImages = [...images];
@@ -158,41 +277,6 @@ export default function CreateVehicleForm({ opportunityId, onSuccess, onCancel }
 
     return true;
   };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validateForm()) return;
-    
-    setLoading(true);
-
-    try {
-      const vehicleData: CreateVehicleData = {
-        ...formData,
-        images: images.map(img => ({
-          url: img.url,
-          filename: img.filename,
-          mimetype: img.mimetype,
-          size: img.size
-        }))
-      };
-
-      const vehicle = await vehicleService.createVehicle(vehicleData);
-      showToast('Vehicle created successfully!', 'success');
-      
-      if (onSuccess) {
-        onSuccess();
-      } else {
-        router.push(`/vehicles/${vehicle.id}`);
-      }
-    } catch (error) {
-      console.error('Error creating vehicle:', error);
-      showToast('Failed to create vehicle', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const calculateAge = () => {
     return new Date().getFullYear() - formData.year;
   };

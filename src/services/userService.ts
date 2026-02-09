@@ -39,6 +39,8 @@ export interface CreateUserData {
   permissions?: string[];
   phone?: string;
   department?: string;
+  active?: boolean;
+  canViewSummary?: boolean;
 }
 
 export interface UpdateUserData {

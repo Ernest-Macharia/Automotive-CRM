@@ -545,8 +545,6 @@ export default function DiamondRimsPostChecklistCreatePage({
     if (!preChecklist && !opportunity) return;
     
     try {
-      console.log('Auto-populating from pre-checklist:', preChecklist);
-      
       const sourceData = preChecklist || opportunity;
       const customerDetails = preChecklist?.customerDetails || opportunity?.customer || {};
       const customerName = customerDetails.name || `${customerDetails.firstName || ''} ${customerDetails.lastName || ''}`.trim();

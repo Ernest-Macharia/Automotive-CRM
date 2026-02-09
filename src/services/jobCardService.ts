@@ -67,7 +67,8 @@ export interface CreateJobCardData {
 export interface UpdateJobCardData {
   jobTitle?: string;
   jobDescription?: string;
-  status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  status?: 'pending' | 'assigned' | 'in_progress' | 'completed' | 'cancelled' | 'on_hold';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
   startDate?: string;
   endDate?: string;
   assignedTo?: string;
@@ -76,6 +77,16 @@ export interface UpdateJobCardData {
   completedDate?: string;
   actualHours?: number;
   completedBy?: string;
+  estimatedHours?: number;
+  laborCost?: number;
+  partsCost?: number;
+  totalCost?: number;
+  notes?: string | string[];
+  partsUsed?: Array<{
+    partId: string;
+    quantity: number;
+    unitPrice?: number;
+  }>;
 }
 
 export interface JobCardFilterParams {
@@ -99,26 +110,14 @@ class JobCardService {
   // In jobCardService.ts - Update the createJobCard method:
   async createJobCard(data: CreateJobCardData, userId?: string): Promise<JobCard> {
     try {
-      console.log('📤 Sending job card creation request:', data);
       const response = await apiClient.post<CreateJobCardData, any>('/jobcards', data);
-      console.log('📥 Job card creation response:', response);
-      
       // The response has a success flag and data field
       if (response.success && response.data) {
-        console.log('✅ Job card created successfully in data field');
-        console.log('📝 Data field contains:', response.data);
-        console.log('🔍 Data ID fields:', {
-          _id: response.data._id,
-          id: response.data.id
-        });
-        
         return this.normalizeJobCard(response.data);
       } else if (response._id || response.id) {
-        // Fallback: check if ID is at root level
-        console.log('✅ Job card created successfully at root level');
         return this.normalizeJobCard(response);
       } else {
-        console.error('❌ Job card creation response missing ID:', response);
+        console.error('Job card creation response missing ID:', response);
         throw new Error('Job card creation failed: No ID returned');
       }
     } catch (error) {
@@ -152,31 +151,20 @@ async getAllJobCards(params?: JobCardFilterParams): Promise<JobCard[]> {
     const queryString = queryParams.toString();
     const endpoint = `/jobcards${queryString ? `?${queryString}` : ''}`;
     
-    console.log('🔍 Fetching job cards from:', endpoint);
-    
     // Fetch with query params
     const response = await apiClient.get<any[]>(endpoint);
-    console.log('📥 Get all job cards response:', response);
     
     // Handle different response structures
     let jobCardsData: any[] = [];
     
     if (Array.isArray(response)) {
       jobCardsData = response;
-    } else if (response.success && Array.isArray(response.data)) {
-      jobCardsData = response.data;
-    } else if (response.data && Array.isArray(response.data)) {
-      jobCardsData = response.data;
     } else {
-      console.error('❌ Unexpected response format:', response);
       return [];
     }
     
-    console.log(`📊 Processing ${jobCardsData.length} job cards`);
-    
     const normalized = jobCardsData.map(jobCard => {
       const normalizedCard = this.normalizeJobCard(jobCard);
-      console.log(`📝 Normalized card ${jobCard._id}:`, normalizedCard);
       return normalizedCard;
     });
     return normalized;
@@ -244,7 +232,6 @@ private filterJobCards(jobCards: any[], params: JobCardFilterParams): any[] {
   async getJobCardById(id: string): Promise<JobCard> {
     try {
       const response = await apiClient.get<any>(`/jobcards/${id}`);
-      console.log('📥 Get job card by ID response:', response);
       
       // Handle nested structure
       let jobCardData = response;
@@ -308,7 +295,6 @@ private filterJobCards(jobCards: any[], params: JobCardFilterParams): any[] {
     // Extract ID
      let jobCardData = data;
     if (data.data && (data.data._id || data.data.id)) {
-      console.log('📦 Found nested data structure, using data field');
       jobCardData = data.data;
     }
     
@@ -319,8 +305,6 @@ private filterJobCards(jobCards: any[], params: JobCardFilterParams): any[] {
       console.error('❌ Cannot find ID in job card data:', jobCardData);
       throw new Error('Job card data missing ID');
     }
-    
-    console.log(`📝 Extracted ID: ${id}`);
     
     // Extract createdBy (handle both string and populated object)
     let createdBy: UserRef | string;

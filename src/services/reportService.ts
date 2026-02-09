@@ -649,16 +649,10 @@ class ReportService {
   // Debug method to test API connection
   async testConnection(): Promise<{ success: boolean; message: string; data?: any }> {
     try {
-      console.log('🔍 Testing API connection...');
-      console.log('API Base URL:', process.env.NEXT_PUBLIC_API_URL);
-      
-      // Try to fetch a simple endpoint
       const testData = await this.getSummary({
         from: '2025-01-01',
         to: '2025-01-31'
       });
-      
-      console.log('✅ API Connection successful:', testData);
       return {
         success: true,
         message: 'API Connection successful',

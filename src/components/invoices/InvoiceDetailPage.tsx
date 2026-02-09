@@ -140,13 +140,10 @@ export default function InvoiceDetailPage({ id }: InvoiceDetailPageProps) {
     setProcessing(true);
     try {
       // Mark invoice as paid
-      const paidInvoice = await invoiceService.markInvoiceAsPaid(
-        invoice.id,
-        invoice.total,
-        new Date().toISOString(),
-        'cash', // Default payment method
-        `PAYMENT-${Date.now().toString(36).toUpperCase()}`
-      );
+      const paidInvoice = await invoiceService.markInvoiceAsPaid(invoice.id, {
+        paymentMethod: 'cash',
+        paymentReference: `PAYMENT-${Date.now().toString(36).toUpperCase()}`
+      });
       
       setInvoice(paidInvoice);
       showToast('Invoice marked as paid successfully!', 'success');

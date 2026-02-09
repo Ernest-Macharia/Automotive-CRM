@@ -81,14 +81,14 @@ export default function BlueprintsManagementPage() {
   const [expandedBlueprint, setExpandedBlueprint] = useState<string | null>(null);
   const [selectedBlueprints, setSelectedBlueprints] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  // ✅ Add expandedRow state for kebab menu
+  // Add expandedRow state for kebab menu
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   useEffect(() => {
     loadBlueprints();
   }, []);
 
-  // ✅ Keep all your existing logic functions — no changes needed
+  // Keep all your existing logic functions — no changes needed
   const loadBlueprints = async () => {
     try {
       setLoading(true);
@@ -443,7 +443,7 @@ export default function BlueprintsManagementPage() {
                         </div>
                       </div>
 
-                      {/* ✅ KEBAB MENU FOR SECONDARY ACTIONS */}
+                      {/* KEBAB MENU FOR SECONDARY ACTIONS */}
                       <div className="flex items-center gap-2">
                         {/* Primary Actions - with text */}
                         <button

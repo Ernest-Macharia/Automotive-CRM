@@ -107,7 +107,7 @@ export default function LoginForm({
     if (key === 'email' || key === 'password') {
       setFieldErrors(prev => {
         const next = { ...prev };
-        delete next[key];
+        // delete next[key];
         return next;
       });
     }

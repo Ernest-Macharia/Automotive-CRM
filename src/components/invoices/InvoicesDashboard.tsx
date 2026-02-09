@@ -89,9 +89,7 @@ export default function InvoicesDashboard() {
   const loadInvoices = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('Loading invoices...');
       const invoicesData = await invoiceService.getAllInvoices();
-      console.log('Loaded invoices:', invoicesData);
       setInvoices(invoicesData);
       calculateStats(invoicesData);
     } catch (error: any) {

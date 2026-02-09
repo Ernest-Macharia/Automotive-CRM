@@ -13,7 +13,7 @@ import { useToast } from '@/contexts/ToastContext';
 
 interface WorkOrderFormData {
   workOrderNumber: string;
-  status: 'draft' | 'in_progress' | 'on_hold' | 'completed' | 'cancelled';
+  status: 'draft' | 'pre_checklist' | 'in_progress' | 'job_card' | 'post_checklist' | 'ready_for_invoice' | 'completed' | 'cancelled' | 'delayed';
   startDate: string;
   estimatedCompletionDate: string;
   actualCompletionDate: string;
@@ -63,6 +63,13 @@ export default function WorkOrderEdit() {
       setLoading(true);
       const data = await workOrderService.getWorkOrderById(id);
       
+      // Extract job card IDs from the data
+      const jobCardsIds = Array.isArray(data.jobCards)
+        ? data.jobCards.map(jobCard => 
+            typeof jobCard === 'object' ? jobCard._id || '' : jobCard
+          ).filter(Boolean)
+        : [];
+      
       const formData: WorkOrderFormData = {
         workOrderNumber: data.workOrderNumber,
         status: data.status,
@@ -75,7 +82,7 @@ export default function WorkOrderEdit() {
         partsCost: data.partsCost || 0,
         assignedTo: typeof data.assignedTo === 'string' ? data.assignedTo : data.assignedTo?._id || '',
         notes: data.notes || '',
-        jobCards: data.jobCards || [],
+        jobCards: jobCardsIds, // Use extracted IDs
         opportunityId: typeof data.opportunityId === 'string' ? data.opportunityId : data.opportunityId?._id,
         quoteId: typeof data.quoteId === 'string' ? data.quoteId : data.quoteId?._id
       };
@@ -113,9 +120,25 @@ export default function WorkOrderEdit() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const extractJobCardIds = (jobCards: any[]): string[] => {
+      return jobCards
+        .map(jobCard => {
+          if (jobCard && typeof jobCard === 'object') {
+            return jobCard._id || '';
+          }
+          return jobCard || '';
+        })
+        .filter(Boolean);
+    };
     try {
       setSaving(true);
       if (params.id && params.id !== 'new') {
+        // Ensure jobCards is always string array
+        const jobCardsIds = Array.isArray(workOrder.jobCards) 
+          ? extractJobCardIds(workOrder.jobCards)
+          : [];
+        
         const updateData: UpdateWorkOrderData = {
           status: workOrder.status,
           assignedTo: workOrder.assignedTo || undefined,
@@ -128,16 +151,21 @@ export default function WorkOrderEdit() {
           partsCost: workOrder.partsCost,
           totalCost: workOrder.laborCost + workOrder.partsCost,
           notes: workOrder.notes,
-          jobCards: workOrder.jobCards
+          jobCards: jobCardsIds // Ensure it's string array
         };
         await workOrderService.updateWorkOrder(params.id as string, updateData);
         showToast('Work order updated successfully!', 'success');
         router.push(`/orders/work-orders/${params.id}`);
       } else {
+        // Ensure jobCards is always string array for create
+        const jobCardsIds = Array.isArray(workOrder.jobCards) 
+          ? extractJobCardIds(workOrder.jobCards)
+          : [];
+        
         const createData: CreateWorkOrderData = {
           opportunityId: workOrder.opportunityId || 'default-opportunity-id',
           quoteId: workOrder.quoteId || 'default-quote-id',
-          workOrderNumber: workOrder.workOrderNumber,
+          // workOrderNumber is removed - backend should generate it
           status: workOrder.status,
           assignedTo: workOrder.assignedTo || undefined,
           startDate: workOrder.startDate ? `${workOrder.startDate}:00.000Z` : undefined,
@@ -146,7 +174,7 @@ export default function WorkOrderEdit() {
           laborCost: workOrder.laborCost,
           partsCost: workOrder.partsCost,
           notes: workOrder.notes,
-          jobCards: workOrder.jobCards
+          jobCards: jobCardsIds
         };
         const newOrder = await workOrderService.createWorkOrder(createData);
         showToast('Work order created successfully!', 'success');

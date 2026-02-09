@@ -68,7 +68,8 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
           remarks: 'Pre-checklist loaded in limited mode due to server error',
           approved: false,
           createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          updatedAt: new Date().toISOString(),
+          createdBy: ''
         };
         
         setChecklist(fallbackChecklist);
@@ -175,35 +176,35 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     }
   };
 
-  const handleApproveWithLifecycle = async () => {
-    if (!checklist) return;
-    try {
-      setUpdating(true);
-      const approvedBy = sessionStorage.getItem('userId') || undefined;
+  // const handleApproveWithLifecycle = async () => {
+  //   if (!checklist) return;
+  //   try {
+  //     setUpdating(true);
+  //     const approvedBy = sessionStorage.getItem('userId') || undefined;
       
-      const result = await preChecklistService.approvePreChecklistWithLifecycle(
-        checklist._id, 
-        approvedBy
-      );
+  //     const result = await preChecklistService.approvePreChecklistWithLifecycle(
+  //       checklist._id, 
+  //       approvedBy
+  //     );
       
-      setChecklist(result.checklist);
+  //     setChecklist(result.checklist);
       
-      if (result.lifecycleUpdate.stageCompleted) {
-        if (result.lifecycleUpdate.nextStage) {
-          showToast(`Checklist approved! Auto-advanced to ${result.lifecycleUpdate.nextStage} stage`, 'success');
-        } else {
-          showToast('Checklist approved! Stage marked as complete.', 'success');
-        }
-      } else {
-        showToast('Checklist approved!', 'success');
-      }
-    } catch (error) {
-      console.error('Error approving pre-checklist:', error);
-      showToast('Failed to approve checklist', 'error');
-    } finally {
-      setUpdating(false);
-    }
-  };
+  //     if (result.lifecycleUpdate.stageCompleted) {
+  //       if (result.lifecycleUpdate.nextStage) {
+  //         showToast(`Checklist approved! Auto-advanced to ${result.lifecycleUpdate.nextStage} stage`, 'success');
+  //       } else {
+  //         showToast('Checklist approved! Stage marked as complete.', 'success');
+  //       }
+  //     } else {
+  //       showToast('Checklist approved!', 'success');
+  //     }
+  //   } catch (error) {
+  //     console.error('Error approving pre-checklist:', error);
+  //     showToast('Failed to approve checklist', 'error');
+  //   } finally {
+  //     setUpdating(false);
+  //   }
+  // };
 
   const handleDelete = async () => {
     if (!checklist) return;
@@ -398,17 +399,14 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
                   </p>
                   <p className="text-sm text-gray-800">{renderCustomer(checklist.opportunityId)}</p>
 
-                  {checklist.inspectedBy && (
+                  {checklist.inspectedBy && checklist.inspectedBy !== 'null' && typeof checklist.inspectedBy === 'string' && (
                     <>
                       <p className="text-xs text-gray-500 flex items-center gap-1.5 mt-4 mb-1">
                         <User className="h-3.5 w-3.5" />
                         Inspected By
                       </p>
                       <p className="text-sm text-gray-800">
-                        {typeof checklist.inspectedBy === 'object' 
-                          ? `${checklist.inspectedBy.firstName} ${checklist.inspectedBy.lastName}`
-                          : 'Technician'
-                        }
+                        Technician ({checklist.inspectedBy.slice(0, 8)})
                       </p>
                     </>
                   )}
@@ -523,7 +521,7 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
               <div className="space-y-3">
                 {!checklist.approved && (
                   <button 
-                    onClick={handleApproveWithLifecycle} 
+                    // onClick={handleApproveWithLifecycle} 
                     className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60"
                     disabled={updating}
                   >

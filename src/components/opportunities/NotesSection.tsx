@@ -858,7 +858,7 @@ export default function NotesSection({ opportunityId, className = '' }: NotesSec
 }
 
 // Enhanced NoteCard Component
-function NoteCard({ note, onEdit, onDelete, onPin }: NoteCardProps) {
+function NoteCard({ note, onEdit, onDelete, onPin }) {
   const [showActions, setShowActions] = useState(false);
   const config = noteTypeConfig[note.type];
 

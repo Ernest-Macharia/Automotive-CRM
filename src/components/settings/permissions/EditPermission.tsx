@@ -125,7 +125,7 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
   }, [permissionId]);
 
   const handleBack = () => {
-    onBack?.() || router.push('/settings/permissions');
+    router.push('/settings/permissions');
   };
 
   const loadPermission = async () => {

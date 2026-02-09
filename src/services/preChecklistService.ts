@@ -70,6 +70,14 @@ export interface PreChecklist {
   services?: {
     actualService: string[];
   };
+
+  serviceType?: string;
+  productServiceNeeded?: string;
+  productPrice?: number;
+  servicePrice?: number;
+  installationDetails?: string;
+  deliveryPickupMethod?: string;
+  acceptDiagnosticCharges?: boolean;
   
   preServiceInspection?: {
     condition: string[];
@@ -204,6 +212,13 @@ export interface PreChecklist {
   inspectionItems?: InspectionItem[];
   createdAt?: string;
   createdBy: string | null;
+  updatedAt?: string;
+  approvedBy?: string | {
+    _id: string;
+    firstName: string;
+    lastName: string;
+  };
+  approvedAt?: string;
 }
 
 export interface CreatePreChecklistDto {
@@ -613,8 +628,6 @@ class PreChecklistService {
         updatedAt: new Date().toISOString()
       };
       
-      console.log('Submitting pre-checklist data:', JSON.stringify(submissionData, null, 2));
-      
       return await extendedApiClient.post<CreatePreChecklistDto, PreChecklist>(
         '/prechecklists', 
         submissionData, 
@@ -660,7 +673,6 @@ class PreChecklistService {
   // 5. Update a pre-checklist
   async updatePreChecklist(id: string, data: UpdatePreChecklistDto): Promise<PreChecklist> {
     try {
-      console.log('Updating pre-checklist:', id, data);
       
       // Add updatedAt timestamp
       const updateData = {
@@ -875,8 +887,6 @@ class PreChecklistService {
         userAgent: clientInfo.userAgent
       };
       
-      console.log('Signing pre-checklist with data:', signatureSubmission);
-      
       return await extendedApiClient.post<SignatureData, SignedPreChecklist>(
         `/prechecklists/${id}/sign`,
         signatureSubmission
@@ -1063,35 +1073,35 @@ async generatePDF(id: string): Promise<{ pdfPath: string; message: string }> {
         count: data.count
       }));
 
-      // Group by inspector - FIXED VERSION with proper null handling
       const inspectorMap = new Map<string, { count: number; inspectorInfo?: any }>();
       allChecklists.forEach(checklist => {
         const inspector = checklist.inspectedBy || checklist.createdBy;
         
-        // Use a type guard to handle null/undefined
-        if (this.isValidInspector(inspector)) {
-          let inspectorId = '';
-          let inspectorInfo: any = undefined;
-          
-          if (typeof inspector === 'object') {
-            inspectorId = inspector._id || '';
-            inspectorInfo = {
-              email: inspector.email || '',
-              firstName: inspector.firstName || ''
-            };
-          } else {
-            inspectorId = inspector;
+        // Skip if no inspector
+        if (!inspector) return;
+        
+        let inspectorId = '';
+        let inspectorInfo: any = undefined;
+        
+        if (typeof inspector === 'object') {
+          // Use optional chaining and nullish coalescing
+          inspectorId = (inspector as any)?._id ?? '';
+          inspectorInfo = {
+            email: (inspector as any)?.email ?? '',
+            firstName: (inspector as any)?.firstName ?? ''
+          };
+        } else {
+          inspectorId = inspector;
+        }
+        
+        if (inspectorId) {
+          if (!inspectorMap.has(inspectorId)) {
+            inspectorMap.set(inspectorId, {
+              count: 0,
+              inspectorInfo
+            });
           }
-          
-          if (inspectorId) {
-            if (!inspectorMap.has(inspectorId)) {
-              inspectorMap.set(inspectorId, {
-                count: 0,
-                inspectorInfo
-              });
-            }
-            inspectorMap.get(inspectorId)!.count++;
-          }
+          inspectorMap.get(inspectorId)!.count++;
         }
       });
       
@@ -1139,11 +1149,20 @@ async generatePDF(id: string): Promise<{ pdfPath: string; message: string }> {
     }
   }
 
-  // Add this helper method to handle inspector validation
   private isValidInspector(inspector: any): inspector is string | { _id: string; email?: string; firstName?: string } {
-    return inspector !== null && inspector !== undefined && 
-          (typeof inspector === 'string' || 
-            (typeof inspector === 'object' && inspector !== null));
+    if (inspector === null || inspector === undefined) {
+      return false;
+    }
+    
+    if (typeof inspector === 'string') {
+      return inspector.trim().length > 0;
+    }
+    
+    if (typeof inspector === 'object' && inspector !== null) {
+      return typeof inspector._id === 'string' && inspector._id.trim().length > 0;
+    }
+    
+    return false;
   }
   
 
@@ -1196,29 +1215,25 @@ async generatePDF(id: string): Promise<{ pdfPath: string; message: string }> {
     }
   }
 
-  async getPreChecklistsByInspector(inspectorId: string): Promise<PreChecklist[]> {
-    try {
-      const allChecklists = await this.getAllPreChecklists();
-      return allChecklists.filter(checklist => {
-        const inspector = checklist.inspectedBy || checklist.createdBy;
-        
-        // Use the type guard helper
-        if (!this.isValidInspector(inspector)) {
-          return false;
-        }
-        
-        // Use optional chaining and nullish coalescing
-        const inspectorIdToCompare = typeof inspector === 'object' 
-          ? inspector._id 
-          : inspector;
-        
-        return inspectorIdToCompare === inspectorId;
-      });
-    } catch (error) {
-      console.error(`Error getting pre-checklists by inspector ${inspectorId}:`, error);
-      throw error;
+    async getPreChecklistsByInspector(inspectorId: string): Promise<PreChecklist[]> {
+      try {
+        const allChecklists = await this.getAllPreChecklists();
+        return allChecklists.filter(checklist => {
+          const inspector = checklist.inspectedBy || checklist.createdBy;
+          
+          if (!inspector) return false;
+          
+          const inspectorIdToCompare = typeof inspector === 'object' 
+            ? (inspector as any)?._id ?? ''
+            : inspector;
+          
+          return inspectorIdToCompare === inspectorId;
+        });
+      } catch (error) {
+        console.error(`Error getting pre-checklists by inspector ${inspectorId}:`, error);
+        throw error;
+      }
     }
-  }
 
   async getPreChecklistsByDateRange(startDate: Date, endDate: Date): Promise<PreChecklist[]> {
     try {

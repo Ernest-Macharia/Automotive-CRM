@@ -42,8 +42,8 @@ export default function InformationCards({ workOrder }: InformationCardsProps) {
   const getAssignedTechnician = () => {
     if (workOrder.assignedTechnicians && workOrder.assignedTechnicians.length > 0) {
       const tech = workOrder.assignedTechnicians[0];
-      if (typeof tech === 'object') {
-        return `${tech.firstName} ${tech.lastName}`;
+      if (tech && typeof tech === 'object') {
+        return `${tech.firstName || ''} ${tech.lastName || ''}`.trim();
       }
     }
     return 'Not Assigned';
@@ -111,7 +111,7 @@ export default function InformationCards({ workOrder }: InformationCardsProps) {
           </div>
           <div className="flex justify-between items-center">
             <span className="text-gray-600">Additional Costs</span>
-            <span className="font-medium text-gray-900">{formatCurrency(workOrder.additionalCosts)}</span>
+            <span className="font-medium text-gray-900">{formatCurrency(workOrder.additionalCosts || 0)}</span>
           </div>
           
           <div className="pt-3 mt-3 border-t border-gray-200">

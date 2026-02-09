@@ -548,16 +548,12 @@ export default function CreateBlueprintPage() {
   }, []);
 
   useEffect(() => {
-    console.log('selectedTransition changed to:', selectedTransition);
     if (selectedTransition) {
       const transition = formData.transitions.find(t => t.id === selectedTransition);
-      console.log('Found transition:', transition);
-      console.log('Has escalation?', transition?.config?.escalation);
     }
   }, [selectedTransition, formData.transitions]);
 
   useEffect(() => {
-    console.log('Transitions updated:', formData.transitions.length);
   }, [formData.transitions]);
 
   const loadInitialData = async () => {
@@ -1721,7 +1717,6 @@ export default function CreateBlueprintPage() {
   };
 
   const handleAddTransitionEscalation = async (transitionId: string, stageId: string) => {
-    console.log('DEBUG: handleAddTransitionEscalation called', { transitionId, stageId });
     
     try {
       const stage = formData.stages.find(s => s.id === stageId);
@@ -1735,8 +1730,6 @@ export default function CreateBlueprintPage() {
         console.error('DEBUG: Transition not found:', transitionId);
         return;
       }
-      
-      console.log('DEBUG: Found stage and transition:', { stageName: stage.name, transitionLabel: transition.label });
       
       // Create default escalation config
       const escalationConfig: TransitionEscalationConfig = {
@@ -1821,7 +1814,6 @@ export default function CreateBlueprintPage() {
       // This would populate your transitions from backend
       
       // For now, we'll just log
-      console.log('Fetching transitions from backend for module:', formData.module);
       return [];
     } catch (error) {
       console.error('Error fetching transitions:', error);
@@ -2250,7 +2242,6 @@ const renderStepDesign = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          console.log('HTML Plus button clicked for transition:', transition.id);
                           
                           // Select the transition
                           setSelectedTransition(transition.id);
@@ -2263,10 +2254,7 @@ const renderStepDesign = () => {
                           
                           // Check if escalation already exists
                           if (!hasEscalation) {
-                            console.log('Adding new escalation via HTML button...');
                             handleAddTransitionEscalation(transition.id, transition.sourceId);
-                          } else {
-                            console.log('Escalation already exists, showing in sidebar');
                           }
                         }}
                         className={`
@@ -2288,7 +2276,6 @@ const renderStepDesign = () => {
                         className="absolute -left-8 -right-8 -top-8 -bottom-8 cursor-pointer opacity-0"
                         onClick={(e) => {
                           if (e.target === e.currentTarget) {
-                            console.log('Transition line clicked:', transition.id);
                             setSelectedTransition(transition.id);
                             setSelectedStage(null);
                             
@@ -2874,10 +2861,8 @@ const renderStepDesign = () => {
                 })()
               ) : selectedTransition ? (
                 (() => {
-                  console.log('Rendering transition sidebar for:', selectedTransition);
                   const transition = formData.transitions.find(t => t.id === selectedTransition);
                   if (!transition) {
-                    console.log('Transition not found:', selectedTransition);
                     return (
                       <div className="text-center py-8">
                         <p className="text-gray-600">Transition not found</p>
@@ -2895,14 +2880,6 @@ const renderStepDesign = () => {
                   const targetStage = formData.stages.find(s => s.id === transition.targetId);
                   const stageEscalation = sourceStage?.config?.outgoingTransitionEscalations?.[selectedTransition];
                   const hasEscalation = transition.config?.escalation?.enabled || stageEscalation?.enabled;
-                  
-                  console.log('Transition details:', {
-                    id: transition.id,
-                    label: transition.label,
-                    hasEscalation,
-                    transitionConfig: transition.config,
-                    stageEscalation
-                  });
                   
                   return (
                     <div className="space-y-6">
