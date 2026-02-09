@@ -55,11 +55,6 @@ export default function SalesOrderLifecycleWidget({
         } else if (stage.stage === 'invoice') {
           router.push(`/invoices/create?opportunityId=${opportunityId}${salesOrderId ? `&orderId=${salesOrderId}` : ''}`);
         }
-      } else if (action === 'transition') {
-        setTransitioning(true);
-        const result = await lifecycleIntegrationService.transitionSalesOrderStage(opportunityId, stage.stage);
-        showToast(result.message, 'success');
-        fetchLifecycle();
       } else if (action === 'view' && stage.documentId) {
         router.push(`/${stage.documentType?.toLowerCase()}s/${stage.documentId}`);
       }
