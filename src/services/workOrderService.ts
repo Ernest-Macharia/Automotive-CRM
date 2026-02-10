@@ -992,6 +992,7 @@ async getPreChecklistApprovalStatus(workOrderId: string): Promise<{
   isApproved: boolean;
   needsApproval: boolean;
   preChecklistId?: string;
+  details?: string;
 }> {
   try {
     const workOrder = await this.getWorkOrderById(workOrderId);
