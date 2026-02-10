@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { CreateOpportunityData, opportunityService } from '@/services/opportunityService';
 import { useToast } from '@/contexts/ToastContext';
 import SuccessModal from '@/components/opportunities/SuccessModal';
+import DuplicateModal from '@/components/opportunities/DuplicateModal';
 import { Opportunity } from '@/services/opportunityService';
 import React from 'react';
 import { userService } from '@/services/settings/userService';
@@ -384,7 +385,10 @@ export default function CreateOpportunityPage() {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [showUsersDropdown, setShowUsersDropdown] = useState(false);
   const [userSearch, setUserSearch] = useState('');
-
+   
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicateOpportunities, setDuplicateOpportunities] = useState<Opportunity[]>([]);
+  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
   const accountTypes = [
     { value: 'individual', label: 'Individual', icon: User, disabled: false },
     { value: 'organization', label: 'Company/Organization', icon: Building, disabled: false }
@@ -818,12 +822,52 @@ export default function CreateOpportunityPage() {
     setTimeout(() => setDraftSaved(false), 3000);
   };
 
+  const checkForDuplicates = async (formDataToCheck: OpportunityFormData) => {
+    try {
+      setIsCheckingDuplicates(true);
+      
+      const customerData = {
+        email: formDataToCheck.email,
+        phone: formDataToCheck.phone ? `${formDataToCheck.phoneCode}${formDataToCheck.phone}` : undefined,
+        firstName: formDataToCheck.firstName,
+        lastName: formDataToCheck.lastName,
+        companyName: formDataToCheck.companyName
+      };
+      
+      const result = await opportunityService.checkForDuplicates(customerData);
+      
+      if (result.isDuplicate && result.existingOpportunities.length > 0) {
+        setDuplicateOpportunities(result.existingOpportunities);
+        setShowDuplicateModal(true);
+        return false; // Duplicate found
+      }
+      
+      return true; // No duplicates
+    } catch (error) {
+      console.error('Error checking duplicates:', error);
+      return true; // Continue on error
+    } finally {
+      setIsCheckingDuplicates(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!validateStep()) {
       showToast('Please fix the validation errors before submitting.', 'error', 3000);
       return;
     }
 
+    const hasNoDuplicates = await checkForDuplicates(formData);
+    if (!hasNoDuplicates) {
+      return; // Stop here if duplicates found, modal will handle continuation
+    }
+
+    // If no duplicates, continue with submission
+    await createOpportunity();
+  };
+
+  // Add a new function to actually create the opportunity
+  const createOpportunity = async () => {
     setIsSubmitting(true);
 
     try {
@@ -918,6 +962,11 @@ export default function CreateOpportunityPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleContinueAnyway = () => {
+    setShowDuplicateModal(false);
+    createOpportunity(); // Call the actual creation function
   };
 
   type VehicleDTO = NonNullable<CreateOpportunityData['vehicles']>[number];
@@ -2598,6 +2647,14 @@ export default function CreateOpportunityPage() {
         opportunity={createdOpportunity}
         onViewDetails={handleViewOpportunityDetails}
         onCreateAnother={handleCreateAnother}
+      />
+
+      <DuplicateModal
+        isOpen={showDuplicateModal}
+        onClose={() => setShowDuplicateModal(false)}
+        onContinueAnyway={handleContinueAnyway}
+        existingOpportunities={duplicateOpportunities}
+        newOpportunityData={formData}
       />
     </>
   );

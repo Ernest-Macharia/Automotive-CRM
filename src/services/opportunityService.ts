@@ -815,6 +815,36 @@ class OpportunityService {
     }
   }
 
+  async checkForDuplicates(customerData: {
+    email?: string;
+    phone?: string;
+    firstName?: string;
+    lastName?: string;
+    companyName?: string;
+  }): Promise<{ isDuplicate: boolean; existingOpportunities: Opportunity[] }> {
+    try {
+      const queryParams = new URLSearchParams();
+      
+      if (customerData.email) {
+        queryParams.append('customerEmail', customerData.email);
+      }
+      if (customerData.phone) {
+        queryParams.append('customerPhone', customerData.phone);
+      }
+      
+      const endpoint = `/opportunities/check-duplicates?${queryParams.toString()}`;
+      const response = await extendedApiClient.get<{
+        isDuplicate: boolean;
+        existingOpportunities: Opportunity[];
+      }>(endpoint);
+      
+      return response;
+    } catch (error) {
+      console.error('Error checking for duplicates:', error);
+      return { isDuplicate: false, existingOpportunities: [] };
+    }
+  }
+
   // Upload vehicle image
   async uploadVehicleImage(
     opportunityId: string,
