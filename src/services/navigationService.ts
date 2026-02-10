@@ -4,9 +4,10 @@ import { authService } from './authService';
 export interface NavItem {
   href: string;
   label: string;
-  icon: any;
+  icon?: any;
   permission?: string;
-  roles?: string[]; 
+  roles?: string[];
+  children?: NavItem[]; // Add this line
 }
 
 export const ALL_NAV_ITEMS: NavItem[] = [
@@ -23,6 +24,20 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/invoices', label: 'Invoices', icon: 'Receipt', permission: 'invoices.read' },
   { href: '/vehicles', label: 'Vehicles', icon: 'Truck', permission: 'vehicles.read' },
   { href: '/job-cards', label: 'Job Cards', icon: 'ClipboardList', permission: 'jobcards.read' },
+  { 
+    href: '/feedback', 
+    label: 'Feedback', 
+    icon: 'MessageSquare', 
+    permission: 'feedback.view',
+    children: [
+      { href: '/feedback', label: 'Manage Feedback', permission: 'feedback.manage' },
+      { href: '/feedback/public', label: 'Public Feedback' },
+      { href: '/feedback/my', label: 'My Feedback' },
+      { href: '/feedback/assigned', label: 'Assigned to Me', permission: 'feedback.manage' },
+      { href: '/feedback/stats', label: 'Analytics', permission: 'feedback.manage' },
+      { href: '/feedback/roadmap', label: 'Roadmap' },
+    ]
+  },
   { href: '/settings', label: 'Settings', icon: 'Settings', permission: 'settings.manage' },
   { href: '/hr-portal', label: 'HR Portal', icon: 'Users', permission: 'hr.dashboard.view' },
 ];
