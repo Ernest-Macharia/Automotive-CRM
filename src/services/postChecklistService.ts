@@ -130,6 +130,7 @@ export interface PostChecklist {
   serviceComments?: string;
   checklistType?: string;
   remarks?: string;
+  qualityScore?: number;
 }
 
 export interface CreatePostChecklistDto {
