@@ -18,6 +18,8 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/orders/work-orders', label: 'Work Orders', icon: 'Wrench', permission: 'jobs.read' },
   { href: '/manychat', label: 'ManyChat', icon: 'MessageSquare', permission: 'manychat.access' },
   { href: '/contacts', label: 'Contacts', icon: 'Users', permission: 'contacts.read' },
+  { href: '/services', label: 'Services', icon: 'Settings', permission: 'services.read' },
+  { href: '/products', label: 'Products', icon: 'Package', permission: 'products.read' },
   { href: '/kpi', label: 'KPI Reports', icon: 'Settings', permission: 'reports.generate' },
   { href: '/reports', label: 'Analytics', icon: 'BarChart3', permission: 'dashboard.view' },
   { href: '/quotes', label: 'Quotes', icon: 'FileText', permission: 'quotes.read' },
