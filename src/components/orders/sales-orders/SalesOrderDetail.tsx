@@ -36,7 +36,6 @@ import {
 } from 'lucide-react';
 
 import { salesOrderService } from '@/services/salesOrderService';
-import { lifecycleIntegrationService, LifecycleStageUI } from '@/services/lifecycleIntegrationService';
 import { quoteService } from '@/services/quoteService';
 import { invoiceService } from '@/services/invoiceService';
 import { useToast } from '@/contexts/ToastContext';
@@ -166,12 +165,13 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
     try {
       const order = await salesOrderService.getSalesOrderById(orderId);
       setSalesOrder(order);
-
-      const opportunityId = getOpportunityId(order);
-      if (opportunityId) {
-        const lifecycleUI = await lifecycleIntegrationService.getSalesOrderLifecycleUI(opportunityId);
-        setLifecycle(lifecycleUI);
-      }
+      
+      // Remove lifecycle integration code
+      // const opportunityId = getOpportunityId(order);
+      // if (opportunityId) {
+      //   const lifecycleUI = await lifecycleIntegrationService.getSalesOrderLifecycleUI(opportunityId);
+      //   setLifecycle(lifecycleUI);
+      // }
     } catch (e) {
       console.error(e);
       showToast('Failed to load sales order details', 'error');
@@ -186,62 +186,41 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
   }, [fetchAll]);
   
 
-  const stages: WorkflowStage[] = useMemo(() => {
-    const raw: LifecycleStageUI[] = lifecycle?.stages || [];
-    const filtered = raw.filter((s) => s.stage === 'quote' || s.stage === 'invoice');
-
-    if (!filtered.length) {
-      const q = salesOrder?.quoteId;
-      const inv = salesOrder?.invoiceId;
-      const quoteApproved = typeof q === 'object' ? q?.status === 'approved' : false;
-      const invoiceExists = !!inv;
-      const invoicePaid = typeof inv === 'object' ? inv?.status === 'paid' : false;
-      const salesOrderCompleted = salesOrder?.status === 'delivered';
-      
-      // SIMPLIFIED: When invoice is paid, both stages are complete
-      return [
-        {
-          stage: 'quote',
-          label: 'Quote',
-          description: 'Approve the auto-generated quotation',
-          completed: quoteApproved,
-          isCurrent: !quoteApproved, // Current only if not approved yet
-          document: typeof q === 'object' ? q : undefined,
-          documentId: getId(q),
-          documentType: 'Quote',
-        },
-        {
-          stage: 'invoice',
-          label: 'Invoice',
-          description: invoicePaid 
-            ? 'Payment received ✓' 
-            : invoiceExists
-              ? 'Invoice ready for payment'
-              : 'Generated from approved quote',
-          completed: invoicePaid || salesOrderCompleted,
-          isCurrent: quoteApproved && !invoicePaid, // Current if quote approved but invoice not paid
-          document: typeof inv === 'object' ? inv : undefined,
-          documentId: getId(inv),
-          documentType: 'Invoice',
-        },
-      ];
-    }
-
-    const mapped: WorkflowStage[] = filtered.map((s) => ({
-      stage: s.stage as StageName,
-      label: s.label || (s.stage === 'quote' ? 'Quote' : 'Invoice'),
-      description: s.description,
-      completed: s.stage === 'quote'
-        ? s.document?.status === 'approved' || s.completed
-        : s.document?.status === 'paid' || salesOrder?.status === 'delivered',
-      isCurrent: !!s.isCurrent,
-      document: s.document,
-      documentId: s.documentId,
-      documentType: s.documentType,
-    }));
-
-    return mapped;
-  }, [lifecycle?.stages, salesOrder]);
+  const stages = useMemo(() => {
+    const q = salesOrder?.quoteId;
+    const inv = salesOrder?.invoiceId;
+    const quoteApproved = typeof q === 'object' ? q?.status === 'approved' : false;
+    const invoiceExists = !!inv;
+    const invoicePaid = typeof inv === 'object' ? inv?.status === 'paid' : false;
+    const salesOrderCompleted = salesOrder?.status === 'delivered';
+    
+    return [
+      {
+        stage: 'quote' as const,
+        label: 'Quote',
+        description: 'Approve the quotation',
+        completed: quoteApproved,
+        isCurrent: !quoteApproved, // Current only if not approved yet
+        document: typeof q === 'object' ? q : undefined,
+        documentId: getId(q),
+        documentType: 'Quote',
+      },
+      {
+        stage: 'invoice' as const,
+        label: 'Invoice',
+        description: invoicePaid 
+          ? 'Payment received ✓' 
+          : invoiceExists
+            ? 'Invoice ready for payment'
+            : 'Generated from approved quote',
+        completed: invoicePaid || salesOrderCompleted,
+        isCurrent: quoteApproved && !invoicePaid, // Current if quote approved but invoice not paid
+        document: typeof inv === 'object' ? inv : undefined,
+        documentId: getId(inv),
+        documentType: 'Invoice',
+      },
+    ];
+  }, [salesOrder]);
 
   const currentStage = useMemo(() => stages.find((s) => s.isCurrent) || stages[0], [stages]);
 
@@ -259,239 +238,127 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
   }, [salesOrder?.invoiceId]);
 
   const handleAcceptQuoteAndGenerateInvoice = useCallback(async () => {
-  if (!salesOrder) return;
+    if (!salesOrder) return;
 
-  const opportunityId = getOpportunityId(salesOrder);
-  if (!opportunityId) {
-    showToast('Cannot continue: No opportunity linked', 'error');
-    return;
-  }
-
-  setBusy(true);
-  try {
-    // 1. Get or find the quote
-    let quoteId = getQuoteIdFromOrder(salesOrder);
-    let quote;
-    
-    if (!quoteId) {
-      // Try to fetch quote directly from opportunity
-      const quotes = await quoteService.getQuotesByOpportunity(opportunityId);
-      if (quotes.length > 0) {
-        const foundQuote = quotes[0];
-        quoteId = foundQuote._id || foundQuote.id;
-        quote = foundQuote;
-        
-        // Update sales order with quote ID if not already linked
-        await salesOrderService.updateSalesOrder(
-          salesOrder._id || salesOrder.id,
-          { quoteId }
-        );
-      } else {
-        showToast('No quote found. Please ensure a quote is generated from the opportunity.', 'error');
+    setBusy(true);
+    try {
+      const quoteId = getQuoteIdFromOrder(salesOrder);
+      if (!quoteId) {
+        showToast('No quote found for this sales order', 'error');
         return;
       }
-    } else {
-      // Get the quote by ID
-      quote = await quoteService.getQuoteById(quoteId);
-    }
 
-    // 2. Approve quote if not already approved
-    if (quote && quote.status !== 'approved') {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const userId = user._id || user.id || 'system-auto';
-      const userRole = user.role || 'system';
-      
-      await quoteService.approveQuote(quoteId!, userId, userRole);
-      showToast('Quote approved successfully', 'success');
-    }
-
-    // 3. Mark quote stage as completed (this triggers auto-invoice creation)
-    const markStageResult = await lifecycleIntegrationService.markStageAsCompleted(
-      opportunityId, 
-      'quote',
-      {
-        documentId: quoteId,
-        completedBy: JSON.parse(localStorage.getItem('user') || '{}')?._id || 'system',
-        notes: 'Quote approved via sales order'
-      }
-    );
-
-    if (!markStageResult.success) {
-      showToast(markStageResult.message || 'Failed to complete quote stage', 'error');
-      return;
-    }
-
-    showToast('Generating invoice from quote…', 'info');
-    
-    // 4. Wait for invoice to be auto-generated
-    let invoiceId = null;
-    let attempts = 0;
-    const maxAttempts = 15; // Increased for reliability
-    const delayMs = 1000;
-
-    while (!invoiceId && attempts < maxAttempts) {
-      attempts++;
-      await sleep(delayMs);
-      
-      // Refresh sales order to get updated invoice ID
-      const refreshedOrder = await salesOrderService.getSalesOrderById(orderId);
-      setSalesOrder(refreshedOrder);
-      
-      invoiceId = getInvoiceIdFromOrder(refreshedOrder);
-      
-      if (invoiceId) {
-        // 5. Update sales order with invoice ID
-        await salesOrderService.updateSalesOrder(
-          salesOrder._id || salesOrder.id,
-          { invoiceId }
-        );
+      // Approve quote if needed
+      const quote = await quoteService.getQuoteById(quoteId);
+      if (quote.status !== 'approved') {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const userId = user._id || user.id || 'system';
+        const userRole = user.role || 'user';
         
-        // 6. Refresh all data
-        await fetchAll();
-        
-        // 7. Transition to invoice tab
-        setActiveTab('invoice');
-        showToast('Invoice created successfully!', 'success');
-        break;
+        await quoteService.approveQuote(quoteId, userId, userRole);
+        showToast('Quote approved successfully', 'success');
+      }
+
+      showToast('Creating invoice from quote...', 'info');
+      
+      // Create invoice - returns direct Invoice object
+      const invoiceResult = await invoiceService.createInvoiceFromQuote(quoteId);
+      
+      // Extract invoice ID safely
+      let invoiceId: string;
+      if (invoiceResult && (invoiceResult._id || invoiceResult.id)) {
+        // Direct Invoice object
+        invoiceId = invoiceResult._id || invoiceResult.id;
+      } else {
+        throw new Error('Invalid invoice response structure');
+      }
+
+      // Update sales order
+      const updatedOrder = await salesOrderService.updateSalesOrder(
+        salesOrder._id || salesOrder.id,
+        { invoiceId }
+      );
+      
+      setSalesOrder(updatedOrder);
+      showToast('Invoice created successfully!', 'success');
+      
+      // Try to send email
+      try {
+        await invoiceService.sendInvoiceEmail(invoiceId);
+        showToast('Invoice sent to customer', 'info');
+      } catch (emailError) {
+        console.warn('Email sending failed:', emailError);
       }
       
-      if (attempts === maxAttempts) {
-        showToast('Invoice is taking longer than expected. Please check the opportunity lifecycle.', 'warning');
-      }
+      // Switch to invoice tab
+      setActiveTab('invoice');
+      
+    } catch (error: any) {
+      console.error('Error generating invoice:', error);
+      showToast(
+        error?.message || 'Failed to generate invoice from quote', 
+        'error'
+      );
+    } finally {
+      setBusy(false);
     }
+  }, [salesOrder, showToast]);
 
-  } catch (e: any) {
-    console.error('Error accepting quote:', e);
-    showToast(e?.message || 'Failed to accept quote / generate invoice', 'error');
-  } finally {
-    setBusy(false);
-  }
-}, [salesOrder, orderId, showToast, fetchAll]);
-
-
-// const handleCompleteSalesOrder = useCallback(async () => {
-//   if (!salesOrder) return;
-
-//   const opportunityId = getOpportunityId(salesOrder);
-//   if (!opportunityId) {
-//     showToast('Cannot complete: No opportunity linked', 'error');
-//     return;
-//   }
-
-//   setBusy(true);
-//   try {
-//     // 1. Complete the sales order lifecycle
-//     const result = await lifecycleIntegrationService.completeSalesOrder(opportunityId);
+  const updateSalesOrderToDelivered = useCallback(async () => {
+    if (!salesOrder) return;
     
-//     if (!result.success) {
-//       throw new Error(result.message || 'Failed to complete sales order');
-//     }
-
-//     // 2. Update sales order status locally
-//     const updatedOrder = await salesOrderService.updateSalesOrder(salesOrder._id || salesOrder.id, {
-//       status: 'delivered',
-//       actualDeliveryDate: new Date().toISOString()
-//     });
-    
-//     // 3. Update state
-//     setSalesOrder(updatedOrder);
-    
-//     // 4. Refresh lifecycle UI
-//     const lifecycleUI = await lifecycleIntegrationService.getSalesOrderLifecycleUI(opportunityId);
-//     setLifecycle(lifecycleUI);
-    
-//     // 5. Refresh stages
-//     await fetchAll();
-    
-//     // 6. Show success and trigger refresh in list page
-//     showToast('Sales order completed successfully!', 'success');
-//     localStorage.setItem('salesOrdersLastUpdate', Date.now().toString());
-    
-//     // 7. Auto-refresh the page after 2 seconds to show completed state
-//     setTimeout(() => {
-//       window.location.reload();
-//     }, 2000);
-    
-//   } catch (e: any) {
-//     console.error('Error completing sales order:', e);
-//     showToast(e?.message || 'Failed to complete sales order', 'error');
-//   } finally {
-//     setBusy(false);
-//   }
-// }, [salesOrder, showToast, fetchAll]);
-
-const waitForInvoice = useCallback(async (maxAttempts = 10, delayMs = 1000) => {
-  for (let i = 0; i < maxAttempts; i++) {
-    const refreshed = await salesOrderService.getSalesOrderById(orderId);
-    setSalesOrder(refreshed);
-
-    const invId = getInvoiceIdFromOrder(refreshed);
-    if (invId) {
-      return invId;
+    try {
+      const updatedOrder = await salesOrderService.updateSalesOrder(
+        salesOrder._id || salesOrder.id,
+        {
+          status: 'delivered',
+          actualDeliveryDate: new Date().toISOString()
+        }
+      );
+      
+      setSalesOrder(updatedOrder);
+      showToast('Sales order marked as delivered!', 'success');
+      
+      // Refresh to show updated state
+      setTimeout(() => {
+        fetchAll();
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Error updating sales order:', error);
+      showToast('Failed to update sales order status', 'error');
     }
-
-    await sleep(delayMs);
-  }
-
-  return null;
-}, [orderId]);
-
-const updateSalesOrderToDelivered = useCallback(async () => {
-  if (!salesOrder) return;
-  
-  try {
-    const updatedOrder = await salesOrderService.updateSalesOrder(salesOrder._id || salesOrder.id, {
-      status: 'delivered',
-      actualDeliveryDate: new Date().toISOString()
-    });
-    
-    setSalesOrder(updatedOrder);
-    showToast('Sales order marked as delivered!', 'success');
-    
-    // Refresh the page to show updated state
-    setTimeout(() => {
-      window.location.reload();
-    }, 1000);
-    
-  } catch (error) {
-    console.error('Error updating sales order:', error);
-    showToast('Failed to update sales order status', 'error');
-  }
-}, [salesOrder, showToast]);
+  }, [salesOrder, showToast, fetchAll]);
 
   const handleMarkInvoiceAsPaid = useCallback(async () => {
-  if (!invoiceId) return;
+    if (!invoiceId) return;
 
-  // Check if invoice is already paid
-  if (invoiceStatus === 'paid') {
-    // If already paid, just update sales order to delivered
-    await updateSalesOrderToDelivered();
-    return;
-  }
+    setBusy(true);
+    try {
+      // 1. Mark invoice as paid
+      await invoiceService.markInvoiceAsPaid(
+        invoiceId,
+        JSON.parse(localStorage.getItem('user') || '{}')?._id || 'system',
+        JSON.parse(localStorage.getItem('user') || '{}')?.role || 'user',
+        'cash', // Or get from UI
+        `Payment for sales order ${salesOrder?.salesOrderNumber || ''}`
+      );
 
-  setBusy(true);
-  try {
-    // 1) Mark invoice as paid
-    await invoiceService.markInvoiceAsPaid(
-      invoiceId,
-      undefined,
-      undefined,
-      'manual_payment',
-      `MANUAL-${Date.now().toString(36).toUpperCase()}`
-    );
-
-    showToast('Invoice marked as paid', 'success');
-    
-    // 2) Update sales order status to delivered
-    await updateSalesOrderToDelivered();
-    
-  } catch (e: any) {
-    console.error(e);
-    showToast(e?.message || 'Failed to mark invoice as paid', 'error');
-  } finally {
-    setBusy(false);
-  }
-}, [invoiceId, invoiceStatus, updateSalesOrderToDelivered, showToast]);
+      // 2. Update sales order status to delivered
+      await updateSalesOrderToDelivered();
+      
+      showToast('Invoice marked as paid and sales order completed!', 'success');
+      
+    } catch (error: any) {
+      console.error('Error marking invoice as paid:', error);
+      showToast(
+        error?.message || 'Failed to mark invoice as paid', 
+        'error'
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [invoiceId, salesOrder, updateSalesOrderToDelivered, showToast]);
 
   useEffect(() => {
     const checkForUpdates = async () => {
@@ -831,90 +698,30 @@ const updateSalesOrderToDelivered = useCallback(async () => {
                         <h3 className="text-xl font-bold text-gray-900">
                           {salesOrder.status === 'delivered' 
                             ? 'Sales Order Completed' 
-                            : quoteStatus === 'approved' && currentStage.stage === 'quote'
-                            ? 'Quote Approved ✓'  // Show "Completed" when quote is approved
                             : currentStage.label}
                         </h3>
-                        <StagePill stage={currentStage} />
-                        {salesOrder.status === 'delivered' && (
-                          <span className="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            Completed
-                          </span>
-                        )}
-                        {/* Add completed badge for approved quote */}
-                        {quoteStatus === 'approved' && currentStage.stage === 'quote' && (
-                          <span className="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            Completed
-                          </span>
-                        )}
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                          currentStage.completed 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {currentStage.completed ? '✓ Completed' : 'Current Step'}
+                        </span>
                       </div>
 
                       <p className="text-gray-600">
                         {salesOrder.status === 'delivered' 
                           ? 'The sales order has been completed and delivered to the customer.'
-                          : quoteStatus === 'approved' && currentStage.stage === 'quote'
-                          ? 'Quote has been approved. Invoice has been automatically generated.'
                           : currentStage.stage === 'quote'
-                            ? 'Accept the quote to automatically generate the invoice.'
+                            ? 'Approve the quote to generate the invoice.'
                             : invoiceStatus === 'paid'
-                              ? 'Invoice has been paid. Complete the sales order to finish.'
-                              : 'Invoice is ready. You can view it, edit it, or mark as paid.'}
+                              ? 'Invoice has been paid. Complete the sales order.'
+                              : 'Invoice is ready. View it or mark as paid.'}
                       </p>
-
-                      <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
-                        {salesOrder.status === 'delivered' ? (
-                          <>
-                            <span className="inline-flex items-center gap-2">
-                              <CheckCircle className="h-4 w-4 text-green-600" />
-                              Status: <span className="font-medium text-green-900">Completed & Delivered</span>
-                            </span>
-                            <span className="inline-flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-blue-600" />
-                              Completed: <span className="font-medium text-gray-900">
-                                {salesOrder.actualDeliveryDate ? formatDate(salesOrder.actualDeliveryDate) : formatDate(salesOrder.updatedAt)}
-                              </span>
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="inline-flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-blue-600" />
-                              Quote: <span className={`font-medium ${
-                                quoteStatus === 'approved' ? 'text-green-700' : 'text-gray-900'
-                              }`}>
-                                {quoteStatus === 'approved' ? '✓ Approved' : quoteStatus}
-                                {quoteStatus === 'approved' && (
-                                  <span className="ml-1 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded">Completed</span>
-                                )}
-                              </span>
-                            </span>
-                            <span className="inline-flex items-center gap-2">
-                              <Receipt className="h-4 w-4 text-indigo-600" />
-                              Invoice: <span className={`font-medium ${
-                                invoiceStatus === 'paid' ? 'text-green-700' : invoiceId ? 'text-blue-700' : 'text-gray-900'
-                              }`}>
-                                {invoiceId 
-                                  ? (invoiceStatus === 'paid' ? '✓ Paid' : 'Created') 
-                                  : quoteStatus === 'approved' ? 'Generating...' : 'Not yet'}
-                              </span>
-                            </span>
-                            {salesOrder.status && salesOrder.status !== 'draft' && (
-                              <span className="inline-flex items-center gap-2">
-                                <Package className="h-4 w-4 text-purple-600" />
-                                Order: <span className={`font-medium ${getOrderStatusColor(salesOrder.status)}`}>
-                                  {salesOrder.status}
-                                </span>
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </div>
                     </div>
                   </div>
 
-                  {/* Primary CTA - Updated to show different states */}
+                  {/* Primary CTA - Direct actions */}
                   <div className="flex items-center gap-2">
                     {salesOrder.status === 'delivered' ? (
                       <div className="flex flex-col gap-2">
@@ -922,13 +729,15 @@ const updateSalesOrderToDelivered = useCallback(async () => {
                           <CheckCircle className="h-5 w-5" />
                           <span className="font-medium">Sales Order Completed</span>
                         </div>
-                        <Link
-                          href={`/invoices/${invoiceId}`}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 text-sm"
-                        >
-                          <Eye className="h-4 w-4" />
-                          View Invoice
-                        </Link>
+                        {invoiceId && (
+                          <Link
+                            href={`/invoices/${invoiceId}`}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2 text-sm"
+                          >
+                            <Eye className="h-4 w-4" />
+                            View Invoice
+                          </Link>
+                        )}
                       </div>
                     ) : currentStage.stage === 'quote' ? (
                       <button
@@ -944,10 +753,10 @@ const updateSalesOrderToDelivered = useCallback(async () => {
                           <CheckCircle className="h-4 w-4" />
                         )}
                         {quoteStatus === 'approved' 
-                          ? 'Invoice Generated' 
+                          ? 'Generate Invoice' 
                           : busy 
                             ? 'Processing…' 
-                            : 'Accept Quote & Generate Invoice'}
+                            : 'Approve Quote & Generate Invoice'}
                       </button>
                     ) : currentStage.stage === 'invoice' && invoiceId ? (
                       <>
@@ -959,7 +768,6 @@ const updateSalesOrderToDelivered = useCallback(async () => {
                           View Invoice
                         </Link>
                         
-                        {/* Simplified: If invoice is not paid, show "Mark as Paid" button */}
                         {invoiceStatus !== 'paid' ? (
                           <button
                             onClick={handleMarkInvoiceAsPaid}
@@ -972,7 +780,7 @@ const updateSalesOrderToDelivered = useCallback(async () => {
                         ) : (
                           <div className="flex items-center gap-2 px-4 py-3 bg-green-100 text-green-800 rounded-lg">
                             <PackageCheck className="h-5 w-5" />
-                            <span className="font-medium">Order Completed</span>
+                            <span className="font-medium">Invoice Paid</span>
                           </div>
                         )}
                       </>
