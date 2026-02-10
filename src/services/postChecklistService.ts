@@ -21,6 +21,74 @@ export interface ChecklistItem {
     email?: string;
   };
   checkedAt?: Date | string;
+  files?: ChecklistFile[]; // Added for file attachments
+}
+
+// Added file interfaces
+export interface ChecklistFile {
+  _id: string;
+  filename: string;
+  originalName: string;
+  fileType: string;
+  mimeType: string;
+  size: number;
+  path: string;
+  uploadedBy: string | {
+    _id: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  };
+  uploadedAt: string;
+  thumbnailPath?: string;
+  itemIndex?: number; // For files attached to specific items
+  itemId?: string; // Alternative reference to item
+  tags?: string[];
+  description?: string;
+}
+
+export interface FileUploadResponse {
+  file: ChecklistFile;
+  message: string;
+  success: boolean;
+}
+
+export interface BulkUploadResponse {
+  files: ChecklistFile[];
+  message: string;
+  success: boolean;
+  failedFiles?: Array<{
+    filename: string;
+    error: string;
+  }>;
+}
+
+export interface FileStats {
+  totalFiles: number;
+  totalSize: number;
+  byType: Record<string, number>;
+  byItem: Record<string, number>;
+  recentFiles: ChecklistFile[];
+}
+
+// Added signature interface
+export interface SignatureData {
+  name: string;
+  signatureData: string; // Base64 image data
+  role: 'Customer' | 'Inspector' | 'Manager' | 'Technician' | 'Service Advisor' | string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+export interface SignedPostChecklist {
+  _id: string;
+  signature: {
+    name: string;
+    signedAt: string;
+    role: string;
+    ipAddress?: string;
+  };
+  updatedAt: string;
 }
 
 export type CustomerDetails = {
@@ -131,6 +199,18 @@ export interface PostChecklist {
   checklistType?: string;
   remarks?: string;
   qualityScore?: number;
+  
+  // Added for signatures
+  signatures?: Array<{
+    name: string;
+    role: string;
+    signedAt: string;
+    signatureData?: string;
+    ipAddress?: string;
+  }>;
+  
+  // Added for file attachments
+  files?: ChecklistFile[];
 }
 
 export interface CreatePostChecklistDto {
@@ -162,6 +242,13 @@ export interface CreatePostChecklistDto {
   diagnosticChargesAccepted?: boolean;
   serviceRating?: number;
   serviceComments?: string;
+  
+  // Added for signatures
+  signatures?: Array<{
+    name: string;
+    role: string;
+    signatureData: string;
+  }>;
 }
 
 export interface UpdatePostChecklistDto {
@@ -193,6 +280,13 @@ export interface UpdatePostChecklistDto {
   status?: string;
   serviceComments?: string;
   remarks?: string;
+  
+  // Added for signatures
+  signatures?: Array<{
+    name: string;
+    role: string;
+    signatureData: string;
+  }>;
 }
 
 export interface CheckItemDto {
@@ -328,6 +422,46 @@ class ExtendedApiClient {
       method: 'DELETE',
     }, headers);
   }
+
+  // Added method for file uploads
+  async uploadFile<T>(endpoint: string, formData: FormData, headers?: Record<string, string>): Promise<T> {
+    const url = `${this.getApiBaseUrl()}${endpoint}`;
+    
+    const defaultHeaders = this.getHeaders();
+    // Remove Content-Type for FormData, browser will set it with boundary
+    delete defaultHeaders['Content-Type'];
+    
+    const mergedHeaders = {
+      ...defaultHeaders,
+      ...headers,
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: mergedHeaders,
+      body: formData,
+      mode: 'cors',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API Error Response:', errorText);
+      
+      if (response.status === 401) {
+        sessionStorage.removeItem('accessToken');
+        window.location.href = '/login';
+      }
+      
+      throw new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
+    }
+    
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json();
+    }
+    return {} as T;
+  }
 }
 
 const extendedApiClient = new ExtendedApiClient();
@@ -444,7 +578,7 @@ class PostChecklistService {
         headers['X-User-Id'] = userId;
       }
       
-      return await extendedApiClient.post<CheckItemDto, PostChecklist>(
+      return await extendedApiClient.patch<CheckItemDto, PostChecklist>(
         `/postchecklist/${id}/check-item/${itemIndex}`, 
         data, 
         headers
@@ -466,6 +600,340 @@ class PostChecklistService {
     } catch (error) {
       console.error(`Error getting post-checklist stats${opportunityId ? ` for opportunity ${opportunityId}` : ''}:`, error);
       throw error;
+    }
+  }
+
+  // 8. Sign a post-checklist
+  async signPostChecklist(id: string, signatureData: SignatureData): Promise<SignedPostChecklist> {
+    try {
+      // Get client IP and user agent
+      const clientInfo = await this.getClientInfo();
+      
+      const signatureSubmission = {
+        ...signatureData,
+        ipAddress: clientInfo.ipAddress,
+        userAgent: clientInfo.userAgent
+      };
+      
+      return await extendedApiClient.post<typeof signatureSubmission, SignedPostChecklist>(
+        `/postchecklist/${id}/sign`,
+        signatureSubmission
+      );
+    } catch (error: any) {
+      console.error(`Error signing post-checklist ${id}:`, error);
+      throw new Error(error.message || 'Failed to sign post-checklist');
+    }
+  }
+
+  // 9. Request email approval for post-checklist
+  async requestEmailApproval(id: string, email: string, message?: string): Promise<{ success: boolean; message: string }> {
+    try {
+      return await extendedApiClient.post<{ email: string; message?: string }, { success: boolean; message: string }>(
+        `/postchecklist/${id}/request-email-approval`,
+        { email, message }
+      );
+    } catch (error: any) {
+      console.error(`Error requesting email approval for post-checklist ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // 10. Approve post-checklist via email token
+  async approveViaEmail(token: string, approved: boolean = true, remarks?: string): Promise<PostChecklist> {
+    try {
+      return await extendedApiClient.post<{ approved: boolean; remarks?: string }, PostChecklist>(
+        `/postchecklist/email-approve/${token}`,
+        { approved, remarks }
+      );
+    } catch (error: any) {
+      console.error(`Error approving post-checklist via email token ${token}:`, error);
+      throw error;
+    }
+  }
+
+  // 11. Generate PDF for post-checklist
+  async generatePDF(id: string): Promise<{ pdfPath: string; message: string }> {
+    try {
+      return await extendedApiClient.get<{ pdfPath: string; message: string }>(
+        `/postchecklist/${id}/generate-pdf`
+      );
+    } catch (error: any) {
+      console.error(`Error generating PDF for post-checklist ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // 12. Download PDF for post-checklist
+  async downloadPDF(id: string): Promise<Blob> {
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      const headers: Record<string, string> = {
+        'Authorization': token ? `Bearer ${token}` : '',
+      };
+      
+      const response = await fetch(`${this.getApiBaseUrl()}/postchecklist/${id}/download-pdf`, {
+        method: 'GET',
+        headers,
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to download PDF: ${response.statusText}`);
+      }
+      
+      return await response.blob();
+    } catch (error: any) {
+      console.error(`Error downloading PDF for post-checklist ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // 13. View PDF in browser
+  async viewPDF(id: string): Promise<Blob> {
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      const headers: Record<string, string> = {
+        'Authorization': token ? `Bearer ${token}` : '',
+      };
+      
+      const response = await fetch(`${this.getApiBaseUrl()}/postchecklist/${id}/view-pdf`, {
+        method: 'GET',
+        headers,
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to view PDF: ${response.statusText}`);
+      }
+      
+      return await response.blob();
+    } catch (error: any) {
+      console.error(`Error viewing PDF for post-checklist ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // 14. Upload file to post-checklist
+  async uploadFile(id: string, file: File, description?: string, tags?: string[]): Promise<FileUploadResponse> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      if (description) {
+        formData.append('description', description);
+      }
+      
+      if (tags && tags.length > 0) {
+        formData.append('tags', JSON.stringify(tags));
+      }
+      
+      return await extendedApiClient.uploadFile<FileUploadResponse>(
+        `/postchecklist/${id}/upload-file`,
+        formData
+      );
+    } catch (error: any) {
+      console.error(`Error uploading file to post-checklist ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // 15. Upload and attach file to specific inspection item
+  async attachFileToItem(id: string, itemIndex: number, file: File, description?: string): Promise<FileUploadResponse> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('itemIndex', itemIndex.toString());
+      
+      if (description) {
+        formData.append('description', description);
+      }
+      
+      return await extendedApiClient.uploadFile<FileUploadResponse>(
+        `/postchecklist/${id}/attach-to-item`,
+        formData
+      );
+    } catch (error: any) {
+      console.error(`Error attaching file to item ${itemIndex} in post-checklist ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // 16. Get all files for a post-checklist
+  async getFiles(id: string): Promise<ChecklistFile[]> {
+    try {
+      return await extendedApiClient.get<ChecklistFile[]>(`/postchecklist/${id}/files`);
+    } catch (error: any) {
+      console.error(`Error getting files for post-checklist ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // 17. Get files for specific inspection item
+  async getFilesForItem(id: string, itemIndex: number): Promise<ChecklistFile[]> {
+    try {
+      return await extendedApiClient.get<ChecklistFile[]>(`/postchecklist/${id}/files/${itemIndex}`);
+    } catch (error: any) {
+      console.error(`Error getting files for item ${itemIndex} in post-checklist ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // 18. Get file statistics for post-checklist
+  async getFileStats(id: string): Promise<FileStats> {
+    try {
+      return await extendedApiClient.get<FileStats>(`/postchecklist/${id}/file-stats`);
+    } catch (error: any) {
+      console.error(`Error getting file stats for post-checklist ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // 19. Delete a file
+  async deleteFile(fileId: string): Promise<{ success: boolean; message: string }> {
+    try {
+      return await extendedApiClient.delete<{ success: boolean; message: string }>(
+        `/postchecklist/files/${fileId}`
+      );
+    } catch (error: any) {
+      console.error(`Error deleting file ${fileId}:`, error);
+      throw error;
+    }
+  }
+
+  // 20. Download a file
+  async downloadFile(fileId: string): Promise<Blob> {
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      const headers: Record<string, string> = {
+        'Authorization': token ? `Bearer ${token}` : '',
+      };
+      
+      const response = await fetch(`${this.getApiBaseUrl()}/postchecklist/files/${fileId}/download`, {
+        method: 'GET',
+        headers,
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to download file: ${response.statusText}`);
+      }
+      
+      return await response.blob();
+    } catch (error: any) {
+      console.error(`Error downloading file ${fileId}:`, error);
+      throw error;
+    }
+  }
+
+  // 21. View a file in browser
+  async viewFile(fileId: string): Promise<Blob> {
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      const headers: Record<string, string> = {
+        'Authorization': token ? `Bearer ${token}` : '',
+      };
+      
+      const response = await fetch(`${this.getApiBaseUrl()}/postchecklist/files/${fileId}/view`, {
+        method: 'GET',
+        headers,
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to view file: ${response.statusText}`);
+      }
+      
+      return await response.blob();
+    } catch (error: any) {
+      console.error(`Error viewing file ${fileId}:`, error);
+      throw error;
+    }
+  }
+
+  // 22. Get file thumbnail
+  async getFileThumbnail(fileId: string): Promise<Blob> {
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      const headers: Record<string, string> = {
+        'Authorization': token ? `Bearer ${token}` : '',
+      };
+      
+      const response = await fetch(`${this.getApiBaseUrl()}/postchecklist/files/${fileId}/thumbnail`, {
+        method: 'GET',
+        headers,
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get file thumbnail: ${response.statusText}`);
+      }
+      
+      return await response.blob();
+    } catch (error: any) {
+      console.error(`Error getting thumbnail for file ${fileId}:`, error);
+      throw error;
+    }
+  }
+
+  // 23. Bulk upload multiple files
+  async bulkUpload(id: string, files: File[]): Promise<BulkUploadResponse> {
+    try {
+      const formData = new FormData();
+      
+      files.forEach((file, index) => {
+        formData.append(`files`, file);
+      });
+      
+      return await extendedApiClient.uploadFile<BulkUploadResponse>(
+        `/postchecklist/${id}/bulk-upload`,
+        formData
+      );
+    } catch (error: any) {
+      console.error(`Error bulk uploading files to post-checklist ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // 24. Bulk attach files to specific inspection items
+  async bulkAttachToItems(id: string, attachments: Array<{ itemIndex: number; file: File }>): Promise<BulkUploadResponse> {
+    try {
+      const formData = new FormData();
+      
+      attachments.forEach((attachment, index) => {
+        formData.append(`files`, attachment.file);
+        formData.append(`itemIndices`, attachment.itemIndex.toString());
+      });
+      
+      return await extendedApiClient.uploadFile<BulkUploadResponse>(
+        `/postchecklist/${id}/bulk-attach-to-items`,
+        formData
+      );
+    } catch (error: any) {
+      console.error(`Error bulk attaching files to items in post-checklist ${id}:`, error);
+      throw error;
+    }
+  }
+
+  // Get client information for signatures
+  private async getClientInfo(): Promise<{ ipAddress: string; userAgent: string }> {
+    try {
+      // Get IP address
+      let ipAddress = 'unknown';
+      try {
+        const ipResponse = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipResponse.json();
+        ipAddress = ipData.ip;
+      } catch (ipError) {
+        console.warn('Could not fetch IP address:', ipError);
+      }
+      
+      // Get user agent from browser
+      const userAgent = navigator.userAgent || 'unknown';
+      
+      return { ipAddress, userAgent };
+    } catch (error) {
+      console.error('Error getting client info:', error);
+      return { ipAddress: 'unknown', userAgent: 'unknown' };
     }
   }
 
@@ -595,7 +1063,7 @@ class PostChecklistService {
     }
   }
 
-  // 9. Approve a post-checklist
+  // 25. Approve a post-checklist
   async approvePostChecklist(id: string, approvedBy?: string, comments?: string): Promise<PostChecklist> {
     try {
       // Create request body matching the API spec
@@ -629,7 +1097,7 @@ class PostChecklistService {
     }
   }
 
-  // Reject a post-checklist
+  // 26. Reject a post-checklist
   async rejectPostChecklist(id: string, reason?: string, rejectedBy?: string): Promise<PostChecklist> {
     try {
       const requestBody = {
@@ -657,7 +1125,7 @@ class PostChecklistService {
     }
   }
 
-  // Mark stage complete after approval
+  // 27. Mark stage complete after approval
   async markStageCompleteAfterApproval(checklistId: string, stageName: string): Promise<{ 
     success: boolean; 
     message: string; 
@@ -685,7 +1153,7 @@ class PostChecklistService {
     }
   }
 
-  // Get post-checklist approval workflow status
+  // 28. Get post-checklist approval workflow status
   async getApprovalWorkflowStatus(checklistId: string): Promise<{
     checklistId: string;
     approved: boolean;
@@ -748,7 +1216,7 @@ class PostChecklistService {
     }
   }
 
-  // Method to check if post-checklist is required for stage transition
+  // 29. Method to check if post-checklist is required for stage transition
   async isRequiredForStageTransition(opportunityId: string): Promise<{
     required: boolean;
     reason: string;
@@ -1263,6 +1731,11 @@ class PostChecklistService {
       errors,
       warnings
     };
+  }
+
+  // Helper method to get base URL
+  private getApiBaseUrl(): string {
+    return extendedApiClient['getApiBaseUrl']();
   }
 }
 

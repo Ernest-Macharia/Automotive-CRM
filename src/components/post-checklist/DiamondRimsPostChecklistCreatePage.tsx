@@ -78,7 +78,8 @@ import TermsModal from '@/components/pre-checklist/TermsModal';
 import DiamondRimsPostChecklistPDF from './DiamondRimsPostChecklistPDF';
 import * as XLSX from 'xlsx';
 import { preChecklistService } from '@/services/preChecklistService';
-import { lifecycleIntegrationService } from '@/services/lifecycleIntegrationService';
+import FileUploadSection from '@/components/pre-checklist/FileUploadSection';
+import { ChecklistFile } from '@/services/preChecklistService';
 
 interface DiamondRimsPostChecklistCreatePageProps {
   mode?: 'create' | 'edit';
@@ -129,6 +130,7 @@ export default function DiamondRimsPostChecklistCreatePage({
     workOrderId: workOrderId || '',
     vehicleId: vehicleId || '',
     preChecklistId: preChecklistId || '',
+    files: [] as ChecklistFile[],
     
     // SERVICE COMPLETION FORM FIELDS
     serviceCompletion: {
@@ -429,6 +431,7 @@ export default function DiamondRimsPostChecklistCreatePage({
       mustKnowAccepted: !!checklist?.mustKnowAccepted,
       acceptTerms: !!checklist?.acceptTerms,
       clientSignature: checklist?.clientSignature ?? formData.clientSignature,
+      files: Array.isArray(checklist?.files) ? checklist.files : []
     };
   };
 
@@ -615,6 +618,7 @@ export default function DiamondRimsPostChecklistCreatePage({
         mustKnowAccepted: preChecklist?.mustKnowAccepted || false,
         acceptTerms: preChecklist?.acceptTerms || false,
         clientSignature: preChecklist?.clientSignature || '',
+        files: preChecklist?.files ? [...preChecklist.files] : [],
         inspectorSignature: preChecklist?.inspectorSignature || ''
       }));
       
@@ -630,6 +634,88 @@ export default function DiamondRimsPostChecklistCreatePage({
     } catch (error) {
       console.error('Error auto-populating from pre-checklist:', error);
       showToast('Error loading data from pre-checklist', 'warning');
+    }
+  };
+
+  // Add these functions for handling signatures in post-checklist
+  const signPostChecklist = async (type: 'client' | 'inspector', signatureData: string) => {
+    try {
+      if (!checklistId) {
+        showToast('Cannot sign - checklist not created yet', 'error');
+        return;
+      }
+
+      const signatureDataObj = {
+        name: type === 'client' 
+          ? `${formData.customerDetails.firstName} ${formData.customerDetails.lastName}`
+          : formData.serviceCompletion.completedBy || sessionStorage.getItem('userName') || 'Inspector',
+        signatureData: signatureData,
+        role: type === 'client' ? 'Customer' : 'Inspector'
+      };
+
+      await postChecklistService.signPostChecklist(checklistId, signatureDataObj);
+      
+      // Refresh the checklist data
+      const updatedChecklist = await postChecklistService.getPostChecklistById(checklistId);
+      setExistingChecklist(updatedChecklist);
+      
+      // Update form data
+      if (type === 'client') {
+        setFormData(prev => ({
+          ...prev,
+          clientSignature: signatureData
+        }));
+        setClientSignature(signatureData);
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          inspectorSignature: signatureData
+        }));
+        setInspectorSignature(signatureData);
+      }
+      
+      showToast(`${type === 'client' ? 'Client' : 'Inspector'} signature saved`, 'success');
+    } catch (error: any) {
+      console.error(`Error saving ${type} signature:`, error);
+      showToast(error.message || `Failed to save ${type} signature`, 'error');
+    }
+  };
+
+  // Update the saveSignature function in post-checklist to use the API
+  const saveSignature = (type: 'client' | 'inspector') => {
+    let dataUrl = '';
+    
+    if (type === 'client' && clientSigRef.current) {
+      dataUrl = clientSigRef.current.getTrimmedCanvas().toDataURL('image/png');
+    } else if (type === 'inspector' && inspectorSigRef.current) {
+      dataUrl = inspectorSigRef.current.getTrimmedCanvas().toDataURL('image/png');
+    }
+    
+    if (!dataUrl) {
+      showToast('No signature detected', 'error');
+      return;
+    }
+    
+    if (checklistId) {
+      // Use API endpoint if checklist exists
+      signPostChecklist(type, dataUrl);
+    } else {
+      // Update local state for create mode
+      if (type === 'client') {
+        setClientSignature(dataUrl);
+        handleInputChange('clientSignature', dataUrl);
+      } else {
+        setInspectorSignature(dataUrl);
+        handleInputChange('inspectorSignature', dataUrl);
+      }
+      showToast(`${type === 'client' ? 'Client' : 'Inspector'} signature saved`, 'success');
+    }
+    
+    // Close signature modal
+    if (type === 'client') {
+      setShowClientSignature(false);
+    } else {
+      setShowInspectorSignature(false);
     }
   };
 
@@ -685,20 +771,6 @@ export default function DiamondRimsPostChecklistCreatePage({
       inspectorSigRef.current.clear();
       setInspectorSignature('');
       handleInputChange('inspectorSignature', '');
-    }
-  };
-
-  const saveSignature = (type: 'client' | 'inspector') => {
-    if (type === 'client' && clientSigRef.current) {
-      const dataUrl = clientSigRef.current.getTrimmedCanvas().toDataURL('image/png');
-      setClientSignature(dataUrl);
-      handleInputChange('clientSignature', dataUrl);
-      setShowClientSignature(false);
-    } else if (type === 'inspector' && inspectorSigRef.current) {
-      const dataUrl = inspectorSigRef.current.getTrimmedCanvas().toDataURL('image/png');
-      setInspectorSignature(dataUrl);
-      handleInputChange('inspectorSignature', dataUrl);
-      setShowInspectorSignature(false);
     }
   };
 
@@ -2539,82 +2611,80 @@ export default function DiamondRimsPostChecklistCreatePage({
               </div>
               
               {/* Image Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload Completion Photos (Optional)
-                </label>
-                <div 
-                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors"
-                  onClick={() => document.getElementById('post-checklist-file-input')?.click()}
-                >
-                  <input
-                    id="post-checklist-file-input"
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={(e) => {
-                      const files = e.target.files;
-                      if (!files) return;
+              <div className="mb-8 border-t pt-8">
+                <FileUploadSection
+                  checklistId={checklistId}
+                  checklistType="post"
+                  files={formData.files || []}
+                  onFileUpload={async (file) => {
+                    if (checklistId) {
+                      const response = await postChecklistService.uploadFile(checklistId, file);
+                      if (response.success) {
+                        // Refresh data
+                        const updatedChecklist = await postChecklistService.getPostChecklistById(checklistId);
+                        setFormData(prev => ({
+                          ...prev,
+                          files: updatedChecklist.files || []
+                        }));
+                      }
+                    } else {
+                      // Handle local upload for create mode
+                      const mockFile = {
+                        _id: Date.now().toString(),
+                        filename: file.name,
+                        originalName: file.name,
+                        fileType: file.type,
+                        mimeType: file.type,
+                        size: file.size,
+                        path: URL.createObjectURL(file),
+                        uploadedBy: sessionStorage.getItem('userId') || '',
+                        uploadedAt: new Date().toISOString()
+                      };
                       
-                      const newFiles = Array.from(files);
-                      setSelectedFiles(prev => [...prev, ...newFiles]);
-                      
-                      newFiles.forEach(file => {
-                        if (file.type.startsWith('image/')) {
-                          const reader = new FileReader();
-                          reader.onload = (e) => {
-                            const result = e.target?.result as string;
-                            setFormData(prev => ({
-                              ...prev,
-                              uploadedImages: [...prev.uploadedImages, result]
-                            }));
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      });
-                      
-                      showToast(`${newFiles.length} image(s) selected`, 'info');
-                    }}
-                    className="hidden"
-                  />
-                  <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-600 mb-1">Click to upload completion photos</p>
-                  <p className="text-xs text-gray-500">Upload final images of completed work (before & after)</p>
-                </div>
-
-                {/* Uploaded Images Preview */}
-                {formData.uploadedImages.length > 0 && (
-                  <div className="mt-4">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">
-                      Uploaded Images ({formData.uploadedImages.length})
-                    </h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {formData.uploadedImages.map((image, index) => (
-                        <div key={index} className="relative group">
-                          <div className="aspect-square rounded-lg overflow-hidden border border-gray-200">
-                            <img
-                              src={image}
-                              alt={`Completion Image ${index + 1}`}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFormData(prev => ({
-                                ...prev,
-                                uploadedImages: prev.uploadedImages.filter((_, i) => i !== index)
-                              }));
-                            }}
-                            className="absolute -top-2 -right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      setFormData(prev => ({
+                        ...prev,
+                        files: [...(prev.files || []), mockFile]
+                      }));
+                    }
+                  }}
+                  onFileDelete={async (fileId) => {
+                    if (checklistId) {
+                      await postChecklistService.deleteFile(fileId);
+                      // Refresh data
+                      const updatedChecklist = await postChecklistService.getPostChecklistById(checklistId);
+                      setFormData(prev => ({
+                        ...prev,
+                        files: updatedChecklist.files || []
+                      }));
+                    } else {
+                      // Remove from local state
+                      setFormData(prev => ({
+                        ...prev,
+                        files: (prev.files || []).filter(file => file._id !== fileId)
+                      }));
+                    }
+                  }}
+                  onFileView={(fileId) => {
+                    const file = formData.files?.find(f => f._id === fileId);
+                    if (file?.path) {
+                      window.open(file.path, '_blank');
+                    }
+                  }}
+                  onFileDownload={(fileId) => {
+                    const file = formData.files?.find(f => f._id === fileId);
+                    if (file?.path) {
+                      const link = document.createElement('a');
+                      link.href = file.path;
+                      link.download = file.originalName;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }
+                  }}
+                  disabled={!checklistId && formData.files && formData.files.length >= 10}
+                  maxFiles={10}
+                  maxSizeMB={50}
+                />
               </div>
             </div>
 
