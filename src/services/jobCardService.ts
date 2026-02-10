@@ -50,6 +50,7 @@ export interface JobCard {
   notes?: string[];
   partsUsed?: any[];
   completedDate?: string;
+  pauseCount?: number;
 }
 
 export interface CreateJobCardData {
@@ -82,6 +83,7 @@ export interface UpdateJobCardData {
   partsCost?: number;
   totalCost?: number;
   notes?: string | string[];
+  pauseCount?: number;
   partsUsed?: Array<{
     partId: string;
     quantity: number;

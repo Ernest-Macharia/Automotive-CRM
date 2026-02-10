@@ -95,7 +95,7 @@ export default function JobCardsTab({ workOrder, isTransitioning, onAction }: Jo
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(jc =>
         jc.jobTitle?.toLowerCase().includes(query) ||
-        jc.description?.toLowerCase().includes(query) ||
+        jc.jobDescription?.toLowerCase().includes(query) ||
         jc.jobNumber?.toLowerCase().includes(query) ||
         (typeof jc.assignedTo === 'object' && 
          (jc.assignedTo.name?.toLowerCase().includes(query) ||
@@ -213,16 +213,29 @@ export default function JobCardsTab({ workOrder, isTransitioning, onAction }: Jo
       const jobCard = jobCards.find(jc => jc._id === jobCardId);
       if (!jobCard) return;
       
-      const duplicate = {
-        ...jobCard,
+      // Extract the opportunityId as a string
+      const opportunityId = typeof jobCard.opportunityId === 'string' 
+        ? jobCard.opportunityId 
+        : jobCard.opportunityId?._id || jobCard.opportunityId?.id || '';
+      
+      // Extract the workOrderId from the current workOrder
+      const workOrderId = workOrder._id || '';
+      
+      // Create a new job card data object matching CreateJobCardData type
+      const duplicateData = {
         jobTitle: `${jobCard.jobTitle} (Copy)`,
-        status: 'pending',
-        startDate: null,
-        completedDate: null,
-        _id: undefined
+        jobDescription: jobCard.jobDescription || '',
+        opportunityId,
+        workOrderId,
+        assignedTo: typeof jobCard.assignedTo === 'string' 
+          ? jobCard.assignedTo 
+          : jobCard.assignedTo?._id || jobCard.assignedTo?.id || '',
+        estimatedHours: jobCard.estimatedHours || 0,
+        priority: jobCard.priority || 'medium',
+        status: 'pending' as const
       };
       
-      await jobCardService.createJobCard(duplicate);
+      await jobCardService.createJobCard(duplicateData);
       showToast('Job card duplicated', 'success');
       await loadJobCards();
     } catch (error: any) {
@@ -375,8 +388,8 @@ export default function JobCardsTab({ workOrder, isTransitioning, onAction }: Jo
                 </div>
               </div>
               
-              {jobCard.description && (
-                <p className="text-gray-700 mb-4 line-clamp-2">{jobCard.description}</p>
+              {jobCard.jobDescription && (
+                <p className="text-gray-700 mb-4 line-clamp-2">{jobCard.jobDescription}</p>
               )}
               
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
