@@ -15,6 +15,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/customers', label: 'Customers', icon: 'Users', permission: 'clients.read' },
   { href: '/orders/sales-orders', label: 'Sales Orders', icon: 'ShoppingBag', permission: 'orders.read' },
   { href: '/orders/work-orders', label: 'Work Orders', icon: 'Wrench', permission: 'jobs.read' },
+  { href: '/manychat', label: 'ManyChat', icon: 'MessageSquare', permission: 'manychat.access' },
   { href: '/contacts', label: 'Contacts', icon: 'Users', permission: 'contacts.read' },
   { href: '/kpi', label: 'KPI Reports', icon: 'Settings', permission: 'reports.generate' },
   { href: '/reports', label: 'Analytics', icon: 'BarChart3', permission: 'dashboard.view' },
