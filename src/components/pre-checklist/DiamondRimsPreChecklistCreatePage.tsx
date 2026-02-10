@@ -7,6 +7,7 @@ import Image from 'next/image';
 import DiamondRimsPDF from './DiamondRimsPDF';
 import { userService, User } from '@/services/settings/userService';
 import SignatureCanvas from 'react-signature-canvas';
+import FileUploadSection from '@/components/pre-checklist/FileUploadSection';
 import {
   ClipboardCheck,
   ArrowLeft,
@@ -83,8 +84,7 @@ import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
-import { lifecycleIntegrationService } from '@/services/lifecycleIntegrationService';
-import { lifecycleService } from '@/services/lifecycleService';
+import { ChecklistFile } from '@/services/preChecklistService';
 import TermsModal from '@/components/pre-checklist/TermsModal';
 
 interface DiamondRimsPreChecklistCreatePageProps {
@@ -311,6 +311,8 @@ export default function DiamondRimsPreChecklistCreatePage({
     // Client and Inspector section - Separate signatures
     clientSignature: '',
     inspectorSignature: '',
+
+    files: [] as ChecklistFile[],
     
     // Upload section for photos (6 image limit for 50mbs)
     uploadedImages: [] as string[],
@@ -596,6 +598,7 @@ export default function DiamondRimsPreChecklistCreatePage({
       acceptTerms: !!checklist?.acceptTerms,
       clientSignature: checklist?.clientSignature || '',
       inspectorSignature: checklist?.inspectorSignature || '',
+      files: Array.isArray(checklist?.files) ? checklist.files : [],
       uploadedImages: Array.isArray(checklist?.uploadedImages) ? checklist.uploadedImages : [],
       clientSigningMethod: checklist?.clientSigningMethod || '',
       clientEmail: checklist?.clientEmail || ''
@@ -956,6 +959,166 @@ export default function DiamondRimsPreChecklistCreatePage({
     } catch (error) {
       console.error('Error sending approval email:', error);
       showToast('Error sending approval email', 'error');
+    }
+  };
+
+  // Add this function to handle file uploads to pre-checklist
+  const handleFileUpload = async (file: File) => {
+    try {
+      setUploading(true);
+      setUploadProgress({ [file.name]: 0 });
+
+      // If we have a checklist ID (edit mode), use the API endpoint
+      if (checklistId) {
+        const response = await preChecklistService.uploadFile(checklistId, file);
+        
+        if (response.success) {
+          showToast(`File "${file.name}" uploaded successfully`, 'success');
+          
+          // Refresh the checklist data
+          const updatedChecklist = await preChecklistService.getPreChecklistById(checklistId);
+          setExistingChecklist(updatedChecklist);
+          
+          // Update form data with new files
+          if (updatedChecklist.files) {
+            setFormData(prev => ({
+              ...prev,
+              files: updatedChecklist.files
+            }));
+          }
+        } else {
+          showToast(`Failed to upload file: ${response.message}`, 'error');
+        }
+      } else {
+        // If no checklist ID (create mode), just update local state
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const result = e.target?.result as string;
+          
+          // Create a mock file object for local state
+          const mockFile = {
+            _id: Date.now().toString(),
+            filename: file.name,
+            originalName: file.name,
+            fileType: file.type,
+            mimeType: file.type,
+            size: file.size,
+            path: result,
+            uploadedBy: sessionStorage.getItem('userId') || '',
+            uploadedAt: new Date().toISOString(),
+            thumbnailPath: result
+          };
+          
+          setFormData(prev => ({
+            ...prev,
+            files: [...(prev.files || []), mockFile]
+          }));
+          
+          showToast(`File "${file.name}" added`, 'success');
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch (error: any) {
+      console.error('Error uploading file:', error);
+      showToast(error.message || 'Failed to upload file', 'error');
+    } finally {
+      setUploading(false);
+      setUploadProgress({});
+    }
+  };
+
+  // Add this function to handle bulk file uploads
+  const handleBulkUpload = async (files: File[]) => {
+    try {
+      setUploading(true);
+      
+      if (checklistId) {
+        const response = await preChecklistService.bulkUpload(checklistId, files);
+        
+        if (response.success) {
+          showToast(`${response.files.length} files uploaded successfully`, 'success');
+          
+          // Refresh the checklist data
+          const updatedChecklist = await preChecklistService.getPreChecklistById(checklistId);
+          setExistingChecklist(updatedChecklist);
+          
+          // Update form data with new files
+          if (updatedChecklist.files) {
+            setFormData(prev => ({
+              ...prev,
+              files: updatedChecklist.files
+            }));
+          }
+        } else {
+          showToast(`Failed to upload files: ${response.message}`, 'error');
+        }
+      } else {
+        // Handle local upload for create mode
+        files.forEach(file => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const result = e.target?.result as string;
+            
+            const mockFile = {
+              _id: Date.now().toString() + Math.random(),
+              filename: file.name,
+              originalName: file.name,
+              fileType: file.type,
+              mimeType: file.type,
+              size: file.size,
+              path: result,
+              uploadedBy: sessionStorage.getItem('userId') || '',
+              uploadedAt: new Date().toISOString(),
+              thumbnailPath: result
+            };
+            
+            setFormData(prev => ({
+              ...prev,
+              files: [...(prev.files || []), mockFile]
+            }));
+          };
+          reader.readAsDataURL(file);
+        });
+        
+        showToast(`${files.length} files added`, 'success');
+      }
+    } catch (error: any) {
+      console.error('Error bulk uploading files:', error);
+      showToast(error.message || 'Failed to upload files', 'error');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Add function to delete a file
+  const handleDeleteFile = async (fileId: string) => {
+    try {
+      if (checklistId) {
+        await preChecklistService.deleteFile(fileId);
+        showToast('File deleted successfully', 'success');
+        
+        // Refresh the checklist data
+        const updatedChecklist = await preChecklistService.getPreChecklistById(checklistId);
+        setExistingChecklist(updatedChecklist);
+        
+        // Update form data
+        if (updatedChecklist.files) {
+          setFormData(prev => ({
+            ...prev,
+            files: updatedChecklist.files
+          }));
+        }
+      } else {
+        // Remove from local state for create mode
+        setFormData(prev => ({
+          ...prev,
+          files: (prev.files || []).filter(file => file._id !== fileId)
+        }));
+        showToast('File removed', 'success');
+      }
+    } catch (error: any) {
+      console.error('Error deleting file:', error);
+      showToast(error.message || 'Failed to delete file', 'error');
     }
   };
 
@@ -3314,63 +3477,79 @@ export default function DiamondRimsPreChecklistCreatePage({
                 Signatures & Uploads
               </h2>
               
-              {/* Upload Photos Section (First) */}
-              <div className="mb-8">
-                <div className="relative">
-                  <div 
-                    className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors"
-                    onClick={() => document.getElementById('image-upload')?.click()}
-                  >
-                    <input
-                      id="image-upload"
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                      ref={fileInputRef}
-                    />
-                    <Camera className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-600 mb-1">Click to upload inspection photos</p>
+              <FileUploadSection
+                checklistId={checklistId}
+                checklistType="pre"
+                files={formData.files || []}
+                onFileUpload={async (file) => {
+                  if (checklistId) {
+                    const response = await preChecklistService.uploadFile(checklistId, file);
+                    if (response.success) {
+                      // Refresh data
+                      const updatedChecklist = await preChecklistService.getPreChecklistById(checklistId);
+                      setFormData(prev => ({
+                        ...prev,
+                        files: updatedChecklist.files || []
+                      }));
+                    }
+                  } else {
+                    // Handle local upload for create mode
+                    const mockFile = {
+                      _id: Date.now().toString(),
+                      filename: file.name,
+                      originalName: file.name,
+                      fileType: file.type,
+                      mimeType: file.type,
+                      size: file.size,
+                      path: URL.createObjectURL(file),
+                      uploadedBy: sessionStorage.getItem('userId') || '',
+                      uploadedAt: new Date().toISOString()
+                    };
                     
-                    {/* File count and size validation */}
-                    {formData.uploadedImages.length > 0 && (
-                      <div className="mt-3">
-                        <p className="text-sm text-gray-700">
-                          {formData.uploadedImages.length} image(s) uploaded
-                          {formData.uploadedImages.length >= 6 && (
-                            <span className="ml-2 text-red-600 text-xs">(Maximum reached)</span>
-                          )}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Image preview grid */}
-                {formData.uploadedImages.length > 0 && (
-                  <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                    {formData.uploadedImages.map((image, index) => (
-                      <div key={index} className="relative group">
-                        <div className="aspect-square rounded-lg overflow-hidden border border-gray-200">
-                          <img
-                            src={image}
-                            alt={`Inspection Image ${index + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeImage(index)}
-                          className="absolute -top-2 -right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                    setFormData(prev => ({
+                      ...prev,
+                      files: [...(prev.files || []), mockFile]
+                    }));
+                  }
+                }}
+                onFileDelete={async (fileId) => {
+                  if (checklistId) {
+                    await preChecklistService.deleteFile(fileId);
+                    // Refresh data
+                    const updatedChecklist = await preChecklistService.getPreChecklistById(checklistId);
+                    setFormData(prev => ({
+                      ...prev,
+                      files: updatedChecklist.files || []
+                    }));
+                  } else {
+                    // Remove from local state
+                    setFormData(prev => ({
+                      ...prev,
+                      files: (prev.files || []).filter(file => file._id !== fileId)
+                    }));
+                  }
+                }}
+                onFileView={(fileId) => {
+                  const file = formData.files?.find(f => f._id === fileId);
+                  if (file?.path) {
+                    window.open(file.path, '_blank');
+                  }
+                }}
+                onFileDownload={(fileId) => {
+                  const file = formData.files?.find(f => f._id === fileId);
+                  if (file?.path) {
+                    const link = document.createElement('a');
+                    link.href = file.path;
+                    link.download = file.originalName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }
+                }}
+                disabled={!checklistId && formData.files && formData.files.length >= 6}
+                maxFiles={6}
+                maxSizeMB={50}
+              />
               
               {/* Signatures Section - Inspector first, then Client */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
