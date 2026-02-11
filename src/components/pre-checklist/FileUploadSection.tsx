@@ -210,13 +210,6 @@ export default function FileUploadSection({
           </div>
         </div>
       )}
-
-      {/* File Limits Info */}
-      <div className="text-xs text-gray-500">
-        <p>• Maximum {maxFiles} files allowed</p>
-        <p>• Maximum {maxSizeMB}MB per file</p>
-        <p>• Supported formats: All file types</p>
-      </div>
     </div>
   );
 }

@@ -1561,7 +1561,7 @@ export default function CreateOpportunityPage() {
                       
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          {formData.accountType === 'individual' ? 'Phone *' : 'Company Phone *'}
+                          {formData.accountType === 'individual' ? 'Phone' : 'Company Phone'} <RequiredField />
                         </label>
                         <div className="flex gap-2">
                           <div className="relative flex-1">
