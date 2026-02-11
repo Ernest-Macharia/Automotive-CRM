@@ -20,6 +20,7 @@ import {
   FileText,
   Car,
   User as UserType,
+  UserCheck,
   Building,
   Calendar,
   Wrench,
@@ -80,6 +81,7 @@ import { CreatePreChecklistDto, PreChecklist, preChecklistService } from '@/serv
 import { workOrderService } from '@/services/workOrderService';
 import { opportunityService } from '@/services/opportunityService';
 import { vehicleService } from '@/services/vehicleService';
+import { serviceService, Service, SERVICE_TYPES } from '@/services/serviceService';
 import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -90,6 +92,26 @@ import TermsModal from '@/components/pre-checklist/TermsModal';
 interface DiamondRimsPreChecklistCreatePageProps {
   mode?: 'create' | 'edit';
   checklistId?: string;
+}
+
+interface ServiceMustKnow {
+  id: string;
+  serviceId: string;
+  serviceName: string;
+  description: string;
+  isAcknowledged: boolean;
+  required: boolean;
+  riskLevel: 'high' | 'medium' | 'low';
+}
+
+interface ServiceRisk {
+  id: string;
+  serviceId: string;
+  serviceName: string;
+  description: string;
+  isAcknowledged: boolean;
+  required: boolean;
+  riskLevel: 'high' | 'medium' | 'low';
 }
 
 export default function DiamondRimsPreChecklistCreatePage({ 
@@ -126,6 +148,15 @@ export default function DiamondRimsPreChecklistCreatePage({
   const [showCustomerEdit, setShowCustomerEdit] = useState(false);
   const [showVehicleEdit, setShowVehicleEdit] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Add state for fetched services
+  const [availableServices, setAvailableServices] = useState<Service[]>([]);
+  const [loadingServices, setLoadingServices] = useState(false);
+  const [serviceSearch, setServiceSearch] = useState('');
+
+  // Add state for service must-knows and risks
+  const [serviceMustKnows, setServiceMustKnows] = useState<ServiceMustKnow[]>([]);
+  const [serviceRisks, setServiceRisks] = useState<ServiceRisk[]>([]);
 
   // DIAMOND RIMS FORM STATE
   const [formData, setFormData] = useState({
@@ -329,17 +360,6 @@ export default function DiamondRimsPreChecklistCreatePage({
   const clientSigRef = useRef<SignatureCanvas>(null);
   const inspectorSigRef = useRef<SignatureCanvas>(null);
 
-  // Service options for Diamond Rims
-  const diamondRimServices = [
-    { id: 'brake_disc_skimming', label: 'Brake Disc Skimming', icon: <RotateCw className="h-4 w-4" /> },
-    { id: 'diamond_cutting', label: 'Diamond Cutting', icon: <Sparkles className="h-4 w-4" /> },
-    { id: 'powder_coating', label: 'Powder Coating', icon: <PaintBucket className="h-4 w-4" /> },
-    { id: 'rim_inspection', label: 'Rim Inspection', icon: <Eye className="h-4 w-4" /> },
-    { id: 'rim_straightening', label: 'Rim Straightening', icon: <Hammer className="h-4 w-4" /> },
-    { id: 'welding', label: 'Welding', icon: <Zap className="h-4 w-4" /> },
-    { id: 'wheel_balancing', label: 'Wheel Balancing', icon: <Gauge className="h-4 w-4" /> }
-  ];
-
   // Condition options for Diamond Rims
   const conditionOptions = [
     { id: 'cracks', label: 'Cracks', severity: 'high' },
@@ -385,6 +405,382 @@ export default function DiamondRimsPreChecklistCreatePage({
   const RequiredField = () => (
     <span className="text-red-500 ml-1">*</span>
   );
+
+  // Function to get appropriate icon for service
+  const getServiceIcon = (serviceName: string) => {
+    const lowerName = serviceName.toLowerCase();
+    
+    if (lowerName.includes('brake') || lowerName.includes('disc') || lowerName.includes('skimming')) {
+      return <RotateCw className="h-4 w-4" />;
+    } else if (lowerName.includes('diamond') || lowerName.includes('cutting')) {
+      return <Sparkles className="h-4 w-4" />;
+    } else if (lowerName.includes('powder') || lowerName.includes('coating')) {
+      return <PaintBucket className="h-4 w-4" />;
+    } else if (lowerName.includes('inspection') || lowerName.includes('inspect')) {
+      return <Eye className="h-4 w-4" />;
+    } else if (lowerName.includes('straightening') || lowerName.includes('straight')) {
+      return <Hammer className="h-4 w-4" />;
+    } else if (lowerName.includes('weld')) {
+      return <Zap className="h-4 w-4" />;
+    } else if (lowerName.includes('balance')) {
+      return <Gauge className="h-4 w-4" />;
+    } else if (lowerName.includes('tire') || lowerName.includes('tyre')) {
+      return <Package className="h-4 w-4" />;
+    } else {
+      return <Settings className="h-4 w-4" />;
+    }
+  };
+
+  // Fetch services on component mount
+  useEffect(() => {
+    loadServices();
+  }, []);
+
+  const loadServices = async () => {
+    try {
+      setLoadingServices(true);
+      
+      // Try to fetch services using existing endpoints
+      let services: Service[] = [];
+      
+      try {
+        // Try to get all active services
+        services = await serviceService.getActiveServices();
+        
+        // Filter for Diamond Rims related services
+        const diamondRimsServices = services.filter(service => {
+          // Check service name, description, and code for Diamond Rims keywords
+          const searchText = `${service.name} ${service.description || ''} ${service.serviceCode || ''}`.toLowerCase();
+          
+          const diamondRimsKeywords = [
+            'brake', 'disc', 'skimming', 'diamond', 'cutting',
+            'powder', 'coating', 'rim', 'inspection', 'straightening',
+            'welding', 'wheel', 'balancing', 'tire', 'tyre',
+            'alignment', 'refurbish', 'restoration'
+          ];
+          
+          // Check if any keyword matches
+          return diamondRimsKeywords.some(keyword => 
+            searchText.includes(keyword)
+          );
+        });
+        
+        // If we found Diamond Rims services, use them
+        if (diamondRimsServices.length > 0) {
+          services = diamondRimsServices;
+        } else {
+          // Otherwise use installation and repair type services
+          services = services.filter(service => 
+            service.type === 'installation' || 
+            service.type === 'repair' ||
+            service.tags?.some(tag => 
+              tag.toLowerCase().includes('wheel') || 
+              tag.toLowerCase().includes('rim')
+            )
+          );
+          
+          // If still no services, take first 10 active services
+          if (services.length === 0) {
+            services = services.slice(0, 10);
+          }
+        }
+        
+      } catch (error) {
+        console.error('Error fetching services:', error);
+      }
+      
+      setAvailableServices(services);
+      
+      // Generate must-knows and risks from services
+      // generateServiceMustKnowsAndRisks(services);
+      
+    } catch (error) {
+      console.error('Error loading services:', error);
+      showToast('Could not load services. Using default options.', 'warning');
+    } finally {
+      setLoadingServices(false);
+    }
+  };
+
+  // Generate must-knows and risks from services
+  const generateServiceMustKnowsAndRisks = (services: Service[]) => {
+    const mustKnows: ServiceMustKnow[] = [];
+    const risks: ServiceRisk[] = [];
+    
+    const generalMustKnows = [
+      {
+        id: 'process_explained',
+        serviceId: 'general',
+        serviceName: 'General',
+        description: 'Entire process explained to the customer',
+        required: true,
+        riskLevel: 'medium' as const
+      },
+      {
+        id: 'client_risk_acceptance',
+        serviceId: 'general',
+        serviceName: 'General',
+        description: 'Tyres, caps, locknuts, sensors, and other items are accepted at the client\'s own risk',
+        required: true,
+        riskLevel: 'high' as const
+      },
+      {
+        id: 'personal_belongings',
+        serviceId: 'general',
+        serviceName: 'General',
+        description: 'Personal belongings left in or with the vehicle/rims are the client\'s responsibility',
+        required: true,
+        riskLevel: 'medium' as const
+      },
+      {
+        id: 'timeline_estimates',
+        serviceId: 'general',
+        serviceName: 'General',
+        description: 'Completion timelines are estimates only',
+        required: true,
+        riskLevel: 'low' as const
+      },
+      {
+        id: 'full_payment_required',
+        serviceId: 'general',
+        serviceName: 'General',
+        description: 'Diamond Rimz will not release any item until full payment is received',
+        required: true,
+        riskLevel: 'medium' as const
+      },
+      {
+        id: 'storage_fees',
+        serviceId: 'general',
+        serviceName: 'General',
+        description: 'Uncollected rims/parts after 5 days will attract a storage fee of KES 500 per day per part',
+        required: true,
+        riskLevel: 'medium' as const
+      },
+      {
+        id: 'storage_risk',
+        serviceId: 'general',
+        serviceName: 'General',
+        description: 'Rims not collected within 12 hours of completion notification are stored at the client\'s risk',
+        required: true,
+        riskLevel: 'medium' as const
+      }
+    ];
+    
+    generalMustKnows.forEach(mustKnow => {
+      mustKnows.push({
+        ...mustKnow,
+        isAcknowledged: false
+      });
+    });
+    
+    // Generate service-specific risks from serviceNotes
+    services.forEach(service => {
+      if (service.serviceNotes && service.serviceNotes.length > 0) {
+        service.serviceNotes.forEach((note, index) => {
+          risks.push({
+            id: `${service.id}_risk_${index}`,
+            serviceId: service.id,
+            serviceName: service.name,
+            description: note,
+            isAcknowledged: false,
+            required: true,
+            riskLevel: determineRiskLevel(note, service.name)
+          });
+        });
+      }
+    });
+    
+    setServiceMustKnows(mustKnows);
+    setServiceRisks(risks);
+  };
+
+  // Helper function to determine risk level from note
+  const determineRiskLevel = (note: string, serviceName: string): 'high' | 'medium' | 'low' => {
+    const lowerNote = note.toLowerCase();
+    const lowerService = serviceName.toLowerCase();
+    
+    // High risk indicators
+    const highRiskKeywords = ['crack', 'weld', 'structural', 'safety', 'thin', 'failure', 'break', 'risk', 'danger', 'unsafe'];
+    // Medium risk indicators
+    const mediumRiskKeywords = ['warp', 'bend', 'distortion', 'damage', 'compromise', 'affect', 'impact'];
+    // Low risk indicators
+    const lowRiskKeywords = ['aesthetic', 'color', 'appearance', 'finish', 'look'];
+    
+    if (highRiskKeywords.some(keyword => lowerNote.includes(keyword) || lowerService.includes(keyword))) {
+      return 'high';
+    } else if (mediumRiskKeywords.some(keyword => lowerNote.includes(keyword) || lowerService.includes(keyword))) {
+      return 'medium';
+    } else {
+      return 'low';
+    }
+  };
+
+  // Handle service selection
+  const handleServiceSelect = (serviceName: string, checked: boolean) => {
+    if (checked) {
+      // Add service to the actualService array
+      setFormData(prev => ({
+        ...prev,
+        services: {
+          ...prev.services,
+          actualService: [...prev.services.actualService, serviceName]
+        }
+      }));
+    } else {
+      // Remove service from the actualService array
+      setFormData(prev => ({
+        ...prev,
+        services: {
+          ...prev.services,
+          actualService: prev.services.actualService.filter(name => name !== serviceName)
+        }
+      }));
+    }
+  };
+
+  // Handle must-know acknowledgment
+  const handleMustKnowAcknowledgment = (mustKnowId: string, acknowledged: boolean) => {
+    setServiceMustKnows(prev =>
+      prev.map(mustKnow =>
+        mustKnow.id === mustKnowId
+          ? { ...mustKnow, isAcknowledged: acknowledged }
+          : mustKnow
+      )
+    );
+  };
+
+  // Handle risk acknowledgment
+  const handleRiskAcknowledgment = (riskId: string, acknowledged: boolean) => {
+    setServiceRisks(prev =>
+      prev.map(risk =>
+        risk.id === riskId
+          ? { ...risk, isAcknowledged: acknowledged }
+          : risk
+      )
+    );
+  };
+
+  // Check if all required must-knows are acknowledged
+  const allMustKnowsAcknowledged = () => {
+    return serviceMustKnows
+      .filter(mustKnow => mustKnow.required)
+      .every(mustKnow => mustKnow.isAcknowledged);
+  };
+
+  // Check if all required risks are acknowledged for selected services
+  const allRequiredRisksAcknowledged = () => {
+    const selectedServiceNames = formData.services.actualService;
+    const selectedServiceIds = availableServices
+      .filter(service => selectedServiceNames.includes(service.name))
+      .map(service => service.id);
+    
+    // Include general risks and risks for selected services
+    const relevantRisks = serviceRisks.filter(risk => 
+      risk.serviceId === 'general' || selectedServiceIds.includes(risk.serviceId)
+    );
+    
+    return relevantRisks
+      .filter(risk => risk.required)
+      .every(risk => risk.isAcknowledged);
+  };
+
+  // Update form data when must-knows or risks change
+  useEffect(() => {
+    // Update clientUpdate.mustKnows based on serviceMustKnows
+    const mustKnowsState = {
+      processExplained: serviceMustKnows.find(m => m.id === 'process_explained')?.isAcknowledged || false,
+      clientRiskAcceptance: serviceMustKnows.find(m => m.id === 'client_risk_acceptance')?.isAcknowledged || false,
+      personalBelongings: serviceMustKnows.find(m => m.id === 'personal_belongings')?.isAcknowledged || false,
+      timelineEstimates: serviceMustKnows.find(m => m.id === 'timeline_estimates')?.isAcknowledged || false,
+      fullPaymentRequired: serviceMustKnows.find(m => m.id === 'full_payment_required')?.isAcknowledged || false,
+      storageFees: serviceMustKnows.find(m => m.id === 'storage_fees')?.isAcknowledged || false,
+      storageRisk: serviceMustKnows.find(m => m.id === 'storage_risk')?.isAcknowledged || false
+    };
+
+    // Update clientUpdate.associatedRisks based on serviceRisks
+    const selectedServiceNames = formData.services.actualService;
+    const hasBrakeService = selectedServiceNames.some(name => 
+      name.toLowerCase().includes('brake') || name.toLowerCase().includes('skimming')
+    );
+    const hasPowderService = selectedServiceNames.some(name => 
+      name.toLowerCase().includes('powder') || name.toLowerCase().includes('coating')
+    );
+    const hasStraighteningService = selectedServiceNames.some(name => 
+      name.toLowerCase().includes('straightening') || name.toLowerCase().includes('straight')
+    );
+    const hasWeldingService = selectedServiceNames.some(name => 
+      name.toLowerCase().includes('weld')
+    );
+    const hasDiamondService = selectedServiceNames.some(name => 
+      name.toLowerCase().includes('diamond') || name.toLowerCase().includes('cutting')
+    );
+
+    // Check if risks for each service are acknowledged
+    const associatedRisksState = {
+      brakeDiscSkimming: hasBrakeService 
+        ? serviceRisks
+            .filter(r => r.serviceName.toLowerCase().includes('brake') || r.serviceName.toLowerCase().includes('skimming'))
+            .every(r => r.isAcknowledged)
+        : false,
+      powderCoating: hasPowderService
+        ? serviceRisks
+            .filter(r => r.serviceName.toLowerCase().includes('powder') || r.serviceName.toLowerCase().includes('coating'))
+            .every(r => r.isAcknowledged)
+        : false,
+      straightening: hasStraighteningService
+        ? serviceRisks
+            .filter(r => r.serviceName.toLowerCase().includes('straightening') || r.serviceName.toLowerCase().includes('straight'))
+            .every(r => r.isAcknowledged)
+        : false,
+      welding: hasWeldingService
+        ? serviceRisks
+            .filter(r => r.serviceName.toLowerCase().includes('weld'))
+            .every(r => r.isAcknowledged)
+        : false,
+      diamondCutting: hasDiamondService
+        ? serviceRisks
+            .filter(r => r.serviceName.toLowerCase().includes('diamond') || r.serviceName.toLowerCase().includes('cutting'))
+            .every(r => r.isAcknowledged)
+        : false,
+      general: serviceRisks
+        .filter(r => r.serviceId === 'general')
+        .every(r => r.isAcknowledged)
+    };
+
+    setFormData(prev => ({
+      ...prev,
+      clientUpdate: {
+        associatedRisks: associatedRisksState,
+        mustKnows: mustKnowsState
+      },
+      mustKnowAccepted: allMustKnowsAcknowledged()
+    }));
+  }, [serviceMustKnows, serviceRisks, formData.services.actualService]);
+
+  // Filter services based on search
+  const filteredServices = availableServices.filter(service => {
+    if (!serviceSearch.trim()) return true;
+    
+    const searchLower = serviceSearch.toLowerCase();
+    return (
+      service.name.toLowerCase().includes(searchLower) ||
+      service.description?.toLowerCase().includes(searchLower) ||
+      service.serviceCode?.toLowerCase().includes(searchLower) ||
+      service.tags?.some(tag => tag.toLowerCase().includes(searchLower))
+    );
+  });
+
+  // Get risks for selected services
+  const getSelectedServiceRisks = () => {
+    const selectedServiceNames = formData.services.actualService;
+    const selectedServiceIds = availableServices
+      .filter(service => selectedServiceNames.includes(service.name))
+      .map(service => service.id);
+    
+    return serviceRisks.filter(risk => 
+      risk.serviceId === 'general' || selectedServiceIds.includes(risk.serviceId)
+    );
+  };
 
   useEffect(() => {
     loadRelatedData();
@@ -716,7 +1112,8 @@ export default function DiamondRimsPreChecklistCreatePage({
     }
   };
 
-  const autoPopulateFromOpportunity = () => {
+  
+const autoPopulateFromOpportunity = () => {
     if (!opportunity || autoPopulated) return;
 
     try {
@@ -804,7 +1201,6 @@ export default function DiamondRimsPreChecklistCreatePage({
       }));
       
       setAutoPopulated(true);
-      showToast('Vehicle data loaded from opportunity', 'success');
       
     } catch (error) {
       console.error('Error auto-populating from opportunity:', error);
@@ -827,37 +1223,6 @@ export default function DiamondRimsPreChecklistCreatePage({
         [field]: value
       }
     }));
-  };
-
-  const handleMultiSelectChange = (section: string, field: string, value: string, checked: boolean) => {
-    setFormData(prev => {
-      const currentArray = prev[section][field] || [];
-      let newArray;
-      
-      if (checked) {
-        newArray = [...currentArray, value];
-      } else {
-        newArray = currentArray.filter(item => item !== value);
-      }
-      
-      return {
-        ...prev,
-        [section]: {
-          ...prev[section],
-          [field]: newArray
-        }
-      };
-    });
-  };
-
-  const handleServiceSelect = (serviceId: string, checked: boolean) => {
-    const serviceLabel = diamondRimServices.find(s => s.id === serviceId)?.label || serviceId;
-    handleMultiSelectChange('services', 'actualService', serviceLabel, checked);
-  };
-
-  const handleConditionSelect = (conditionId: string, checked: boolean) => {
-    const conditionLabel = conditionOptions.find(c => c.id === conditionId)?.label || conditionId;
-    handleMultiSelectChange('preServiceInspection', 'condition', conditionLabel, checked);
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -962,166 +1327,6 @@ export default function DiamondRimsPreChecklistCreatePage({
     }
   };
 
-  // Add this function to handle file uploads to pre-checklist
-  const handleFileUpload = async (file: File) => {
-    try {
-      setUploading(true);
-      setUploadProgress({ [file.name]: 0 });
-
-      // If we have a checklist ID (edit mode), use the API endpoint
-      if (checklistId) {
-        const response = await preChecklistService.uploadFile(checklistId, file);
-        
-        if (response.success) {
-          showToast(`File "${file.name}" uploaded successfully`, 'success');
-          
-          // Refresh the checklist data
-          const updatedChecklist = await preChecklistService.getPreChecklistById(checklistId);
-          setExistingChecklist(updatedChecklist);
-          
-          // Update form data with new files
-          if (updatedChecklist.files) {
-            setFormData(prev => ({
-              ...prev,
-              files: updatedChecklist.files
-            }));
-          }
-        } else {
-          showToast(`Failed to upload file: ${response.message}`, 'error');
-        }
-      } else {
-        // If no checklist ID (create mode), just update local state
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const result = e.target?.result as string;
-          
-          // Create a mock file object for local state
-          const mockFile = {
-            _id: Date.now().toString(),
-            filename: file.name,
-            originalName: file.name,
-            fileType: file.type,
-            mimeType: file.type,
-            size: file.size,
-            path: result,
-            uploadedBy: sessionStorage.getItem('userId') || '',
-            uploadedAt: new Date().toISOString(),
-            thumbnailPath: result
-          };
-          
-          setFormData(prev => ({
-            ...prev,
-            files: [...(prev.files || []), mockFile]
-          }));
-          
-          showToast(`File "${file.name}" added`, 'success');
-        };
-        reader.readAsDataURL(file);
-      }
-    } catch (error: any) {
-      console.error('Error uploading file:', error);
-      showToast(error.message || 'Failed to upload file', 'error');
-    } finally {
-      setUploading(false);
-      setUploadProgress({});
-    }
-  };
-
-  // Add this function to handle bulk file uploads
-  const handleBulkUpload = async (files: File[]) => {
-    try {
-      setUploading(true);
-      
-      if (checklistId) {
-        const response = await preChecklistService.bulkUpload(checklistId, files);
-        
-        if (response.success) {
-          showToast(`${response.files.length} files uploaded successfully`, 'success');
-          
-          // Refresh the checklist data
-          const updatedChecklist = await preChecklistService.getPreChecklistById(checklistId);
-          setExistingChecklist(updatedChecklist);
-          
-          // Update form data with new files
-          if (updatedChecklist.files) {
-            setFormData(prev => ({
-              ...prev,
-              files: updatedChecklist.files
-            }));
-          }
-        } else {
-          showToast(`Failed to upload files: ${response.message}`, 'error');
-        }
-      } else {
-        // Handle local upload for create mode
-        files.forEach(file => {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            const result = e.target?.result as string;
-            
-            const mockFile = {
-              _id: Date.now().toString() + Math.random(),
-              filename: file.name,
-              originalName: file.name,
-              fileType: file.type,
-              mimeType: file.type,
-              size: file.size,
-              path: result,
-              uploadedBy: sessionStorage.getItem('userId') || '',
-              uploadedAt: new Date().toISOString(),
-              thumbnailPath: result
-            };
-            
-            setFormData(prev => ({
-              ...prev,
-              files: [...(prev.files || []), mockFile]
-            }));
-          };
-          reader.readAsDataURL(file);
-        });
-        
-        showToast(`${files.length} files added`, 'success');
-      }
-    } catch (error: any) {
-      console.error('Error bulk uploading files:', error);
-      showToast(error.message || 'Failed to upload files', 'error');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  // Add function to delete a file
-  const handleDeleteFile = async (fileId: string) => {
-    try {
-      if (checklistId) {
-        await preChecklistService.deleteFile(fileId);
-        showToast('File deleted successfully', 'success');
-        
-        // Refresh the checklist data
-        const updatedChecklist = await preChecklistService.getPreChecklistById(checklistId);
-        setExistingChecklist(updatedChecklist);
-        
-        // Update form data
-        if (updatedChecklist.files) {
-          setFormData(prev => ({
-            ...prev,
-            files: updatedChecklist.files
-          }));
-        }
-      } else {
-        // Remove from local state for create mode
-        setFormData(prev => ({
-          ...prev,
-          files: (prev.files || []).filter(file => file._id !== fileId)
-        }));
-        showToast('File removed', 'success');
-      }
-    } catch (error: any) {
-      console.error('Error deleting file:', error);
-      showToast(error.message || 'Failed to delete file', 'error');
-    }
-  };
-
   const saveSignature = async (type: 'client' | 'inspector') => {
     try {
       let dataUrl = '';
@@ -1176,7 +1381,7 @@ export default function DiamondRimsPreChecklistCreatePage({
     }
   };
 
-  // Update the handleSubmit function to use signatures properly
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -1205,11 +1410,11 @@ export default function DiamondRimsPreChecklistCreatePage({
         return;
       }
       
-      if (!formData.mustKnowAccepted) {
-        showToast('Please acknowledge the MUST KNOW section', 'error');
-        setSubmitting(false);
-        return;
-      }
+      // if (!formData.mustKnowAccepted) {
+      //   showToast('Please acknowledge the MUST KNOW section', 'error');
+      //   setSubmitting(false);
+      //   return;
+      // }
       
       if (!formData.acceptTerms) {
         showToast('Please accept the terms and conditions', 'error');
@@ -1529,19 +1734,6 @@ export default function DiamondRimsPreChecklistCreatePage({
     };
   };
 
-  const isCustomerServicePerson = (user: User): boolean => {
-    if (!user.role) return false;
-    
-    if (typeof user.role === 'string') {
-      const lowerRole = user.role.toLowerCase();
-      return lowerRole.includes('customer') && lowerRole.includes('service');
-    } else if (user.role && typeof user.role === 'object') {
-      const roleName = user.role.name?.toLowerCase() || user.role.display_name?.toLowerCase() || '';
-      return roleName.includes('customer') && roleName.includes('service');
-    }
-    return false;
-  };
-
   const getUserDisplayInfo = (user: User) => {
     const roleInfo = getUserRoleName(user);
     return {
@@ -1574,6 +1766,46 @@ export default function DiamondRimsPreChecklistCreatePage({
       </div>
     );
   }
+  const isCustomerServicePerson = (user: User): boolean => {
+    if (!user.role) return false;
+    
+    if (typeof user.role === 'string') {
+      const lowerRole = user.role.toLowerCase();
+      return lowerRole.includes('customer') && lowerRole.includes('service');
+    } else if (user.role && typeof user.role === 'object') {
+      const roleName = user.role.name?.toLowerCase() || user.role.display_name?.toLowerCase() || '';
+      return roleName.includes('customer') && roleName.includes('service');
+    }
+    return false;
+  };
+
+  // Add missing function for condition selection
+  const handleConditionSelect = (conditionId: string, checked: boolean) => {
+    const conditionLabel = conditionOptions.find(c => c.id === conditionId)?.label || conditionId;
+    handleMultiSelectChange('preServiceInspection', 'condition', conditionLabel, checked);
+  };
+
+  // Add missing function for multi-select change
+  const handleMultiSelectChange = (section: string, field: string, value: string, checked: boolean) => {
+    setFormData(prev => {
+      const currentArray = prev[section][field] || [];
+      let newArray;
+      
+      if (checked) {
+        newArray = [...currentArray, value];
+      } else {
+        newArray = currentArray.filter(item => item !== value);
+      }
+      
+      return {
+        ...prev,
+        [section]: {
+          ...prev[section],
+          [field]: newArray
+        }
+      };
+    });
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-purple-50/30">
@@ -1651,14 +1883,12 @@ export default function DiamondRimsPreChecklistCreatePage({
                         value={formData.serviceIntake.customerServiceRep}
                         onChange={(e) => handleNestedInputChange('serviceIntake', 'customerServiceRep', e.target.value)}
                         onFocus={() => {
-                          // If empty, set to logged-in user
                           if (!formData.serviceIntake.customerServiceRep.trim()) {
                             const loggedInUser = sessionStorage.getItem('userName') || '';
                             if (loggedInUser) {
                               handleNestedInputChange('serviceIntake', 'customerServiceRep', loggedInUser);
                             }
                           }
-                          // Load users if not already loaded
                           if (users.length === 0 && !loadingUsers) {
                             loadCustomerServiceUsers();
                           }
@@ -1672,7 +1902,6 @@ export default function DiamondRimsPreChecklistCreatePage({
                       <button
                         type="button"
                         onClick={() => {
-                          // Load users if not already loaded
                           if (users.length === 0 && !loadingUsers) {
                             loadCustomerServiceUsers();
                           }
@@ -1910,84 +2139,285 @@ export default function DiamondRimsPreChecklistCreatePage({
               {/* Service Selection */}
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-4">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Actual Service <RequiredField />
-                  </label>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Actual Service <RequiredField />
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Select the services required. Services are fetched from the system.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={loadServices}
+                      className="text-xs text-purple-600 hover:text-purple-800 flex items-center gap-1 px-3 py-1 border border-purple-200 rounded-lg hover:bg-purple-50"
+                      disabled={loadingServices}
+                    >
+                      {loadingServices ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          <RotateCw className="h-3 w-3" />
+                          Refresh
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {diamondRimServices.map((service) => (
-                    <div key={service.id} className="flex items-center p-3 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors">
-                      <input
-                        type="checkbox"
-                        id={`service-${service.id}`}
-                        checked={formData.services.actualService.includes(service.label)}
-                        onChange={(e) => handleServiceSelect(service.id, e.target.checked)}
-                        className="h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-                      />
-                      <label
-                        htmlFor={`service-${service.id}`}
-                        className="ml-3 flex items-center gap-2 text-gray-700 cursor-pointer flex-1"
+                {/* Service Search */}
+                <div className="mb-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={serviceSearch}
+                      onChange={(e) => setServiceSearch(e.target.value)}
+                      placeholder="Search services by name, code, or description..."
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                    {serviceSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setServiceSearch('')}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                       >
-                        {service.icon}
-                        <span>{service.label}</span>
-                      </label>
-                    </div>
-                  ))}
-                  
-                  {/* Custom services display */}
-                  {formData.services.actualService
-                    .filter(service => !diamondRimServices.some(s => s.label === service))
-                    .map((customService, index) => (
-                      <div key={`custom-${index}`} className="flex items-center justify-between p-3 border border-blue-200 rounded-lg bg-blue-50">
-                        <div className="flex items-center gap-2">
-                          <Plus className="h-4 w-4 text-blue-600" />
-                          <span className="text-gray-700">{customService}</span>
-                          <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">Custom</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleServiceSelect(customService, false)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 
-                {formData.services.actualService.length === 0 && (
-                  <p className="mt-2 text-sm text-red-600">Please select at least one service</p>
+                {loadingServices ? (
+                  <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg">
+                    <Loader2 className="h-8 w-8 animate-spin text-purple-600 mx-auto mb-3" />
+                    <p className="text-sm text-gray-600">Loading available services...</p>
+                  </div>
+                ) : availableServices.length === 0 ? (
+                  <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
+                    <Settings className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                    <p className="text-sm text-gray-600 mb-2">No services available</p>
+                    <button
+                      type="button"
+                      onClick={loadServices}
+                      className="text-sm text-purple-600 hover:text-purple-800"
+                    >
+                      Try loading again
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-500">
+                          {filteredServices.length} service{filteredServices.length !== 1 ? 's' : ''} found
+                          {serviceSearch && ` matching "${serviceSearch}"`}
+                        </span>
+                        {formData.services.actualService.length > 0 && (
+                          <span className="text-sm text-purple-600">
+                            {formData.services.actualService.length} selected
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                      {filteredServices.map((service) => {
+                        const isSelected = formData.services.actualService.includes(service.name);
+                        
+                        return (
+                          <div 
+                            key={service.id} 
+                            className={`flex items-center p-3 border rounded-lg transition-all cursor-pointer ${
+                              isSelected 
+                                ? 'border-purple-500 bg-purple-50' 
+                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                            }`}
+                            onClick={() => handleServiceSelect(service.name, !isSelected)}
+                          >
+                            <div className={`flex-shrink-0 h-5 w-5 border rounded flex items-center justify-center mr-3 ${
+                              isSelected 
+                                ? 'border-purple-500 bg-purple-500 text-white' 
+                                : 'border-gray-300'
+                            }`}>
+                              {isSelected && <Check className="h-3 w-3" />}
+                            </div>
+                            
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-center gap-2 mb-1">
+                                  {getServiceIcon(service.name)}
+                                  <span className={`font-medium ${isSelected ? 'text-purple-700' : 'text-gray-700'}`}>
+                                    {service.name}
+                                  </span>
+                                </div>
+                                <span className={`text-xs px-2 py-1 rounded ${
+                                  serviceService.getTypeColor(service.type) === 'success' ? 'bg-green-100 text-green-800' :
+                                  serviceService.getTypeColor(service.type) === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                                  serviceService.getTypeColor(service.type) === 'info' ? 'bg-blue-100 text-blue-800' :
+                                  serviceService.getTypeColor(service.type) === 'primary' ? 'bg-purple-100 text-purple-800' :
+                                  'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {serviceService.getTypeText(service.type)}
+                                </span>
+                              </div>
+                              
+                              <div className="flex items-center justify-between mt-1">
+                                <p className="text-xs text-gray-500 truncate">
+                                  {service.serviceCode || 'No Code'}
+                                </p>
+                                {service.isActive ? (
+                                  <span className="text-xs text-green-600 flex items-center gap-1">
+                                    <Circle className="h-2 w-2 fill-current" />
+                                    Active
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-gray-400">Inactive</span>
+                                )}
+                              </div>
+                              
+                              {service.description && (
+                                <p className="text-xs text-gray-600 mt-2 line-clamp-2">
+                                  {service.description}
+                                </p>
+                              )}
+                              
+                              {service.tags && service.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {service.tags.slice(0, 3).map((tag, index) => (
+                                    <span 
+                                      key={index} 
+                                      className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded"
+                                    >
+                                      {tag}
+                                    </span>
+                                  ))}
+                                  {service.tags.length > 3 && (
+                                    <span className="text-xs text-gray-400 px-2 py-1">
+                                      +{service.tags.length - 3} more
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Selected Services Preview */}
+                    {formData.services.actualService.length > 0 && (
+                      <div className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                        <h4 className="text-sm font-medium text-purple-800 mb-3 flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4" />
+                          Selected Services ({formData.services.actualService.length})
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {formData.services.actualService.map((serviceName, index) => {
+                            const service = availableServices.find(s => s.name === serviceName);
+                            return (
+                              <div 
+                                key={index} 
+                                className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-purple-300 rounded-lg"
+                              >
+                                {service ? (
+                                  <>
+                                    {getServiceIcon(service.name)}
+                                    <span className="text-sm font-medium text-purple-700">{service.name}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleServiceSelect(serviceName, false)}
+                                      className="text-red-500 hover:text-red-700 ml-2"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Settings className="h-4 w-4 text-gray-400" />
+                                    <span className="text-sm font-medium text-gray-700">{serviceName}</span>
+                                    <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded ml-2">Custom</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleServiceSelect(serviceName, false)}
+                                      className="text-red-500 hover:text-red-700 ml-2"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
+                
+                {/* Validation Error */}
+                {formData.services.actualService.length === 0 && !loadingServices && (
+                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
+                      <p className="text-sm text-red-700">Please select at least one service</p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Add Custom Service Button */}
+                <div className="mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const customService = prompt('Enter custom service name:');
+                      if (customService && customService.trim()) {
+                        handleServiceSelect(customService.trim(), true);
+                        showToast('Custom service added', 'success');
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm border border-dashed border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Custom Service
+                  </button>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Add a custom service if it's not available in the list above
+                  </p>
+                </div>
               </div>
             </div>
 
             {/* Delivery Mode */}
-              <div className="mb-8">
-                <label className="block text-sm font-medium text-gray-700 mb-4">
-                  Delivery Mode <RequiredField />
-                </label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {deliveryModeOptions.map((mode) => (
-                    <button
-                      key={mode.id}
-                      type="button"
-                      onClick={() => handleInputChange('deliveryMode', mode.label)}
-                      className={`p-4 border-2 rounded-lg text-center transition-all flex flex-col items-center gap-2 ${
-                        formData.deliveryMode === mode.label
-                          ? 'border-purple-500 bg-purple-50 text-purple-700'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {mode.icon}
-                      <div className="font-medium">{mode.label}</div>
-                    </button>
-                  ))}
-                </div>
-                {!formData.deliveryMode && (
-                  <p className="mt-2 text-sm text-red-600">Please select a delivery mode</p>
-                )}
+            <div className="mb-8">
+              <label className="block text-sm font-medium text-gray-700 mb-4">
+                Delivery Mode <RequiredField />
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {deliveryModeOptions.map((mode) => (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => handleInputChange('deliveryMode', mode.label)}
+                    className={`p-4 border-2 rounded-lg text-center transition-all flex flex-col items-center gap-2 ${
+                      formData.deliveryMode === mode.label
+                        ? 'border-purple-500 bg-purple-50 text-purple-700'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {mode.icon}
+                    <div className="font-medium">{mode.label}</div>
+                  </button>
+                ))}
               </div>
+              {!formData.deliveryMode && (
+                <p className="mt-2 text-sm text-red-600">Please select a delivery mode</p>
+              )}
+            </div>
 
             {/* Customer Details - Pre-filled with edit button */}
             <div className="mb-8 border-t pt-8">
@@ -2533,42 +2963,39 @@ export default function DiamondRimsPreChecklistCreatePage({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Total Number of Wheel Nuts <RequiredField />
+                      Total Number of Wheel Nuts
                     </label>
                     <input
                       type="number"
                       value={formData.wheelNutsTotal}
                       onChange={(e) => handleInputChange('wheelNutsTotal', parseInt(e.target.value) || 0)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      required
                       min="0"
                     />
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Total Number of Nozzle Caps <RequiredField />
+                      Total Number of Nozzle Caps
                     </label>
                     <input
                       type="number"
                       value={formData.nozzleCapsTotal}
                       onChange={(e) => handleInputChange('nozzleCapsTotal', parseInt(e.target.value) || 0)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      required
                       min="0"
                     />
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Total Number of Lock Nuts <RequiredField />
+                      Total Number of Lock Nuts
                     </label>
                     <input
                       type="number"
                       value={formData.lockNutsTotal}
                       onChange={(e) => handleInputChange('lockNutsTotal', parseInt(e.target.value) || 0)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      required
                       min="0"
                     />
                   </div>
@@ -2576,7 +3003,7 @@ export default function DiamondRimsPreChecklistCreatePage({
                 
                 <div className="mt-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nozzle Caps Type <RequiredField />
+                    Nozzle Caps Type
                   </label>
                   <input
                     type="text"
@@ -2584,7 +3011,6 @@ export default function DiamondRimsPreChecklistCreatePage({
                     onChange={(e) => handleInputChange('nozzleCapsType', e.target.value)}
                     placeholder="e.g., Metal, Plastic, Rubber"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    required
                   />
                 </div>
               </div>
@@ -3152,216 +3578,128 @@ export default function DiamondRimsPreChecklistCreatePage({
                 Terms & Conditions
               </h2>
               
-              {/* MUST KNOW Section */}
+              {/* MUST KNOW Section with individual checkboxes */}
               <div className="mb-8">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">MUST KNOW</h3>
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                  <ul className="space-y-2 text-sm text-gray-700">
-                    <li className="flex items-start gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span>Entire Process Explained to the Customers.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span>Tyres, caps, locknuts, sensors, and other items are accepted at the client's own risk.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span>Personal belongings left in or with the vehicle/rims are the client's responsibility.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span>Completion timelines are estimates only.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span>Diamond Rimz will not release any item until full payment is received.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span>Uncollected rims/parts after 5 days will attract a storage fee of KES 500 per day per part.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span>Rims not collected within 12 hours of completion notification are stored at the client's risk.</span>
-                    </li>
-                  </ul>
+                  <div className="space-y-4">
+                    {serviceMustKnows.map((mustKnow) => (
+                      <div key={mustKnow.id} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-100">
+                        <input
+                          type="checkbox"
+                          id={`mustknow-${mustKnow.id}`}
+                          checked={mustKnow.isAcknowledged}
+                          onChange={(e) => handleMustKnowAcknowledgment(mustKnow.id, e.target.checked)}
+                          className="mt-1 h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                          required={mustKnow.required}
+                        />
+                        <div className="flex-1">
+                          <label htmlFor={`mustknow-${mustKnow.id}`} className="text-sm font-medium text-gray-700">
+                            {mustKnow.description}
+                            {mustKnow.required && <span className="text-red-500 ml-1">*</span>}
+                          </label>
+                          {mustKnow.serviceName !== 'General' && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Applies to: {mustKnow.serviceName}
+                            </p>
+                          )}
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          mustKnow.riskLevel === 'high' ? 'bg-red-100 text-red-800' :
+                          mustKnow.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {mustKnow.riskLevel === 'high' ? 'High Risk' :
+                          mustKnow.riskLevel === 'medium' ? 'Medium Risk' : 'Low Risk'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Summary */}
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm">
+                        <span className="text-gray-600">Must-knows acknowledged: </span>
+                        <span className="font-medium">
+                          {serviceMustKnows.filter(m => m.isAcknowledged).length} of {serviceMustKnows.length}
+                        </span>
+                      </div>
+                      {!allMustKnowsAcknowledged() && (
+                        <div className="text-xs text-red-600">
+                          All required must-knows must be acknowledged
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
               
-              {/* Service-specific Risks */}
+              {/* Service-specific Risks with individual checkboxes */}
               <div className="mb-8">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">ASSOCIATED RISKS</h3>
                 <p className="text-sm text-gray-600 mb-4">
                   The client has been explained to the following inherent risks related with the services.
                 </p>
                 
-                <div className="space-y-6">
-                  {/* Brake Disc Skimming Risks */}
-                  {formData.services.actualService.includes('Brake Disc Skimming') && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                      <h4 className="font-medium text-amber-800 mb-2 flex items-center gap-2">
-                        <RotateCw className="h-4 w-4" />
-                        Brake Disc Skimming Risks
-                      </h4>
-                      <ul className="text-sm text-amber-700 space-y-2">
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Skimming is only possible if your brake disc still has enough thickness above the manufacturer's minimum spec</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>If your disc is cracked, heat-damaged, or severely warped, skimming may worsen the condition — replacement is advised</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>We recommend fitting new brake pads with skimmed discs. Old or uneven pads can reduce braking effectiveness.</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Noise or squealing may continue post-skimming if poor-quality or worn pads are used.</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>We do not guarantee results if the disc has been skimmed before or has unknown machining history.</span>
-                        </li>
-                      </ul>
+                <div className="space-y-4">
+                  {getSelectedServiceRisks().map((risk) => (
+                    <div 
+                      key={risk.id} 
+                      className={`p-4 border rounded-lg ${
+                        risk.riskLevel === 'high' ? 'bg-red-50 border-red-200' :
+                        risk.riskLevel === 'medium' ? 'bg-yellow-50 border-yellow-200' :
+                        'bg-blue-50 border-blue-200'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          id={`risk-${risk.id}`}
+                          checked={risk.isAcknowledged}
+                          onChange={(e) => handleRiskAcknowledgment(risk.id, e.target.checked)}
+                          className="mt-1 h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                          required={risk.required}
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-start justify-between mb-1">
+                            <label htmlFor={`risk-${risk.id}`} className="text-sm font-medium text-gray-700">
+                              {risk.description}
+                              {risk.required && <span className="text-red-500 ml-1">*</span>}
+                            </label>
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              risk.riskLevel === 'high' ? 'bg-red-100 text-red-800' :
+                              risk.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-blue-100 text-blue-800'
+                            }`}>
+                              {risk.riskLevel === 'high' ? 'High Risk' :
+                              risk.riskLevel === 'medium' ? 'Medium Risk' : 'Low Risk'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            Applies to: {risk.serviceName}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  )}
+                  ))}
                   
-                  {/* Powder Coating Risks */}
-                  {formData.services.actualService.includes('Powder Coating') && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                      <h4 className="font-medium text-amber-800 mb-2 flex items-center gap-2">
-                        <PaintBucket className="h-4 w-4" />
-                        Powder Coating Risks
-                      </h4>
-                      <ul className="text-sm text-amber-700 space-y-2">
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Exclusion of hidden flaws (scratches, gouges, casting pits)</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>No warranty for high-heat areas (engine, brake)</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Colour match disclaimer (shade, lighting, material)</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>No guarantee of OEM matching</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Hidden flaws may appear after stripping/blasting</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Redo policy (only for technical failure, not color dissatisfaction)</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Customer aesthetic dissatisfaction not a valid claim</span>
-                        </li>
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {/* Straightening Risks */}
-                  {formData.services.actualService.includes('Rim Straightening') && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                      <h4 className="font-medium text-amber-800 mb-2 flex items-center gap-2">
-                        <Hammer className="h-4 w-4" />
-                        Straightening Risks
-                      </h4>
-                      <ul className="text-sm text-amber-700 space-y-2">
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Cracked rims should not be straightened.</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Welded rims are at high risk of failure during straightening.</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Severely bent rims may not return to true shape.</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Rims that have been straightened multiple times may fatigue.</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Out-of-round rims may remain slightly distorted even after straightening.</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>There is no warranty on straightening services.</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Rims may crack during straightening</span>
-                        </li>
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {/* Diamond Cutting Risks */}
-                  {formData.services.actualService.includes('Diamond Cutting') && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                      <h4 className="font-medium text-amber-800 mb-2 flex items-center gap-2">
-                        <Sparkles className="h-4 w-4" />
-                        Diamond Cutting Risks
-                      </h4>
-                      <ul className="text-sm text-amber-700 space-y-2">
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Diamond cutting removes material from the rim surface</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Cannot be done on all rim types (check manufacturer specifications)</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>May weaken structural integrity if done multiple times</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Not recommended for heavily damaged or repaired rims</span>
-                        </li>
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {/* Welding Risks */}
-                  {formData.services.actualService.includes('Welding') && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                      <h4 className="font-medium text-amber-800 mb-2 flex items-center gap-2">
-                        <Zap className="h-4 w-4" />
-                        Welding Risks
-                      </h4>
-                      <ul className="text-sm text-amber-700 space-y-2">
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Welding may cause heat distortion in surrounding areas</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Color match issues on painted rims after welding</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Stress points may develop near weld areas</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                          <span>Not all rim materials are suitable for welding</span>
-                        </li>
-                      </ul>
+                  {/* Summary for risks */}
+                  {formData.services.actualService.length > 0 && (
+                    <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm">
+                          <span className="text-gray-600">Risks acknowledged: </span>
+                          <span className="font-medium">
+                            {getSelectedServiceRisks().filter(r => r.isAcknowledged).length} of {getSelectedServiceRisks().length}
+                          </span>
+                        </div>
+                        {!allRequiredRisksAcknowledged() && (
+                          <div className="text-xs text-red-600">
+                            All required risks must be acknowledged
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -3552,23 +3890,29 @@ export default function DiamondRimsPreChecklistCreatePage({
               />
               
               {/* Signatures Section - Inspector first, then Client */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Inspector Signature (First) */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Inspector Signature <RequiredField />
-                    </label>
+              <div className="mt-8 space-y-6">
+                {/* Inspector Signature Section */}
+                <div className="bg-gray-50 rounded-lg p-5 border border-gray-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-100 rounded-lg">
+                        <UserCheck className="h-5 w-5 text-purple-700" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Inspector Signature</h3>
+                        <p className="text-xs text-gray-500">Required before client approval</p>
+                      </div>
+                    </div>
                     {formData.inspectorSignature && (
-                      <div className="flex gap-2">
-                        <span className="text-xs text-green-600 flex items-center gap-1">
+                      <div className="flex items-center gap-3">
+                        <span className="px-2 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-medium flex items-center gap-1">
                           <CheckCircle className="h-3 w-3" />
                           Signed
                         </span>
                         <button
                           type="button"
                           onClick={() => clearSignature('inspector')}
-                          className="text-xs text-red-600 hover:text-red-800"
+                          className="text-xs text-red-600 hover:text-red-800 px-2 py-1 hover:bg-red-50 rounded-lg transition-colors"
                         >
                           Clear
                         </button>
@@ -3576,82 +3920,94 @@ export default function DiamondRimsPreChecklistCreatePage({
                     )}
                   </div>
                   
-                  {/* Inspector signature canvas */}
-                  {showInspectorSignature ? (
-                    <div className="space-y-3">
-                      <div className="border border-gray-300 rounded-lg bg-white p-2">
-                        <SignatureCanvas
-                          ref={inspectorSigRef}
-                          penColor="black"
-                          canvasProps={{
-                            width: 400,
-                            height: 150,
-                            className: 'w-full h-32 border rounded bg-white'
-                          }}
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => saveSignature('inspector')}
-                          className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                        >
-                          Save Inspector Signature
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowInspectorSignature(false)}
-                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => setShowInspectorSignature(true)}
-                      className="h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors"
-                    >
-                      {formData.inspectorSignature ? (
-                        <div className="text-center p-2">
-                          <img 
-                            src={formData.inspectorSignature} 
-                            alt="Inspector Signature" 
-                            className="h-20 mx-auto object-contain"
+                  {/* Inspector Signature Canvas */}
+                  <div className="bg-white rounded-lg border border-gray-200 p-4">
+                    {showInspectorSignature ? (
+                      <div className="space-y-4">
+                        <div className="border border-gray-300 rounded-lg bg-white">
+                          <SignatureCanvas
+                            ref={inspectorSigRef}
+                            penColor="black"
+                            canvasProps={{
+                              width: 600,
+                              height: 150,
+                              className: 'w-full h-32 rounded-lg'
+                            }}
                           />
-                          <p className="text-xs text-gray-500 mt-1">Click to change signature</p>
                         </div>
-                      ) : (
-                        <div className="text-center">
-                          <FileSignature className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                          <p className="text-sm text-gray-600">Inspector Signature</p>
-                          <p className="text-xs text-gray-500">Click to sign</p>
+                        <div className="flex justify-end gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setShowInspectorSignature(false)}
+                            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => saveSignature('inspector')}
+                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center gap-2"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                            Save Signature
+                          </button>
                         </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  <div className="text-xs text-gray-500">
-                    Inspector must sign first before client approval
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => setShowInspectorSignature(true)}
+                        className="cursor-pointer group"
+                      >
+                        {formData.inspectorSignature ? (
+                          <div className="flex items-center justify-between">
+                            <img 
+                              src={formData.inspectorSignature} 
+                              alt="Inspector Signature" 
+                              className="h-16 object-contain"
+                            />
+                            <span className="text-sm text-purple-600 group-hover:text-purple-800 flex items-center gap-1">
+                              <FileSignature className="h-4 w-4" />
+                              Change
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center py-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-purple-400 hover:bg-purple-50 transition-colors">
+                            <FileSignature className="h-10 w-10 text-gray-400 group-hover:text-purple-500 mb-2" />
+                            <p className="text-sm font-medium text-gray-700 group-hover:text-purple-700">Click to sign as inspector</p>
+                            <p className="text-xs text-gray-500 mt-1">Digital signature required</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
-                
-                {/* Client Signature */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Client Signature <RequiredField />
-                    </label>
+
+                {/* Client Signature Section */}
+                <div className="bg-gray-50 rounded-lg p-5 border border-gray-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <UserType className="h-5 w-5 text-blue-700" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Client Approval</h3>
+                        <p className="text-xs text-gray-500">
+                          {formData.inspectorSignature 
+                            ? 'Ready for client signature' 
+                            : 'Awaiting inspector signature first'}
+                        </p>
+                      </div>
+                    </div>
                     {formData.clientSignature && (
-                      <div className="flex gap-2">
-                        <span className="text-xs text-green-600 flex items-center gap-1">
+                      <div className="flex items-center gap-3">
+                        <span className="px-2 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-medium flex items-center gap-1">
                           <CheckCircle className="h-3 w-3" />
-                          Signed
+                          Approved
                         </span>
                         <button
                           type="button"
                           onClick={() => clearSignature('client')}
-                          className="text-xs text-red-600 hover:text-red-800"
+                          className="text-xs text-red-600 hover:text-red-800 px-2 py-1 hover:bg-red-50 rounded-lg transition-colors"
                         >
                           Clear
                         </button>
@@ -3659,128 +4015,148 @@ export default function DiamondRimsPreChecklistCreatePage({
                     )}
                   </div>
                   
-                  {/* Client signing method selection */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Client Signing Method
-                    </label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name="clientSigningMethod"
-                          value="present"
-                          checked={formData.clientSigningMethod === 'present'}
-                          onChange={(e) => handleInputChange('clientSigningMethod', e.target.value)}
-                          className="text-purple-600"
-                        />
-                        <span>Client Present</span>
-                      </label>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name="clientSigningMethod"
-                          value="absent"
-                          checked={formData.clientSigningMethod === 'absent'}
-                          onChange={(e) => handleInputChange('clientSigningMethod', e.target.value)}
-                          className="text-purple-600"
-                        />
-                        <span>Client Absent</span>
-                      </label>
+                  {/* Signing Method Selection */}
+                  <div className="mb-5">
+                    <div className="flex gap-4 p-1 bg-gray-100 rounded-lg inline-flex">
+                      <button
+                        type="button"
+                        onClick={() => handleInputChange('clientSigningMethod', 'present')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          formData.clientSigningMethod === 'present'
+                            ? 'bg-white text-blue-700 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        Client Present
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleInputChange('clientSigningMethod', 'absent')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          formData.clientSigningMethod === 'absent'
+                            ? 'bg-white text-blue-700 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        Client Absent
+                      </button>
                     </div>
                   </div>
-                  
-                  {/* Client signature based on method */}
+
+                  {/* Client Present - Direct Signature */}
                   {formData.clientSigningMethod === 'present' && (
-                    <>
+                    <div className="bg-white rounded-lg border border-gray-200 p-4">
                       {showClientSignature ? (
-                        <div className="space-y-3">
-                          <div className="border border-gray-300 rounded-lg bg-white p-2">
+                        <div className="space-y-4">
+                          <div className="border border-gray-300 rounded-lg bg-white">
                             <SignatureCanvas
                               ref={clientSigRef}
                               penColor="black"
                               canvasProps={{
-                                width: 400,
+                                width: 600,
                                 height: 150,
-                                className: 'w-full h-32 border rounded bg-white'
+                                className: 'w-full h-32 rounded-lg'
                               }}
                             />
                           </div>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => saveSignature('client')}
-                              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                            >
-                              Save Client Signature
-                            </button>
+                          <div className="flex justify-end gap-3">
                             <button
                               type="button"
                               onClick={() => setShowClientSignature(false)}
-                              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+                              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm"
                             >
                               Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => saveSignature('client')}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm flex items-center gap-2"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                              Save Signature
                             </button>
                           </div>
                         </div>
                       ) : (
                         <div
-                          onClick={() => setShowClientSignature(true)}
-                          className="h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors"
+                          onClick={() => formData.inspectorSignature ? setShowClientSignature(true) : null}
+                          className={`cursor-pointer group ${!formData.inspectorSignature && 'opacity-50 cursor-not-allowed'}`}
                         >
                           {formData.clientSignature ? (
-                            <div className="text-center p-2">
+                            <div className="flex items-center justify-between">
                               <img 
                                 src={formData.clientSignature} 
                                 alt="Client Signature" 
-                                className="h-20 mx-auto object-contain"
+                                className="h-16 object-contain"
                               />
-                              <p className="text-xs text-gray-500 mt-1">Click to change signature</p>
+                              <span className="text-sm text-blue-600 group-hover:text-blue-800 flex items-center gap-1">
+                                <FileSignature className="h-4 w-4" />
+                                Change
+                              </span>
                             </div>
                           ) : (
-                            <div className="text-center">
-                              <FileSignature className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                              <p className="text-sm text-gray-600">Client Signature</p>
-                              <p className="text-xs text-gray-500">Click to sign</p>
+                            <div className={`flex flex-col items-center justify-center py-6 border-2 border-dashed rounded-lg transition-colors ${
+                              formData.inspectorSignature
+                                ? 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+                                : 'border-gray-200 bg-gray-50'
+                            }`}>
+                              <FileSignature className={`h-10 w-10 mb-2 ${
+                                formData.inspectorSignature ? 'text-gray-400 group-hover:text-blue-500' : 'text-gray-300'
+                              }`} />
+                              <p className={`text-sm font-medium ${
+                                formData.inspectorSignature ? 'text-gray-700 group-hover:text-blue-700' : 'text-gray-400'
+                              }`}>
+                                {formData.inspectorSignature ? 'Click to capture client signature' : 'Waiting for inspector signature'}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {formData.inspectorSignature ? 'Client signs here' : 'Inspector must sign first'}
+                              </p>
                             </div>
                           )}
                         </div>
                       )}
-                    </>
+                    </div>
                   )}
-                  
+
+                  {/* Client Absent - Email for Approval */}
                   {formData.clientSigningMethod === 'absent' && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <div className="flex items-start gap-3">
-                        <MailIcon className="h-5 w-5 text-blue-600 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium text-blue-900 mb-2">
-                            Send for Client Approval
-                          </p>
-                          <p className="text-xs text-blue-700 mb-3">
-                            The client will receive an email with a link to review and sign this pre-checklist.
+                    <div className="bg-white rounded-lg border border-blue-200 p-5">
+                      <div className="flex items-start gap-4">
+                        <div className="p-2 bg-blue-100 rounded-full">
+                          <Mail className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900 mb-1">Send for Remote Approval</h4>
+                          <p className="text-sm text-gray-600 mb-4">
+                            Client will receive an email with a secure link to review and sign
                           </p>
                           
-                          <div className="mb-3">
-                            <label className="block text-xs font-medium text-blue-700 mb-1">
-                              Client Email
-                            </label>
+                          <div className="flex gap-3">
                             <input
                               type="email"
                               value={formData.clientEmail}
                               onChange={(e) => handleInputChange('clientEmail', e.target.value)}
-                              placeholder="client@example.com"
-                              className="w-full px-3 py-2 text-sm border border-blue-300 rounded-lg"
+                              placeholder="client@company.com"
+                              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              disabled={!formData.inspectorSignature}
                             />
+                            <button
+                              type="button"
+                              onClick={sendForClientApproval}
+                              disabled={!formData.inspectorSignature || !formData.clientEmail}
+                              className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                              <Mail className="h-4 w-4" />
+                              Send Email
+                            </button>
                           </div>
                           
-                          <button
-                            type="button"
-                            onClick={sendForClientApproval}
-                            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
-                          >
-                            Send Email for Approval
-                          </button>
+                          {!formData.inspectorSignature && (
+                            <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
+                              <AlertCircle className="h-3 w-3" />
+                              Inspector signature required before sending to client
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
