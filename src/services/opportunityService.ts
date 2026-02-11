@@ -424,6 +424,90 @@ export interface StageHistory {
   metadata?: any;
 }
 
+export interface DuplicateCheckRequest {
+  customer?: {
+    email?: string;
+    phone?: string;
+    firstName?: string;
+    lastName?: string;
+    companyName?: string;
+  };
+  vehicles?: Array<{
+    vin?: string;
+    registrationNumber?: string;
+    make?: string;
+    model?: string;
+  }>;
+  subject?: string;
+}
+
+export interface DuplicateCheckResponse {
+  isDuplicate: boolean;
+  existingOpportunities: Opportunity[];
+  confidenceScore: number;
+  duplicateReasons: string[];
+}
+
+export interface ValidateWithDuplicatesRequest extends DuplicateCheckRequest {
+  // Include all opportunity creation fields for validation
+  type?: 'individual' | 'organization';
+  subject?: string;
+  status?: string;
+  source?: string;
+  customer: {
+    name: string;
+    email?: string;
+    phone?: string;
+    companyName?: string;
+  };
+  vehicles?: Array<{
+    vin?: string;
+    registrationNumber?: string;
+    make: string;
+    model: string;
+  }>;
+  opportunityType?: 'SERVICE' | 'SALE' | 'REPAIR' | 'MAINTENANCE' | 'INSPECTION';
+}
+
+export interface ValidateWithDuplicatesResponse {
+  isValid: boolean;
+  validationErrors: string[];
+  lisStatus: {
+    canProgress: boolean;
+    status: 'green' | 'amber' | 'red';
+    missingFields: string[];
+  };
+  duplicates: {
+    isDuplicate: boolean;
+    existingOpportunities: Opportunity[];
+    confidenceScore: number;
+  };
+}
+
+export interface SimilarOpportunitiesRequest {
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  subject?: string;
+  limit?: number;
+}
+
+export interface MergeDuplicatesRequest {
+  sourceOpportunityId: string;
+  duplicateOpportunityIds: string[];
+  mergeNotes: boolean;
+  mergeVehicles: boolean;
+  keepSourceStatus: boolean;
+}
+
+export interface MergeDuplicatesResponse {
+  success: boolean;
+  mergedOpportunity: Opportunity;
+  mergedCount: number;
+  mergedOpportunities: string[];
+  notes?: string;
+}
+
 // Extended ApiClient with headers support
 class ExtendedApiClient {
   private getApiBaseUrl(): string {
@@ -812,36 +896,6 @@ class OpportunityService {
     } catch (error) {
       console.error('Error recalculating all scores:', error);
       throw error;
-    }
-  }
-
-  async checkForDuplicates(customerData: {
-    email?: string;
-    phone?: string;
-    firstName?: string;
-    lastName?: string;
-    companyName?: string;
-  }): Promise<{ isDuplicate: boolean; existingOpportunities: Opportunity[] }> {
-    try {
-      const queryParams = new URLSearchParams();
-      
-      if (customerData.email) {
-        queryParams.append('customerEmail', customerData.email);
-      }
-      if (customerData.phone) {
-        queryParams.append('customerPhone', customerData.phone);
-      }
-      
-      const endpoint = `/opportunities/check-duplicates?${queryParams.toString()}`;
-      const response = await extendedApiClient.get<{
-        isDuplicate: boolean;
-        existingOpportunities: Opportunity[];
-      }>(endpoint);
-      
-      return response;
-    } catch (error) {
-      console.error('Error checking for duplicates:', error);
-      return { isDuplicate: false, existingOpportunities: [] };
     }
   }
 
@@ -1499,6 +1553,179 @@ class OpportunityService {
       limit,
       sort: 'createdAt:desc'
     });
+  }
+
+  async checkForDuplicates(data: DuplicateCheckRequest): Promise<DuplicateCheckResponse> {
+    try {
+      return await extendedApiClient.post<DuplicateCheckRequest, DuplicateCheckResponse>(
+        '/opportunities/check-duplicate',
+        data
+      );
+    } catch (error) {
+      console.error('Error checking for duplicates:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Validate opportunity data and check for duplicates
+   * POST /api/v1/opportunities/validate-with-duplicates
+   */
+  async validateWithDuplicates(
+    data: ValidateWithDuplicatesRequest,
+    checkDuplicates: boolean = true
+  ): Promise<ValidateWithDuplicatesResponse> {
+    try {
+      const queryParams = new URLSearchParams();
+      queryParams.append('checkDuplicates', checkDuplicates.toString());
+      
+      return await extendedApiClient.post<ValidateWithDuplicatesRequest, ValidateWithDuplicatesResponse>(
+        `/opportunities/validate-with-duplicates?${queryParams.toString()}`,
+        data
+      );
+    } catch (error) {
+      console.error('Error validating with duplicates:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Find similar opportunities
+   * GET /api/v1/opportunities/find-similar
+   */
+  async findSimilarOpportunities(params: SimilarOpportunitiesRequest): Promise<Opportunity[]> {
+    try {
+      const queryParams = new URLSearchParams();
+      
+      if (params.customerName) queryParams.append('customerName', params.customerName);
+      if (params.customerPhone) queryParams.append('customerPhone', params.customerPhone);
+      if (params.customerEmail) queryParams.append('customerEmail', params.customerEmail);
+      if (params.subject) queryParams.append('subject', params.subject);
+      if (params.limit) queryParams.append('limit', params.limit.toString());
+      
+      const endpoint = `/opportunities/find-similar${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      return await extendedApiClient.get<Opportunity[]>(endpoint);
+    } catch (error) {
+      console.error('Error finding similar opportunities:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Merge duplicate opportunities
+   * POST /api/v1/opportunities/merge-duplicates
+   */
+  async mergeDuplicates(data: MergeDuplicatesRequest): Promise<MergeDuplicatesResponse> {
+    try {
+      return await extendedApiClient.post<MergeDuplicatesRequest, MergeDuplicatesResponse>(
+        '/opportunities/merge-duplicates',
+        data
+      );
+    } catch (error) {
+      console.error('Error merging duplicates:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Enhanced create opportunity with duplicate check and validation
+   */
+  async createOpportunityWithValidation(
+    data: CreateOpportunityData,
+    options: {
+      checkDuplicates?: boolean;
+      validateLIS?: boolean;
+      userId?: string;
+    } = {}
+  ): Promise<{
+    opportunity: Opportunity;
+    validation?: ValidateWithDuplicatesResponse;
+    createdWithDuplicates?: boolean;
+  }> {
+    try {
+      const { checkDuplicates = true, validateLIS = true, userId } = options;
+      
+      // Step 1: Validate with duplicates if requested
+      let validationResult: ValidateWithDuplicatesResponse | undefined;
+      if (validateLIS || checkDuplicates) {
+        const validationData: ValidateWithDuplicatesRequest = {
+          type: data.type,
+          subject: data.subject,
+          status: data.status || 'new',
+          source: data.source,
+          customer: data.customer,
+          vehicles: data.vehicles?.map(v => ({
+            vin: v.vin,
+            registrationNumber: v.registrationNumber,
+            make: v.make,
+            model: v.model
+          })),
+          opportunityType: data.opportunityType
+        };
+        
+        validationResult = await this.validateWithDuplicates(validationData, checkDuplicates);
+        
+        if (!validationResult.isValid) {
+          throw new Error(`Validation failed: ${validationResult.validationErrors.join(', ')}`);
+        }
+        
+        if (validationResult.duplicates.isDuplicate) {
+          // Return validation result so UI can show duplicate modal
+          return {
+            opportunity: {} as Opportunity, // Empty opportunity since not created yet
+            validation: validationResult,
+            createdWithDuplicates: false
+          };
+        }
+      }
+      
+      // Step 2: Create opportunity
+      const headers: Record<string, string> = {};
+      if (userId) {
+        headers['X-User-Id'] = userId;
+      }
+      
+      const opportunity = await extendedApiClient.post<CreateOpportunityData, Opportunity>(
+        '/opportunities',
+        data,
+        headers
+      );
+      
+      return {
+        opportunity,
+        validation: validationResult,
+        createdWithDuplicates: false
+      };
+    } catch (error) {
+      console.error('Error creating opportunity with validation:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Helper method to check duplicates with customer data
+   * (Kept for backward compatibility)
+   */
+  async checkForDuplicatesSimple(customerData: {
+    email?: string;
+    phone?: string;
+    firstName?: string;
+    lastName?: string;
+    companyName?: string;
+  }): Promise<{ isDuplicate: boolean; existingOpportunities: Opportunity[] }> {
+    try {
+      const response = await this.checkForDuplicates({
+        customer: customerData
+      });
+      
+      return {
+        isDuplicate: response.isDuplicate,
+        existingOpportunities: response.existingOpportunities
+      };
+    } catch (error) {
+      console.error('Error checking for duplicates:', error);
+      return { isDuplicate: false, existingOpportunities: [] };
+    }
   }
 }
 
