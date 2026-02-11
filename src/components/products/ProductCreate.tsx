@@ -23,7 +23,6 @@ interface FormData {
   productCode: string;
   name: string;
   description: string;
-  detailedDescription: string;
   category: 'parts' | 'tools' | 'consumables' | 'equipment' | 'accessories' | 'other';
   tags: string[];
   newTag: string;
@@ -52,7 +51,6 @@ export default function ProductCreate() {
     productCode: '',
     name: '',
     description: '',
-    detailedDescription: '',
     category: 'other',
     tags: [],
     newTag: '',
@@ -95,6 +93,13 @@ export default function ProductCreate() {
     { value: 'bottle', label: 'Bottle' },
     { value: 'tube', label: 'Tube' },
   ];
+
+  // Generate a default product code based on timestamp
+  const generateProductCode = () => {
+    const timestamp = Date.now().toString().slice(-6);
+    const randomChars = Math.random().toString(36).substring(2, 5).toUpperCase();
+    return `PROD-${timestamp}-${randomChars}`;
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -188,9 +193,9 @@ export default function ProductCreate() {
   const validateForm = (): boolean => {
     const errors: string[] = [];
     
+    // if (!formData.productCode.trim()) errors.push('Product Code is required');
     if (!formData.name.trim()) errors.push('Product name is required');
     if (!formData.description.trim()) errors.push('Description is required');
-    if (!formData.manufacturer.trim()) errors.push('Manufacturer is required');
     if (formData.quantityInStock < 0) errors.push('Quantity cannot be negative');
     if (formData.reorderLevel < 0) errors.push('Reorder level cannot be negative');
     
@@ -211,13 +216,12 @@ export default function ProductCreate() {
       setLoading(true);
       
       const createData: CreateProductData = {
-        productCode: formData.productCode.trim() || undefined,
+        productCode: formData.productCode.trim(),
         name: formData.name.trim(),
         description: formData.description.trim(),
-        detailedDescription: formData.detailedDescription.trim() || undefined,
         category: formData.category,
         tags: formData.tags,
-        manufacturer: formData.manufacturer.trim(),
+        manufacturer: formData.manufacturer.trim() || undefined,
         modelNumber: formData.modelNumber.trim() || undefined,
         sku: formData.sku.trim() || undefined,
         quantityInStock: formData.quantityInStock,
@@ -230,6 +234,8 @@ export default function ProductCreate() {
         safetyWarnings: formData.safetyWarnings.length > 0 ? formData.safetyWarnings : undefined,
         internalNotes: formData.internalNotes.trim() || undefined
       };
+      
+      console.log('Submitting product data:', createData);
       
       const newProduct = await productService.createProduct(createData);
       showToast('Product created successfully!', 'success');
@@ -318,6 +324,30 @@ export default function ProductCreate() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Product Code
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      name="productCode"
+                      value={formData.productCode}
+                      onChange={handleChange}
+                      placeholder="Enter product code"
+                      className="flex-1 px-4 py-3 rounded-xl border border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, productCode: generateProductCode() }))}
+                      className="px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200"
+                    >
+                      Generate
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Unique identifier for this product (required)</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Product Name <RequiredField />
                   </label>
                   <input
@@ -325,7 +355,7 @@ export default function ProductCreate() {
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
-                    placeholder="e.g., Synthetic Engine Oil 5W-30"
+                    placeholder="Enter product name"
                     className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
                     required
                   />
@@ -335,16 +365,15 @@ export default function ProductCreate() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Manufacturer <RequiredField />
+                    Manufacturer
                   </label>
                   <input
                     type="text"
                     name="manufacturer"
                     value={formData.manufacturer}
                     onChange={handleChange}
-                    placeholder="e.g., Mobil, Bosch, Toyota"
+                    placeholder="Enter manufacturer name"
                     className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
-                    required
                   />
                 </div>
                 
@@ -357,7 +386,7 @@ export default function ProductCreate() {
                     name="modelNumber"
                     value={formData.modelNumber}
                     onChange={handleChange}
-                    placeholder="e.g., MOB-5W30-SYN"
+                    placeholder="Enter model number"
                     className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
                   />
                 </div>
@@ -373,7 +402,7 @@ export default function ProductCreate() {
                     name="sku"
                     value={formData.sku}
                     onChange={handleChange}
-                    placeholder="e.g., SKU-12345"
+                    placeholder="Enter SKU"
                     className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
                   />
                 </div>
@@ -472,53 +501,16 @@ export default function ProductCreate() {
             {/* Description */}
             <div className="mb-8">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description (Disclaimer) <RequiredField />
-              </label>
-              <div className="relative">
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleChange}
-                  rows={4}
-                  placeholder="Enter product description including any disclaimers. Example: '⚠️ DISCLAIMER: This product contains chemicals known to cause health hazards. Use in well-ventilated area. Keep away from children.'"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none resize-none"
-                  required
-                />
-                <div className="absolute bottom-2 right-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormData(prev => ({
-                        ...prev,
-                        description: prev.description + ' ⚠️ DISCLAIMER: This product contains chemicals known to cause health hazards.'
-                      }));
-                    }}
-                    className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"
-                  >
-                    Add Safety Disclaimer
-                  </button>
-                </div>
-              </div>
-              <div className="flex items-start gap-2 mt-2 p-2 bg-yellow-50 rounded-lg">
-                <AlertTriangle className="h-4 w-4 text-yellow-600 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-yellow-700">
-                  <strong>Important:</strong> Include clear disclaimers about safety, hazards, and proper usage. Use the ⚠️ symbol for emphasis.
-                </p>
-              </div>
-            </div>
-
-            {/* Detailed Description */}
-            <div className="mb-8">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Detailed Description
+                Description <RequiredField />
               </label>
               <textarea
-                name="detailedDescription"
-                value={formData.detailedDescription}
+                name="description"
+                value={formData.description}
                 onChange={handleChange}
-                rows={3}
-                placeholder="Enter detailed product description, features, and benefits..."
+                rows={4}
+                placeholder="Enter product description"
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none resize-none"
+                required
               />
             </div>
 
@@ -582,7 +574,7 @@ export default function ProductCreate() {
                   value={formData.newTag}
                   onChange={(e) => setFormData(prev => ({ ...prev, newTag: e.target.value }))}
                   onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
-                  placeholder="Add a tag (e.g., synthetic, quick-delivery)"
+                  placeholder="Add a tag"
                   className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
                 />
                 <button
@@ -632,7 +624,7 @@ export default function ProductCreate() {
                   value={formData.newCompatibleItem}
                   onChange={(e) => setFormData(prev => ({ ...prev, newCompatibleItem: e.target.value }))}
                   onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddCompatibleItem())}
-                  placeholder="Add compatibility (e.g., Toyota Camry 2015-2020)"
+                  placeholder="Add compatibility"
                   className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
                 />
                 <button
@@ -684,7 +676,7 @@ export default function ProductCreate() {
                   value={formData.newSafetyWarning}
                   onChange={(e) => setFormData(prev => ({ ...prev, newSafetyWarning: e.target.value }))}
                   onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSafetyWarning())}
-                  placeholder="Add safety warning (e.g., Flammable, Keep away from heat)"
+                  placeholder="Add safety warning"
                   className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
                 />
                 <button
@@ -735,7 +727,7 @@ export default function ProductCreate() {
                 value={formData.storageRequirements}
                 onChange={handleChange}
                 rows={2}
-                placeholder="e.g., Store in cool, dry place away from direct sunlight."
+                placeholder="Enter storage requirements"
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none resize-none"
               />
             </div>
@@ -750,7 +742,7 @@ export default function ProductCreate() {
                 name="warrantyPeriod"
                 value={formData.warrantyPeriod}
                 onChange={handleChange}
-                placeholder="e.g., 2 years from manufacture date"
+                placeholder="Enter warranty period"
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
               />
             </div>
@@ -765,7 +757,7 @@ export default function ProductCreate() {
                 value={formData.internalNotes}
                 onChange={handleChange}
                 rows={3}
-                placeholder="Add internal notes, supplier information, or special instructions..."
+                placeholder="Add internal notes"
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none resize-none"
               />
               <p className="text-xs text-gray-500 mt-1">

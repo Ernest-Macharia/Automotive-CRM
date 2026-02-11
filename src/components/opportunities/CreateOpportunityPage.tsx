@@ -17,6 +17,8 @@ import DuplicateModal from '@/components/opportunities/DuplicateModal';
 import { Opportunity } from '@/services/opportunityService';
 import React from 'react';
 import { userService } from '@/services/settings/userService';
+import { productService, Product } from '@/services/productService';
+import { serviceService, Service } from '@/services/serviceService';
 
 interface Vehicle {
   id: string;
@@ -37,12 +39,16 @@ interface ServiceProduct {
   id: string;
   title: string;
   description: string;
-  type: 'SERVICE' | 'SALE' | 'REPAIR' | 'MAINTENANCE' | 'INSPECTION';
+  type: 'SERVICE' | 'PRODUCT' | 'PART' | 'LABOR';
   quantity: number;
   unitPrice: number;
   discount: number;
   subtotal: number;
   total: number;
+  productId?: string; // Reference to actual product ID
+  serviceId?: string; // Reference to actual service ID
+  productCode?: string; // Product code if it's a product
+  serviceCode?: string; // Service code if it's a service
 }
 
 interface CountryCode {
@@ -156,160 +162,6 @@ const vehicleBodyTypes = [
   'Other'
 ];
 
-const serviceSuggestions = [
-  {
-    title: 'Oil Change Service',
-    description: 'Complete oil and filter change using high-quality synthetic oil. Includes fluid level check, tire pressure check, and basic inspection of brakes, lights, and belts.'
-  },
-  {
-    title: 'Brake System Repair',
-    description: 'Comprehensive brake system inspection and repair. Includes brake pad/disc replacement, brake fluid flush, caliper inspection, and system bleeding.'
-  },
-  {
-    title: 'Engine Tune-up',
-    description: 'Complete engine performance optimization. Includes spark plug replacement, air filter change, fuel system cleaning, and ignition system check.'
-  },
-  {
-    title: 'Transmission Service',
-    description: 'Transmission fluid flush and filter replacement. Includes pan gasket replacement, fluid level adjustment, and transmission performance test.'
-  },
-  {
-    title: 'Suspension Repair',
-    description: 'Suspension system inspection and repair. Includes shock absorber/strut replacement, bushing inspection, wheel alignment, and ride height adjustment.'
-  },
-  {
-    title: 'Wheel Alignment',
-    description: 'Precision wheel alignment service. Includes camber, caster, and toe adjustment using computerized alignment equipment.'
-  },
-  {
-    title: 'AC Repair & Service',
-    description: 'Air conditioning system service. Includes refrigerant recharge, compressor check, condenser cleaning, and system pressure test.'
-  },
-  {
-    title: 'Electrical System Repair',
-    description: 'Complete electrical system diagnosis and repair. Includes battery test, alternator check, wiring inspection, and electrical component testing.'
-  },
-  {
-    title: 'Exhaust System Repair',
-    description: 'Exhaust system inspection and repair. Includes muffler replacement, catalytic converter check, pipe repair, and emissions system test.'
-  },
-  {
-    title: 'Fuel System Service',
-    description: 'Fuel system cleaning and service. Includes fuel filter replacement, injector cleaning, pump test, and system pressure check.'
-  },
-  {
-    title: 'Tire Replacement',
-    description: 'Tire replacement and balancing. Includes old tire removal, new tire installation, wheel balancing, and tire pressure monitoring system reset.'
-  },
-  {
-    title: 'Battery Replacement',
-    description: 'Battery replacement service. Includes old battery removal, new battery installation, terminal cleaning, and charging system test.'
-  },
-  {
-    title: 'Windshield Replacement',
-    description: 'Windshield glass replacement. Includes old glass removal, new glass installation, sealant application, and curing time.'
-  },
-  {
-    title: 'Paint Job & Body Work',
-    description: 'Body repair and painting service. Includes dent removal, surface preparation, primer application, color matching, and clear coat finishing.'
-  },
-  {
-    title: 'Full Vehicle Service',
-    description: 'Comprehensive vehicle maintenance package. Includes all fluid changes, filter replacements, system inspections, and safety checks.'
-  },
-  {
-    title: 'Pre-purchase Inspection',
-    description: 'Detailed vehicle inspection for prospective buyers. Includes mechanical, electrical, body, and interior condition assessment with detailed report.'
-  },
-  {
-    title: 'Custom Service',
-    description: 'Customized service based on specific requirements. Please provide detailed description of needed service.'
-  }
-];
-
-const productSuggestions = [
-  {
-    title: 'Engine Oil',
-    description: 'High-quality synthetic engine oil. Provides superior engine protection, improves fuel efficiency, and extends engine life. Available in various viscosity grades.'
-  },
-  {
-    title: 'Brake Pads',
-    description: 'Premium brake pads with ceramic or semi-metallic compounds. Offers excellent stopping power, reduced brake dust, and quiet operation. Compatible with most vehicle models.'
-  },
-  {
-    title: 'Brake Discs',
-    description: 'High-performance brake discs/rotors. Made from premium materials for improved heat dissipation and longer lifespan. Includes proper fitment for specific vehicle models.'
-  },
-  {
-    title: 'Air Filter',
-    description: 'High-flow air filter element. Improves engine performance and fuel efficiency. Washable/reusable options available for certain models.'
-  },
-  {
-    title: 'Oil Filter',
-    description: 'Premium oil filter with synthetic media. Provides superior filtration, protects engine from contaminants, and ensures optimal oil flow.'
-  },
-  {
-    title: 'Fuel Filter',
-    description: 'High-efficiency fuel filter. Removes contaminants from fuel, protects fuel injectors, and maintains proper fuel pressure.'
-  },
-  {
-    title: 'Spark Plugs',
-    description: 'Performance spark plugs. Improves ignition efficiency, fuel economy, and engine performance. Available in copper, platinum, and iridium options.'
-  },
-  {
-    title: 'Car Battery',
-    description: 'Maintenance-free car battery. Provides reliable starting power, long service life, and excellent cold-cranking performance. Includes proper warranty.'
-  },
-  {
-    title: 'Tires (Set of 4)',
-    description: 'Complete set of 4 premium tires. Includes all-season or performance options with proper load rating and speed index for your vehicle.'
-  },
-  {
-    title: 'Wheel Rims',
-    description: 'Alloy or steel wheel rims. Available in various sizes and designs. Includes proper hub centric fitment and load capacity for your vehicle.'
-  },
-  {
-    title: 'Shock Absorbers',
-    description: 'Premium shock absorbers. Improves ride comfort, handling, and vehicle stability. Available in standard or performance variants.'
-  },
-  {
-    title: 'Struts',
-    description: 'Complete strut assembly. Includes shock absorber, spring, and mounting hardware. Provides improved suspension performance and ride quality.'
-  },
-  {
-    title: 'AC Compressor',
-    description: 'OE-quality AC compressor. Includes proper refrigerant capacity and compatibility with your vehicle\'s AC system.'
-  },
-  {
-    title: 'Alternator',
-    description: 'High-output alternator. Provides reliable electrical power for all vehicle systems. Includes proper amperage rating for your vehicle.'
-  },
-  {
-    title: 'Starter Motor',
-    description: 'Premium starter motor. Ensures reliable engine starting in all conditions. Includes proper torque specifications for your engine.'
-  },
-  {
-    title: 'Radiator',
-    description: 'High-efficiency radiator. Provides optimal engine cooling with improved heat dissipation. Includes proper fitment for your vehicle.'
-  },
-  {
-    title: 'Windshield',
-    description: 'OE-quality windshield glass. Includes proper tint, curvature, and sensor compatibility if applicable.'
-  },
-  {
-    title: 'Headlights',
-    description: 'Premium headlight assembly. Includes proper beam pattern, brightness, and compatibility with your vehicle\'s electrical system.'
-  },
-  {
-    title: 'Taillights',
-    description: 'OE-quality taillight assembly. Includes proper lighting functions, lens clarity, and weather sealing.'
-  },
-  {
-    title: 'Custom Part',
-    description: 'Custom automotive part. Please specify exact requirements, vehicle details, and any special instructions.'
-  }
-];
-
 export default function CreateOpportunityPage() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -389,6 +241,16 @@ export default function CreateOpportunityPage() {
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [duplicateOpportunities, setDuplicateOpportunities] = useState<Opportunity[]>([]);
   const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
+  
+  // New state for services and products from APIs
+  const [services, setServices] = useState<Service[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loadingServices, setLoadingServices] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [servicesLoaded, setServicesLoaded] = useState(false);
+  const [productsLoaded, setProductsLoaded] = useState(false);
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+
   const accountTypes = [
     { value: 'individual', label: 'Individual', icon: User, disabled: false },
     { value: 'organization', label: 'Company/Organization', icon: Building, disabled: false }
@@ -420,6 +282,43 @@ export default function CreateOpportunityPage() {
   const serviceProductDropdownRef = useRef<HTMLDivElement | null>(null);
   const preferencesRef = useRef<HTMLDivElement | null>(null);
   const usersDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  // Fetch services and products when step changes to 3 or opportunityType changes
+  useEffect(() => {
+    if (step === 3) {
+      fetchServicesAndProducts();
+    }
+  }, [step, formData.opportunityType]);
+
+  const fetchServicesAndProducts = async () => {
+    if (formData.opportunityType === 'SERVICE' && !servicesLoaded) {
+      try {
+        setLoadingServices(true);
+        const servicesData = await serviceService.getActiveServices();
+        setServices(servicesData);
+        setServicesLoaded(true);
+      } catch (error) {
+        console.error('Error fetching services:', error);
+        showToast('Failed to load services', 'error', 3000);
+      } finally {
+        setLoadingServices(false);
+      }
+    }
+    
+    if (formData.opportunityType === 'SALE' && !productsLoaded) {
+      try {
+        setLoadingProducts(true);
+        const productsData = await productService.getActiveProducts();
+        setProducts(productsData);
+        setProductsLoaded(true);
+      } catch (error) {
+        console.error('Error fetching products:', error);
+        showToast('Failed to load products', 'error', 3000);
+      } finally {
+        setLoadingProducts(false);
+      }
+    }
+  };
 
   const isSalesPerson = (user: User): boolean => {
     if (typeof user.role === 'string') {
@@ -608,10 +507,26 @@ export default function CreateOpportunityPage() {
     setFormData(prev => ({ ...prev, servicesProducts: updatedServicesProducts }));
   };
 
-  const selectServiceProductSuggestion = (index: number, suggestion: { title: string; description: string }) => {
+  const selectServiceProductSuggestion = (index: number, item: Service | Product, isService: boolean) => {
     const updatedServicesProducts = [...formData.servicesProducts];
-    updatedServicesProducts[index].title = suggestion.title;
-    updatedServicesProducts[index].description = suggestion.description;
+    const productItem = item as Product;
+    const serviceItem = item as Service;
+    
+    updatedServicesProducts[index].title = isService ? serviceItem.name : productItem.name;
+    updatedServicesProducts[index].description = isService ? serviceItem.description : productItem.description;
+    updatedServicesProducts[index].unitPrice = isService ? 0 : (productItem as any).price || 0;
+    
+    // Store references for cascading modules
+    if (isService) {
+      updatedServicesProducts[index].serviceId = serviceItem.id;
+      updatedServicesProducts[index].serviceCode = serviceItem.serviceCode;
+      updatedServicesProducts[index].type = 'SERVICE';
+    } else {
+      updatedServicesProducts[index].productId = productItem.id;
+      updatedServicesProducts[index].productCode = productItem.productCode;
+      updatedServicesProducts[index].type = 'PRODUCT';
+    }
+    
     setFormData(prev => ({ ...prev, servicesProducts: updatedServicesProducts }));
     setShowServiceProductDropdown(null);
     setServiceProductSearch('');
@@ -651,7 +566,7 @@ export default function CreateOpportunityPage() {
         id: Date.now().toString(),
         title: '',
         description: '',
-        type: formData.opportunityType,
+        type: formData.opportunityType === 'SERVICE' ? 'SERVICE' : 'PRODUCT',
         quantity: 1,
         unitPrice: 0,
         discount: 0,
@@ -738,11 +653,24 @@ export default function CreateOpportunityPage() {
   );
 
   const filteredServiceProducts = () => {
-    const suggestions = formData.opportunityType === 'SERVICE' ? serviceSuggestions : productSuggestions;
-    return suggestions.filter(item =>
-      item.title.toLowerCase().includes(serviceProductSearch.toLowerCase())
-    );
+    if (formData.opportunityType === 'SERVICE') {
+      return services.filter(service =>
+        service.name.toLowerCase().includes(serviceProductSearch.toLowerCase()) ||
+        service.description.toLowerCase().includes(serviceProductSearch.toLowerCase()) ||
+        service.serviceCode.toLowerCase().includes(serviceProductSearch.toLowerCase())
+      );
+    } else {
+      return products.filter(product =>
+        product.name.toLowerCase().includes(serviceProductSearch.toLowerCase()) ||
+        product.description.toLowerCase().includes(serviceProductSearch.toLowerCase()) ||
+        product.productCode.toLowerCase().includes(serviceProductSearch.toLowerCase())
+      );
+    }
   };
+
+  const RequiredField = () => (
+    <span className="text-red-500 ml-1">*</span>
+  );
 
   const validateStep = () => {
     const newErrors: Record<string, string> = {};
@@ -753,10 +681,8 @@ export default function CreateOpportunityPage() {
       } else if (formData.accountType === 'organization') {
         if (!formData.companyName.trim()) newErrors.companyName = 'Company name is required';
         if (!formData.contactPersonName?.trim()) newErrors.contactPersonName = 'Contact person name is required';
-        // if (!formData.contactPersonEmail?.trim()) newErrors.contactPersonEmail = 'Contact person email is required';
       }
       
-      // if (!formData.email.trim()) newErrors.email = 'Email is required';
       if (!formData.phone.trim()) newErrors.phone = 'Phone is required';
       
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -764,24 +690,11 @@ export default function CreateOpportunityPage() {
         newErrors.email = 'Please enter a valid email address';
       }
       
-      // if (formData.contactPersonEmail && !emailRegex.test(formData.contactPersonEmail)) {
-      //   newErrors.contactPersonEmail = 'Please enter a valid email address for contact person';
-      // }
-      
       const phoneRegex = /^\d+$/;
       if (formData.phone && !phoneRegex.test(formData.phone)) {
         newErrors.phone = 'Please enter a valid phone number (digits only)';
       }
     }
-
-    // if (step === 2) {
-    //   const hasValidVehicle = formData.vehicles.some(vehicle => 
-    //     vehicle.make.trim() && vehicle.model.trim()
-    //   );
-    //   if (!hasValidVehicle) {
-    //     newErrors.vehicles = 'At least one vehicle with make and model is required';
-    //   }
-    // }
 
     if (step === 3) {
       if (formData.servicesProducts.length === 0) {
@@ -864,36 +777,48 @@ export default function CreateOpportunityPage() {
       };
 
       // Validate with duplicates
-      const validationResult = await opportunityService.validateWithDuplicates(validationData, true);
+      try {
+      // Use a simpler duplicate check that doesn't require the broken endpoint
+      const similarOpportunities = await findSimilarOpportunities();
       
-      if (!validationResult.isValid) {
-        showToast(`Validation failed: ${validationResult.validationErrors.join(', ')}`, 'error', 5000);
-        return;
-      }
-
-      if (validationResult.duplicates.isDuplicate) {
-        // Show duplicate modal
-        setDuplicateOpportunities(validationResult.duplicates.existingOpportunities);
+      if (similarOpportunities && similarOpportunities.length > 0) {
+        console.log('Found similar opportunities:', similarOpportunities.length);
+        setDuplicateOpportunities(similarOpportunities);
         setShowDuplicateModal(true);
         setIsSubmitting(false);
         return;
       }
+    } catch (duplicateError) {
+      console.warn('Duplicate check failed, proceeding anyway:', duplicateError);
+      // Continue with creation even if duplicate check fails
+    }
 
       // If no duplicates found, proceed with creation
       await createOpportunity();
     } catch (error: any) {
       console.error('Validation error:', error);
-      showToast(
-        error?.message || 'Failed to validate opportunity.',
-        'error',
-        5000
-      );
-      setIsSubmitting(false);
+      
+      // FIXED: Better error handling
+      let errorMessage = 'Failed to validate opportunity.';
+      
+      if (error?.response?.data?.validationErrors) {
+        errorMessage = Array.isArray(error.response.data.validationErrors)
+          ? error.response.data.validationErrors.join(', ')
+          : error.response.data.validationErrors;
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      showToast(errorMessage, 'error', 5000);
+      setIsSubmitting(false); // IMPORTANT: Reset submitting state
     }
   };
 
   // Update the createOpportunity function to handle the actual creation
   const createOpportunity = async () => {
+    if (isSubmitting) return;
     try {
       const isIndividual = formData.accountType === 'individual';
 
@@ -907,6 +832,7 @@ export default function CreateOpportunityPage() {
 
       const packageType = formData.opportunityType === 'SERVICE' ? 'work_order' : 'sales_order';
 
+      // Map services/products to include references for cascading modules
       const mappedServicesProducts = formData.servicesProducts.map(item => {
         let mappedType: 'SERVICE' | 'PRODUCT' | 'PART' | 'LABOR';
         
@@ -924,7 +850,7 @@ export default function CreateOpportunityPage() {
             mappedType = 'SERVICE';
         }
 
-        return {
+        const serviceProductDto = {
           title: item.title,
           description: item.description,
           type: mappedType,
@@ -932,8 +858,13 @@ export default function CreateOpportunityPage() {
           unitPrice: item.unitPrice,
           discount: item.discount,
           subtotal: item.subtotal,
-          total: item.total
+          total: item.total,
+          // Include references for cascading modules
+          ...(item.productId && { productId: item.productId, productCode: item.productCode }),
+          ...(item.serviceId && { serviceId: item.serviceId, serviceCode: item.serviceCode })
         };
+
+        return serviceProductDto;
       });
 
       const apiFormData: CreateOpportunityData = {
@@ -996,63 +927,82 @@ export default function CreateOpportunityPage() {
   };
 
   // Add this function to find similar opportunities (optional, can be used for suggestions)
-const findSimilarOpportunities = async () => {
-  try {
-    const params: SimilarOpportunitiesRequest = {};
-    
-    if (formData.email) {
-      params.customerEmail = formData.email;
+  const findSimilarOpportunities = async () => {
+    try {
+      const params: SimilarOpportunitiesRequest = {};
+      let hasParams = false;
+      
+      if (formData.email && formData.email.trim().length > 0) {
+        params.customerEmail = formData.email;
+        hasParams = true;
+      }
+      
+      if (formData.phone && formData.phone.trim().length > 0) {
+        params.customerPhone = `${formData.phoneCode}${formData.phone}`;
+        hasParams = true;
+      }
+      
+      if (formData.accountType === 'individual') {
+        if (formData.firstName && formData.firstName.trim().length > 0 && formData.lastName && formData.lastName.trim().length > 0) {
+          params.customerName = `${formData.firstName} ${formData.lastName}`.trim();
+          hasParams = true;
+        }
+      } else if (formData.accountType === 'organization' && formData.companyName && formData.companyName.trim().length > 0) {
+        params.customerName = formData.companyName;
+        hasParams = true;
+      }
+      
+      // Only call API if we have at least one valid parameter
+      if (hasParams) {
+        const similarOpportunities = await opportunityService.findSimilarOpportunities(params);
+        
+        if (similarOpportunities.length > 0) {
+          // You could show these in a modal or as suggestions
+          console.log('Found similar opportunities:', similarOpportunities);
+          // Optional: Show a notification or suggestions
+          if (similarOpportunities.length > 0) {
+            showToast(`Found ${similarOpportunities.length} similar opportunity(s)`, 'info', 2000);
+          }
+        }
+        
+        return similarOpportunities;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Error finding similar opportunities:', error);
+      return [];
     }
-    
-    if (formData.phone) {
-      params.customerPhone = `${formData.phoneCode}${formData.phone}`;
-    }
-    
-    if (formData.accountType === 'individual' && formData.firstName && formData.lastName) {
-      params.customerName = `${formData.firstName} ${formData.lastName}`;
-    } else if (formData.accountType === 'organization' && formData.companyName) {
-      params.customerName = formData.companyName;
-    }
-    
-    const similarOpportunities = await opportunityService.findSimilarOpportunities(params);
-    
-    if (similarOpportunities.length > 0) {
-      // You could show these in a modal or as suggestions
-      console.log('Found similar opportunities:', similarOpportunities);
-    }
-    
-    return similarOpportunities;
-  } catch (error) {
-    console.error('Error finding similar opportunities:', error);
-    return [];
-  }
-};
+  };
 
-// You can call this function on input change or on blur for relevant fields
-useEffect(() => {
-  const timer = setTimeout(() => {
-    if (formData.email || formData.phone || formData.firstName) {
-      findSimilarOpportunities();
+// Add this helper function
+  const mapOpportunityTypeToServiceProductType = (
+    opportunityType: 'SERVICE' | 'SALE' | 'REPAIR' | 'MAINTENANCE' | 'INSPECTION'
+  ): 'SERVICE' | 'PRODUCT' | 'PART' | 'LABOR' => {
+    switch (opportunityType) {
+      case 'SERVICE':
+      case 'REPAIR':
+      case 'MAINTENANCE':
+      case 'INSPECTION':
+        return 'SERVICE';
+      case 'SALE':
+        return 'PRODUCT';
+      default:
+        return 'SERVICE';
     }
-  }, 1000); // Debounce for 1 second
-
-  return () => clearTimeout(timer);
-}, [formData.email, formData.phone, formData.firstName, formData.lastName, formData.companyName]);
+  };
 
   type VehicleDTO = NonNullable<CreateOpportunityData['vehicles']>[number];
 
-  const mapVehicle = (v: VehicleDTO): VehicleDTO => ({
+  const mapVehicle = (v: Vehicle): VehicleDTO => ({
     vin: v.vin || undefined,
     registrationNumber: v.registrationNumber || undefined,
-    licensePlate: v.licensePlate || undefined,
-
+    licensePlate: v.registrationNumber || undefined, // Use registration number as license plate if not provided
     make: v.make,
     model: v.model,
-
     year: v.year ? Number(v.year) || undefined : undefined,
     mileage: v.mileage ? String(v.mileage) : undefined,
-
-    color: v.color || undefined,
+    color: v.colorCode || undefined,
     engineSize: v.engineSize || undefined,
     fuelType: v.fuelType || undefined,
     transmission: v.transmission || undefined,
@@ -1062,31 +1012,26 @@ useEffect(() => {
   const handleCreateOpportunityError = (error: any) => {
     console.error('Create opportunity error:', error);
 
-    if (error?.response) {
-      showToast(
-        error.response.data?.message ||
-        error.response.data?.error ||
-        'Failed to create opportunity.',
-        'error',
-        5000
-      );
-      return;
+    let errorMessage = 'Failed to create opportunity.';
+    
+    if (error?.response?.data) {
+      // Handle different error response formats
+      if (Array.isArray(error.response.data.validationErrors)) {
+        errorMessage = error.response.data.validationErrors.join(', ');
+      } else if (error.response.data.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response.data.error) {
+        errorMessage = error.response.data.error;
+      } else if (typeof error.response.data === 'string') {
+        errorMessage = error.response.data;
+      }
+    } else if (error?.request) {
+      errorMessage = 'Network error. Please check your connection.';
+    } else if (error?.message) {
+      errorMessage = error.message;
     }
 
-    if (error?.request) {
-      showToast(
-        'Network error. Please check your connection.',
-        'error',
-        5000
-      );
-      return;
-    }
-
-    showToast(
-      error?.message || 'Failed to create opportunity.',
-      'error',
-      5000
-    );
+    showToast(errorMessage, 'error', 5000);
   };
 
   const handleViewOpportunityDetails = () => {
@@ -1376,7 +1321,7 @@ useEffect(() => {
                   
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-3">
-                      Account Type *
+                      Account Type <RequiredField />
                     </label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {accountTypes.map((type) => {
@@ -1436,7 +1381,7 @@ useEffect(() => {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
-                            First Name *
+                            First Name <RequiredField />
                           </label>
                           <div className="relative">
                             <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -1475,7 +1420,7 @@ useEffect(() => {
                       <div className="space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Company Name *
+                            Company Name <RequiredField />
                           </label>
                           <div className="relative">
                             <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -1506,7 +1451,7 @@ useEffect(() => {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Contact Person Name *
+                                Contact Person Name <RequiredField />
                               </label>
                               <div className="relative">
                                 <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -2188,7 +2133,7 @@ useEffect(() => {
 
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-3">
-                      Opportunity Type *
+                      Opportunity Type <RequiredField />
                     </label>
                     <div className="grid grid-cols-2 gap-3">
                       {opportunityTypes.map((type) => {
@@ -2201,9 +2146,15 @@ useEffect(() => {
                               handleInputChange('opportunityType', type.value as 'SERVICE' | 'SALE' | 'REPAIR' | 'MAINTENANCE' | 'INSPECTION');
                               const updatedItems = formData.servicesProducts.map(item => ({
                                 ...item,
-                                type: type.value as 'SERVICE' | 'SALE' | 'REPAIR' | 'MAINTENANCE' | 'INSPECTION'
+                                type: mapOpportunityTypeToServiceProductType(type.value as 'SERVICE' | 'SALE' | 'REPAIR' | 'MAINTENANCE' | 'INSPECTION')
                               }));
                               setFormData(prev => ({ ...prev, servicesProducts: updatedItems }));
+                              // Reset loaded flags when type changes
+                              if (type.value === 'SERVICE') {
+                                setProductsLoaded(false);
+                              } else {
+                                setServicesLoaded(false);
+                              }
                             }}
                             className={`p-4 rounded-xl border transition-all duration-200 flex flex-col items-center gap-2 ${
                               formData.opportunityType === type.value
@@ -2316,7 +2267,7 @@ useEffect(() => {
                           <div className="space-y-4">
                             <div className="relative" ref={serviceProductDropdownRef}>
                               <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Title/Description *
+                                Title/Description <RequiredField />
                               </label>
                               <div className="relative">
                                 <input
@@ -2329,8 +2280,8 @@ useEffect(() => {
                                   onFocus={() => setShowServiceProductDropdown(index)}
                                   placeholder={
                                     formData.opportunityType === 'SERVICE' 
-                                      ? "e.g., Oil Change Service, Brake System Repair..." 
-                                      : "e.g., Engine Oil, Brake Pads, Car Battery..."
+                                      ? "Search or type service name..." 
+                                      : "Search or type product name..."
                                   }
                                   className="pl-4 pr-10 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                                 />
@@ -2356,25 +2307,52 @@ useEffect(() => {
                                         type="text"
                                         value={serviceProductSearch}
                                         onChange={(e) => setServiceProductSearch(e.target.value)}
-                                        placeholder={`Search ${formData.opportunityType.toLowerCase()} suggestions...`}
+                                        placeholder={`Search ${formData.opportunityType.toLowerCase()}...`}
                                         className="w-full pl-9 pr-2 py-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                       />
                                     </div>
                                   </div>
                                   <div className="max-h-48 overflow-y-auto">
-                                    {filteredServiceProducts().map((suggestion) => (
-                                      <button
-                                        key={suggestion.title}
-                                        type="button"
-                                        onClick={() => selectServiceProductSuggestion(index, suggestion)}
-                                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex flex-col items-start gap-1"
-                                      >
-                                        <div className="font-medium">{suggestion.title}</div>
-                                        <div className="text-xs text-gray-500 truncate w-full">
-                                          {suggestion.description}
-                                        </div>
-                                      </button>
-                                    ))}
+                                    {(loadingServices && formData.opportunityType === 'SERVICE') || 
+                                     (loadingProducts && formData.opportunityType === 'SALE') ? (
+                                      <div className="p-4 text-center">
+                                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent mx-auto" />
+                                        <p className="text-sm text-gray-500 mt-2">Loading...</p>
+                                      </div>
+                                    ) : filteredServiceProducts().length === 0 ? (
+                                      <div className="p-4 text-center text-gray-500">
+                                        No {formData.opportunityType.toLowerCase()}s found
+                                      </div>
+                                    ) : (
+                                      filteredServiceProducts().map((suggestion) => {
+                                        const isService = formData.opportunityType === 'SERVICE';
+                                        const itemData = suggestion as any;
+                                        
+                                        return (
+                                          <button
+                                            key={itemData.id}
+                                            type="button"
+                                            onClick={() => selectServiceProductSuggestion(index, suggestion, isService)}
+                                            className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex flex-col items-start gap-1 border-b border-gray-100 last:border-b-0"
+                                          >
+                                            <div className="font-medium">{itemData.name || itemData.title}</div>
+                                            <div className="text-xs text-gray-500 truncate w-full">
+                                              {isService ? itemData.description : itemData.description}
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-1">
+                                              <span className="text-xs px-2 py-0.5 bg-gray-100 rounded">
+                                                {isService ? itemData.serviceCode : itemData.productCode}
+                                              </span>
+                                              {!isService && (
+                                                <span className="text-xs text-gray-600">
+                                                  Stock: {itemData.quantityInStock}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </button>
+                                        );
+                                      })
+                                    )}
                                   </div>
                                 </div>
                               )}
@@ -2389,8 +2367,8 @@ useEffect(() => {
                                 onChange={(e) => handleServiceProductChange(index, 'description', e.target.value)}
                                 placeholder={
                                   formData.opportunityType === 'SERVICE'
-                                    ? "e.g., Full synthetic oil change and filter replacement, including labor and inspection..."
-                                    : "e.g., High-quality brake pads for improved stopping power, compatible with most models..."
+                                    ? "Enter detailed service description..."
+                                    : "Enter detailed product description..."
                                 }
                                 rows={3}
                                 className="pl-4 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-colors"
@@ -2477,6 +2455,11 @@ useEffect(() => {
                                     Subtotal: KES {(item.subtotal || 0).toLocaleString()}
                                     {item.discount > 0 && ` - ${item.discount}% discount: KES ${(item.subtotal * item.discount / 100).toLocaleString()}`}
                                   </p>
+                                  {(item.productCode || item.serviceCode) && (
+                                    <p className="text-xs text-gray-400 mt-1">
+                                      Code: {item.productCode || item.serviceCode}
+                                    </p>
+                                  )}
                                 </div>
                                 <div className="text-right">
                                   <div className="text-lg font-bold text-gray-800">
@@ -2545,7 +2528,7 @@ useEffect(() => {
                         <div className="text-xs text-gray-500 mt-2">
                           {formData.servicesProducts.length} item{formData.servicesProducts.length !== 1 ? 's' : ''} | 
                           {formData.servicesProducts.filter(item => item.type === 'SERVICE').length} service{formData.servicesProducts.filter(item => item.type === 'SERVICE').length !== 1 ? 's' : ''} | 
-                          {formData.servicesProducts.filter(item => item.type === 'SALE').length} product{formData.servicesProducts.filter(item => item.type === 'SALE').length !== 1 ? 's' : ''}
+                          {formData.servicesProducts.filter(item => item.type === 'PRODUCT').length} product{formData.servicesProducts.filter(item => item.type === 'PRODUCT').length !== 1 ? 's' : ''}
                         </div>
                       </div>
                     </div>
