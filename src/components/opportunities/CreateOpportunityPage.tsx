@@ -10,7 +10,7 @@ import {
   Globe, Settings as SettingsIcon, Palette, Contact
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { CreateOpportunityData, opportunityService } from '@/services/opportunityService';
+import { CreateOpportunityData, opportunityService, SimilarOpportunitiesRequest } from '@/services/opportunityService';
 import { useToast } from '@/contexts/ToastContext';
 import SuccessModal from '@/components/opportunities/SuccessModal';
 import DuplicateModal from '@/components/opportunities/DuplicateModal';
@@ -822,54 +822,78 @@ export default function CreateOpportunityPage() {
     setTimeout(() => setDraftSaved(false), 3000);
   };
 
-  const checkForDuplicates = async (formDataToCheck: OpportunityFormData) => {
-    try {
-      setIsCheckingDuplicates(true);
-      
-      const customerData = {
-        email: formDataToCheck.email,
-        phone: formDataToCheck.phone ? `${formDataToCheck.phoneCode}${formDataToCheck.phone}` : undefined,
-        firstName: formDataToCheck.firstName,
-        lastName: formDataToCheck.lastName,
-        companyName: formDataToCheck.companyName
-      };
-      
-      const result = await opportunityService.checkForDuplicates(customerData);
-      
-      if (result.isDuplicate && result.existingOpportunities.length > 0) {
-        setDuplicateOpportunities(result.existingOpportunities);
-        setShowDuplicateModal(true);
-        return false; // Duplicate found
-      }
-      
-      return true; // No duplicates
-    } catch (error) {
-      console.error('Error checking duplicates:', error);
-      return true; // Continue on error
-    } finally {
-      setIsCheckingDuplicates(false);
-    }
-  };
-
   const handleSubmit = async () => {
     if (!validateStep()) {
       showToast('Please fix the validation errors before submitting.', 'error', 3000);
       return;
     }
 
-    const hasNoDuplicates = await checkForDuplicates(formData);
-    if (!hasNoDuplicates) {
-      return; // Stop here if duplicates found, modal will handle continuation
-    }
-
-    // If no duplicates, continue with submission
-    await createOpportunity();
-  };
-
-  // Add a new function to actually create the opportunity
-  const createOpportunity = async () => {
     setIsSubmitting(true);
 
+    try {
+      // Use the enhanced validation API
+      const validationData = {
+        type: formData.accountType,
+        subject: formData.accountType === 'individual'
+          ? `${formData.firstName} ${formData.lastName}'s ${formData.opportunityType.toLowerCase()} request`
+          : `${formData.companyName}'s ${formData.opportunityType.toLowerCase()} request`,
+        status: 'new',
+        source: formData.source,
+        customer: {
+          name: formData.accountType === 'individual'
+            ? `${formData.firstName} ${formData.lastName}`.trim()
+            : formData.companyName,
+          email: formData.email || undefined,
+          phone: `${formData.phoneCode}${formData.phone}` || undefined,
+          companyName: formData.accountType === 'organization' ? formData.companyName : undefined,
+          ...(formData.accountType === 'organization' && {
+            contactPersonName: formData.contactPersonName || undefined,
+            contactPersonEmail: formData.contactPersonEmail || undefined,
+            contactPersonPhone: formData.contactPersonPhone ? 
+              `${formData.phoneCode}${formData.contactPersonPhone}` : undefined,
+            contactPersonTitle: formData.contactPersonTitle || undefined,
+          }),
+        },
+        vehicles: formData.vehicles.map(v => ({
+          vin: v.vin,
+          registrationNumber: v.registrationNumber,
+          make: v.make,
+          model: v.model
+        })),
+        opportunityType: formData.opportunityType
+      };
+
+      // Validate with duplicates
+      const validationResult = await opportunityService.validateWithDuplicates(validationData, true);
+      
+      if (!validationResult.isValid) {
+        showToast(`Validation failed: ${validationResult.validationErrors.join(', ')}`, 'error', 5000);
+        return;
+      }
+
+      if (validationResult.duplicates.isDuplicate) {
+        // Show duplicate modal
+        setDuplicateOpportunities(validationResult.duplicates.existingOpportunities);
+        setShowDuplicateModal(true);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // If no duplicates found, proceed with creation
+      await createOpportunity();
+    } catch (error: any) {
+      console.error('Validation error:', error);
+      showToast(
+        error?.message || 'Failed to validate opportunity.',
+        'error',
+        5000
+      );
+      setIsSubmitting(false);
+    }
+  };
+
+  // Update the createOpportunity function to handle the actual creation
+  const createOpportunity = async () => {
     try {
       const isIndividual = formData.accountType === 'individual';
 
@@ -964,10 +988,56 @@ export default function CreateOpportunityPage() {
     }
   };
 
+  // Update the handleContinueAnyway function
   const handleContinueAnyway = () => {
     setShowDuplicateModal(false);
-    createOpportunity(); // Call the actual creation function
+    // Continue with creation despite duplicates
+    createOpportunity();
   };
+
+  // Add this function to find similar opportunities (optional, can be used for suggestions)
+const findSimilarOpportunities = async () => {
+  try {
+    const params: SimilarOpportunitiesRequest = {};
+    
+    if (formData.email) {
+      params.customerEmail = formData.email;
+    }
+    
+    if (formData.phone) {
+      params.customerPhone = `${formData.phoneCode}${formData.phone}`;
+    }
+    
+    if (formData.accountType === 'individual' && formData.firstName && formData.lastName) {
+      params.customerName = `${formData.firstName} ${formData.lastName}`;
+    } else if (formData.accountType === 'organization' && formData.companyName) {
+      params.customerName = formData.companyName;
+    }
+    
+    const similarOpportunities = await opportunityService.findSimilarOpportunities(params);
+    
+    if (similarOpportunities.length > 0) {
+      // You could show these in a modal or as suggestions
+      console.log('Found similar opportunities:', similarOpportunities);
+    }
+    
+    return similarOpportunities;
+  } catch (error) {
+    console.error('Error finding similar opportunities:', error);
+    return [];
+  }
+};
+
+// You can call this function on input change or on blur for relevant fields
+useEffect(() => {
+  const timer = setTimeout(() => {
+    if (formData.email || formData.phone || formData.firstName) {
+      findSimilarOpportunities();
+    }
+  }, 1000); // Debounce for 1 second
+
+  return () => clearTimeout(timer);
+}, [formData.email, formData.phone, formData.firstName, formData.lastName, formData.companyName]);
 
   type VehicleDTO = NonNullable<CreateOpportunityData['vehicles']>[number];
 
