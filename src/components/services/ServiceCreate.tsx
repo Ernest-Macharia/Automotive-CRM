@@ -6,19 +6,20 @@ import { useRouter } from 'next/navigation';
 import {
   Settings, ArrowLeft, Save, Plus, Trash2,
   Loader2, Tag, AlertTriangle, FileText,
-  Wrench, Shield, Zap, Search, CheckCircle
+  Wrench, Shield, Zap, Search, CheckCircle,
+  Info, AlertCircle, Hash, ClipboardCheck
 } from 'lucide-react';
 import { serviceService, CreateServiceData, SERVICE_TYPES } from '@/services/serviceService';
 import { useToast } from '@/contexts/ToastContext';
 
 interface FormData {
-  serviceCode: string;
+  serviceCode: string; // Added if required
   name: string;
-  description: string;
+  description: string; // For opportunities
   type: 'repair' | 'maintenance' | 'inspection' | 'installation' | 'custom';
   tags: string[];
   newTag: string;
-  internalNotes: string;
+  internalNotes: string; // Repurposed for Must-Know/Pre-checklist info
   status: 'active' | 'inactive';
 }
 
@@ -28,7 +29,7 @@ export default function ServiceCreate() {
   
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
-    serviceCode: '',
+    serviceCode: '', // Added if required
     name: '',
     description: '',
     type: 'custom',
@@ -45,6 +46,13 @@ export default function ServiceCreate() {
     { value: 'installation', label: 'Installation', icon: Shield, color: 'bg-green-100 text-green-700', description: 'Setup and configuration services' },
     { value: 'custom', label: 'Custom', icon: Zap, color: 'bg-indigo-100 text-indigo-700', description: 'Tailored or specialized services' },
   ];
+
+  // Generate a default service code based on timestamp
+  const generateServiceCode = () => {
+    const timestamp = Date.now().toString().slice(-6);
+    const randomChars = Math.random().toString(36).substring(2, 5).toUpperCase();
+    return `SVC-${timestamp}-${randomChars}`;
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -86,6 +94,9 @@ export default function ServiceCreate() {
   const validateForm = (): boolean => {
     const errors: string[] = [];
     
+    // Add serviceCode validation if required
+    // if (!formData.serviceCode.trim()) errors.push('Service Code is required');
+    
     if (!formData.name.trim()) errors.push('Service name is required');
     if (!formData.description.trim()) errors.push('Description is required');
     
@@ -106,12 +117,12 @@ export default function ServiceCreate() {
       setLoading(true);
       
       const createData: CreateServiceData = {
-        // serviceCode: formData.serviceCode.trim(),
+        serviceCode: formData.serviceCode.trim(),
         name: formData.name.trim(),
-        description: formData.description.trim(),
+        description: formData.description.trim(), // For opportunities
         type: formData.type,
         tags: formData.tags,
-        internalNotes: formData.internalNotes.trim() || undefined
+        internalNotes: formData.internalNotes.trim() || undefined // For pre-checklists
       };
       
       const newService = await serviceService.createService(createData);
@@ -207,6 +218,29 @@ export default function ServiceCreate() {
                   required
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Service Code
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    name="serviceCode"
+                    value={formData.serviceCode}
+                    onChange={handleChange}
+                    placeholder="Enter service code"
+                    className="flex-1 px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, serviceCode: generateServiceCode() }))}
+                    className="px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200"
+                  >
+                    Generate
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Unique identifier for this service</p>
+              </div>
             </div>
 
             {/* Service Type */}
@@ -241,18 +275,22 @@ export default function ServiceCreate() {
               </div>
             </div>
 
-            {/* Description */}
+            {/* Service Description - For Opportunities */}
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description (Disclaimer) <RequiredField />
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Service Description <RequiredField />
+                </label>
+              </div>
               <div className="relative">
                 <textarea
                   name="description"
                   value={formData.description}
                   onChange={handleChange}
                   rows={4}
-                  placeholder="Enter service description including any disclaimers. Example: 'Disclaimer: This service requires proper tools and trained personnel. Customer assumes all risks.'"
+                  placeholder="Describe what this service includes, what it does, and what customers can expect. This description appears when creating opportunities.
+
+Example: 'This service includes changing the engine oil, replacing the oil filter, and performing a basic engine inspection to ensure optimal vehicle performance.'"
                   className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none resize-none"
                   required
                 />
@@ -262,20 +300,77 @@ export default function ServiceCreate() {
                     onClick={() => {
                       setFormData(prev => ({
                         ...prev,
-                        description: prev.description + ' ⚠️ Disclaimer: This service requires proper tools and trained personnel.'
+                        description: prev.description + ' This service helps improve engine performance and longevity.'
+                      }));
+                    }}
+                    className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                  >
+                    Add Benefit
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Must-Know Information & Disclaimers - For Pre-Checklists (using internalNotes) */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Must-Know Information
+                </label>
+              </div>
+              <div className="relative">
+                <textarea
+                  name="internalNotes"
+                  value={formData.internalNotes}
+                  onChange={handleChange}
+                  rows={4}
+                  placeholder="Include important information that technicians need during pre-checklists, such as:
+                    • Requirements to check before starting
+                    • Safety warnings and precautions
+                    • Special tools or equipment needed
+                    • Customer requirements or preparations
+                    • Time estimates and procedures
+                    • Quality standards and checkpoints"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none resize-none"
+                />
+                <div className="absolute bottom-2 right-2 flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData(prev => ({
+                        ...prev,
+                        internalNotes: prev.internalNotes + '• Check customer requirements\n'
                       }));
                     }}
                     className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"
                   >
-                    Add Disclaimer
+                    Add Requirement
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData(prev => ({
+                        ...prev,
+                        internalNotes: prev.internalNotes + '⚠️ Safety warning: \n'
+                      }));
+                    }}
+                    className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
+                  >
+                    Add Safety
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData(prev => ({
+                        ...prev,
+                        internalNotes: prev.internalNotes + '⏰ Estimated time: \n'
+                      }));
+                    }}
+                    className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200"
+                  >
+                    Add Time
                   </button>
                 </div>
-              </div>
-              <div className="flex items-start gap-2 mt-2 p-2 bg-yellow-50 rounded-lg">
-                <AlertTriangle className="h-4 w-4 text-yellow-600 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-yellow-700">
-                  <strong>Important:</strong> Include clear disclaimers about risks, requirements, and limitations. Use the ⚠️ symbol for emphasis.
-                </p>
               </div>
             </div>
 
@@ -327,24 +422,6 @@ export default function ServiceCreate() {
                   <p className="text-sm">No tags added. Add tags to help categorize and search for this service.</p>
                 </div>
               )}
-            </div>
-
-            {/* Internal Notes */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Internal Notes
-              </label>
-              <textarea
-                name="internalNotes"
-                value={formData.internalNotes}
-                onChange={handleChange}
-                rows={3}
-                placeholder="Add internal notes, special instructions, or reminders for your team..."
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none resize-none"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                These notes are only visible to your team, not to customers.
-              </p>
             </div>
 
             {/* Form Actions */}
