@@ -403,6 +403,13 @@ export interface NotificationLog {
   };
 }
 
+const workOrderCache = {
+  data: null as any[] | null,
+  timestamp: 0,
+  params: null as any
+};
+const CACHE_TTL = 30000;
+
 class WorkOrderService {
   private basePath = '/workorder';
 
@@ -458,11 +465,10 @@ class WorkOrderService {
 
   // GET /api/v1/workorder - Get all work orders with filtering
   async getAllWorkOrders(
-    params?: WorkOrderFilterParams
+    params?: WorkOrderFilterParams & { page?: number; limit?: number }
   ): Promise<WorkOrdersResponse> {
     try {
       const queryParams = new URLSearchParams();
-
       if (params) {
         Object.entries(params).forEach(([key, value]) => {
           if (value !== undefined && value !== null && value !== '') {
@@ -471,34 +477,87 @@ class WorkOrderService {
         });
       }
 
-      if (!params?.page) queryParams.append('page', '1');
-      if (!params?.limit) queryParams.append('limit', '20');
-
       const queryString = queryParams.toString();
       const endpoint = `${this.basePath}${queryString ? `?${queryString}` : ''}`;
-
-      const response = await apiClient.get<WorkOrdersResponse>(endpoint);
-
-      if (!response) {
+      
+      // Check cache first (only for full unfiltered requests)
+      const now = Date.now();
+      const isFullRequest = !params?.search && (!params?.status || params.status === 'all') && 
+                          (!params?.stage || params.stage === 'all');
+      
+      if (isFullRequest && workOrderCache.data && 
+          (now - workOrderCache.timestamp) < CACHE_TTL) {
+        console.log('Using cached work orders');
+        
+        // Apply pagination to cached data
+        const page = params?.page || 1;
+        const limit = params?.limit || 10;
+        const start = (page - 1) * limit;
+        const end = start + limit;
+        
         return {
-          data: [],
-          pagination: { total: 0, page: 1, limit: 20, totalPages: 0 }
+          data: workOrderCache.data.slice(start, end),
+          pagination: {
+            total: workOrderCache.data.length,
+            page,
+            limit,
+            totalPages: Math.ceil(workOrderCache.data.length / limit)
+          }
         };
       }
-
+      
+      console.log('Fetching from:', endpoint);
+      const response = await apiClient.get<any>(endpoint);
+      
       if (Array.isArray(response)) {
+        console.log(`API returned ${response.length} items total`);
+        
+        // Cache the full response
+        if (isFullRequest) {
+          workOrderCache.data = response;
+          workOrderCache.timestamp = now;
+          workOrderCache.params = { ...params };
+        }
+        
+        // Apply filters
+        let filteredData = [...response];
+        
+        if (params?.search) {
+          const searchLower = params.search.toLowerCase();
+          filteredData = filteredData.filter(wo => 
+            wo.workOrderNumber?.toLowerCase().includes(searchLower) ||
+            (typeof wo.opportunityId === 'object' && 
+            wo.opportunityId.customer?.name?.toLowerCase().includes(searchLower))
+          );
+        }
+        
+        if (params?.status && params.status !== 'all') {
+          filteredData = filteredData.filter(wo => wo.status === params.status);
+        }
+        
+        if (params?.stage && params.stage !== 'all') {
+          filteredData = filteredData.filter(wo => wo.currentStage === params.stage);
+        }
+        
+        // Sort by newest first
+        filteredData.sort((a, b) => 
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        
+        const total = filteredData.length;
+        const page = params?.page || 1;
+        const limit = params?.limit || 10;
+        const start = (page - 1) * limit;
+        const end = start + limit;
+        
         return {
-          data: response,
-          pagination: { total: response.length, page: 1, limit: response.length, totalPages: 1 }
-        };
-      }
-
-      if (!response.pagination && 'data' in response) {
-        response.pagination = {
-          total: response.data?.length || 0,
-          page: params?.page || 1,
-          limit: params?.limit || 20,
-          totalPages: Math.ceil((response.data?.length || 0) / (params?.limit || 20))
+          data: filteredData.slice(start, end),
+          pagination: {
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit)
+          }
         };
       }
 
@@ -507,7 +566,7 @@ class WorkOrderService {
       console.error('Error fetching work orders:', error);
       return {
         data: [],
-        pagination: { total: 0, page: 1, limit: 20, totalPages: 0 }
+        pagination: { total: 0, page: 1, limit: 10, totalPages: 0 }
       };
     }
   }
