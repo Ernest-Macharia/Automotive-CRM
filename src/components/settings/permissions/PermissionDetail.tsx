@@ -70,7 +70,7 @@ export default function PermissionDetail({ permissionId, onBack }: PermissionDet
   }, [permissionId]);
 
   const handleBack = () => {
-    onBack?.() || router.push('/settings/permissions');
+    router.push('/settings/permissions');
   };
 
   const loadPermission = async () => {
