@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { WorkOrder } from '@/services/workOrderService';
 import { useState, useEffect, useMemo } from 'react';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { userService } from '@/services/settings/userService';
 
 interface WorkOrderTabsProps {
   activeTab: string;
@@ -33,6 +35,9 @@ export default function WorkOrderTabs({
     jobCards: 0,
     notes: 0
   });
+  
+  // Get current user and role information from our custom hook
+  const { user, isTechnician, isLoading } = useCurrentUser();
 
   useEffect(() => {
     const delayCount = workOrder.status === 'delayed' ? 1 : 0;
@@ -51,12 +56,13 @@ export default function WorkOrderTabs({
         prev.delays === next.delays &&
         prev.jobCards === next.jobCards &&
         prev.notes === next.notes
-      ) return prev; // ✅ prevents unnecessary updates
+      ) return prev;
       return next;
     });
   }, [workOrder.status, (workOrder as any).jobCards, counts.notes]);
 
-  const tabs = [
+  // Define all available tabs with role-based visibility
+  const allTabs = [
     { 
       id: 'overview', 
       label: 'Overview', 
@@ -64,7 +70,9 @@ export default function WorkOrderTabs({
       badge: null,
       color: 'from-blue-500 to-blue-600',
       count: null,
-      notification: false
+      notification: false,
+      // Everyone can see overview
+      visible: true
     },
     { 
       id: 'pre-checklist', 
@@ -73,7 +81,9 @@ export default function WorkOrderTabs({
       badge: workOrder.preChecklistId ? '✓' : null,
       color: 'from-emerald-500 to-emerald-600',
       count: workOrder.preChecklistId ? 1 : 0,
-      notification: !workOrder.preChecklistId
+      notification: !workOrder.preChecklistId,
+      // Only non-technicians can see pre-checklist
+      visible: !isTechnician
     },
     { 
       id: 'job-cards', 
@@ -82,7 +92,9 @@ export default function WorkOrderTabs({
       badge: counts.jobCards?.toString() || '0',
       color: 'from-indigo-500 to-indigo-600',
       count: counts.jobCards || 0,
-      notification: notifications.jobCards > 0
+      notification: notifications.jobCards > 0,
+      // Everyone can see job cards (technicians need this)
+      visible: true
     },
     { 
       id: 'post-checklist', 
@@ -91,7 +103,9 @@ export default function WorkOrderTabs({
       badge: workOrder.postChecklistId ? '✓' : null,
       color: 'from-purple-500 to-purple-600',
       count: workOrder.postChecklistId ? 1 : 0,
-      notification: !workOrder.postChecklistId
+      notification: !workOrder.postChecklistId,
+      // Only non-technicians can see post-checklist
+      visible: !isTechnician
     },
     { 
       id: 'invoice', 
@@ -100,7 +114,9 @@ export default function WorkOrderTabs({
       badge: workOrder.invoiceId ? '✓' : null,
       color: 'from-green-500 to-green-600',
       count: workOrder.invoiceId ? 1 : 0,
-      notification: !workOrder.invoiceId
+      notification: !workOrder.invoiceId,
+      // Only non-technicians can see invoice
+      visible: !isTechnician
     },
     { 
       id: 'delays', 
@@ -109,7 +125,9 @@ export default function WorkOrderTabs({
       badge: workOrder.status === 'delayed' ? '⚠️' : null,
       color: 'from-orange-500 to-orange-600',
       count: workOrder.status === 'delayed' ? 1 : 0,
-      notification: workOrder.status === 'delayed'
+      notification: workOrder.status === 'delayed',
+      // Everyone can see delays (technicians need this)
+      visible: true
     },
     { 
       id: 'technician-notes', 
@@ -118,9 +136,16 @@ export default function WorkOrderTabs({
       badge: null,
       color: 'from-cyan-500 to-cyan-600',
       count: counts.notes || 0,
-      notification: notifications.notes > 0
+      notification: notifications.notes > 0,
+      // Everyone can see notes (technicians need this)
+      visible: true
     },
   ];
+
+  // Filter tabs based on visibility rules
+  const tabs = useMemo(() => {
+    return allTabs.filter(tab => tab.visible);
+  }, [allTabs, isTechnician]);
 
   const getBadgeStyle = (tabId: string, badge: string | null, count: number) => {
     if (tabId === 'delays' && count > 0) {
@@ -138,6 +163,19 @@ export default function WorkOrderTabs({
     if (tabId === 'technician-notes') return 'from-cyan-500 to-blue-500';
     return 'from-blue-500 to-indigo-500';
   };
+
+  // Don't render anything while loading user data
+  if (isLoading) {
+    return (
+      <div className="relative bg-white rounded-2xl border border-gray-200 shadow-sm mb-8 overflow-hidden">
+        <div className="px-6 py-8 flex justify-center">
+          <div className="animate-pulse flex space-x-4">
+            <div className="h-4 w-32 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative bg-white rounded-2xl border border-gray-200 shadow-sm mb-8 overflow-hidden">
@@ -234,13 +272,24 @@ export default function WorkOrderTabs({
           <div className="text-sm text-gray-600">
             {workOrder.currentStage?.replace('_', ' ') || 'Setup'}
           </div>
+
+          {/* Show current user role (optional - good for debugging) */}
+          {process.env.NODE_ENV === 'development' && user && (
+            <>
+              <div className="h-6 w-px bg-gray-300"></div>
+              <div className="text-xs text-gray-400">
+                {userService.getUserDisplayName(user)} ({userService.getUserRoleName(user)})
+              </div>
+            </>
+          )}
         </div>
       </nav>
       
-      {/* Stats Bar */}
+      {/* Stats Bar - Show technician-relevant stats for technicians */}
       <div className="px-6 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
+            {/* Always show Job Cards count */}
             <div className="flex items-center gap-2">
               <Wrench className="h-4 w-4 text-indigo-600" />
               <span className="text-sm">
@@ -249,6 +298,7 @@ export default function WorkOrderTabs({
               </span>
             </div>
             
+            {/* Always show Delays count */}
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-orange-600" />
               <span className="text-sm">
@@ -257,6 +307,7 @@ export default function WorkOrderTabs({
               </span>
             </div>
             
+            {/* Always show Notes count */}
             <div className="flex items-center gap-2">
               <MessageSquare className="h-4 w-4 text-cyan-600" />
               <span className="text-sm">
@@ -264,6 +315,37 @@ export default function WorkOrderTabs({
                 <span className="text-gray-600 ml-1">Notes</span>
               </span>
             </div>
+            
+            {/* Hide other stats from technicians */}
+            {!isTechnician && (
+              <>
+                <div className="h-6 w-px bg-gray-300"></div>
+                
+                <div className="flex items-center gap-2">
+                  <ClipboardCheck className="h-4 w-4 text-emerald-600" />
+                  <span className="text-sm">
+                    <span className="font-semibold text-gray-900">{workOrder.preChecklistId ? 1 : 0}</span>
+                    <span className="text-gray-600 ml-1">Pre-Checklist</span>
+                  </span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <CheckSquare className="h-4 w-4 text-purple-600" />
+                  <span className="text-sm">
+                    <span className="font-semibold text-gray-900">{workOrder.postChecklistId ? 1 : 0}</span>
+                    <span className="text-gray-600 ml-1">Post-Checklist</span>
+                  </span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Receipt className="h-4 w-4 text-green-600" />
+                  <span className="text-sm">
+                    <span className="font-semibold text-gray-900">{workOrder.invoiceId ? 1 : 0}</span>
+                    <span className="text-gray-600 ml-1">Invoice</span>
+                  </span>
+                </div>
+              </>
+            )}
           </div>
           
           <div className="text-sm text-gray-500">
