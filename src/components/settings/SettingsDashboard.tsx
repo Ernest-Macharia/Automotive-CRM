@@ -1,3 +1,4 @@
+// apps/settings/page.tsx
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -32,9 +33,11 @@ import {
   Server,
   Palette,
   Network,
+  Building2, // Added for Organizations
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { userService } from '@/services/settings/userService';
+import { organizationService } from '@/services/settings/organizationService'; // Import organization service
 import { blueprintsService } from '@/services/settings/blueprintsService';
 import { workflowService } from '@/services/settings/workflowService';
 import { roleService } from '@/services/settings/roleService';
@@ -101,6 +104,7 @@ export default function SettingsDashboard() {
   const [loading, setLoading] = useState(true);
   
   const [userStats, setUserStats] = useState<{ total: number; active: number }>({ total: 0, active: 0 });
+  const [organizationsStats, setOrganizationsStats] = useState<{ total: number; active: number }>({ total: 0, active: 0 }); // Added for organizations
   const [blueprintsCount, setBlueprintsCount] = useState(0);
   const [workflowsCount, setWorkflowsCount] = useState(0);
   const [permissionsCount, setPermissionsCount] = useState(0);
@@ -120,6 +124,20 @@ export default function SettingsDashboard() {
     }
   };
 
+  const loadOrganizationsStats = async () => {
+    try {
+      const orgStats = await organizationService.getOrganizationStatistics();
+      setOrganizationsStats({
+        total: orgStats.total || 0,
+        active: orgStats.active || 0
+      });
+    } catch (error) {
+      console.error('Error loading organization stats:', error);
+      // Don't show error for organizations - might be new feature
+      setOrganizationsStats({ total: 0, active: 0 });
+    }
+  };
+
   const loadRealData = async () => {
     try {
       setLoading(true);
@@ -135,6 +153,9 @@ export default function SettingsDashboard() {
         console.error('Error loading user stats:', userError);
         setUserStats({ total: 0, active: 0 });
       }
+      
+      // Load organization statistics
+      await loadOrganizationsStats();
       
       // Load blueprints count
       try {
@@ -192,9 +213,9 @@ export default function SettingsDashboard() {
   };
 
   const categories = [
-    { id: 'all', label: 'All Settings', icon: Grid, count: 18 },
-    { id: 'featured', label: 'Most Used', icon: Sparkles, count: 4 },
-    { id: 'administration', label: 'Administration', icon: Users, count: 6 },
+    { id: 'all', label: 'All Settings', icon: Grid, count: 19 }, // Increased count for organizations
+    { id: 'featured', label: 'Most Used', icon: Sparkles, count: 5 }, // Increased count
+    { id: 'administration', label: 'Administration', icon: Users, count: 7 }, // Increased count
     { id: 'automation', label: 'Automation', icon: Workflow, count: 4 },
     { id: 'security', label: 'Security', icon: ShieldCheck, count: 4 },
     { id: 'customization', label: 'Customization', icon: Palette, count: 2 },
@@ -203,6 +224,18 @@ export default function SettingsDashboard() {
 
   // Get menu items dynamically based on fetched data
   const getMenuItems = useMemo((): MenuItem[] => [
+    {
+      id: 'organizations', // Added Organizations as featured item
+      label: 'Organizations',
+      icon: Building2,
+      href: '/settings/organizations',
+      color: 'text-emerald-600',
+      gradient: 'from-emerald-500 to-teal-500',
+      badge: organizationsStats.total || 0,
+      description: 'Manage organizations, subscriptions, and multi-tenant settings',
+      category: 'administration',
+      featured: true,
+    },
     {
       id: 'users',
       label: 'User Management',
@@ -307,7 +340,7 @@ export default function SettingsDashboard() {
       category: 'communication',
       featured: false,
     }
-  ], [userStats.total, workflowsCount, blueprintsCount, permissionsCount]);
+  ], [userStats.total, organizationsStats.total, workflowsCount, blueprintsCount, permissionsCount, profilesCount]);
 
   const featuredItems = useMemo(() => getMenuItems.filter(item => item.featured), [getMenuItems]);
   const filteredMenuItems = useMemo(() => {
@@ -346,6 +379,9 @@ export default function SettingsDashboard() {
         break;
       case 'create-workflow':
         router.push('/settings/workflows?action=create');
+        break;
+      case 'add-organization': // Added quick action for organizations
+        router.push('/settings/organizations/create');
         break;
       case 'view-analytics':
         router.push('/settings/analytics');
@@ -410,6 +446,13 @@ export default function SettingsDashboard() {
                 Add User
               </button>
               <button
+                onClick={() => handleQuickAction('add-organization')}
+                className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-emerald-200 text-emerald-700 rounded-lg hover:bg-emerald-50 text-sm font-medium"
+              >
+                <Building2 className="h-4 w-4" />
+                Add Organization
+              </button>
+              <button
                 onClick={() => handleQuickAction('create-workflow')}
                 className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-pink-200 text-pink-700 rounded-lg hover:bg-pink-50 text-sm font-medium"
               >
@@ -450,10 +493,10 @@ export default function SettingsDashboard() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
-            { label: 'Users', value: userStats.total, icon: Users, href: '/settings/users' },
-            { label: 'Workflows', value: workflowsCount, icon: Workflow, href: '/settings/workflows' },
-            { label: 'Blueprints', value: blueprintsCount, icon: Layers, href: '/settings/blueprints' },
-            { label: 'Permissions', value: permissionsCount, icon: Shield, href: '/settings/permissions' },
+            { label: 'Organizations', value: organizationsStats.total, icon: Building2, href: '/settings/organizations', color: 'bg-emerald-100 text-emerald-600' },
+            { label: 'Users', value: userStats.total, icon: Users, href: '/settings/users', color: 'bg-purple-100 text-purple-600' },
+            { label: 'Workflows', value: workflowsCount, icon: Workflow, href: '/settings/workflows', color: 'bg-pink-100 text-pink-600' },
+            { label: 'Permissions', value: permissionsCount, icon: Shield, href: '/settings/permissions', color: 'bg-indigo-100 text-indigo-600' },
           ].map((stat, i) => {
             const Icon = stat.icon;
             return (
@@ -467,8 +510,8 @@ export default function SettingsDashboard() {
                     <p className="text-xs text-gray-600 uppercase tracking-wider">{stat.label}</p>
                     <p className="text-xl font-bold text-gray-900 mt-1">{stat.value}</p>
                   </div>
-                  <div className="p-2.5 bg-gray-100 rounded-lg">
-                    <Icon className="h-5 w-5 text-gray-600" />
+                  <div className={`p-2.5 ${stat.color} rounded-lg`}>
+                    <Icon className="h-5 w-5" />
                   </div>
                 </div>
               </Link>
@@ -518,7 +561,7 @@ export default function SettingsDashboard() {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Core Settings</h2>
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {Array.from({ length: 4 }).map((_, i) => (
+            {Array.from({ length: 5 }).map((_, i) => (
               <SettingsCardSkeleton key={i} />
             ))}
           </div>
@@ -533,8 +576,8 @@ export default function SettingsDashboard() {
                   className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-start justify-between mb-3">
-                    <div className="p-2 bg-gray-100 rounded-lg">
-                      <Icon className="h-5 w-5 text-gray-600" />
+                    <div className={`p-2 bg-gradient-to-br ${item.gradient} bg-opacity-10 rounded-lg`}>
+                      <Icon className={`h-5 w-5 ${item.color}`} />
                     </div>
                     {item.badge !== undefined && (
                       <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
@@ -543,7 +586,7 @@ export default function SettingsDashboard() {
                     )}
                   </div>
                   <h3 className="font-medium text-gray-900 mb-1">{item.label}</h3>
-                  <p className="text-sm text-gray-600 mb-3">{item.description}</p>
+                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.description}</p>
                   <div className="flex items-center text-sm text-blue-600 font-medium">
                     Configure
                     <ChevronRight className="h-4 w-4 ml-1" />
@@ -638,15 +681,15 @@ export default function SettingsDashboard() {
               <ul className="space-y-2 text-sm text-gray-600">
                 <li className="flex items-start gap-2">
                   <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-                  <span>Start with User Management</span>
+                  <span>Start with <strong>Organizations</strong> for multi-tenant setup</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-                  <span>Use Blueprints for business processes</span>
+                  <span>Use <strong>User Management</strong> to control access</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-                  <span>Automate tasks with Workflows</span>
+                  <span>Automate tasks with <strong>Workflows</strong></span>
                 </li>
               </ul>
             </div>
