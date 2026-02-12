@@ -931,150 +931,150 @@ export default function HeadlightPreChecklistCreatePage({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  try {
-    setSubmitting(true);
-
-    // Validate required fields
-    if (!formData.customerDetails.firstName || !formData.customerDetails.lastName) {
-      showToast('Please fill in customer name', 'error');
-      setCurrentStep(2);
-      setSubmitting(false);
-      return;
-    }
+    const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-    if (!formData.carDetails.licensePlate) {
-      showToast('Vehicle registration number is required', 'error');
-      setCurrentStep(3);
-      setSubmitting(false);
-      return;
-    }
-    
-    if (!formData.acceptTerms || !formData.acceptDiagnosticCharges) {
-      showToast('Please accept all terms and conditions', 'error');
-      setCurrentStep(5);
-      setSubmitting(false);
-      return;
-    }
+    try {
+      setSubmitting(true);
 
-    if (!formData.inspectorSignature) {
-      showToast('Please provide inspector signature', 'error');
-      setCurrentStep(5);
-      setSubmitting(false);
-      return;
-    }
+      // Validate required fields
+      if (!formData.customerDetails.firstName || !formData.customerDetails.lastName) {
+        showToast('Please fill in customer name', 'error');
+        setCurrentStep(2);
+        setSubmitting(false);
+        return;
+      }
+      
+      if (!formData.carDetails.licensePlate) {
+        showToast('Vehicle registration number is required', 'error');
+        setCurrentStep(3);
+        setSubmitting(false);
+        return;
+      }
+      
+      if (!formData.acceptTerms || !formData.acceptDiagnosticCharges) {
+        showToast('Please accept all terms and conditions', 'error');
+        setCurrentStep(5);
+        setSubmitting(false);
+        return;
+      }
 
-    // Prepare inspection items
-    const submissionItems = formData.inspectionItems.map(item => ({
-      item: item.item,
-      status: item.status === 'pending' ? 'n/a' : item.status,
-      remarks: item.remarks || '',
-      side: item.side || 'both'
-    }));
+      if (!formData.inspectorSignature) {
+        showToast('Please provide inspector signature', 'error');
+        setCurrentStep(5);
+        setSubmitting(false);
+        return;
+      }
 
-    // Create submission data matching Diamond Rims DTO exactly
-    const submissionData: CreatePreChecklistDto = {
-      opportunityId: formData.opportunityId,
-      vehicleId: formData.vehicleId,
-      inspectionItems: submissionItems as any,
-      remarks: formData.remarks || '',
-      approved: false,
-      
-      // Match Diamond Rims DTO structure
-      checklistType: 'headlight',
-      inspectedBy: formData.inspectedBy,
-      inspectorName: formData.inspectorName,
-      
-      customerDetails: {
-        firstName: formData.customerDetails.firstName,
-        lastName: formData.customerDetails.lastName,
-        mobile: formData.customerDetails.mobile,
-        email: formData.customerDetails.email,
-        name: `${formData.customerDetails.firstName} ${formData.customerDetails.lastName}`
-      },
-      
-      carDetails: {
-        carMake: formData.carDetails.carMake,
-        carModel: formData.carDetails.carModel,
-        mileage: formData.carDetails.mileage,
-        yearOfManufacture: formData.carDetails.yearOfManufacture,
-        licensePlate: formData.carDetails.licensePlate,
-        color: formData.carDetails.color || '',
-        vehicleType: formData.carDetails.vehicleType || '',
-        engineSize: formData.carDetails.engineSize || '',
-        fuelType: formData.carDetails.fuelType || '',
-        // Note: vin is NOT in CreatePreChecklistDto, so don't include it here
-      },
-      
-      serviceIntake: formData.serviceIntake,
-      
-      services: {
-        actualService: formData.services.actualService
-      },
-      
-      // Headlight specific fields - map to fields that exist in DTO
-      additionalInformation: JSON.stringify({
-        serviceType: formData.serviceType,
-        productServiceNeeded: formData.productServiceNeeded,
-        productPrice: formData.productPrice,
-        servicePrice: formData.servicePrice,
-        installationDetails: formData.installationDetails,
-        deliveryPickupMethod: formData.deliveryPickupMethod,
-        acceptDiagnosticCharges: formData.acceptDiagnosticCharges
-      }),
-      
-      acceptTerms: formData.acceptTerms,
-      clientSignature: formData.clientSignature,
-      inspectorSignature: formData.inspectorSignature,
-      clientSigningMethod: formData.clientSigningMethod,
-      clientEmail: formData.clientEmail,
-      
-      uploadedImages: formData.uploadedImages,
-      files: formData.files
-    };
+      // Prepare inspection items
+      const submissionItems = formData.inspectionItems.map(item => ({
+        item: item.item,
+        status: item.status === 'pending' ? 'n/a' : item.status,
+        remarks: item.remarks || '',
+        side: item.side || 'both'
+      }));
 
-    let result;
-    
-    if (mode === 'edit' && checklistId) {
-      result = await preChecklistService.updatePreChecklist(checklistId, submissionData as any);
-      showToast('Pre-checklist updated successfully', 'success');
-    } else {
-      const userId = sessionStorage.getItem('userId') || undefined;
-      result = await preChecklistService.createPreChecklist(submissionData as any, userId);
-      showToast('Pre-checklist created successfully', 'success');
+      // Create submission data matching Diamond Rims DTO exactly
+      const submissionData: CreatePreChecklistDto = {
+        opportunityId: formData.opportunityId,
+        vehicleId: formData.vehicleId,
+        inspectionItems: submissionItems as any,
+        remarks: formData.remarks || '',
+        approved: false,
+        
+        // Match Diamond Rims DTO structure
+        checklistType: 'headlight',
+        inspectedBy: formData.inspectedBy,
+        inspectorName: formData.inspectorName,
+        
+        customerDetails: {
+          firstName: formData.customerDetails.firstName,
+          lastName: formData.customerDetails.lastName,
+          mobile: formData.customerDetails.mobile,
+          email: formData.customerDetails.email,
+          name: `${formData.customerDetails.firstName} ${formData.customerDetails.lastName}`
+        },
+        
+        carDetails: {
+          carMake: formData.carDetails.carMake,
+          carModel: formData.carDetails.carModel,
+          mileage: formData.carDetails.mileage,
+          yearOfManufacture: formData.carDetails.yearOfManufacture,
+          licensePlate: formData.carDetails.licensePlate,
+          color: formData.carDetails.color || '',
+          vehicleType: formData.carDetails.vehicleType || '',
+          engineSize: formData.carDetails.engineSize || '',
+          fuelType: formData.carDetails.fuelType || '',
+          // Note: vin is NOT in CreatePreChecklistDto, so don't include it here
+        },
+        
+        serviceIntake: formData.serviceIntake,
+        
+        services: {
+          actualService: formData.services.actualService
+        },
+        
+        // Headlight specific fields - map to fields that exist in DTO
+        additionalInformation: JSON.stringify({
+          serviceType: formData.serviceType,
+          productServiceNeeded: formData.productServiceNeeded,
+          productPrice: formData.productPrice,
+          servicePrice: formData.servicePrice,
+          installationDetails: formData.installationDetails,
+          deliveryPickupMethod: formData.deliveryPickupMethod,
+          acceptDiagnosticCharges: formData.acceptDiagnosticCharges
+        }),
+        
+        acceptTerms: formData.acceptTerms,
+        clientSignature: formData.clientSignature,
+        inspectorSignature: formData.inspectorSignature,
+        clientSigningMethod: formData.clientSigningMethod,
+        clientEmail: formData.clientEmail,
+        
+        uploadedImages: formData.uploadedImages,
+        files: formData.files
+      };
+
+      let result;
       
-      // Link to work order if provided
-      if (workOrderId && result._id) {
-        try {
-          await workOrderService.updateWorkOrder(workOrderId, {
-            preChecklistId: result._id
-          });
-        } catch (updateError) {
-          console.error('Error updating work order:', updateError);
+      if (mode === 'edit' && checklistId) {
+        result = await preChecklistService.updatePreChecklist(checklistId, submissionData as any);
+        showToast('Pre-checklist updated successfully', 'success');
+      } else {
+        const userId = sessionStorage.getItem('userId') || undefined;
+        result = await preChecklistService.createPreChecklist(submissionData as any, userId);
+        showToast('Pre-checklist created successfully', 'success');
+        
+        // Link to work order if provided
+        if (workOrderId && result._id) {
+          try {
+            await workOrderService.updateWorkOrder(workOrderId, {
+              preChecklistId: result._id
+            });
+          } catch (updateError) {
+            console.error('Error updating work order:', updateError);
+          }
         }
       }
-    }
 
-    // Navigate back
-    if (workOrderId) {
-      router.push(`/orders/work-orders/${workOrderId}`);
-    } else if (source === 'opportunity' && formData.opportunityId) {
-      router.push(`/opportunities/${formData.opportunityId}`);
-    } else if (result?._id) {
-      router.push(`/pre-checklist/${result._id}`);
-    } else {
-      router.push('/prechecklists');
-    }
+      // Navigate back
+      if (workOrderId) {
+        router.push(`/orders/work-orders/${workOrderId}`);
+      } else if (source === 'opportunity' && formData.opportunityId) {
+        router.push(`/opportunities/${formData.opportunityId}`);
+      } else if (result?._id) {
+        router.push(`/pre-checklist/${result._id}`);
+      } else {
+        router.push('/prechecklists');
+      }
 
-  } catch (error: any) {
-    console.error('Error submitting pre-checklist:', error);
-    showToast(error.message || 'Failed to save pre-checklist', 'error');
-  } finally {
-    setSubmitting(false);
-  }
-};
+    } catch (error: any) {
+      console.error('Error submitting pre-checklist:', error);
+      showToast(error.message || 'Failed to save pre-checklist', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleCancel = () => {
     if (workOrderId) {

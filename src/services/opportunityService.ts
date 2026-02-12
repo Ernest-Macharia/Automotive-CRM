@@ -872,10 +872,28 @@ class OpportunityService {
   // Recalculate lead score
   async recalculateLeadScore(id: string): Promise<any> {
     try {
-      return await extendedApiClient.post<any, any>(`/opportunities/${id}/recalculate-score`, {});
-    } catch (error) {
+      return await extendedApiClient.post<any, any>(
+        `/opportunities/${id}/recalculate-score`, 
+        {}
+      );
+    } catch (error: any) {
       console.error(`Error recalculating lead score for ${id}:`, error);
-      throw error;
+      
+      // Parse error message
+      let errorMessage = 'Failed to recalculate lead score';
+      
+      if (error.message) {
+        try {
+          const parsed = JSON.parse(error.message.replace('API Error (500): ', ''));
+          if (parsed.message) {
+            errorMessage = parsed.message;
+          }
+        } catch {
+          errorMessage = error.message;
+        }
+      }
+      
+      throw new Error(errorMessage);
     }
   }
 
@@ -1293,15 +1311,167 @@ class OpportunityService {
     }
   }
 
+    /**
+   * Get reassignment candidates for an opportunity
+   * GET /api/v1/opportunities/{id}/reassignment/candidates
+   */
+  async getReassignmentCandidates(opportunityId: string): Promise<any[]> {
+    try {
+      return await extendedApiClient.get<any[]>(
+        `/opportunities/${opportunityId}/reassignment/candidates`
+      );
+    } catch (error) {
+      console.error('Error fetching reassignment candidates:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reassign opportunity to another user
+   * POST /api/v1/opportunities/{id}/reassign
+   */
+  async reassignOpportunity(
+    opportunityId: string,
+    userId: string,
+    notes?: string
+  ): Promise<{ message: string; opportunity: Opportunity }> {
+    try {
+      return await extendedApiClient.post<any, { message: string; opportunity: Opportunity }>(
+        `/opportunities/${opportunityId}/reassign`,
+        { userId, notes }
+      );
+    } catch (error) {
+      console.error('Error reassigning opportunity:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Refresh LIS validation for opportunity
+   * POST /api/v1/opportunities/{id}/lis/refresh
+   */
+  async refreshLISValidation(opportunityId: string): Promise<any> {
+    try {
+      return await extendedApiClient.post<any, any>(
+        `/opportunities/${opportunityId}/lis/refresh`,
+        {}
+      );
+    } catch (error) {
+      console.error('Error refreshing LIS validation:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check SLA for specific opportunity
+   * POST /api/v1/opportunities/{id}/check-sla
+   */
+  async checkOpportunitySLA(opportunityId: string): Promise<any> {
+    try {
+      return await extendedApiClient.post<any, any>(
+        `/opportunities/${opportunityId}/check-sla`,
+        {}
+      );
+    } catch (error) {
+      console.error('Error checking opportunity SLA:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check both LIS and SLA for opportunity
+   * POST /api/v1/opportunities/{id}/lis/sla/check
+   */
+  async checkLISAndSLA(opportunityId: string): Promise<{
+    lis: any;
+    sla: any;
+  }> {
+    try {
+      return await extendedApiClient.post<any, { lis: any; sla: any }>(
+        `/opportunities/${opportunityId}/lis/sla/check`,
+        {}
+      );
+    } catch (error) {
+      console.error('Error checking LIS and SLA:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get opportunities needing reassignment
+   * GET /api/v1/opportunities/needs-reassignment
+   */
+  async getOpportunitiesNeedingReassignment(): Promise<Opportunity[]> {
+    try {
+      return await extendedApiClient.get<Opportunity[]>('/opportunities/needs-reassignment');
+    } catch (error) {
+      console.error('Error fetching opportunities needing reassignment:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get SLA status summary
+   * GET /api/v1/opportunities/sla/status-summary
+   */
+  async getSLAStatusSummary(): Promise<any> {
+    try {
+      return await extendedApiClient.get('/opportunities/sla/status-summary');
+    } catch (error) {
+      console.error('Error fetching SLA status summary:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get LIS & SLA dashboard stats
+   * GET /api/v1/opportunities/dashboard/lis-sla
+   */
+  async getLISSLADashboardStats(): Promise<any> {
+    try {
+      return await extendedApiClient.get('/opportunities/dashboard/lis-sla');
+    } catch (error) {
+      console.error('Error fetching LIS/SLA dashboard stats:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get SLA metrics trend
+   * GET /api/v1/opportunities/sla/metrics/trend
+   */
+  async getSLAMetricsTrend(): Promise<any> {
+    try {
+      return await extendedApiClient.get('/opportunities/sla/metrics/trend');
+    } catch (error) {
+      console.error('Error fetching SLA metrics trend:', error);
+      throw error;
+    }
+  }
+
   async addNote(opportunityId: string, noteData: CreateNoteData): Promise<Note> {
     try {
       return await extendedApiClient.post<CreateNoteData, Note>(
         `/opportunities/${opportunityId}/notes`,
         noteData
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error adding note to opportunity ${opportunityId}:`, error);
-      throw error;
+      
+      let errorMessage = 'Failed to add note';
+      
+      if (error.message) {
+        try {
+          const parsed = JSON.parse(error.message.replace('API Error (500): ', ''));
+          if (parsed.message) {
+            errorMessage = parsed.message;
+          }
+        } catch {
+          errorMessage = error.message;
+        }
+      }
+      
+      throw new Error(errorMessage);
     }
   }
 

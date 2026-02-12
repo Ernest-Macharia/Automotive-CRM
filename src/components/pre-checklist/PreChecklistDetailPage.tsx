@@ -223,62 +223,62 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     }
   };
 
-  const handleExportPDF = async () => {
-    if (!checklist) return;
-    try {
-      setUpdating(true);
-      const htmlContent = await preChecklistService.exportPreChecklistToPdf(checklist._id);
+  // const handleExportPDF = async () => {
+  //   if (!checklist) return;
+  //   try {
+  //     setUpdating(true);
+  //     const htmlContent = await preChecklistService.exportPreChecklistToPdf(checklist._id);
       
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(htmlContent);
-        printWindow.document.close();
-        printWindow.focus();
-        printWindow.print();
-      }
+  //     const printWindow = window.open('', '_blank');
+  //     if (printWindow) {
+  //       printWindow.document.write(htmlContent);
+  //       printWindow.document.close();
+  //       printWindow.focus();
+  //       printWindow.print();
+  //     }
       
-      showToast('Pre-checklist exported successfully', 'success');
-    } catch (error) {
-      console.error('Error exporting pre-checklist:', error);
-      showToast('Failed to export pre-checklist', 'error');
-    } finally {
-      setUpdating(false);
-    }
-  };
+  //     showToast('Pre-checklist exported successfully', 'success');
+  //   } catch (error) {
+  //     console.error('Error exporting pre-checklist:', error);
+  //     showToast('Failed to export pre-checklist', 'error');
+  //   } finally {
+  //     setUpdating(false);
+  //   }
+  // };
 
-  const handleUpdateItemStatus = async (itemId: string, status: 'ok' | 'fault' | 'n/a') => {
-    if (!checklist) return;
+  // const handleUpdateItemStatus = async (itemId: string, status: 'ok' | 'fault' | 'n/a') => {
+  //   if (!checklist) return;
     
-    try {
-      setUpdating(true);
-      await preChecklistService.updateInspectionItem(checklist._id, itemId, { status });
-      const updatedChecklist = await preChecklistService.getPreChecklistById(checklist._id);
-      setChecklist(updatedChecklist);
-      showToast('Item status updated successfully', 'success');
-    } catch (error) {
-      console.error('Error updating item status:', error);
-      showToast('Failed to update item status', 'error');
-    } finally {
-      setUpdating(false);
-    }
-  };
+  //   try {
+  //     setUpdating(true);
+  //     await preChecklistService.updateInspectionItem(checklist._id, itemId, { status });
+  //     const updatedChecklist = await preChecklistService.getPreChecklistById(checklist._id);
+  //     setChecklist(updatedChecklist);
+  //     showToast('Item status updated successfully', 'success');
+  //   } catch (error) {
+  //     console.error('Error updating item status:', error);
+  //     showToast('Failed to update item status', 'error');
+  //   } finally {
+  //     setUpdating(false);
+  //   }
+  // };
 
-  const handleClone = async () => {
-    if (!checklist) return;
+  // const handleClone = async () => {
+  //   if (!checklist) return;
     
-    try {
-      setUpdating(true);
-      const userId = sessionStorage.getItem('userId') || 'system';
-      const clonedChecklist = await preChecklistService.clonePreChecklist(checklist._id, userId);
-      showToast('Pre-checklist cloned successfully', 'success');
-      router.push(`/prechecklists/${clonedChecklist._id}`);
-    } catch (error) {
-      console.error('Error cloning pre-checklist:', error);
-      showToast('Failed to clone pre-checklist', 'error');
-    } finally {
-      setUpdating(false);
-    }
-  };
+  //   try {
+  //     setUpdating(true);
+  //     const userId = sessionStorage.getItem('userId') || 'system';
+  //     const clonedChecklist = await preChecklistService.clonePreChecklist(checklist._id, userId);
+  //     showToast('Pre-checklist cloned successfully', 'success');
+  //     router.push(`/prechecklists/${clonedChecklist._id}`);
+  //   } catch (error) {
+  //     console.error('Error cloning pre-checklist:', error);
+  //     showToast('Failed to clone pre-checklist', 'error');
+  //   } finally {
+  //     setUpdating(false);
+  //   }
+  // };
 
   /* ---------------- UI states ---------------- */
 
@@ -348,7 +348,7 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
                 </h2>
                 <div className="flex gap-2 mt-3 sm:mt-0">
                   <button 
-                    onClick={handleExportPDF} 
+                    // onClick={handleExportPDF} 
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60"
                     disabled={updating}
                   >
@@ -360,7 +360,7 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
                     Print
                   </button>
                   <button 
-                    onClick={handleClone} 
+                    // onClick={handleClone} 
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60"
                     disabled={updating}
                   >
@@ -481,7 +481,7 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
                     {!checklist.approved && (
                       <div className="flex items-center gap-1 ml-2">
                         <button
-                          onClick={() => handleUpdateItemStatus(item._id || index.toString(), 'ok')}
+                          // onClick={() => handleUpdateItemStatus(item._id || index.toString(), 'ok')}
                           className={`p-1.5 rounded ${item.status === 'ok' ? 'bg-green-100 text-green-700' : 'text-gray-400 hover:text-green-700 hover:bg-green-50'}`}
                           title="Mark as OK"
                           disabled={updating}
@@ -489,7 +489,7 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
                           <CheckCircle className="h-3.5 w-3.5" />
                         </button>
                         <button
-                          onClick={() => handleUpdateItemStatus(item._id!, 'fault')}
+                          // onClick={() => handleUpdateItemStatus(item._id!, 'fault')}
                           className={`p-1.5 rounded ${item.status === 'fault' ? 'bg-red-100 text-red-700' : 'text-gray-400 hover:text-red-700 hover:bg-red-50'}`}
                           title="Mark as Fault"
                           disabled={updating}
@@ -497,7 +497,7 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
                           <AlertCircle className="h-3.5 w-3.5" />
                         </button>
                         <button
-                          onClick={() => handleUpdateItemStatus(item._id!, 'n/a')}
+                          // onClick={() => handleUpdateItemStatus(item._id!, 'n/a')}
                           className={`p-1.5 rounded ${item.status === 'n/a' ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50'}`}
                           title="Mark as N/A"
                           disabled={updating}
