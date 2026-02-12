@@ -36,17 +36,17 @@ export interface Profile {
   id: string;
   _id?: string;
   user: ProfileUser | string;
-  firstName: string;
+  firstName?: string;
   middleName?: string;
-  lastName: string;
+  lastName?: string;
   dateOfBirth?: string | Date;
   gender?: 'male' | 'female' | 'other';
   nationality?: string;
   citizenship?: string;
-  employeeId: string;
-  position: string;
-  department: string;
-  dateStarted: string | Date;
+  employeeId?: string;
+  position?: string;
+  department?: string;
+  dateStarted?: string | Date;
   contractType?: string;
   contractStartDate?: string | Date;
   contractEndDate?: string | Date;
@@ -61,8 +61,8 @@ export interface Profile {
   county?: string;
   subCounty?: string;
   estate?: string;
-  governmentDocuments: GovernmentDocument[];
-  leaveRecords: LeaveRecord[];
+  governmentDocuments?: GovernmentDocument[];
+  leaveRecords?: LeaveRecord[];
   totalLeaveAccrued?: number;
   totalLeaveUsed?: number;
   currentLeaveBalance?: number;
@@ -77,34 +77,34 @@ export interface Profile {
   maritalStatus?: string;
   spouseName?: string;
   childrenCount?: number;
-  skills: string[];
-  qualifications: string[];
-  certifications: string[];
-  languages: string[];
+  skills?: string[];
+  qualifications?: string[];
+  certifications?: string[];
+  languages?: string[];
   active?: boolean;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CreateProfileData {
-  firstName: string;
+  firstName?: string;
   middleName?: string;
-  lastName: string;
+  lastName?: string;
   dateOfBirth?: string | Date;
   gender?: 'male' | 'female' | 'other';
   nationality?: string;
   citizenship?: string;
-  employeeId: string;
-  position: string;
-  department: string;
-  dateStarted: string | Date;
+  employeeId?: string;
+  position?: string;
+  department?: string;
+  dateStarted?: string | Date;
   contractType?: string;
   contractStartDate?: string | Date;
   contractEndDate?: string | Date;
   contractDocumentUrl?: string;
   reportingManager?: string;
   employmentStatus?: string;
-  personalPhone: string;
+  personalPhone?: string;
   workPhone?: string;
   personalEmail?: string;
   residentialAddress?: string;
@@ -161,12 +161,12 @@ class ProfileService {
    * Create a new profile (Admin/Management only)
    * POST /api/v1/profiles/{userId}
    */
-  async createProfile(userId: string, data: CreateProfileData): Promise<Profile> {
+  async createProfile(data: CreateProfileData): Promise<Profile> {
     try {
-      const response = await apiClient.post<CreateProfileData, any>(`/profiles/${userId}`, data);
+      const response = await apiClient.post<CreateProfileData, any>('/profiles/me/create', data);
       return this.normalizeProfile(response);
     } catch (error) {
-      console.error('Error creating profile:', error);
+      console.error('Error creating my profile:', error);
       throw error;
     }
   }
@@ -248,8 +248,12 @@ class ProfileService {
     try {
       const response = await apiClient.get<any>('/profiles/me/profile');
       return this.normalizeProfile(response);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching my profile:', error);
+      // Preserve the error status code for handling in components
+      if (error.status) {
+        throw { ...error, status: error.status };
+      }
       throw error;
     }
   }
@@ -264,6 +268,20 @@ class ProfileService {
       return this.normalizeProfile(response);
     } catch (error) {
       console.error('Error updating my profile:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add emergency contact (self-service)
+   * POST /api/v1/profiles/me/emergency-contacts
+   */
+  async addEmergencyContact(data: EmergencyContact): Promise<Profile> {
+    try {
+      const response = await apiClient.post<EmergencyContact, any>('/profiles/me/emergency-contacts', data);
+      return this.normalizeProfile(response);
+    } catch (error) {
+      console.error('Error adding emergency contact:', error);
       throw error;
     }
   }
@@ -320,20 +338,6 @@ class ProfileService {
       return this.normalizeProfile(response);
     } catch (error) {
       console.error('Error adding government document:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Add emergency contact
-   * POST /api/v1/profiles/me/emergency-contacts
-   */
-  async addEmergencyContact(data: EmergencyContact): Promise<Profile> {
-    try {
-      const response = await apiClient.post<EmergencyContact, any>('/profiles/me/emergency-contacts', data);
-      return this.normalizeProfile(response);
-    } catch (error) {
-      console.error('Error adding emergency contact:', error);
       throw error;
     }
   }
