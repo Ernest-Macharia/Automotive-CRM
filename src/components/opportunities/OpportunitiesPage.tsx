@@ -1471,7 +1471,7 @@ export default function OpportunitiesContent() {
                     </span>
                   ) : stats ? (
                     <>
-                      {stats.totalopportunities || opportunities.length} total opportunities
+                      {stats.totalopportunities} total opportunities
                     </>
                   ) : (
                     'Track and manage your leads & deals'

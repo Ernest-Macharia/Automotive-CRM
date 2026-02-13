@@ -208,7 +208,7 @@ useEffect(() => {
 
   // Memoized getters
   const getCustomerName = useCallback((workOrder: any) => {
-    if (!workOrder.opportunityId) return 'Unknown';
+    if (!workOrder.opportunityId) return 'Unknown Customer';
     
     // Check cache first
     const cacheKey = workOrder._id + '_customer';
@@ -217,11 +217,24 @@ useEffect(() => {
     }
     
     let name = 'Unknown Customer';
-    if (typeof workOrder.opportunityId === 'object') {
-      name = workOrder.opportunityId.customer?.name || 
-             workOrder.opportunityId.customer?.companyName || 
-             workOrder.opportunityId.subject || 
-             'Unknown Customer';
+    
+    // Handle different data structures
+    if (typeof workOrder.opportunityId === 'object' && workOrder.opportunityId) {
+      const opp = workOrder.opportunityId;
+      
+      // Try to get customer name from various possible paths
+      if (opp.customer) {
+        if (typeof opp.customer === 'object') {
+          name = opp.customer.name || opp.customer.companyName || opp.subject || 'Unknown Customer';
+        } else {
+          name = opp.customer || opp.subject || 'Unknown Customer';
+        }
+      } else if (opp.subject) {
+        name = opp.subject;
+      }
+    } else if (typeof workOrder.opportunityId === 'string') {
+      // If it's just a string ID, we can't get the name without additional API call
+      name = 'Customer ID: ' + workOrder.opportunityId.substring(0, 8) + '...';
     }
     
     customerNameCache.set(cacheKey, name);
@@ -229,14 +242,52 @@ useEffect(() => {
   }, []);
 
   const getAssignedToName = useCallback((workOrder: any) => {
-    if (typeof workOrder.assignedTo === 'object' && workOrder.assignedTo) {
-      const firstName = workOrder.assignedTo.firstName || '';
-      const lastName = workOrder.assignedTo.lastName || '';
-      return `${firstName} ${lastName}`.trim() || 'Unnamed';
+    // First check if assignedTo exists directly on workOrder
+    if (workOrder.assignedTo) {
+      if (typeof workOrder.assignedTo === 'object' && workOrder.assignedTo) {
+        const firstName = workOrder.assignedTo.firstName || '';
+        const lastName = workOrder.assignedTo.lastName || '';
+        const fullName = `${firstName} ${lastName}`.trim();
+        if (fullName) return fullName;
+        if (workOrder.assignedTo.email) return workOrder.assignedTo.email.split('@')[0];
+        if (workOrder.assignedTo.name) return workOrder.assignedTo.name;
+        return 'Assigned';
+      }
+      // If it's a string ID
+      if (typeof workOrder.assignedTo === 'string') {
+        return 'Assigned (ID: ' + workOrder.assignedTo.substring(0, 6) + '...)';
+      }
     }
-    if (typeof workOrder.assignedTo === 'string') {
-      return 'Assigned';
+    
+    // Then check if opportunity has assignedTo
+    if (typeof workOrder.opportunityId === 'object' && workOrder.opportunityId) {
+      const opp = workOrder.opportunityId;
+      
+      // Check if opportunity has assignedTo directly
+      if (opp.assignedTo) {
+        if (typeof opp.assignedTo === 'object' && opp.assignedTo) {
+          const firstName = opp.assignedTo.firstName || '';
+          const lastName = opp.assignedTo.lastName || '';
+          const fullName = `${firstName} ${lastName}`.trim();
+          if (fullName) return fullName;
+          if (opp.assignedTo.email) return opp.assignedTo.email.split('@')[0];
+          if (opp.assignedTo.name) return opp.assignedTo.name;
+          return 'Assigned (from opp)';
+        }
+        return opp.assignedTo || 'Assigned';
+      }
+      
+      // Check if opportunity has assignedTo in a different path (like salesRep, etc.)
+      if (opp.salesRep) {
+        if (typeof opp.salesRep === 'object') {
+          const firstName = opp.salesRep.firstName || '';
+          const lastName = opp.salesRep.lastName || '';
+          const fullName = `${firstName} ${lastName}`.trim();
+          if (fullName) return fullName;
+        }
+      }
     }
+    
     return 'Unassigned';
   }, []);
 
@@ -600,19 +651,92 @@ useEffect(() => {
                         <p className="text-xs text-gray-500">{formatDate(order.createdAt)}</p>
                       </td>
 
-                      <td className="py-4 px-4">
-                        <p className="font-medium text-gray-900">{getCustomerName(order)}</p>
-                        <p className="text-xs text-gray-500 truncate max-w-[160px]">
-                          {typeof order.opportunityId === 'object' 
-                            ? order.opportunityId.subject || '' 
-                            : ''}
-                        </p>
-                      </td>
+                     <td className="py-4 px-4">
+                      <p className="font-medium text-gray-900">
+                        {(() => {
+                          // First check if we have the enriched customer name from the service
+                          if (order._customerName) return order._customerName;
+                          
+                          // Handle if opportunityId is an object (populated)
+                          if (typeof order.opportunityId === 'object' && order.opportunityId) {
+                            const opp = order.opportunityId;
+                            // Check if customer exists in different possible paths
+                            if (opp.customer) {
+                              if (typeof opp.customer === 'object') {
+                                return opp.customer.name || opp.customer.companyName || 'Unknown Customer';
+                              }
+                              return opp.customer || 'Unknown Customer';
+                            }
+                            return opp.subject || 'Unknown Customer';
+                          }
+                          
+                          // If opportunityId is just a string ID, use the getCustomerName function
+                          if (typeof order.opportunityId === 'string' && order.opportunityId) {
+                            // Use the memoized function to get the name
+                            return getCustomerName(order);
+                          }
+                          
+                          return 'Unknown Customer';
+                        })()}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate max-w-[160px]">
+                        {(() => {
+                          // Show subject if available
+                          if (typeof order.opportunityId === 'object' && order.opportunityId) {
+                            return order.opportunityId.subject || '';
+                          }
+                          // If it's a string ID, show a truncated version
+                          if (typeof order.opportunityId === 'string' && order.opportunityId) {
+                            return `Opportunity: ${order.opportunityId.substring(0, 8)}...`;
+                          }
+                          return '';
+                        })()}
+                      </p>
+                    </td>
 
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-2">
                           <Users className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm text-gray-700">{getAssignedToName(order)}</span>
+                          <span className="text-sm text-gray-700">
+                            {(() => {
+                              // First check if we have the enriched assignee name
+                              if (order._assignedToName) return order._assignedToName;
+                              
+                              // Check if assignedTo is an object (populated)
+                              if (order.assignedTo && typeof order.assignedTo === 'object') {
+                                const firstName = order.assignedTo.firstName || '';
+                                const lastName = order.assignedTo.lastName || '';
+                                const fullName = `${firstName} ${lastName}`.trim();
+                                if (fullName) return fullName;
+                                if (order.assignedTo.email) return order.assignedTo.email.split('@')[0];
+                                if (order.assignedTo.name) return order.assignedTo.name;
+                                return 'Assigned';
+                              }
+                              
+                              // If assignedTo is a string ID, use the getAssignedToName function
+                              if (order.assignedTo && typeof order.assignedTo === 'string') {
+                                return getAssignedToName(order);
+                              }
+                              
+                              // Check if opportunity has assignedTo (if it's an object)
+                              if (typeof order.opportunityId === 'object' && order.opportunityId) {
+                                const opp = order.opportunityId;
+                                if (opp.assignedTo) {
+                                  if (typeof opp.assignedTo === 'object') {
+                                    const firstName = opp.assignedTo.firstName || '';
+                                    const lastName = opp.assignedTo.lastName || '';
+                                    const fullName = `${firstName} ${lastName}`.trim();
+                                    if (fullName) return fullName;
+                                    if (opp.assignedTo.email) return opp.assignedTo.email.split('@')[0];
+                                    return 'Assigned';
+                                  }
+                                  return opp.assignedTo || 'Assigned';
+                                }
+                              }
+                              
+                              return 'Unassigned';
+                            })()}
+                          </span>
                         </div>
                       </td>
 

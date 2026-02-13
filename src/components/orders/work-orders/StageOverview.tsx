@@ -20,6 +20,7 @@ import { workOrderService } from '@/services/workOrderService';
 import { jobCardService, JobCard } from '@/services/jobCardService';
 import { useRouter } from 'next/navigation';
 import { invoiceService } from '@/services/invoiceService';
+import PreChecklistTypeModal from '@/components/pre-checklist/PreChecklistTypeModal';
 import { format } from 'date-fns';
 
 // ==================== STAGE OVERVIEW COMPONENT ====================
@@ -35,6 +36,7 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
   const [jobCards, setJobCards] = useState<JobCard[]>([]);
   const [loadingJobCards, setLoadingJobCards] = useState(false);
   const [showCompletionSuccess, setShowCompletionSuccess] = useState(false);
+  const [showPreChecklistModal, setShowPreChecklistModal] = useState(false);
   
   const stagesConfig = {
     pre_checklist: {
@@ -76,6 +78,7 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
       setShowCompletionSuccess(true);
     }
   }, [workOrder.status]);
+  
 
   const loadJobCards = async () => {
     try {
@@ -188,7 +191,8 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
   const stageConfig = stagesConfig[stageStatus.id as keyof typeof stagesConfig];
 
   const handleCreatePreChecklist = () => {
-    router.push(`/pre-checklist/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}&source=workflow`);
+    // Open modal instead of direct navigation
+    setShowPreChecklistModal(true);
   };
 
   const handleApprovePreChecklist = async () => {
@@ -207,6 +211,22 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
         updatedAt: new Date().toISOString()
       });
     });
+  };
+
+  const getOpportunityId = (workOrder: WorkOrder): string => {
+    if (!workOrder.opportunityId) return '';
+    
+    // If it's a string, return it directly
+    if (typeof workOrder.opportunityId === 'string') {
+      return workOrder.opportunityId;
+    }
+    
+    // If it's an object with _id property, return that
+    if (typeof workOrder.opportunityId === 'object' && workOrder.opportunityId?._id) {
+      return workOrder.opportunityId._id;
+    }
+    
+    return '';
   };
 
   const handleCreateJobCard = () => {
@@ -849,6 +869,12 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
           </div>
         )}
       </div>
+      <PreChecklistTypeModal
+        isOpen={showPreChecklistModal}
+        onClose={() => setShowPreChecklistModal(false)}
+        workOrderId={workOrder._id}
+        opportunityId={getOpportunityId(workOrder)}
+      />
     </div>
   );
 }

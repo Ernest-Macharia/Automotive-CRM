@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PDFDownloadLink, pdf } from '@react-pdf/renderer';
 import Image from 'next/image';
@@ -1296,18 +1296,6 @@ const autoPopulateFromOpportunity = () => {
     }
   };
 
-  const clearSignature = (type: 'client' | 'inspector') => {
-    if (type === 'client' && clientSigRef.current) {
-      clientSigRef.current.clear();
-      setClientSignature('');
-      handleInputChange('clientSignature', '');
-    } else if (type === 'inspector' && inspectorSigRef.current) {
-      inspectorSigRef.current.clear();
-      setInspectorSignature('');
-      handleInputChange('inspectorSignature', '');
-    }
-  };
-
   const sendForClientApproval = async () => {
     try {
       if (!formData.clientEmail || !formData.clientEmail.includes('@')) {
@@ -1327,16 +1315,84 @@ const autoPopulateFromOpportunity = () => {
     }
   };
 
+  // Function to get signature with consistent padding (RECOMMENDED)
+  // Use useCallback to memoize this function
+  const getPaddedSignatureCanvas = useCallback((sigRef: React.RefObject<SignatureCanvas>) => {
+    if (!sigRef.current) return null;
+    
+    // Check if signature is empty
+    if (sigRef.current.isEmpty()) {
+      return null;
+    }
+    
+    try {
+      // Get the trimmed canvas (removes empty space)
+      const trimmedCanvas = sigRef.current.getTrimmedCanvas();
+      
+      // If trimmed canvas has no width/height, return null
+      if (trimmedCanvas.width === 0 || trimmedCanvas.height === 0) {
+        return null;
+      }
+      
+      // Create a new canvas with padding
+      const padding = 20;
+      const paddedCanvas = document.createElement('canvas');
+      paddedCanvas.width = trimmedCanvas.width + (padding * 2);
+      paddedCanvas.height = trimmedCanvas.height + (padding * 2);
+      
+      const ctx = paddedCanvas.getContext('2d');
+      if (!ctx) return null;
+      
+      // Fill with white background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, paddedCanvas.width, paddedCanvas.height);
+      
+      // Draw the trimmed signature centered with padding
+      ctx.drawImage(trimmedCanvas, padding, padding);
+      
+      return paddedCanvas;
+    } catch (error) {
+      console.error('Error creating padded signature:', error);
+      return null;
+    }
+  }, []); // Empty dependency array since it doesn't depend on any props/state
+
   const saveSignature = async (type: 'client' | 'inspector') => {
     try {
       let dataUrl = '';
       
       if (type === 'client' && clientSigRef.current) {
-        dataUrl = clientSigRef.current.getTrimmedCanvas().toDataURL('image/png');
-        setClientSignature(dataUrl);
+        // Check if signature is empty
+        if (clientSigRef.current.isEmpty()) {
+          showToast('Please provide a signature before saving', 'error');
+          return;
+        }
+        
+        // Use padded canvas for consistent appearance
+        const paddedCanvas = getPaddedSignatureCanvas(clientSigRef);
+        if (paddedCanvas) {
+          dataUrl = paddedCanvas.toDataURL('image/png');
+          setClientSignature(dataUrl);
+        } else {
+          showToast('Failed to process signature', 'error');
+          return;
+        }
       } else if (type === 'inspector' && inspectorSigRef.current) {
-        dataUrl = inspectorSigRef.current.getTrimmedCanvas().toDataURL('image/png');
-        setInspectorSignature(dataUrl);
+        // Check if signature is empty
+        if (inspectorSigRef.current.isEmpty()) {
+          showToast('Please provide a signature before saving', 'error');
+          return;
+        }
+        
+        // Use padded canvas for consistent appearance
+        const paddedCanvas = getPaddedSignatureCanvas(inspectorSigRef);
+        if (paddedCanvas) {
+          dataUrl = paddedCanvas.toDataURL('image/png');
+          setInspectorSignature(dataUrl);
+        } else {
+          showToast('Failed to process signature', 'error');
+          return;
+        }
       }
       
       if (!dataUrl) {
@@ -1348,16 +1404,17 @@ const autoPopulateFromOpportunity = () => {
       if (checklistId) {
         const signatureData = {
           name: type === 'client' 
-            ? `${formData.customerDetails.firstName} ${formData.customerDetails.lastName}`
+            ? `${formData.customerDetails.firstName} ${formData.customerDetails.lastName}`.trim() || 'Client'
             : formData.inspectorName || sessionStorage.getItem('userName') || 'Inspector',
           signatureData: dataUrl,
-          role: type === 'client' ? 'Vehicle Owner' : 'Inspector'
+          role: type === 'client' ? 'Vehicle Owner' : 'Inspector',
+          signedAt: new Date().toISOString()
         };
         
         // Save signature to backend
         await preChecklistService.signPreChecklist(checklistId, signatureData);
         
-        showToast(`${type === 'client' ? 'Client' : 'Inspector'} signature saved to server`, 'success');
+        showToast(`${type === 'client' ? 'Client' : 'Inspector'} signature saved successfully`, 'success');
       } else {
         // If no checklist ID (create mode), just update local state
         if (type === 'client') {
@@ -1371,16 +1428,59 @@ const autoPopulateFromOpportunity = () => {
       // Close signature modal
       if (type === 'client') {
         setShowClientSignature(false);
+        // Clear the signature canvas after saving
+        if (clientSigRef.current) {
+          clientSigRef.current.clear();
+        }
       } else {
         setShowInspectorSignature(false);
+        // Clear the signature canvas after saving
+        if (inspectorSigRef.current) {
+          inspectorSigRef.current.clear();
+        }
       }
       
     } catch (error: any) {
       console.error(`Error saving ${type} signature:`, error);
-      showToast(error.message || `Failed to save ${type} signature`, 'error');
+      showToast(error.message || `Failed to save ${type} signature. Please try again.`, 'error');
     }
   };
 
+  // Also update the clearSignature function to properly clear
+  const clearSignature = (type: 'client' | 'inspector') => {
+    if (type === 'client' && clientSigRef.current) {
+      clientSigRef.current.clear();
+      setClientSignature('');
+      handleInputChange('clientSignature', '');
+    } else if (type === 'inspector' && inspectorSigRef.current) {
+      inspectorSigRef.current.clear();
+      setInspectorSignature('');
+      handleInputChange('inspectorSignature', '');
+    }
+  };
+
+  const canvasProps = useMemo(() => ({
+    width: 600,
+    height: 150,
+    className: 'w-full h-32 rounded-lg',
+    style: { 
+      width: '100%', 
+      height: '128px',
+      touchAction: 'none', // Prevents scrolling while drawing on touch devices
+      cursor: 'crosshair'
+    }
+  }), []);
+
+  // Memoize the signature pad props to prevent re-renders
+  const signaturePadProps = useMemo(() => ({
+    penColor: 'black',
+    canvasProps,
+    velocityFilterWeight: 0.7, // Reduces lag by filtering velocity
+    minWidth: 0.5, // Minimum width of line
+    maxWidth: 2.5, // Maximum width of line
+    throttle: 16, // Throttle render updates (16ms = ~60fps)
+    clearOnResize: false, // Don't clear on resize
+  }), [canvasProps]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1422,11 +1522,11 @@ const autoPopulateFromOpportunity = () => {
         return;
       }
 
-      if (!formData.inspectorSignature) {
-        showToast('Please provide inspector signature', 'error');
-        setSubmitting(false);
-        return;
-      }
+      // if (!formData.inspectorSignature) {
+      //   showToast('Please provide inspector signature', 'error');
+      //   setSubmitting(false);
+      //   return;
+      // }
 
       // Create submission data - ensure all required fields are included
       const submissionData: CreatePreChecklistDto = {
@@ -1758,7 +1858,7 @@ const autoPopulateFromOpportunity = () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-teal-50/30 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading Diamond Rims pre-checklist form...</p>
+          <p className="text-gray-600">Loading pre-checklist form...</p>
           {opportunityId && (
             <p className="text-sm text-gray-500 mt-2">Loading opportunity and vehicle data...</p>
           )}
@@ -2838,7 +2938,7 @@ const autoPopulateFromOpportunity = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Tire Quantity <RequiredField />
+                        Tire Quantity
                       </label>
                       <input
                         type="number"
@@ -2847,7 +2947,6 @@ const autoPopulateFromOpportunity = () => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                         min="0"
                         max="8"
-                        required
                       />
                     </div>
                     <div>
@@ -3931,8 +4030,19 @@ const autoPopulateFromOpportunity = () => {
                             canvasProps={{
                               width: 600,
                               height: 150,
-                              className: 'w-full h-32 rounded-lg'
+                              className: 'w-full h-32 rounded-lg',
+                              style: { 
+                                width: '100%', 
+                                height: '128px',
+                                touchAction: 'none',
+                                cursor: 'crosshair'
+                              }
                             }}
+                            velocityFilterWeight={0.7}
+                            minWidth={0.5}
+                            maxWidth={2.5}
+                            throttle={16}
+                            clearOnResize={false}
                           />
                         </div>
                         <div className="flex justify-end gap-3">
@@ -4055,8 +4165,19 @@ const autoPopulateFromOpportunity = () => {
                               canvasProps={{
                                 width: 600,
                                 height: 150,
-                                className: 'w-full h-32 rounded-lg'
+                                className: 'w-full h-32 rounded-lg',
+                                style: { 
+                                  width: '100%', 
+                                  height: '128px',
+                                  touchAction: 'none',
+                                  cursor: 'crosshair'
+                                }
                               }}
+                              velocityFilterWeight={0.7}
+                              minWidth={0.5}
+                              maxWidth={2.5}
+                              throttle={16}
+                              clearOnResize={false}
                             />
                           </div>
                           <div className="flex justify-end gap-3">
@@ -4151,12 +4272,12 @@ const autoPopulateFromOpportunity = () => {
                             </button>
                           </div>
                           
-                          {!formData.inspectorSignature && (
+                          {/* {!formData.inspectorSignature && (
                             <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
                               <AlertCircle className="h-3 w-3" />
                               Inspector signature required before sending to client
                             </p>
-                          )}
+                          )} */}
                         </div>
                       </div>
                     </div>

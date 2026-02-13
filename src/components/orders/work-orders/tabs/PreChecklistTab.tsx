@@ -12,6 +12,7 @@ import { workOrderService } from '@/services/workOrderService';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/contexts/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import PreChecklistTypeModal from '@/components/pre-checklist/PreChecklistTypeModal';
 
 interface PreChecklistTabProps {
   workOrder: WorkOrder;
@@ -36,6 +37,7 @@ export default function PreChecklistTab({
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showPreChecklistModal, setShowPreChecklistModal] = useState(false);
 
   useEffect(() => {
     loadStatus();
@@ -76,7 +78,8 @@ export default function PreChecklistTab({
   };
 
   const handleCreatePreChecklist = () => {
-    router.push(`/pre-checklist/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}&source=workflow`);
+    // Open modal instead of direct navigation
+    setShowPreChecklistModal(true);
   };
 
   const handleViewPreChecklist = () => {
@@ -92,6 +95,22 @@ export default function PreChecklistTab({
       await loadStatus();
       showToast('Pre-checklist approved successfully', 'success');
     });
+  };
+
+  const getOpportunityId = (workOrder: WorkOrder): string => {
+    if (!workOrder.opportunityId) return '';
+    
+    // If it's a string, return it directly
+    if (typeof workOrder.opportunityId === 'string') {
+      return workOrder.opportunityId;
+    }
+    
+    // If it's an object with _id property, return that
+    if (typeof workOrder.opportunityId === 'object' && workOrder.opportunityId?._id) {
+      return workOrder.opportunityId._id;
+    }
+    
+    return '';
   };
 
   const formatTime = (date: Date) => {
@@ -305,6 +324,12 @@ export default function PreChecklistTab({
           </motion.div>
         )}
       </AnimatePresence>
+      <PreChecklistTypeModal
+        isOpen={showPreChecklistModal}
+        onClose={() => setShowPreChecklistModal(false)}
+        workOrderId={workOrder._id}
+        opportunityId={getOpportunityId(workOrder)}
+      />
     </div>
   );
 }

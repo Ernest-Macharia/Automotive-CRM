@@ -54,18 +54,18 @@ export default function EmployeeProfileViewPage() {
       const profileData = await profileService.getProfile(profileId);
       
       // Verify this profile belongs to the current user
-      const userStr = sessionStorage.getItem('user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        const profileUserId = typeof profileData.user === 'string' 
-          ? profileData.user 
-          : profileData.user?.id;
+    //   const userStr = sessionStorage.getItem('user');
+    //   if (userStr) {
+    //     const user = JSON.parse(userStr);
+    //     const profileUserId = typeof profileData.user === 'string' 
+    //       ? profileData.user 
+    //       : profileData.user?.id;
         
-        if (profileUserId !== user.id) {
-          setError('You do not have permission to view this profile');
-          return;
-        }
-      }
+    //     // if (profileUserId !== user.id) {
+    //     //   setError('You do not have permission to view this profile');
+    //     //   return;
+    //     // }
+    //   }
       
       setProfile(profileData);
     } catch (error) {

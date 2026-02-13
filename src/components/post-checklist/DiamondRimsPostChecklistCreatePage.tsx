@@ -1073,7 +1073,7 @@ export default function DiamondRimsPostChecklistCreatePage({
       <div className="min-h-screen bg-gradient-to-br from-purple-50/30 via-white to-indigo-50/30 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-purple-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading Diamond Rims post-checklist form...</p>
+          <p className="text-gray-600">Loading post-checklist form...</p>
         </div>
       </div>
     );

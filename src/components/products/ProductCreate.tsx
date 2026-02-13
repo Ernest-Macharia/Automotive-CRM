@@ -362,7 +362,7 @@ export default function ProductCreate() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+              {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Manufacturer
@@ -390,7 +390,7 @@ export default function ProductCreate() {
                     className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
                   />
                 </div>
-              </div>
+              </div> */}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
                 <div>

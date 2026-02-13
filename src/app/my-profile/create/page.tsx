@@ -276,21 +276,25 @@ export default function EmployeeCreateProfilePage() {
 
   const handleSubmit = async () => {
     if (!validateForm()) {
-      showToast('Please fix the errors in the form', 'error');
-      return;
+        showToast('Please fix the errors in the form', 'error');
+        return;
     }
     
     setSaving(true);
     
     try {
-      const formatDate = (date: string) => date ? new Date(date).toISOString().split('T')[0] : '';
+        // FIXED: Return undefined instead of empty string
+        const formatDate = (date: string) => {
+        if (!date) return undefined; // ← CRITICAL: return undefined, NOT empty string
+        return new Date(date).toISOString().split('T')[0];
+        };
 
-      const profileData = {
+        const profileData = {
         // Personal Information
         firstName: formData.firstName.trim(),
         middleName: formData.middleName?.trim() || undefined,
         lastName: formData.lastName.trim(),
-        dateOfBirth: formatDate(formData.dateOfBirth),
+        dateOfBirth: formatDate(formData.dateOfBirth), // Now returns undefined when empty
         gender: formData.gender,
         nationality: formData.nationality?.trim() || undefined,
         citizenship: formData.citizenship?.trim() || undefined,
@@ -323,31 +327,33 @@ export default function EmployeeCreateProfilePage() {
         governmentDocuments: formData.governmentDocuments.length > 0 ? formData.governmentDocuments : undefined,
         
         active: true,
-      };
-      
-      // Create new profile using self-service endpoint
-      const newProfile = await profileService.createProfile(profileData);
-      
-      showToast('Profile created successfully!', 'success');
-      
-      setTimeout(() => {
-        router.push(`/my-profile/${newProfile.id}`);
-      }, 1500);
-      
+        };
+        
+        console.log('Submitting profile data:', JSON.stringify(profileData, null, 2));
+        
+        const newProfile = await profileService.createProfile(profileData);
+        
+        showToast('Profile created successfully!', 'success');
+        
+        setTimeout(() => {
+        router.push(`/my-profile/${newProfile.id || newProfile._id}`);
+        }, 1500);
+        
     } catch (error: any) {
-      console.error('Error creating profile:', error);
-      
-      // Handle specific error cases
-      if (error?.status === 409) {
+        console.error('Error creating profile:', error);
+        
+        if (error?.status === 409) {
         showToast('You already have a profile. Redirecting...', 'error');
         router.push('/my-profile');
-      } else {
-        showToast(error.message || 'Failed to create profile', 'error');
-      }
+        } else {
+        // Try to get more detailed error message
+        const errorMessage = error?.data?.message || error?.message || 'Failed to create profile';
+        showToast(errorMessage, 'error');
+        }
     } finally {
-      setSaving(false);
+        setSaving(false);
     }
-  };
+    };
 
   const RequiredField = () => <span className="text-red-500 ml-1">*</span>;
 

@@ -127,7 +127,7 @@ export default function ContactDetails({ contactId }: ContactDetailsProps) {
       
     } catch (error) {
       console.error('Error loading contact data:', error);
-      showToast('Failed to load contact details', 'error');
+      // showToast('Failed to load contact details', 'error');
     } finally {
       setLoading(false);
     }
