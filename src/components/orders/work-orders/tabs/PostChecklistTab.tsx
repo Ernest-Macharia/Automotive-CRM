@@ -12,6 +12,7 @@ import { workOrderService } from '@/services/workOrderService';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/contexts/ToastContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import PostChecklistTypeModal from '@/components/post-checklist/PostChecklistTypeModal';
 
 interface PostChecklistTabProps {
   workOrder: WorkOrder;
@@ -37,6 +38,7 @@ export default function PostChecklistTab({
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showPostChecklistModal, setShowPostChecklistModal] = useState(false);
 
   useEffect(() => {
     loadStatus();
@@ -93,7 +95,7 @@ export default function PostChecklistTab({
   };
 
   const handleCreatePostChecklist = () => {
-    router.push(`/post-checklist/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}`);
+    setShowPostChecklistModal(true);
   };
 
   const handleViewPostChecklist = () => {
@@ -132,6 +134,17 @@ export default function PostChecklistTab({
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getOpportunityId = (workOrder: WorkOrder): string => {
+    if (!workOrder.opportunityId) return '';
+    if (typeof workOrder.opportunityId === 'string') {
+      return workOrder.opportunityId;
+    }
+    if (typeof workOrder.opportunityId === 'object' && workOrder.opportunityId?._id) {
+      return workOrder.opportunityId._id;
+    }
+    return '';
   };
 
   const QualityScoreCard = () => (
@@ -370,6 +383,12 @@ export default function PostChecklistTab({
           </motion.div>
         )}
       </AnimatePresence>
+      <PostChecklistTypeModal
+        isOpen={showPostChecklistModal}
+        onClose={() => setShowPostChecklistModal(false)}
+        workOrderId={workOrder._id}
+        opportunityId={getOpportunityId(workOrder)}
+      />
     </div>
   );
 }

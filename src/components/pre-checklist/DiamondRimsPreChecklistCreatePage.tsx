@@ -431,6 +431,168 @@ export default function DiamondRimsPreChecklistCreatePage({
     }
   };
 
+  // Helper function to determine risk level from note content
+  const determineRiskLevel = (note: string, serviceName: string): 'high' | 'medium' | 'low' => {
+    const lowerNote = note.toLowerCase();
+    const lowerService = serviceName.toLowerCase();
+    
+    // High risk indicators
+    const highRiskKeywords = [
+      'crack', 'weld', 'structural', 'safety', 'thin', 'failure', 
+      'break', 'risk', 'danger', 'unsafe', 'warning', 'critical',
+      'must', 'required', 'essential', 'imperative', 'obligatory',
+      'death', 'injury', 'accident', 'catastrophic', 'severe'
+    ];
+    
+    // Medium risk indicators
+    const mediumRiskKeywords = [
+      'warp', 'bend', 'distortion', 'damage', 'compromise', 
+      'affect', 'impact', 'caution', 'attention', 'important',
+      'should', 'recommend', 'suggest', 'advise', 'potential',
+      'moderate', 'noticeable', 'significant'
+    ];
+    
+    // Low risk indicators
+    const lowRiskKeywords = [
+      'aesthetic', 'color', 'appearance', 'finish', 'look',
+      'optional', 'preference', 'choice', 'may', 'could',
+      'consider', 'option', 'minor', 'slight', 'cosmetic'
+    ];
+    
+    if (highRiskKeywords.some(keyword => lowerNote.includes(keyword) || lowerService.includes(keyword))) {
+      return 'high';
+    } else if (mediumRiskKeywords.some(keyword => lowerNote.includes(keyword) || lowerService.includes(keyword))) {
+      return 'medium';
+    } else {
+      return 'low';
+    }
+  };
+
+  // Generate must-knows from services using internalNotes
+  const generateServiceMustKnowsFromServices = useCallback((services: Service[]) => {
+    const mustKnows: ServiceMustKnow[] = [];
+    
+    // First, add general must-knows that always apply
+    const generalMustKnows = [
+      {
+        id: 'general_process_explained',
+        serviceId: 'general',
+        serviceName: 'General',
+        description: 'Entire process explained to the customer',
+        required: true,
+        riskLevel: 'medium' as const
+      },
+      {
+        id: 'general_client_risk_acceptance',
+        serviceId: 'general',
+        serviceName: 'General',
+        description: 'Tyres, caps, locknuts, sensors, and other items are accepted at the client\'s own risk',
+        required: true,
+        riskLevel: 'high' as const
+      },
+      {
+        id: 'general_personal_belongings',
+        serviceId: 'general',
+        serviceName: 'General',
+        description: 'Personal belongings left in or with the vehicle/rims are the client\'s responsibility',
+        required: true,
+        riskLevel: 'medium' as const
+      },
+      {
+        id: 'general_timeline_estimates',
+        serviceId: 'general',
+        serviceName: 'General',
+        description: 'Completion timelines are estimates only',
+        required: true,
+        riskLevel: 'low' as const
+      },
+      {
+        id: 'general_full_payment_required',
+        serviceId: 'general',
+        serviceName: 'General',
+        description: 'Diamond Rimz will not release any item until full payment is received',
+        required: true,
+        riskLevel: 'medium' as const
+      },
+      {
+        id: 'general_storage_fees',
+        serviceId: 'general',
+        serviceName: 'General',
+        description: 'Uncollected rims/parts after 5 days will attract a storage fee of KES 500 per day per part',
+        required: true,
+        riskLevel: 'medium' as const
+      },
+      {
+        id: 'general_storage_risk',
+        serviceId: 'general',
+        serviceName: 'General',
+        description: 'Rims not collected within 12 hours of completion notification are stored at the client\'s risk',
+        required: true,
+        riskLevel: 'medium' as const
+      }
+    ];
+    
+    generalMustKnows.forEach(mustKnow => {
+      mustKnows.push({
+        ...mustKnow,
+        isAcknowledged: false
+      });
+    });
+    
+    // Now add service-specific must-knows from internalNotes
+    services.forEach(service => {
+      if (service.internalNotes) {
+        // Split by newlines and process each line
+        const notes = service.internalNotes.split('\n').filter(note => note.trim());
+        
+        notes.forEach((note, index) => {
+          // Remove numbering if present (e.g., "1. " or "1) ")
+          const cleanNote = note.replace(/^\d+[\.\)]\s*/, '').trim();
+          
+          if (cleanNote) {
+            // Determine risk level based on content
+            const riskLevel = determineRiskLevel(cleanNote, service.name);
+            
+            mustKnows.push({
+              id: `${service.id}_mustknow_${index}`,
+              serviceId: service.id,
+              serviceName: service.name,
+              description: cleanNote,
+              isAcknowledged: false,
+              required: true,
+              riskLevel: riskLevel
+            });
+          }
+        });
+      }
+    });
+    
+    return mustKnows;
+  }, []);
+
+  // Generate risks from service descriptions (optional)
+  const generateServiceRisksFromServices = useCallback((services: Service[]) => {
+    const risks: ServiceRisk[] = [];
+    
+    services.forEach(service => {
+      // Extract risks from description
+      if (service.description) {
+        const riskNote = `Service involves ${service.name}. Standard precautions apply.`;
+        risks.push({
+          id: `${service.id}_risk_general`,
+          serviceId: service.id,
+          serviceName: service.name,
+          description: riskNote,
+          isAcknowledged: false,
+          required: true,
+          riskLevel: determineRiskLevel(riskNote, service.name)
+        });
+      }
+    });
+    
+    return risks;
+  }, []);
+
   // Fetch services on component mount
   useEffect(() => {
     loadServices();
@@ -449,7 +611,6 @@ export default function DiamondRimsPreChecklistCreatePage({
         
         // Filter for Diamond Rims related services
         const diamondRimsServices = services.filter(service => {
-          // Check service name, description, and code for Diamond Rims keywords
           const searchText = `${service.name} ${service.description || ''} ${service.serviceCode || ''}`.toLowerCase();
           
           const diamondRimsKeywords = [
@@ -459,13 +620,9 @@ export default function DiamondRimsPreChecklistCreatePage({
             'alignment', 'refurbish', 'restoration'
           ];
           
-          // Check if any keyword matches
-          return diamondRimsKeywords.some(keyword => 
-            searchText.includes(keyword)
-          );
+          return diamondRimsKeywords.some(keyword => searchText.includes(keyword));
         });
         
-        // If we found Diamond Rims services, use them
         if (diamondRimsServices.length > 0) {
           services = diamondRimsServices;
         } else {
@@ -479,9 +636,9 @@ export default function DiamondRimsPreChecklistCreatePage({
             )
           );
           
-          // If still no services, take first 10 active services
+          // If still no services, take first 15 active services
           if (services.length === 0) {
-            services = services.slice(0, 10);
+            services = services.slice(0, 15);
           }
         }
         
@@ -491,8 +648,13 @@ export default function DiamondRimsPreChecklistCreatePage({
       
       setAvailableServices(services);
       
-      // Generate must-knows and risks from services
-      // generateServiceMustKnowsAndRisks(services);
+      // Generate must-knows from all available services (for when they're selected)
+      const mustKnows = generateServiceMustKnowsFromServices(services);
+      setServiceMustKnows(mustKnows);
+      
+      // Generate risks from service descriptions
+      const risks = generateServiceRisksFromServices(services);
+      setServiceRisks(risks);
       
     } catch (error) {
       console.error('Error loading services:', error);
@@ -502,285 +664,45 @@ export default function DiamondRimsPreChecklistCreatePage({
     }
   };
 
-  // Generate must-knows and risks from services
-  const generateServiceMustKnowsAndRisks = (services: Service[]) => {
-    const mustKnows: ServiceMustKnow[] = [];
-    const risks: ServiceRisk[] = [];
-    
-    const generalMustKnows = [
-      {
-        id: 'process_explained',
-        serviceId: 'general',
-        serviceName: 'General',
-        description: 'Entire process explained to the customer',
-        required: true,
-        riskLevel: 'medium' as const
-      },
-      {
-        id: 'client_risk_acceptance',
-        serviceId: 'general',
-        serviceName: 'General',
-        description: 'Tyres, caps, locknuts, sensors, and other items are accepted at the client\'s own risk',
-        required: true,
-        riskLevel: 'high' as const
-      },
-      {
-        id: 'personal_belongings',
-        serviceId: 'general',
-        serviceName: 'General',
-        description: 'Personal belongings left in or with the vehicle/rims are the client\'s responsibility',
-        required: true,
-        riskLevel: 'medium' as const
-      },
-      {
-        id: 'timeline_estimates',
-        serviceId: 'general',
-        serviceName: 'General',
-        description: 'Completion timelines are estimates only',
-        required: true,
-        riskLevel: 'low' as const
-      },
-      {
-        id: 'full_payment_required',
-        serviceId: 'general',
-        serviceName: 'General',
-        description: 'Diamond Rimz will not release any item until full payment is received',
-        required: true,
-        riskLevel: 'medium' as const
-      },
-      {
-        id: 'storage_fees',
-        serviceId: 'general',
-        serviceName: 'General',
-        description: 'Uncollected rims/parts after 5 days will attract a storage fee of KES 500 per day per part',
-        required: true,
-        riskLevel: 'medium' as const
-      },
-      {
-        id: 'storage_risk',
-        serviceId: 'general',
-        serviceName: 'General',
-        description: 'Rims not collected within 12 hours of completion notification are stored at the client\'s risk',
-        required: true,
-        riskLevel: 'medium' as const
-      }
-    ];
-    
-    generalMustKnows.forEach(mustKnow => {
-      mustKnows.push({
-        ...mustKnow,
-        isAcknowledged: false
-      });
-    });
-    
-    // Generate service-specific risks from serviceNotes
-    services.forEach(service => {
-      if (service.serviceNotes && service.serviceNotes.length > 0) {
-        service.serviceNotes.forEach((note, index) => {
-          risks.push({
-            id: `${service.id}_risk_${index}`,
-            serviceId: service.id,
-            serviceName: service.name,
-            description: note,
-            isAcknowledged: false,
-            required: true,
-            riskLevel: determineRiskLevel(note, service.name)
-          });
-        });
-      }
-    });
-    
-    setServiceMustKnows(mustKnows);
-    setServiceRisks(risks);
-  };
-
-  // Helper function to determine risk level from note
-  const determineRiskLevel = (note: string, serviceName: string): 'high' | 'medium' | 'low' => {
-    const lowerNote = note.toLowerCase();
-    const lowerService = serviceName.toLowerCase();
-    
-    // High risk indicators
-    const highRiskKeywords = ['crack', 'weld', 'structural', 'safety', 'thin', 'failure', 'break', 'risk', 'danger', 'unsafe'];
-    // Medium risk indicators
-    const mediumRiskKeywords = ['warp', 'bend', 'distortion', 'damage', 'compromise', 'affect', 'impact'];
-    // Low risk indicators
-    const lowRiskKeywords = ['aesthetic', 'color', 'appearance', 'finish', 'look'];
-    
-    if (highRiskKeywords.some(keyword => lowerNote.includes(keyword) || lowerService.includes(keyword))) {
-      return 'high';
-    } else if (mediumRiskKeywords.some(keyword => lowerNote.includes(keyword) || lowerService.includes(keyword))) {
-      return 'medium';
-    } else {
-      return 'low';
-    }
-  };
-
-  // Handle service selection
-  const handleServiceSelect = (serviceName: string, checked: boolean) => {
-    if (checked) {
-      // Add service to the actualService array
-      setFormData(prev => ({
-        ...prev,
-        services: {
-          ...prev.services,
-          actualService: [...prev.services.actualService, serviceName]
-        }
-      }));
-    } else {
-      // Remove service from the actualService array
-      setFormData(prev => ({
-        ...prev,
-        services: {
-          ...prev.services,
-          actualService: prev.services.actualService.filter(name => name !== serviceName)
-        }
-      }));
-    }
-  };
-
-  // Handle must-know acknowledgment
-  const handleMustKnowAcknowledgment = (mustKnowId: string, acknowledged: boolean) => {
-    setServiceMustKnows(prev =>
-      prev.map(mustKnow =>
-        mustKnow.id === mustKnowId
-          ? { ...mustKnow, isAcknowledged: acknowledged }
-          : mustKnow
-      )
-    );
-  };
-
-  // Handle risk acknowledgment
-  const handleRiskAcknowledgment = (riskId: string, acknowledged: boolean) => {
-    setServiceRisks(prev =>
-      prev.map(risk =>
-        risk.id === riskId
-          ? { ...risk, isAcknowledged: acknowledged }
-          : risk
-      )
-    );
-  };
-
-  // Check if all required must-knows are acknowledged
-  const allMustKnowsAcknowledged = () => {
-    return serviceMustKnows
-      .filter(mustKnow => mustKnow.required)
-      .every(mustKnow => mustKnow.isAcknowledged);
-  };
-
-  // Check if all required risks are acknowledged for selected services
-  const allRequiredRisksAcknowledged = () => {
-    const selectedServiceNames = formData.services.actualService;
-    const selectedServiceIds = availableServices
-      .filter(service => selectedServiceNames.includes(service.name))
-      .map(service => service.id);
-    
-    // Include general risks and risks for selected services
-    const relevantRisks = serviceRisks.filter(risk => 
-      risk.serviceId === 'general' || selectedServiceIds.includes(risk.serviceId)
-    );
-    
-    return relevantRisks
-      .filter(risk => risk.required)
-      .every(risk => risk.isAcknowledged);
-  };
-
-  // Update form data when must-knows or risks change
+  // Update must-knows when selected services change
   useEffect(() => {
-    // Update clientUpdate.mustKnows based on serviceMustKnows
-    const mustKnowsState = {
-      processExplained: serviceMustKnows.find(m => m.id === 'process_explained')?.isAcknowledged || false,
-      clientRiskAcceptance: serviceMustKnows.find(m => m.id === 'client_risk_acceptance')?.isAcknowledged || false,
-      personalBelongings: serviceMustKnows.find(m => m.id === 'personal_belongings')?.isAcknowledged || false,
-      timelineEstimates: serviceMustKnows.find(m => m.id === 'timeline_estimates')?.isAcknowledged || false,
-      fullPaymentRequired: serviceMustKnows.find(m => m.id === 'full_payment_required')?.isAcknowledged || false,
-      storageFees: serviceMustKnows.find(m => m.id === 'storage_fees')?.isAcknowledged || false,
-      storageRisk: serviceMustKnows.find(m => m.id === 'storage_risk')?.isAcknowledged || false
+    const updateMustKnowsForSelectedServices = () => {
+      const selectedServiceNames = formData.services.actualService;
+      const selectedServices = availableServices.filter(service => 
+        selectedServiceNames.includes(service.name)
+      );
+      
+      if (selectedServices.length === 0) {
+        // If no services selected, only show general must-knows
+        const generalOnly = serviceMustKnows.filter(m => m.serviceId === 'general');
+        setServiceMustKnows(generalOnly);
+        return;
+      }
+      
+      // Generate must-knows for selected services
+      const selectedMustKnows = generateServiceMustKnowsFromServices(selectedServices);
+      
+      // Merge with existing acknowledgments (preserve checked state for existing items)
+      setServiceMustKnows(prev => {
+        const updated = [...selectedMustKnows];
+        
+        // For any must-knows that already existed, preserve their acknowledgment state
+        prev.forEach(oldMustKnow => {
+          const existingIndex = updated.findIndex(m => m.id === oldMustKnow.id);
+          if (existingIndex !== -1) {
+            updated[existingIndex] = {
+              ...updated[existingIndex],
+              isAcknowledged: oldMustKnow.isAcknowledged
+            };
+          }
+        });
+        
+        return updated;
+      });
     };
-
-    // Update clientUpdate.associatedRisks based on serviceRisks
-    const selectedServiceNames = formData.services.actualService;
-    const hasBrakeService = selectedServiceNames.some(name => 
-      name.toLowerCase().includes('brake') || name.toLowerCase().includes('skimming')
-    );
-    const hasPowderService = selectedServiceNames.some(name => 
-      name.toLowerCase().includes('powder') || name.toLowerCase().includes('coating')
-    );
-    const hasStraighteningService = selectedServiceNames.some(name => 
-      name.toLowerCase().includes('straightening') || name.toLowerCase().includes('straight')
-    );
-    const hasWeldingService = selectedServiceNames.some(name => 
-      name.toLowerCase().includes('weld')
-    );
-    const hasDiamondService = selectedServiceNames.some(name => 
-      name.toLowerCase().includes('diamond') || name.toLowerCase().includes('cutting')
-    );
-
-    // Check if risks for each service are acknowledged
-    const associatedRisksState = {
-      brakeDiscSkimming: hasBrakeService 
-        ? serviceRisks
-            .filter(r => r.serviceName.toLowerCase().includes('brake') || r.serviceName.toLowerCase().includes('skimming'))
-            .every(r => r.isAcknowledged)
-        : false,
-      powderCoating: hasPowderService
-        ? serviceRisks
-            .filter(r => r.serviceName.toLowerCase().includes('powder') || r.serviceName.toLowerCase().includes('coating'))
-            .every(r => r.isAcknowledged)
-        : false,
-      straightening: hasStraighteningService
-        ? serviceRisks
-            .filter(r => r.serviceName.toLowerCase().includes('straightening') || r.serviceName.toLowerCase().includes('straight'))
-            .every(r => r.isAcknowledged)
-        : false,
-      welding: hasWeldingService
-        ? serviceRisks
-            .filter(r => r.serviceName.toLowerCase().includes('weld'))
-            .every(r => r.isAcknowledged)
-        : false,
-      diamondCutting: hasDiamondService
-        ? serviceRisks
-            .filter(r => r.serviceName.toLowerCase().includes('diamond') || r.serviceName.toLowerCase().includes('cutting'))
-            .every(r => r.isAcknowledged)
-        : false,
-      general: serviceRisks
-        .filter(r => r.serviceId === 'general')
-        .every(r => r.isAcknowledged)
-    };
-
-    setFormData(prev => ({
-      ...prev,
-      clientUpdate: {
-        associatedRisks: associatedRisksState,
-        mustKnows: mustKnowsState
-      },
-      mustKnowAccepted: allMustKnowsAcknowledged()
-    }));
-  }, [serviceMustKnows, serviceRisks, formData.services.actualService]);
-
-  // Filter services based on search
-  const filteredServices = availableServices.filter(service => {
-    if (!serviceSearch.trim()) return true;
     
-    const searchLower = serviceSearch.toLowerCase();
-    return (
-      service.name.toLowerCase().includes(searchLower) ||
-      service.description?.toLowerCase().includes(searchLower) ||
-      service.serviceCode?.toLowerCase().includes(searchLower) ||
-      service.tags?.some(tag => tag.toLowerCase().includes(searchLower))
-    );
-  });
-
-  // Get risks for selected services
-  const getSelectedServiceRisks = () => {
-    const selectedServiceNames = formData.services.actualService;
-    const selectedServiceIds = availableServices
-      .filter(service => selectedServiceNames.includes(service.name))
-      .map(service => service.id);
-    
-    return serviceRisks.filter(risk => 
-      risk.serviceId === 'general' || selectedServiceIds.includes(risk.serviceId)
-    );
-  };
+    updateMustKnowsForSelectedServices();
+  }, [formData.services.actualService, availableServices, generateServiceMustKnowsFromServices]);
 
   useEffect(() => {
     loadRelatedData();
@@ -820,18 +742,19 @@ export default function DiamondRimsPreChecklistCreatePage({
   };
 
   const mapChecklistToForm = (checklist: PreChecklist) => {
-    
     return {
       checklistType: checklist?.checklistType || 'diamond_rims',
       opportunityId: toId(checklist?.opportunityId),
       vehicleId: toId(checklist?.vehicleId),
-      inspectedBy: checklist?.inspectedBy || toId(checklist?.inspectedBy) || sessionStorage.getItem('userId') || '',
+      inspectedBy: typeof checklist?.inspectedBy === 'object' && checklist?.inspectedBy !== null
+        ? (checklist.inspectedBy as any)._id 
+        : (typeof checklist?.inspectedBy === 'string' ? checklist.inspectedBy : sessionStorage.getItem('userId') || ''),
       inspectorName: checklist?.inspectorName || '',
       remarks: checklist?.remarks || '',
       approved: !!checklist?.approved,
 
       serviceIntake: {
-        date: checklist?.serviceIntake?.date,
+        date: checklist?.serviceIntake?.date || new Date().toISOString().split('T')[0],
         customerServiceRep: checklist?.serviceIntake?.customerServiceRep || sessionStorage.getItem('userName') || '',
         inspectorNotes: checklist?.serviceIntake?.inspectorNotes || '',
         backendAccessCode: checklist?.serviceIntake?.backendAccessCode || '',
@@ -1112,8 +1035,7 @@ export default function DiamondRimsPreChecklistCreatePage({
     }
   };
 
-  
-const autoPopulateFromOpportunity = () => {
+  const autoPopulateFromOpportunity = () => {
     if (!opportunity || autoPopulated) return;
 
     try {
@@ -1231,12 +1153,6 @@ const autoPopulateFromOpportunity = () => {
     
     const newFiles = Array.from(files);
     
-    // Validate file count
-    // if (formData.uploadedImages.length + newFiles.length > 6) {
-    //   showToast('Maximum 6 images allowed', 'error');
-    //   return;
-    // }
-    
     // Validate file sizes
     const totalSize = newFiles.reduce((acc, file) => acc + file.size, 0);
     if (totalSize > 50 * 1024 * 1024) { // 50MB
@@ -1315,8 +1231,7 @@ const autoPopulateFromOpportunity = () => {
     }
   };
 
-  // Function to get signature with consistent padding (RECOMMENDED)
-  // Use useCallback to memoize this function
+  // Function to get signature with consistent padding
   const getPaddedSignatureCanvas = useCallback((sigRef: React.RefObject<SignatureCanvas>) => {
     if (!sigRef.current) return null;
     
@@ -1355,7 +1270,7 @@ const autoPopulateFromOpportunity = () => {
       console.error('Error creating padded signature:', error);
       return null;
     }
-  }, []); // Empty dependency array since it doesn't depend on any props/state
+  }, []);
 
   const saveSignature = async (type: 'client' | 'inspector') => {
     try {
@@ -1488,11 +1403,10 @@ const autoPopulateFromOpportunity = () => {
     try {
       setSubmitting(true);
 
-      // Validate required fields
       if (!formData.customerDetails.firstName || 
-          !formData.customerDetails.lastName ||
-          !formData.customerDetails.mobile ||
-          !formData.customerDetails.email) {
+        !formData.customerDetails.lastName ||
+        !formData.customerDetails.mobile ||
+        !formData.customerDetails.email) {
         showToast('Please fill in all required customer details', 'error');
         setSubmitting(false);
         return;
@@ -1510,25 +1424,23 @@ const autoPopulateFromOpportunity = () => {
         return;
       }
       
-      // if (!formData.mustKnowAccepted) {
-      //   showToast('Please acknowledge the MUST KNOW section', 'error');
-      //   setSubmitting(false);
-      //   return;
-      // }
-      
       if (!formData.acceptTerms) {
         showToast('Please accept the terms and conditions', 'error');
         setSubmitting(false);
         return;
       }
 
-      // if (!formData.inspectorSignature) {
-      //   showToast('Please provide inspector signature', 'error');
-      //   setSubmitting(false);
-      //   return;
-      // }
+      // Check if all required must-knows are acknowledged
+      const requiredMustKnows = serviceMustKnows.filter(m => m.required);
+      const allMustKnowsAcknowledged = requiredMustKnows.every(m => m.isAcknowledged);
+      
+      if (!allMustKnowsAcknowledged) {
+        showToast('Please acknowledge all required must-know items', 'error');
+        setSubmitting(false);
+        return;
+      }
 
-      // Create submission data - ensure all required fields are included
+      // Create submission data with proper structure matching backend DTO
       const submissionData: CreatePreChecklistDto = {
         checklistType: 'diamond_rims',
         opportunityId: formData.opportunityId,
@@ -1536,7 +1448,7 @@ const autoPopulateFromOpportunity = () => {
         inspectedBy: sessionStorage.getItem('userId') || formData.inspectedBy,
         inspectorName: formData.inspectorName,
         remarks: formData.remarks,
-        approved: false, // Set to false initially
+        approved: false,
         
         serviceIntake: {
           date: formData.serviceIntake.date,
@@ -1551,7 +1463,8 @@ const autoPopulateFromOpportunity = () => {
           firstName: formData.customerDetails.firstName,
           lastName: formData.customerDetails.lastName,
           mobile: formData.customerDetails.mobile,
-          email: formData.customerDetails.email
+          email: formData.customerDetails.email,
+          name: `${formData.customerDetails.firstName} ${formData.customerDetails.lastName}`.trim()
         },
         
         carDetails: {
@@ -1598,14 +1511,18 @@ const autoPopulateFromOpportunity = () => {
         suitability: formData.suitability,
         declaredValuable: formData.declaredValuable,
         additionalInformation: formData.additionalInformation,
-        mustKnowAccepted: formData.mustKnowAccepted,
+        mustKnowAccepted: allMustKnowsAcknowledged,
+        
         clientUpdate: formData.clientUpdate,
+        
         acceptTerms: formData.acceptTerms,
         clientSignature: formData.clientSignature,
         inspectorSignature: formData.inspectorSignature,
         uploadedImages: formData.uploadedImages,
         clientSigningMethod: formData.clientSigningMethod,
-        clientEmail: formData.clientEmail
+        clientEmail: formData.clientEmail,
+        
+        files: formData.files || []
       };
 
       let result: PreChecklist;
@@ -1853,19 +1770,6 @@ const autoPopulateFromOpportunity = () => {
     return 'User';
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-teal-50/30 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading pre-checklist form...</p>
-          {opportunityId && (
-            <p className="text-sm text-gray-500 mt-2">Loading opportunity and vehicle data...</p>
-          )}
-        </div>
-      </div>
-    );
-  }
   const isCustomerServicePerson = (user: User): boolean => {
     if (!user.role) return false;
     
@@ -1906,6 +1810,187 @@ const autoPopulateFromOpportunity = () => {
       };
     });
   };
+
+  // Handle service selection
+  const handleServiceSelect = (serviceName: string, checked: boolean) => {
+    if (checked) {
+      // Add service to the actualService array
+      setFormData(prev => ({
+        ...prev,
+        services: {
+          ...prev.services,
+          actualService: [...prev.services.actualService, serviceName]
+        }
+      }));
+    } else {
+      // Remove service from the actualService array
+      setFormData(prev => ({
+        ...prev,
+        services: {
+          ...prev.services,
+          actualService: prev.services.actualService.filter(name => name !== serviceName)
+        }
+      }));
+    }
+  };
+
+  // Handle must-know acknowledgment
+  const handleMustKnowAcknowledgment = (mustKnowId: string, acknowledged: boolean) => {
+    setServiceMustKnows(prev =>
+      prev.map(mustKnow =>
+        mustKnow.id === mustKnowId
+          ? { ...mustKnow, isAcknowledged: acknowledged }
+          : mustKnow
+      )
+    );
+  };
+
+  // Handle risk acknowledgment
+  const handleRiskAcknowledgment = (riskId: string, acknowledged: boolean) => {
+    setServiceRisks(prev =>
+      prev.map(risk =>
+        risk.id === riskId
+          ? { ...risk, isAcknowledged: acknowledged }
+          : risk
+      )
+    );
+  };
+
+  // Check if all required must-knows are acknowledged
+  const allMustKnowsAcknowledged = () => {
+    return serviceMustKnows
+      .filter(mustKnow => mustKnow.required)
+      .every(mustKnow => mustKnow.isAcknowledged);
+  };
+
+  // Check if all required risks are acknowledged for selected services
+  const allRequiredRisksAcknowledged = () => {
+    const selectedServiceNames = formData.services.actualService;
+    const selectedServiceIds = availableServices
+      .filter(service => selectedServiceNames.includes(service.name))
+      .map(service => service.id);
+    
+    // Include general risks and risks for selected services
+    const relevantRisks = serviceRisks.filter(risk => 
+      risk.serviceId === 'general' || selectedServiceIds.includes(risk.serviceId)
+    );
+    
+    return relevantRisks
+      .filter(risk => risk.required)
+      .every(risk => risk.isAcknowledged);
+  };
+
+  // Update form data when must-knows or risks change
+  useEffect(() => {
+    // Update clientUpdate.mustKnows based on serviceMustKnows
+    const mustKnowsState = {
+      processExplained: serviceMustKnows.find(m => m.id === 'general_process_explained')?.isAcknowledged || false,
+      clientRiskAcceptance: serviceMustKnows.find(m => m.id === 'general_client_risk_acceptance')?.isAcknowledged || false,
+      personalBelongings: serviceMustKnows.find(m => m.id === 'general_personal_belongings')?.isAcknowledged || false,
+      timelineEstimates: serviceMustKnows.find(m => m.id === 'general_timeline_estimates')?.isAcknowledged || false,
+      fullPaymentRequired: serviceMustKnows.find(m => m.id === 'general_full_payment_required')?.isAcknowledged || false,
+      storageFees: serviceMustKnows.find(m => m.id === 'general_storage_fees')?.isAcknowledged || false,
+      storageRisk: serviceMustKnows.find(m => m.id === 'general_storage_risk')?.isAcknowledged || false
+    };
+
+    // Update clientUpdate.associatedRisks based on serviceRisks
+    const selectedServiceNames = formData.services.actualService;
+    const hasBrakeService = selectedServiceNames.some(name => 
+      name.toLowerCase().includes('brake') || name.toLowerCase().includes('skimming')
+    );
+    const hasPowderService = selectedServiceNames.some(name => 
+      name.toLowerCase().includes('powder') || name.toLowerCase().includes('coating')
+    );
+    const hasStraighteningService = selectedServiceNames.some(name => 
+      name.toLowerCase().includes('straightening') || name.toLowerCase().includes('straight')
+    );
+    const hasWeldingService = selectedServiceNames.some(name => 
+      name.toLowerCase().includes('weld')
+    );
+    const hasDiamondService = selectedServiceNames.some(name => 
+      name.toLowerCase().includes('diamond') || name.toLowerCase().includes('cutting')
+    );
+
+    // Check if risks for each service are acknowledged
+    const associatedRisksState = {
+      brakeDiscSkimming: hasBrakeService 
+        ? serviceRisks
+            .filter(r => r.serviceName.toLowerCase().includes('brake') || r.serviceName.toLowerCase().includes('skimming'))
+            .every(r => r.isAcknowledged)
+        : false,
+      powderCoating: hasPowderService
+        ? serviceRisks
+            .filter(r => r.serviceName.toLowerCase().includes('powder') || r.serviceName.toLowerCase().includes('coating'))
+            .every(r => r.isAcknowledged)
+        : false,
+      straightening: hasStraighteningService
+        ? serviceRisks
+            .filter(r => r.serviceName.toLowerCase().includes('straightening') || r.serviceName.toLowerCase().includes('straight'))
+            .every(r => r.isAcknowledged)
+        : false,
+      welding: hasWeldingService
+        ? serviceRisks
+            .filter(r => r.serviceName.toLowerCase().includes('weld'))
+            .every(r => r.isAcknowledged)
+        : false,
+      diamondCutting: hasDiamondService
+        ? serviceRisks
+            .filter(r => r.serviceName.toLowerCase().includes('diamond') || r.serviceName.toLowerCase().includes('cutting'))
+            .every(r => r.isAcknowledged)
+        : false,
+      general: serviceRisks
+        .filter(r => r.serviceId === 'general')
+        .every(r => r.isAcknowledged)
+    };
+
+    setFormData(prev => ({
+      ...prev,
+      clientUpdate: {
+        associatedRisks: associatedRisksState,
+        mustKnows: mustKnowsState
+      },
+      mustKnowAccepted: allMustKnowsAcknowledged()
+    }));
+  }, [serviceMustKnows, serviceRisks, formData.services.actualService]);
+
+  // Filter services based on search
+  const filteredServices = availableServices.filter(service => {
+    if (!serviceSearch.trim()) return true;
+    
+    const searchLower = serviceSearch.toLowerCase();
+    return (
+      service.name.toLowerCase().includes(searchLower) ||
+      service.description?.toLowerCase().includes(searchLower) ||
+      service.serviceCode?.toLowerCase().includes(searchLower) ||
+      service.tags?.some(tag => tag.toLowerCase().includes(searchLower))
+    );
+  });
+
+  // Get risks for selected services
+  const getSelectedServiceRisks = () => {
+    const selectedServiceNames = formData.services.actualService;
+    const selectedServiceIds = availableServices
+      .filter(service => selectedServiceNames.includes(service.name))
+      .map(service => service.id);
+    
+    return serviceRisks.filter(risk => 
+      risk.serviceId === 'general' || selectedServiceIds.includes(risk.serviceId)
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-teal-50/30 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading pre-checklist form...</p>
+          {opportunityId && (
+            <p className="text-sm text-gray-500 mt-2">Loading opportunity and vehicle data...</p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-purple-50/30">
@@ -2244,7 +2329,7 @@ const autoPopulateFromOpportunity = () => {
                       Actual Service <RequiredField />
                     </label>
                     <p className="text-xs text-gray-500 mt-1">
-                      Select the services required. Services are fetched from the system.
+                      Select the services required. Must-know notes will appear automatically.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -2356,13 +2441,13 @@ const autoPopulateFromOpportunity = () => {
                                   </span>
                                 </div>
                                 <span className={`text-xs px-2 py-1 rounded ${
-                                  serviceService.getTypeColor(service.type) === 'success' ? 'bg-green-100 text-green-800' :
-                                  serviceService.getTypeColor(service.type) === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-                                  serviceService.getTypeColor(service.type) === 'info' ? 'bg-blue-100 text-blue-800' :
-                                  serviceService.getTypeColor(service.type) === 'primary' ? 'bg-purple-100 text-purple-800' :
-                                  'bg-gray-100 text-gray-800'
+                                  service.type === 'repair' ? 'bg-orange-100 text-orange-800' :
+                                  service.type === 'maintenance' ? 'bg-blue-100 text-blue-800' :
+                                  service.type === 'inspection' ? 'bg-purple-100 text-purple-800' :
+                                  service.type === 'installation' ? 'bg-green-100 text-green-800' :
+                                  'bg-indigo-100 text-indigo-800'
                                 }`}>
-                                  {serviceService.getTypeText(service.type)}
+                                  {service.type}
                                 </span>
                               </div>
                               
@@ -2386,21 +2471,13 @@ const autoPopulateFromOpportunity = () => {
                                 </p>
                               )}
                               
-                              {service.tags && service.tags.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-2">
-                                  {service.tags.slice(0, 3).map((tag, index) => (
-                                    <span 
-                                      key={index} 
-                                      className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded"
-                                    >
-                                      {tag}
-                                    </span>
-                                  ))}
-                                  {service.tags.length > 3 && (
-                                    <span className="text-xs text-gray-400 px-2 py-1">
-                                      +{service.tags.length - 3} more
-                                    </span>
-                                  )}
+                              {/* Show if service has must-know notes */}
+                              {service.internalNotes && (
+                                <div className="mt-2 flex items-center gap-1">
+                                  <ClipboardCheck className="h-3 w-3 text-yellow-500" />
+                                  <span className="text-xs text-yellow-600">
+                                    Has must-know notes
+                                  </span>
                                 </div>
                               )}
                             </div>
@@ -2428,6 +2505,11 @@ const autoPopulateFromOpportunity = () => {
                                   <>
                                     {getServiceIcon(service.name)}
                                     <span className="text-sm font-medium text-purple-700">{service.name}</span>
+                                    {service.internalNotes && (
+                                      <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded ml-2">
+                                        Has Notes
+                                      </span>
+                                    )}
                                     <button
                                       type="button"
                                       onClick={() => handleServiceSelect(serviceName, false)}
@@ -2440,7 +2522,6 @@ const autoPopulateFromOpportunity = () => {
                                   <>
                                     <Settings className="h-4 w-4 text-gray-400" />
                                     <span className="text-sm font-medium text-gray-700">{serviceName}</span>
-                                    <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded ml-2">Custom</span>
                                     <button
                                       type="button"
                                       onClick={() => handleServiceSelect(serviceName, false)}
@@ -3679,59 +3760,77 @@ const autoPopulateFromOpportunity = () => {
               
               {/* MUST KNOW Section with individual checkboxes */}
               <div className="mb-8">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">MUST KNOW</h3>
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                  <div className="space-y-4">
-                    {serviceMustKnows.map((mustKnow) => (
-                      <div key={mustKnow.id} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-100">
-                        <input
-                          type="checkbox"
-                          id={`mustknow-${mustKnow.id}`}
-                          checked={mustKnow.isAcknowledged}
-                          onChange={(e) => handleMustKnowAcknowledgment(mustKnow.id, e.target.checked)}
-                          className="mt-1 h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-                          required={mustKnow.required}
-                        />
-                        <div className="flex-1">
-                          <label htmlFor={`mustknow-${mustKnow.id}`} className="text-sm font-medium text-gray-700">
-                            {mustKnow.description}
-                            {mustKnow.required && <span className="text-red-500 ml-1">*</span>}
-                          </label>
-                          {mustKnow.serviceName !== 'General' && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Applies to: {mustKnow.serviceName}
-                            </p>
-                          )}
-                        </div>
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          mustKnow.riskLevel === 'high' ? 'bg-red-100 text-red-800' :
-                          mustKnow.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-blue-100 text-blue-800'
-                        }`}>
-                          {mustKnow.riskLevel === 'high' ? 'High Risk' :
-                          mustKnow.riskLevel === 'medium' ? 'Medium Risk' : 'Low Risk'}
-                        </span>
-                      </div>
-                    ))}
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">MUST KNOW</h3>
+                  {formData.services.actualService.length > 0 && (
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                      Must-knows from {formData.services.actualService.length} selected service(s)
+                    </span>
+                  )}
+                </div>
+                
+                {serviceMustKnows.length === 0 ? (
+                  <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
+                    <ClipboardCheck className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                    <p className="text-sm text-gray-600">No must-know items to display</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Select services above to see their must-know requirements
+                    </p>
                   </div>
-                  
-                  {/* Summary */}
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm">
-                        <span className="text-gray-600">Must-knows acknowledged: </span>
-                        <span className="font-medium">
-                          {serviceMustKnows.filter(m => m.isAcknowledged).length} of {serviceMustKnows.length}
-                        </span>
-                      </div>
-                      {!allMustKnowsAcknowledged() && (
-                        <div className="text-xs text-red-600">
-                          All required must-knows must be acknowledged
+                ) : (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <div className="space-y-4">
+                      {serviceMustKnows.map((mustKnow) => (
+                        <div key={mustKnow.id} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-100">
+                          <input
+                            type="checkbox"
+                            id={`mustknow-${mustKnow.id}`}
+                            checked={mustKnow.isAcknowledged}
+                            onChange={(e) => handleMustKnowAcknowledgment(mustKnow.id, e.target.checked)}
+                            className="mt-1 h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                            required={mustKnow.required}
+                          />
+                          <div className="flex-1">
+                            <label htmlFor={`mustknow-${mustKnow.id}`} className="text-sm font-medium text-gray-700">
+                              {mustKnow.description}
+                              {mustKnow.required && <span className="text-red-500 ml-1">*</span>}
+                            </label>
+                            {mustKnow.serviceName !== 'General' && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Applies to: {mustKnow.serviceName}
+                              </p>
+                            )}
+                          </div>
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            mustKnow.riskLevel === 'high' ? 'bg-red-100 text-red-800' :
+                            mustKnow.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}>
+                            {mustKnow.riskLevel === 'high' ? 'High Risk' :
+                            mustKnow.riskLevel === 'medium' ? 'Medium Risk' : 'Low Risk'}
+                          </span>
                         </div>
-                      )}
+                      ))}
+                    </div>
+                    
+                    {/* Summary */}
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm">
+                          <span className="text-gray-600">Must-knows acknowledged: </span>
+                          <span className="font-medium">
+                            {serviceMustKnows.filter(m => m.isAcknowledged).length} of {serviceMustKnows.length}
+                          </span>
+                        </div>
+                        {!allMustKnowsAcknowledged() && (
+                          <div className="text-xs text-red-600">
+                            All required must-knows must be acknowledged
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
               
               {/* Service-specific Risks with individual checkboxes */}
@@ -4271,13 +4370,6 @@ const autoPopulateFromOpportunity = () => {
                               Send Email
                             </button>
                           </div>
-                          
-                          {/* {!formData.inspectorSignature && (
-                            <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
-                              <AlertCircle className="h-3 w-3" />
-                              Inspector signature required before sending to client
-                            </p>
-                          )} */}
                         </div>
                       </div>
                     </div>

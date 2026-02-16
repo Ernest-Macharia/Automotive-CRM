@@ -1,38 +1,39 @@
+// app/post-checklist/create/page.tsx
 'use client';
 
 import { useEffect } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import DiamondRimsPostChecklistCreatePage from '@/components/post-checklist/DiamondRimsPostChecklistCreatePage';
+import HeadlightPostChecklistCreatePage from '@/components/post-checklist/HeadlightPostChecklistCreatePage';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 
-export default function PostChecklistCreateRoute() {
+export default function PostChecklistCreatePage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const checklistId = params?.id as string;
   const mode = checklistId ? 'edit' : 'create';
+  
+  const clientType = searchParams.get('clientType');
+  const opportunityId = searchParams.get('opportunityId');
+  const workOrderId = searchParams.get('workOrderId');
 
-  // Check for required parameters
   useEffect(() => {
     if (mode === 'create') {
-      const opportunityId = searchParams.get('opportunityId');
-      const jobCardId = searchParams.get('jobCardId');
-      
-      if (!opportunityId) {
-        console.error('Missing opportunity ID for post-checklist creation');
-        // You might want to redirect or show an error
-        // router.push('/opportunities');
-      }
-      
-      if (!jobCardId) {
-        console.error('Missing job card ID for post-checklist creation');
-        // You might want to redirect or show an error
-        // router.push('/job-cards');
+      if (!opportunityId && !workOrderId) {
+        console.error('Missing required parameters for post-checklist creation');
       }
     }
-  }, [mode, searchParams, router]);
+  }, [mode, opportunityId, workOrderId]);
+
+  useEffect(() => {
+    console.log('=== Post-Checklist Create Page ===');
+    console.log('Mode:', mode);
+    console.log('ClientType:', clientType);
+    console.log('URL:', window.location.href);
+  }, [clientType, mode]);
 
   if (mode === 'edit' && (!checklistId || checklistId === 'undefined')) {
     return (
@@ -44,7 +45,7 @@ export default function PostChecklistCreateRoute() {
             <p className="text-gray-600 mb-4">The post-checklist ID is invalid or missing.</p>
             <button
               onClick={() => router.push('/postchecklists')}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               Back to Post-Checklists
             </button>
@@ -54,9 +55,42 @@ export default function PostChecklistCreateRoute() {
     );
   }
 
+  if (mode === 'create' && !clientType) {
+    return (
+      <ProtectedRoute>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <AlertCircle className="h-12 w-12 text-amber-600 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Checklist Type Selected</h3>
+            <p className="text-gray-600 mb-4">Please select a post-checklist type.</p>
+            <button
+              onClick={() => router.back()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Go Back
+            </button>
+          </div>
+        </div>
+      </ProtectedRoute>
+    );
+  }
+
+  if (clientType === 'eagle-lights') {
+    console.log('✅ Rendering EagleLightsPostChecklistCreatePage');
+    return (
+      <ProtectedRoute>
+        <HeadlightPostChecklistCreatePage
+          mode={mode}
+          checklistId={checklistId}
+        />
+      </ProtectedRoute>
+    );
+  }
+
+  console.log('✅ Rendering DiamondRimsPostChecklistCreatePage');
   return (
     <ProtectedRoute>
-      <DiamondRimsPostChecklistCreatePage
+      <DiamondRimsPostChecklistCreatePage 
         mode={mode}
         checklistId={checklistId}
       />

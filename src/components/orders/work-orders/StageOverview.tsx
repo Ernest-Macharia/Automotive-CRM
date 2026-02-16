@@ -22,21 +22,27 @@ import { useRouter } from 'next/navigation';
 import { invoiceService } from '@/services/invoiceService';
 import PreChecklistTypeModal from '@/components/pre-checklist/PreChecklistTypeModal';
 import { format } from 'date-fns';
+import { useToast } from '@/contexts/ToastContext';
+import PostChecklistTypeModal from '@/components/post-checklist/PostChecklistTypeModal';
 
 // ==================== STAGE OVERVIEW COMPONENT ====================
 
 interface StageOverviewProps {
   workOrder: WorkOrder;
   isTransitioning: boolean;
+  setActiveTab?: (tab: string) => void;
   onStageAction: (action: () => Promise<void>) => Promise<void>;
+  showToast?: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
 }
 
-export default function StageOverview({ workOrder, isTransitioning, onStageAction }: StageOverviewProps) {
+export default function StageOverview({ workOrder, isTransitioning, setActiveTab, onStageAction }: StageOverviewProps) {
   const router = useRouter();
   const [jobCards, setJobCards] = useState<JobCard[]>([]);
   const [loadingJobCards, setLoadingJobCards] = useState(false);
   const [showCompletionSuccess, setShowCompletionSuccess] = useState(false);
   const [showPreChecklistModal, setShowPreChecklistModal] = useState(false);
+  const [showPostChecklistModal, setShowPostChecklistModal] = useState(false);
+  const { showToast } = useToast();
   
   const stagesConfig = {
     pre_checklist: {
@@ -195,6 +201,11 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
     setShowPreChecklistModal(true);
   };
 
+  const handleCreatePostChecklist = () => {
+  // Open modal instead of direct navigation
+    setShowPostChecklistModal(true);
+  };
+
   const handleApprovePreChecklist = async () => {
     await onStageAction(async () => {
       await workOrderService.updateWorkOrder(workOrder._id, {
@@ -233,10 +244,6 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
     router.push(`/job-cards/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}&refresh=true`);
   };
 
-  const handleCreatePostChecklist = () => {
-    router.push(`/post-checklist/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}`);
-  };
-
   const handleApprovePostChecklist = async () => {
     await onStageAction(async () => {
       await workOrderService.updateWorkOrder(workOrder._id, {
@@ -265,6 +272,23 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
         status: 'ready_for_invoice',
         updatedAt: new Date().toISOString()
       });
+    });
+    if (typeof setActiveTab === 'function') {
+      setActiveTab('invoice');
+    }
+  };
+
+  const handleRequestReview = async () => {
+    await onStageAction(async () => {
+      // await workOrderService.updateWorkOrder(workOrder._id, {
+      //   reviewRequested: true,
+      //   reviewRequestedAt: new Date().toISOString(),
+      //   reviewRequestedBy: sessionStorage.getItem('userId') || 'user',
+      //   // status: 'pending_review',
+      //   updatedAt: new Date().toISOString()
+      // });
+      
+      showToast('Review requested successfully', 'success');
     });
   };
 
@@ -318,7 +342,7 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
     }
 
     const baseButtonClass = "px-5 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed";
-    
+
     switch (stage) {
       case 'pre_checklist':
         if (!workOrder.preChecklistId) {
@@ -502,14 +526,28 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
           );
         } else {
           return (
-            <button
-              onClick={handleGenerateInvoice}
-              disabled={isTransitioning}
-              className={`${baseButtonClass} bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700`}
-            >
-              <ChevronRight className="h-4 w-4" />
-              Generate Invoice
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={handleRequestReview}
+                disabled={isTransitioning}
+                className={`${baseButtonClass} bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600`}
+              >
+                <AlertCircle className="h-4 w-4" />
+                Request for Review
+              </button>
+              <button
+                onClick={handleGenerateInvoice}
+                disabled={isTransitioning}
+                className={`${baseButtonClass} bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700`}
+              >
+                {isTransitioning ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ReceiptIcon className="h-4 w-4" />
+                )}
+                Generate Invoice
+              </button>
+            </div>
           );
         }
 
@@ -554,7 +592,7 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
       default:
         return null;
     }
-  };
+    };
 
   const renderStageRequirements = () => {
     if (workOrder.status === 'completed') {
@@ -872,6 +910,13 @@ export default function StageOverview({ workOrder, isTransitioning, onStageActio
       <PreChecklistTypeModal
         isOpen={showPreChecklistModal}
         onClose={() => setShowPreChecklistModal(false)}
+        workOrderId={workOrder._id}
+        opportunityId={getOpportunityId(workOrder)}
+      />
+
+      <PostChecklistTypeModal
+        isOpen={showPostChecklistModal}
+        onClose={() => setShowPostChecklistModal(false)}
         workOrderId={workOrder._id}
         opportunityId={getOpportunityId(workOrder)}
       />

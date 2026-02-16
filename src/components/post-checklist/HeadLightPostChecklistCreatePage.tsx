@@ -65,7 +65,7 @@ interface PostChecklistInspectionItem extends Omit<ChecklistItem, 'status'> {
   status?: ChecklistItemStatus;
 }
 
-export default function HeadlightPostChecklistCreatePage({ 
+export default function HeadLightPostChecklistCreatePage({ 
   mode = 'create', 
   checklistId 
 }: PostChecklistCreatePageProps) {
@@ -595,15 +595,9 @@ export default function HeadlightPostChecklistCreatePage({
     try {
       setSubmitting(true);
 
+      // Validation checks
       if (!formData.customerDetails.firstName.trim() || !formData.customerDetails.lastName.trim()) {
         showToast('Customer name is required', 'error');
-        setCurrentStep(1);
-        setSubmitting(false);
-        return;
-      }
-
-      if (!formData.vehicleDetails.regNo.trim()) {
-        showToast('Vehicle registration number is required', 'error');
         setCurrentStep(1);
         setSubmitting(false);
         return;
@@ -630,6 +624,7 @@ export default function HeadlightPostChecklistCreatePage({
         return;
       }
 
+      // Prepare inspection items
       const apiInspectionItems = formData.inspectionItems.map(item => ({
         item: item.item,
         status: item.working ? ChecklistItemStatus.COMPLETED : ChecklistItemStatus.INCOMPLETE,
@@ -671,110 +666,38 @@ export default function HeadlightPostChecklistCreatePage({
         approved: allItemsCompleted
       };
 
-      let result;
-      
-      if (mode === 'edit' && checklistId) {
-        result = await postChecklistService.updatePostChecklist(checklistId, submissionData);
-        showToast('Post-checklist updated successfully', 'success');
-      } else {
+      let result: any;
         const userId = sessionStorage.getItem('userId') || undefined;
-        result = await postChecklistService.createPostChecklist(submissionData, userId);
-        showToast('Post-checklist created successfully', 'success');
         
-        if (workOrderId && result._id) {
-          try {
-            await workOrderService.updateWorkOrder(workOrderId, {
-              postChecklistId: result._id,
-              postChecklistStatus: allItemsCompleted ? 'completed' : 'in_progress',
-              updatedAt: new Date().toISOString()
-            });
-          } catch (updateError) {
-            console.error('Error updating work order:', updateError);
-          }
-        }
-        
-        if (allItemsCompleted && result._id) {
-          try {
-            const approvedChecklist = await postChecklistService.approvePostChecklist(
-              result._id, 
-              userId
-            );
-            
-            const opportunityId = result.opportunityId || formData.opportunityId;
-            if (opportunityId) {
-              await lifecycleIntegrationService.markStageAsCompleted(
-                opportunityId,
-                'postchecklist',
-                {
-                  documentId: result._id,
-                  completedBy: 'system-auto',
-                  notes: 'Post-checklist auto-approved'
-                }
-              );
-              
-              await lifecycleIntegrationService.transitionToStage(
-                opportunityId,
-                'invoice',
-                {
-                  skipValidation: true,
-                  metadata: {
-                    autoTransition: true,
-                    postChecklistId: result._id,
-                    triggeredBy: 'post-checklist-auto-approval'
-                  }
-                }
-              );
-              
-              if (workOrderId) {
-                await workOrderService.updateWorkOrder(workOrderId, {
-                  currentStage: 'invoice',
-                  updatedAt: new Date().toISOString()
-                });
-              }
-              
-              showToast('Post-checklist auto-approved! Auto-transitioned to Invoice stage.', 'success');
-            }
-          } catch (autoError) {
-            console.error('Auto-transition failed:', autoError);
-            showToast('Post-checklist created, but auto-approval and transition failed.', 'warning');
-          }
+        if (mode === 'edit' && checklistId) {
+          result = await postChecklistService.updatePostChecklist(checklistId, submissionData as any, userId);
+          showToast('Post-checklist updated successfully', 'success');
         } else {
-          const opportunityId = result.opportunityId || formData.opportunityId;
-          if (opportunityId) {
-            try {
-              await lifecycleIntegrationService.markStageAsCompleted(
-                opportunityId,
-                'postchecklist',
-                {
-                  documentId: result._id,
-                  completedBy: 'system-auto',
-                  notes: 'Post-checklist created, pending approval'
-                }
-              );
-            } catch (markError) {
-              console.error('Error marking stage:', markError);
-            }
-          }
-          showToast('Post-checklist created. Please complete all items to proceed to Invoice stage.', 'info');
+          result = await postChecklistService.createPostChecklist(submissionData as any, userId);
+          showToast('Post-checklist created successfully', 'success');
         }
-      }
 
-      if (workOrderId) {
-        router.push(`/orders/work-orders/${workOrderId}`);
-      } else if (source === 'workflow' && opportunityId) {
-        const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
-        if (workOrders.length > 0) {
-          router.push(`/orders/work-orders/${workOrders[0]._id}`);
+        // Update work order with post-checklist ID
+        if (workOrderId && result._id) {
+          await workOrderService.updateWorkOrder(workOrderId, {
+            postChecklistId: result._id,
+            postChecklistStatus: 'pending',
+            updatedAt: new Date().toISOString()
+          });
+        }
+
+        showToast('Post-checklist completed successfully', 'success');
+
+        // Redirect based on context
+        if (workOrderId) {
+          router.push(`/orders/work-orders/${workOrderId}`);
+        } else if (source === 'opportunity' && formData.opportunityId) {
+          router.push(`/opportunities/${formData.opportunityId}`);
         } else if (result._id) {
           router.push(`/post-checklist/${result._id}`);
         } else {
           router.push('/postchecklists');
         }
-      } else if (result._id) {
-        router.push(`/post-checklist/${result._id}`);
-      } else {
-        router.push('/postchecklists');
-      }
 
     } catch (error: any) {
       console.error('Error submitting post-checklist:', error);

@@ -13,13 +13,14 @@ import { serviceService, CreateServiceData, SERVICE_TYPES } from '@/services/ser
 import { useToast } from '@/contexts/ToastContext';
 
 interface FormData {
-  serviceCode: string; // Added if required
+  serviceCode: string;
   name: string;
-  description: string; // For opportunities
+  description: string;
   type: 'repair' | 'maintenance' | 'inspection' | 'installation' | 'custom';
   tags: string[];
   newTag: string;
-  internalNotes: string; // Repurposed for Must-Know/Pre-checklist info
+  mustKnowNotes: string[]; // Changed from internalNotes to array of must-know points
+  newMustKnow: string;
   status: 'active' | 'inactive';
 }
 
@@ -29,13 +30,14 @@ export default function ServiceCreate() {
   
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
-    serviceCode: '', // Added if required
+    serviceCode: '',
     name: '',
     description: '',
     type: 'custom',
     tags: [],
     newTag: '',
-    internalNotes: '',
+    mustKnowNotes: [],
+    newMustKnow: '',
     status: 'active'
   });
 
@@ -47,7 +49,6 @@ export default function ServiceCreate() {
     { value: 'custom', label: 'Custom', icon: Zap, color: 'bg-indigo-100 text-indigo-700', description: 'Tailored or specialized services' },
   ];
 
-  // Generate a default service code based on timestamp
   const generateServiceCode = () => {
     const timestamp = Date.now().toString().slice(-6);
     const randomChars = Math.random().toString(36).substring(2, 5).toUpperCase();
@@ -61,6 +62,30 @@ export default function ServiceCreate() {
 
   const handleTypeSelect = (type: FormData['type']) => {
     setFormData(prev => ({ ...prev, type }));
+  };
+
+  const handleAddMustKnow = () => {
+    if (formData.newMustKnow.trim()) {
+      setFormData(prev => ({
+        ...prev,
+        mustKnowNotes: [...prev.mustKnowNotes, prev.newMustKnow.trim()],
+        newMustKnow: ''
+      }));
+    }
+  };
+
+  const handleRemoveMustKnow = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      mustKnowNotes: prev.mustKnowNotes.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleMustKnowKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddMustKnow();
+    }
   };
 
   const handleAddTag = () => {
@@ -94,9 +119,6 @@ export default function ServiceCreate() {
   const validateForm = (): boolean => {
     const errors: string[] = [];
     
-    // Add serviceCode validation if required
-    // if (!formData.serviceCode.trim()) errors.push('Service Code is required');
-    
     if (!formData.name.trim()) errors.push('Service name is required');
     if (!formData.description.trim()) errors.push('Description is required');
     
@@ -116,13 +138,18 @@ export default function ServiceCreate() {
     try {
       setLoading(true);
       
+      // Format must-know notes as numbered list
+      const formattedMustKnowNotes = formData.mustKnowNotes.length > 0 
+        ? formData.mustKnowNotes.map((note, index) => `${index + 1}. ${note}`).join('\n')
+        : undefined;
+      
       const createData: CreateServiceData = {
-        serviceCode: formData.serviceCode.trim(),
+        serviceCode: formData.serviceCode.trim() || generateServiceCode(),
         name: formData.name.trim(),
-        description: formData.description.trim(), // For opportunities
+        description: formData.description.trim(),
         type: formData.type,
         tags: formData.tags,
-        internalNotes: formData.internalNotes.trim() || undefined // For pre-checklists
+        internalNotes: formattedMustKnowNotes // Store formatted must-know notes here
       };
       
       const newService = await serviceService.createService(createData);
@@ -163,7 +190,7 @@ export default function ServiceCreate() {
               <div>
                 <h1 className="text-2xl font-bold text-white">Create New Service</h1>
                 <p className="text-blue-100 text-sm">
-                  Add a new service to your catalog
+                  Add a new service with must-know notes for pre-checklists
                 </p>
               </div>
             </div>
@@ -213,7 +240,7 @@ export default function ServiceCreate() {
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  placeholder="e.g., Oil Change Service"
+                  placeholder="e.g., Diamond Cutting Service"
                   className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
                   required
                 />
@@ -228,7 +255,7 @@ export default function ServiceCreate() {
                     name="serviceCode"
                     value={formData.serviceCode}
                     onChange={handleChange}
-                    placeholder="Enter service code"
+                    placeholder="Auto-generated if empty"
                     className="flex-1 px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
                   />
                   <button
@@ -239,7 +266,6 @@ export default function ServiceCreate() {
                     Generate
                   </button>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Unique identifier for this service</p>
               </div>
             </div>
 
@@ -275,103 +301,85 @@ export default function ServiceCreate() {
               </div>
             </div>
 
-            {/* Service Description - For Opportunities */}
+            {/* Service Description */}
             <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Service Description <RequiredField />
-                </label>
-              </div>
-              <div className="relative">
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleChange}
-                  rows={4}
-                  placeholder="Describe what this service includes, what it does, and what customers can expect. This description appears when creating opportunities.
-
-Example: 'This service includes changing the engine oil, replacing the oil filter, and performing a basic engine inspection to ensure optimal vehicle performance.'"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none resize-none"
-                  required
-                />
-                <div className="absolute bottom-2 right-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormData(prev => ({
-                        ...prev,
-                        description: prev.description + ' This service helps improve engine performance and longevity.'
-                      }));
-                    }}
-                    className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                  >
-                    Add Benefit
-                  </button>
-                </div>
-              </div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Service Description <RequiredField />
+              </label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                rows={3}
+                placeholder="Describe what this service includes..."
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                required
+              />
             </div>
 
-            {/* Must-Know Information & Disclaimers - For Pre-Checklists (using internalNotes) */}
+            {/* MUST-KNOW NOTES SECTION */}
             <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-3">
                 <label className="block text-sm font-medium text-gray-700">
-                  Must-Know Information
+                  Must-Know Notes for Pre-Checklist
                 </label>
+                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
+                  Populates in pre-checklist when service selected
+                </span>
               </div>
-              <div className="relative">
-                <textarea
-                  name="internalNotes"
-                  value={formData.internalNotes}
-                  onChange={handleChange}
-                  rows={4}
-                  placeholder="Include important information that technicians need during pre-checklists, such as:
-                    • Requirements to check before starting
-                    • Safety warnings and precautions
-                    • Special tools or equipment needed
-                    • Customer requirements or preparations
-                    • Time estimates and procedures
-                    • Quality standards and checkpoints"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none resize-none"
+              
+              {/* Add new must-know note */}
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="text"
+                  value={formData.newMustKnow}
+                  onChange={(e) => setFormData(prev => ({ ...prev, newMustKnow: e.target.value }))}
+                  onKeyPress={handleMustKnowKeyPress}
+                  placeholder="Add a must-know point (e.g., Client must remove all personal items)"
+                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
-                <div className="absolute bottom-2 right-2 flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormData(prev => ({
-                        ...prev,
-                        internalNotes: prev.internalNotes + '• Check customer requirements\n'
-                      }));
-                    }}
-                    className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"
-                  >
-                    Add Requirement
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormData(prev => ({
-                        ...prev,
-                        internalNotes: prev.internalNotes + '⚠️ Safety warning: \n'
-                      }));
-                    }}
-                    className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
-                  >
-                    Add Safety
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormData(prev => ({
-                        ...prev,
-                        internalNotes: prev.internalNotes + '⏰ Estimated time: \n'
-                      }));
-                    }}
-                    className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200"
-                  >
-                    Add Time
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleAddMustKnow}
+                  className="px-4 py-2 bg-gradient-to-r from-yellow-500 to-yellow-600 text-white rounded-lg hover:from-yellow-600 hover:to-yellow-700"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
               </div>
+              
+              {/* Display must-know notes */}
+              {formData.mustKnowNotes.length > 0 ? (
+                <div className="space-y-2">
+                  {formData.mustKnowNotes.map((note, index) => (
+                    <div
+                      key={index}
+                      className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg"
+                    >
+                      <div className="flex-shrink-0 w-5 h-5 rounded-full bg-yellow-200 text-yellow-800 flex items-center justify-center text-xs font-bold">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 text-sm text-gray-700">
+                        {note}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveMustKnow(index)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-lg">
+                  <ClipboardCheck className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">No must-know notes added yet</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Add notes that will appear in the pre-checklist when this service is selected
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Tags */}
@@ -385,8 +393,8 @@ Example: 'This service includes changing the engine oil, replacing the oil filte
                   value={formData.newTag}
                   onChange={(e) => setFormData(prev => ({ ...prev, newTag: e.target.value }))}
                   onKeyPress={handleTagKeyPress}
-                  placeholder="Add a tag (e.g., quick-service, monthly-special)"
-                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                  placeholder="Add a tag (e.g., diamond-cutting, refurbishment)"
+                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
                 <button
                   type="button"
@@ -417,10 +425,7 @@ Example: 'This service includes changing the engine oil, replacing the oil filte
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-4 text-gray-400">
-                  <Tag className="h-8 w-8 mx-auto mb-2" />
-                  <p className="text-sm">No tags added. Add tags to help categorize and search for this service.</p>
-                </div>
+                <p className="text-sm text-gray-400">No tags added</p>
               )}
             </div>
 
