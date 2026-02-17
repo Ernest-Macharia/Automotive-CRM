@@ -1,4 +1,3 @@
-// app/post-checklist/create/page.tsx
 'use client';
 
 import { useEffect } from 'react';
