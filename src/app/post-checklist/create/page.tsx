@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import DiamondRimsPostChecklistCreatePage from '@/components/post-checklist/DiamondRimsPostChecklistCreatePage';
-import HeadlightPostChecklistCreatePage from '@/components/post-checklist/HeadlightPostChecklistCreatePage';
+import HeadlightPostChecklistCreatePage from '../../../components/post-checklist/HeadLightPostChecklistCreatePagee';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { AlertCircle } from 'lucide-react';
 
