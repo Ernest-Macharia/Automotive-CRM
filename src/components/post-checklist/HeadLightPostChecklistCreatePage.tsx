@@ -65,7 +65,7 @@ interface PostChecklistInspectionItem extends Omit<ChecklistItem, 'status'> {
   status?: ChecklistItemStatus;
 }
 
-export default function HeadLightPostChecklistCreatePage({ 
+export default function HeadlightPostChecklistCreatePage({ 
   mode = 'create', 
   checklistId 
 }: PostChecklistCreatePageProps) {
