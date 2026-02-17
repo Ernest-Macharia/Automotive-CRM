@@ -1,5 +1,5 @@
 const nextConfig = {
-  output: 'out',
+  output: 'standalone',
   trailingSlash: true,
   images: {
     unoptimized: true
