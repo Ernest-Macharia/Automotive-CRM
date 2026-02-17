@@ -75,7 +75,6 @@ export default function PostChecklistCreatePage() {
   }
 
   if (clientType === 'eagle-lights') {
-    console.log('✅ Rendering EagleLightsPostChecklistCreatePage');
     return (
       <ProtectedRoute>
         <HeadlightPostChecklistCreatePage
