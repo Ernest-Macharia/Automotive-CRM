@@ -1,5 +1,5 @@
 const nextConfig = {
-  // output: 'export',
+  output: 'out',
   trailingSlash: true,
   images: {
     unoptimized: true
