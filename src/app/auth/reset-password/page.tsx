@@ -18,7 +18,7 @@ export default function ResetPasswordPage() {
             <Car className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">MAG CRM</h1>
+            <h1 className="text-2xl font-bold text-gray-900">VIN17x CRM</h1>
             <p className="text-sm text-gray-600">Automotive Excellence</p>
           </div>
         </div>

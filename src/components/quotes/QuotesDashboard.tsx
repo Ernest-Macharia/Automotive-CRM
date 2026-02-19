@@ -117,20 +117,20 @@ export default function QuotesDashboard() {
   const loadStats = useCallback(async () => {
     try {
       setStatsLoading(true);
-      const statsData = await quoteService.getQuoteStatistics(); // Fixed method name
+      const statsData = await quoteService.getQuoteStatistics();
       if (statsData) {
         setStats({
           total: statsData.total || 0,
-          approved: statsData.approved || 0, // Fixed property name
-          pending: statsData.pending || 0, // Fixed property name
-          draft: statsData.rejected || 0, // Using rejected for draft since service doesn't have draft
+          approved: statsData.approved || 0,
+          pending: statsData.pending || 0,
+          draft: statsData.draft || 0,
           rejected: statsData.rejected || 0,
           totalAmount: statsData.totalAmount || 0
         });
       }
     } catch (error) {
       console.error('Error loading stats:', error);
-      // Set default stats
+      // Set default stats based on quotes data
       setStats({
         total: quotes.length,
         approved: quotes.filter(q => q.status === 'approved').length,
@@ -147,7 +147,8 @@ export default function QuotesDashboard() {
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
-      await Promise.all([loadQuotes(), loadStats()]);
+      await loadQuotes();
+      await loadStats();
       showToast('Quotes refreshed', 'success');
     } catch (error) {
       console.error('Error refreshing:', error);
@@ -162,6 +163,9 @@ export default function QuotesDashboard() {
 
   useEffect(() => {
     if (quotes.length > 0) {
+      loadStats();
+    } else {
+      // If no quotes, still try to load stats but don't wait for quotes
       loadStats();
     }
   }, [quotes, loadStats]);
@@ -306,7 +310,7 @@ export default function QuotesDashboard() {
               <p className="text-blue-100 mt-1">Create, manage, and track customer quotes</p>
             </div>
             
-            {/* <div className="flex gap-3">
+            <div className="flex gap-3">
               <button
                 onClick={handleRefresh}
                 disabled={refreshing}
@@ -322,15 +326,15 @@ export default function QuotesDashboard() {
                 <Plus className="h-5 w-5" />
                 New Quote
               </Link>
-            </div> */}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        {/* Stats */}
-        {statsLoading ? (
+        {/* Stats - Show skeletons only when statsLoading is true AND no stats data yet */}
+        {statsLoading && !stats.total && stats.approved === 0 && stats.pending === 0 && stats.draft === 0 && stats.rejected === 0 ? (
           <SkeletonStats />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
@@ -409,8 +413,8 @@ export default function QuotesDashboard() {
           </div>
         </div>
 
-        {/* Quotes Table */}
-        {loading ? (
+        {/* Quotes Table - Show skeletons only when loading AND no data */}
+        {loading && quotes.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -503,7 +507,7 @@ export default function QuotesDashboard() {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          {/* ✅ PRIMARY ACTIONS + KEBAB MENU */}
+                          {/* PRIMARY ACTIONS + KEBAB MENU */}
                           <div className="flex items-center gap-1">
                             {/* View */}
                             <Link
@@ -606,8 +610,8 @@ export default function QuotesDashboard() {
           </div>
         )}
 
-        {/* Status Summary */}
-        {!statsLoading && (
+        {/* Status Summary - Show only when stats are loaded or we have quotes */}
+        {!statsLoading && (stats.total > 0 || quotes.length > 0) && (
           <div className="mt-6 bg-white border border-gray-200 rounded-xl p-5">
             <h3 className="text-sm font-semibold text-gray-900 mb-3">Quote Status Overview</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

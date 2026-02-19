@@ -74,7 +74,14 @@ import {
   Receipt as ReceiptIcon,
   FileCheck,
   ClipboardCheck,
-  Trophy
+  Trophy,
+  Gauge,
+  Fuel,
+  Thermometer,
+  Wrench as WrenchIcon,
+  Settings as SettingsIcon,
+  RotateCw,
+  Award as AwardIcon
 } from 'lucide-react';
 import { authService } from '@/services/authService';
 import { opportunityService } from '@/services/opportunityService';
@@ -120,6 +127,13 @@ interface Stats {
   monthlyGrowth: number;
   topSource: string;
   topSourceCount: number;
+  
+  // Vehicle Stats (VIN17X specific)
+  totalVehicles: number;
+  vehiclesInService: number;
+  completedServices: number;
+  pendingServices: number;
+  averageServiceTime: number;
 }
 
 interface SystemHealth {
@@ -189,6 +203,13 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     monthlyGrowth: 24.8,
     topSource: 'website',
     topSourceCount: 0,
+    
+    // Vehicle Stats
+    totalVehicles: 0,
+    vehiclesInService: 0,
+    completedServices: 0,
+    pendingServices: 0,
+    averageServiceTime: 3.5,
   });
 
   const [systemHealth, setSystemHealth] = useState<SystemHealth>({
@@ -202,7 +223,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   const [recentOpportunities, setRecentOpportunities] = useState<any[]>([]);
   const [topOpportunities, setTopOpportunities] = useState<any[]>([]);
   const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetric[]>([
-    { name: 'API Response Time', value: 124, change: -8, target: 200, unit: 'ms', icon: <Activity className="h-4 w-4" /> },
+    { name: 'API Response Time', value: 124, change: -8, target: 200, unit: 'ms', icon: <Gauge className="h-4 w-4" /> },
     { name: 'Database Queries', value: 2450, change: 12, target: 3000, unit: '/s', icon: <Database className="h-4 w-4" /> },
     { name: 'Cache Efficiency', value: 92.5, change: 2.5, target: 90, unit: '%', icon: <Zap className="h-4 w-4" /> },
     { name: 'Error Rate', value: 0.2, change: -0.1, target: 1, unit: '%', icon: <AlertCircle className="h-4 w-4" /> },
@@ -386,10 +407,10 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
       // Generate mock system health data
       const services = [
-        { name: 'API Gateway', status: 'up' as const, responseTime: Math.floor(Math.random() * 50) + 10 },
-        { name: 'Database', status: 'up' as const, responseTime: Math.floor(Math.random() * 150) + 50 },
-        { name: 'File Storage', status: 'up' as const, responseTime: Math.floor(Math.random() * 100) + 30 },
-        { name: 'Email Service', status: 'up' as const, responseTime: Math.floor(Math.random() * 300) + 100 },
+        { name: 'Vehicle Management API', status: 'up' as const, responseTime: Math.floor(Math.random() * 50) + 10 },
+        { name: 'Service Database', status: 'up' as const, responseTime: Math.floor(Math.random() * 150) + 50 },
+        { name: 'Parts Inventory', status: 'up' as const, responseTime: Math.floor(Math.random() * 100) + 30 },
+        { name: 'Job Card Service', status: 'up' as const, responseTime: Math.floor(Math.random() * 300) + 100 },
         { name: 'Cache Service', status: 'up' as const, responseTime: Math.floor(Math.random() * 20) + 5 },
       ];
 
@@ -397,21 +418,21 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       const mockActivities: UserActivity[] = [
         {
           id: '1',
-          user: 'John Doe',
-          action: 'Logged into system',
+          user: 'John Smith',
+          action: 'Completed vehicle inspection',
           timestamp: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
           ip: '192.168.1.100',
           location: 'Nairobi, KE',
-          details: 'Successful login from Chrome browser'
+          details: 'Toyota Land Cruiser - Service completed'
         },
         {
           id: '2',
-          user: 'Jane Smith',
-          action: 'Created new opportunity',
+          user: 'Jane Wanjiku',
+          action: 'Created new job card',
           timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
           ip: '192.168.1.101',
           location: 'Mombasa, KE',
-          details: 'Opportunity #OPP-1234 for Toyota Hilux service'
+          details: 'Job card #JC-2024-001 for Mercedes Benz'
         },
         {
           id: '3',
@@ -424,12 +445,12 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         },
         {
           id: '4',
-          user: 'Admin User',
-          action: 'Updated user permissions',
+          user: 'Peter Odhiambo',
+          action: 'Updated vehicle service history',
           timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
           ip: '192.168.1.102',
           location: 'Kisumu, KE',
-          details: 'Modified role permissions for sales team'
+          details: 'Added service records for 5 vehicles'
         },
         {
           id: '5',
@@ -444,7 +465,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
       setRecentActivities(mockActivities);
 
-      // Update all stats
+      // Update all stats with vehicle data
       setStats({
         totalUsers,
         activeUsers,
@@ -477,11 +498,18 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         monthlyGrowth: 24.8,
         topSource,
         topSourceCount,
+        
+        // Vehicle stats (mock data for now)
+        totalVehicles: 1248,
+        vehiclesInService: 42,
+        completedServices: 896,
+        pendingServices: 156,
+        averageServiceTime: 3.5,
       });
 
       setSystemHealth({
         status: 'healthy',
-        message: 'All systems operational',
+        message: 'All VIN17X systems operational',
         lastChecked: new Date().toISOString(),
         services
       });
@@ -489,7 +517,6 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     } catch (error) {
       console.error('Error fetching admin stats:', error);
       
-      // Fallback to default data
       setStats(prev => ({
         ...prev,
         systemHealth: 'Degraded',
@@ -501,7 +528,6 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         message: 'Unable to fetch all system metrics',
       }));
       
-      // Show error in activities
       setRecentActivities(prev => [
         {
           id: 'error',
@@ -530,7 +556,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
   const getHealthStatusColor = (status: string) => {
     switch (status) {
-      case 'healthy': return 'text-emerald-600 bg-emerald-100';
+      case 'healthy': return 'text-blue-600 bg-blue-100'; // Changed from emerald to blue
       case 'warning': return 'text-amber-600 bg-amber-100';
       case 'critical': return 'text-red-600 bg-red-100';
       default: return 'text-gray-600 bg-gray-100';
@@ -539,7 +565,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
   const getServiceStatusColor = (status: string) => {
     switch (status) {
-      case 'up': return 'text-emerald-600';
+      case 'up': return 'text-blue-600'; // Changed from emerald to blue
       case 'degraded': return 'text-amber-600';
       case 'down': return 'text-red-600';
       default: return 'text-gray-600';
@@ -556,7 +582,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   };
 
   const getTrendColor = (value: number) => {
-    if (value > 0) return 'text-emerald-600 bg-emerald-50';
+    if (value > 0) return 'text-blue-600 bg-blue-50'; // Changed from emerald to blue
     if (value < 0) return 'text-red-600 bg-red-50';
     return 'text-gray-600 bg-gray-50';
   };
@@ -573,8 +599,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
   if (loading) {
     return (
-      <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-hidden">
-        <div className="h-16 bg-gradient-to-r from-blue-500 via-purple-600 to-black shadow-lg" />
+      <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 overflow-hidden">
+        <div className="h-16 bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 shadow-lg" />
         <div className="h-[calc(100vh-64px)] p-4 md:p-6 space-y-6 overflow-auto">
           <div className="animate-pulse space-y-6">
             {/* Header skeleton */}
@@ -624,10 +650,10 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   const getSourceColor = (source: string) => {
     switch (source) {
       case 'walk_in': return 'text-blue-600 bg-blue-100';
-      case 'website': return 'text-green-600 bg-green-100';
-      case 'referral': return 'text-purple-600 bg-purple-100';
-      case 'phone': return 'text-red-600 bg-red-100';
-      case 'email': return 'text-cyan-600 bg-cyan-100';
+      case 'website': return 'text-blue-600 bg-blue-100';
+      case 'referral': return 'text-blue-600 bg-blue-100';
+      case 'phone': return 'text-blue-600 bg-blue-100';
+      case 'email': return 'text-blue-600 bg-blue-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
@@ -640,7 +666,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       case 'appointment_scheduled': return 'text-orange-600 bg-orange-100';
       case 'non_progressive': return 'text-gray-600 bg-gray-100';
       case 'lost': return 'text-red-600 bg-red-100';
-      case 'won': return 'text-green-600 bg-green-100';
+      case 'won': return 'text-blue-600 bg-blue-100'; // Changed from green to blue
       default: return 'text-gray-600 bg-gray-100';
     }
   };
@@ -650,20 +676,25 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 overflow-hidden">
-      {/* Gradient Header */}
-      <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg flex items-center px-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-50 overflow-hidden">
+      {/* VIN17X Gradient Header - Automotive Blue Theme */}
+      <div className="h-16 bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 shadow-lg flex items-center px-6">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-white/10 rounded-xl backdrop-blur-sm">
-              <ShieldCheck className="h-6 w-6 text-white" />
+              <Car className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">System Administrator</h1>
-              <p className="text-gray-300 text-sm">
-                Welcome, <span className="font-semibold text-white">{user?.firstName || 'Admin'}</span>
-                <span className="ml-2 px-2 py-0.5 bg-gray-700/50 text-gray-300 text-xs rounded-full">
-                  {user?.role?.name || 'Administrator'}
+              <h1 className="text-xl font-bold text-white flex items-center gap-2">
+                VIN<span className="text-blue-200">17X</span> Admin Dashboard
+                <span className="ml-2 px-2 py-0.5 bg-blue-500 text-white text-xs rounded-full">
+                  v2.0
+                </span>
+              </h1>
+              <p className="text-blue-200 text-sm">
+                Welcome back, <span className="font-semibold text-white">{user?.firstName || 'Admin'}</span>
+                <span className="ml-2 px-2 py-0.5 bg-blue-700/50 text-blue-200 text-xs rounded-full">
+                  {user?.role?.name || 'System Administrator'}
                 </span>
               </p>
             </div>
@@ -679,7 +710,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                     timeRange === range
                       ? 'bg-white/20 text-white'
-                      : 'text-gray-300 hover:bg-white/10'
+                      : 'text-blue-200 hover:bg-white/10'
                   }`}
                 >
                   {range.charAt(0).toUpperCase() + range.slice(1)}
@@ -717,7 +748,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       <div className="px-6 pt-4">
         <div className="flex items-center gap-1 border-b border-gray-200">
           {[
-            { id: 'overview', label: 'Overview', icon: <BarChart3 className="h-4 w-4" /> },
+            { id: 'overview', label: 'Overview', icon: <Gauge className="h-4 w-4" /> },
             { id: 'users', label: 'Users', icon: <Users className="h-4 w-4" /> },
             { id: 'system', label: 'System', icon: <Server className="h-4 w-4" /> },
             { id: 'analytics', label: 'Analytics', icon: <LineChart className="h-4 w-4" /> },
@@ -740,23 +771,82 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
       {/* Main Content */}
       <div className="p-4 md:p-6 space-y-6 overflow-auto">
-        {/* System Overview Cards */}
+        {/* VIN17X Stats Overview - Automotive Focus */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Total Users Card */}
+          {/* Total Vehicles Card */}
           <div className="group relative">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl opacity-0 group-hover:opacity-50 blur transition duration-500"></div>
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 to-blue-800 rounded-2xl opacity-0 group-hover:opacity-50 blur transition duration-500"></div>
             <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5 hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-blue-100 to-purple-100">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-blue-100 to-blue-200">
+                  <Car className="h-6 w-6 text-blue-600" />
+                </div>
+                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 text-xs font-medium">
+                  <TrendingUp className="h-3 w-3" />
+                  <span>+{stats.weeklyGrowth}%</span>
+                </span>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 font-medium mb-1">Total Vehicles</p>
+                <p className="text-2xl font-bold text-gray-900">{formatNumber(stats.totalVehicles)}</p>
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-100/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600 flex items-center gap-1">
+                    <WrenchIcon className="h-3 w-3" />
+                    <span>{formatNumber(stats.vehiclesInService)} in service</span>
+                  </span>
+                  <span className="text-sm font-medium text-blue-600">
+                    {stats.pendingServices} pending
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Service Completion Card */}
+          <div className="group relative">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 to-blue-800 rounded-2xl opacity-0 group-hover:opacity-50 blur transition duration-500"></div>
+            <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5 hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-blue-100 to-blue-200">
+                  <CheckCircle className="h-6 w-6 text-blue-600" />
+                </div>
+                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 text-xs font-medium">
+                  <AwardIcon className="h-3 w-3" />
+                  <span>96%</span>
+                </span>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 font-medium mb-1">Completed Services</p>
+                <p className="text-2xl font-bold text-gray-900">{formatNumber(stats.completedServices)}</p>
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-100/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Avg. service time</span>
+                  <span className="text-sm font-medium text-gray-700">
+                    {stats.averageServiceTime} hours
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Total Users Card */}
+          <div className="group relative">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 to-blue-800 rounded-2xl opacity-0 group-hover:opacity-50 blur transition duration-500"></div>
+            <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5 hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-blue-100 to-blue-200">
                   <Users className="h-6 w-6 text-blue-600" />
                 </div>
-                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-blue-100/80 to-purple-100/80 text-blue-700 text-xs font-medium">
+                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 text-xs font-medium">
                   <UserPlus className="h-3 w-3" />
                   <span>+{stats.userGrowth}%</span>
                 </span>
               </div>
               <div>
-                <p className="text-sm text-gray-600 font-medium mb-1">Total Users</p>
+                <p className="text-sm text-gray-600 font-medium mb-1">System Users</p>
                 <p className="text-2xl font-bold text-gray-900">{formatNumber(stats.totalUsers)}</p>
               </div>
               <div className="mt-4 pt-4 border-t border-gray-100/50">
@@ -776,18 +866,22 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
           {/* System Health Card */}
           <div className="group relative">
             <div className={`absolute -inset-0.5 rounded-2xl opacity-0 group-hover:opacity-50 blur transition duration-500 ${
-              systemHealth.status === 'healthy' ? 'bg-gradient-to-r from-emerald-400 to-green-400' :
+              systemHealth.status === 'healthy' ? 'bg-gradient-to-r from-blue-400 to-blue-600' :
               systemHealth.status === 'warning' ? 'bg-gradient-to-r from-amber-400 to-orange-400' :
               'bg-gradient-to-r from-red-400 to-pink-400'
             }`}></div>
             <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5 hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
                 <div className={`p-3 rounded-xl ${
-                  systemHealth.status === 'healthy' ? 'bg-gradient-to-br from-emerald-100 to-green-100' :
+                  systemHealth.status === 'healthy' ? 'bg-gradient-to-br from-blue-100 to-blue-200' :
                   systemHealth.status === 'warning' ? 'bg-gradient-to-br from-amber-100 to-orange-100' :
                   'bg-gradient-to-br from-red-100 to-pink-100'
                 }`}>
-                  <Server className="h-6 w-6 text-emerald-600" />
+                  <Gauge className={`h-6 w-6 ${
+                    systemHealth.status === 'healthy' ? 'text-blue-600' :
+                    systemHealth.status === 'warning' ? 'text-amber-600' :
+                    'text-red-600'
+                  }`} />
                 </div>
                 <span className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
                   getHealthStatusColor(systemHealth.status)
@@ -807,66 +901,6 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                   </span>
                   <span className="text-sm font-medium text-gray-700">
                     {stats.responseTime}ms
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Total Opportunities Card */}
-          <div className="group relative">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 rounded-2xl opacity-0 group-hover:opacity-50 blur transition duration-500"></div>
-            <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5 hover:shadow-xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-100 to-blue-100">
-                  <Target className="h-6 w-6 text-cyan-600" />
-                </div>
-                <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-cyan-100/80 to-blue-100/80 text-cyan-700 text-xs font-medium">
-                  <TrendingUp className="h-3 w-3" />
-                  <span>+{stats.weeklyGrowth}%</span>
-                </span>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 font-medium mb-1">Total Opportunities</p>
-                <p className="text-2xl font-bold text-gray-900">{formatNumber(stats.totalOpportunities)}</p>
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-100/50">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">
-                    Open / Closed
-                  </span>
-                  <span className="text-sm font-medium text-gray-700">
-                    {formatNumber(stats.openOpportunities)} / {formatNumber(stats.closedOpportunities)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Total Revenue Card */}
-          <div className="group relative">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-violet-400 via-purple-400 to-pink-400 rounded-2xl opacity-0 group-hover:opacity-50 blur transition duration-500"></div>
-            <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5 hover:shadow-xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-violet-100 to-purple-100">
-                  <DollarSign className="h-6 w-6 text-violet-600" />
-                </div>
-                <span className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getTrendColor(stats.monthlyGrowth)}`}>
-                  {getTrendIcon(stats.monthlyGrowth)}
-                  <span>+{stats.monthlyGrowth}%</span>
-                </span>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 font-medium mb-1">Total Revenue</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.totalRevenue)}</p>
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-100/50">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">
-                    Avg Deal Size
-                  </span>
-                  <span className="text-sm font-medium text-gray-700">
-                    {formatCurrency(stats.avgDealSize)}
                   </span>
                 </div>
               </div>
@@ -937,7 +971,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500" />
+                    <div className="h-3 w-3 rounded-full bg-gradient-to-r from-blue-500 to-blue-600" />
                     <span className="text-sm font-medium text-gray-700">Cold Leads</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -949,7 +983,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                 </div>
                 <div className="h-2 rounded-full bg-gray-100/50 overflow-hidden">
                   <div 
-                    className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-500"
+                    className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-600"
                     style={{ width: `${stats.totalOpportunities > 0 ? (stats.coldLeads / stats.totalOpportunities) * 100 : 0}%` }}
                   />
                 </div>
@@ -980,7 +1014,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">Recent Opportunities</h2>
-                <p className="text-sm text-gray-600">Latest opportunities created</p>
+                <p className="text-sm text-gray-600">Latest vehicle service opportunities</p>
               </div>
               <button className="text-sm font-medium text-blue-600 hover:text-blue-700">
                 View All →
@@ -1005,7 +1039,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <h4 className="font-medium text-gray-900 truncate">{opportunity.subject || 'Untitled Opportunity'}</h4>
+                        <h4 className="font-medium text-gray-900 truncate">{opportunity.subject || 'Untitled Service'}</h4>
                         <p className="text-sm text-gray-600 truncate">
                           {opportunity.customer?.name || 'No Customer'}
                           {opportunity.customer?.companyName && ` · ${opportunity.customer.companyName}`}
@@ -1034,9 +1068,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                 </div>
               )) : (
                 <div className="text-center py-8">
-                  <Target className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <Car className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-600">No recent opportunities</p>
-                  <p className="text-sm text-gray-500 mt-1">Opportunities will appear here as they're created</p>
+                  <p className="text-sm text-gray-500 mt-1">Service opportunities will appear here</p>
                 </div>
               )}
             </div>
@@ -1045,12 +1079,12 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
         {/* System Services & Top Opportunities */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* System Services Status */}
+          {/* VIN17X System Services Status */}
           <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">System Services</h2>
-                <p className="text-sm text-gray-600">Status of all system components</p>
+                <h2 className="text-lg font-semibold text-gray-900">VIN17X System Services</h2>
+                <p className="text-sm text-gray-600">Vehicle management system status</p>
               </div>
               <div className="flex items-center gap-2">
                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${getHealthStatusColor(systemHealth.status)}`}>
@@ -1102,14 +1136,14 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
             </div>
           </div>
 
-          {/* Top High-Value Opportunities */}
+          {/* Top High-Value Service Opportunities */}
           <div className="bg-gradient-to-br from-gray-50 to-blue-50/30 backdrop-blur-sm rounded-2xl border border-gray-200/30 p-5">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Top High-Value Opportunities</h2>
-                <p className="text-sm text-gray-600">Highest scoring opportunities to focus on</p>
+                <h2 className="text-lg font-semibold text-gray-900">Top Service Opportunities</h2>
+                <p className="text-sm text-gray-600">Highest value vehicle services</p>
               </div>
-              <Award className="h-5 w-5 text-amber-500" />
+              <Car className="h-5 w-5 text-blue-600" />
             </div>
             
             <div className="space-y-4">
@@ -1117,14 +1151,14 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                 <div key={index} className="group p-4 bg-white/80 border border-gray-200/50 hover:border-blue-200/50 rounded-xl transition-all duration-300">
                   <div className="flex items-start gap-3">
                     <div className="flex-shrink-0">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white font-semibold">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 text-white font-semibold">
                         #{index + 1}
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <h4 className="font-medium text-gray-900 truncate">{opportunity.subject || 'Untitled'}</h4>
+                          <h4 className="font-medium text-gray-900 truncate">{opportunity.subject || 'Untitled Service'}</h4>
                           <p className="text-sm text-gray-600 truncate">
                             {opportunity.customer?.name || 'No Customer'}
                             {opportunity.customer?.companyName && ` · ${opportunity.customer.companyName}`}
@@ -1149,7 +1183,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                                 {opportunity.leadScore.tier || 'cold'} ({opportunity.leadScore.totalScore})
                               </span>
                               {opportunity.total && (
-                                <span className="text-xs font-semibold text-green-600">
+                                <span className="text-xs font-semibold text-blue-600">
                                   {formatCurrency(opportunity.total)}
                                 </span>
                               )}
@@ -1160,7 +1194,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                           </div>
                           <div className="h-1.5 rounded-full bg-gray-100/50 overflow-hidden">
                             <div 
-                              className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500"
+                              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-600"
                               style={{ width: `${Math.min(opportunity.leadScore.totalScore || 0, 100)}%` }}
                             />
                           </div>
@@ -1171,9 +1205,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                 </div>
               )) : (
                 <div className="text-center py-8">
-                  <Target className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-600">No top opportunities found</p>
-                  <p className="text-sm text-gray-500 mt-1">Create opportunities to see them here</p>
+                  <Car className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-600">No top service opportunities</p>
+                  <p className="text-sm text-gray-500 mt-1">Create service opportunities to see them here</p>
                 </div>
               )}
             </div>
@@ -1193,8 +1227,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
           <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Recent System Activities</h2>
-                <p className="text-sm text-gray-600">System-wide user actions and events</p>
+                <h2 className="text-lg font-semibold text-gray-900">Recent Activities</h2>
+                <p className="text-sm text-gray-600">Latest service and system events</p>
               </div>
               <button className="text-sm font-medium text-blue-600 hover:text-blue-700">
                 View All →
@@ -1243,58 +1277,58 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
-                <p className="text-sm text-gray-600">Common administrative tasks</p>
+                <p className="text-sm text-gray-600">Common VIN17X administrative tasks</p>
               </div>
-              <Zap className="h-5 w-5 text-blue-500" />
+              <Zap className="h-5 w-5 text-blue-600" />
             </div>
             
             <div className="grid grid-cols-2 gap-3">
               <button className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300">
-                <div className="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-50 mb-2 group-hover:from-blue-200 group-hover:to-blue-100">
-                  <UserPlus className="h-6 w-6 text-blue-600" />
+                <div className="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 mb-2 group-hover:from-blue-200 group-hover:to-blue-300">
+                  <Car className="h-6 w-6 text-blue-600" />
                 </div>
-                <span className="text-sm font-medium text-gray-900">Add User</span>
-                <span className="text-xs text-gray-600">Create new user account</span>
+                <span className="text-sm font-medium text-gray-900">Add Vehicle</span>
+                <span className="text-xs text-gray-600">Register new vehicle</span>
               </button>
               
-              <button className="group flex flex-col items-center justify-center p-4 bg-emerald-50/50 border border-emerald-200/50 hover:border-emerald-300/50 hover:bg-emerald-100/50 rounded-xl transition-all duration-300">
-                <div className="p-3 rounded-lg bg-gradient-to-br from-emerald-100 to-emerald-50 mb-2 group-hover:from-emerald-200 group-hover:to-emerald-100">
-                  <Settings className="h-6 w-6 text-emerald-600" />
+              <button className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300">
+                <div className="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 mb-2 group-hover:from-blue-200 group-hover:to-blue-300">
+                  <WrenchIcon className="h-6 w-6 text-blue-600" />
                 </div>
-                <span className="text-sm font-medium text-gray-900">System Config</span>
-                <span className="text-xs text-gray-600">Configure system settings</span>
+                <span className="text-sm font-medium text-gray-900">Create Job Card</span>
+                <span className="text-xs text-gray-600">New service job card</span>
               </button>
               
-              <button className="group flex flex-col items-center justify-center p-4 bg-amber-50/50 border border-amber-200/50 hover:border-amber-300/50 hover:bg-amber-100/50 rounded-xl transition-all duration-300">
-                <div className="p-3 rounded-lg bg-gradient-to-br from-amber-100 to-amber-50 mb-2 group-hover:from-amber-200 group-hover:to-amber-100">
-                  <FileText className="h-6 w-6 text-amber-600" />
+              <button className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300">
+                <div className="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 mb-2 group-hover:from-blue-200 group-hover:to-blue-300">
+                  <FileText className="h-6 w-6 text-blue-600" />
                 </div>
-                <span className="text-sm font-medium text-gray-900">Generate Report</span>
-                <span className="text-xs text-gray-600">Create system report</span>
+                <span className="text-sm font-medium text-gray-900">Service Report</span>
+                <span className="text-xs text-gray-600">Generate service report</span>
               </button>
               
-              <button className="group flex flex-col items-center justify-center p-4 bg-purple-50/50 border border-purple-200/50 hover:border-purple-300/50 hover:bg-purple-100/50 rounded-xl transition-all duration-300">
-                <div className="p-3 rounded-lg bg-gradient-to-br from-purple-100 to-purple-50 mb-2 group-hover:from-purple-200 group-hover:to-purple-100">
-                  <Database className="h-6 w-6 text-purple-600" />
+              <button className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300">
+                <div className="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 mb-2 group-hover:from-blue-200 group-hover:to-blue-300">
+                  <Users className="h-6 w-6 text-blue-600" />
                 </div>
-                <span className="text-sm font-medium text-gray-900">Backup</span>
-                <span className="text-xs text-gray-600">Create system backup</span>
+                <span className="text-sm font-medium text-gray-900">Add Technician</span>
+                <span className="text-xs text-gray-600">Add new technician</span>
               </button>
               
-              <button className="group flex flex-col items-center justify-center p-4 bg-red-50/50 border border-red-200/50 hover:border-red-300/50 hover:bg-red-100/50 rounded-xl transition-all duration-300">
-                <div className="p-3 rounded-lg bg-gradient-to-br from-red-100 to-red-50 mb-2 group-hover:from-red-200 group-hover:to-red-100">
-                  <Lock className="h-6 w-6 text-red-600" />
+              <button className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300">
+                <div className="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 mb-2 group-hover:from-blue-200 group-hover:to-blue-300">
+                  <Package className="h-6 w-6 text-blue-600" />
                 </div>
-                <span className="text-sm font-medium text-gray-900">Security Scan</span>
-                <span className="text-xs text-gray-600">Run security audit</span>
+                <span className="text-sm font-medium text-gray-900">Parts Inventory</span>
+                <span className="text-xs text-gray-600">Manage spare parts</span>
               </button>
               
-              <button className="group flex flex-col items-center justify-center p-4 bg-cyan-50/50 border border-cyan-200/50 hover:border-cyan-300/50 hover:bg-cyan-100/50 rounded-xl transition-all duration-300">
-                <div className="p-3 rounded-lg bg-gradient-to-br from-cyan-100 to-cyan-50 mb-2 group-hover:from-cyan-200 group-hover:to-cyan-100">
-                  <Terminal className="h-6 w-6 text-cyan-600" />
+              <button className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300">
+                <div className="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 mb-2 group-hover:from-blue-200 group-hover:to-blue-300">
+                  <DollarSign className="h-6 w-6 text-blue-600" />
                 </div>
-                <span className="text-sm font-medium text-gray-900">API Keys</span>
-                <span className="text-xs text-gray-600">Manage API access</span>
+                <span className="text-sm font-medium text-gray-900">Invoices</span>
+                <span className="text-xs text-gray-600">Manage billing</span>
               </button>
             </div>
           </div>
@@ -1304,11 +1338,11 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Performance Metrics</h2>
+              <h2 className="text-lg font-semibold text-gray-900">VIN17X Performance Metrics</h2>
               <p className="text-sm text-gray-600">System performance and resource utilization</p>
             </div>
             <div className="flex items-center gap-2">
-              <LineChart className="h-5 w-5 text-blue-500" />
+              <LineChart className="h-5 w-5 text-blue-600" />
               <span className="text-sm font-medium text-blue-700">Real-time Monitoring</span>
             </div>
           </div>
@@ -1319,7 +1353,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <div className={`p-1.5 rounded-lg ${
-                      metric.change > 0 ? 'bg-emerald-100/50' : 'bg-red-100/50'
+                      metric.change > 0 ? 'bg-blue-100/50' : 'bg-red-100/50'
                     }`}>
                       {metric.icon}
                     </div>
@@ -1336,7 +1370,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500">Target: {metric.target}{metric.unit}</span>
                   <span className={`font-medium ${
-                    metric.value <= metric.target ? 'text-emerald-600' : 'text-red-600'
+                    metric.value <= metric.target ? 'text-blue-600' : 'text-red-600'
                   }`}>
                     {Math.round((metric.value / metric.target) * 100)}%
                   </span>
@@ -1344,7 +1378,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                 <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                   <div 
                     className={`h-full rounded-full ${
-                      metric.value <= metric.target ? 'bg-gradient-to-r from-emerald-500 to-green-500' : 'bg-gradient-to-r from-red-500 to-pink-500'
+                      metric.value <= metric.target ? 'bg-gradient-to-r from-blue-500 to-blue-600' : 'bg-gradient-to-r from-red-500 to-pink-500'
                     }`}
                     style={{ width: `${Math.min((metric.value / metric.target) * 100, 100)}%` }}
                   />
@@ -1354,37 +1388,40 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
           </div>
         </div>
 
-        {/* System Status Footer */}
-        <div className="bg-gradient-to-r from-gray-800/5 via-gray-900/5 to-black/5 backdrop-blur-sm rounded-2xl border border-gray-200/30 p-5">
+        {/* VIN17X System Status Footer */}
+        <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 backdrop-blur-sm rounded-2xl border border-blue-500/30 p-5">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h3 className="font-semibold text-gray-900">System Status</h3>
-              <p className="text-sm text-gray-600">
+              <h3 className="font-semibold text-white flex items-center gap-2">
+                <Car className="h-5 w-5" />
+                VIN17X System Status
+              </h3>
+              <p className="text-sm text-blue-200">
                 Last updated: {formatTimeAgo(systemHealth.lastChecked)}
               </p>
             </div>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                <span className="text-sm text-gray-700">Operational</span>
+                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                <span className="text-sm text-blue-100">Operational</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-amber-500"></div>
-                <span className="text-sm text-gray-700">Degraded</span>
+                <div className="w-2 h-2 rounded-full bg-amber-400"></div>
+                <span className="text-sm text-blue-100">Degraded</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                <span className="text-sm text-gray-700">Critical</span>
+                <div className="w-2 h-2 rounded-full bg-red-400"></div>
+                <span className="text-sm text-blue-100">Critical</span>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all">
+              <button className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-all border border-white/20">
                 <Download className="h-4 w-4" />
-                <span>Export Data</span>
+                <span>Export Report</span>
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-xl hover:from-gray-900 hover:to-black transition-all">
+              <button className="flex items-center gap-2 px-4 py-2 bg-white text-blue-700 rounded-xl hover:bg-blue-50 transition-all">
                 <Settings className="h-4 w-4" />
-                <span>Settings</span>
+                <span>System Settings</span>
               </button>
             </div>
           </div>
