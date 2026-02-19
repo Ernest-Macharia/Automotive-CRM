@@ -31,7 +31,6 @@ export default function MagLogo({ width = 520, height = 160, className = '' }: M
         fill="url(#magGradient)"
       />
 
-      {/* MAG text */}
       <text
         x="40"
         y="135"
@@ -41,7 +40,7 @@ export default function MagLogo({ width = 520, height = 160, className = '' }: M
         fill="#FFFFFF"
         fontFamily="Inter, Poppins, Montserrat, Arial, sans-serif"
       >
-        MAG
+        VIN17x
       </text>
     </svg>
   );

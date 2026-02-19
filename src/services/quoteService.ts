@@ -85,6 +85,7 @@ export interface QuoteFilterParams {
 export interface QuoteStatistics {
   total: number;
   pending: number;
+  draft: number;
   approved: number;
   rejected: number;
   totalAmount: number;
@@ -160,6 +161,7 @@ class QuoteService {
         total: response.total || 0,
         pending: response.pending || 0,
         approved: response.approved || 0,
+        draft: response.draft || 0,
         rejected: response.rejected || 0,
         totalAmount: response.totalAmount || 0,
         lastUpdated: response.lastUpdated || new Date().toISOString()

@@ -26,7 +26,7 @@ export default function LoadingSpinner() {
       <div className="animate-spin-pulse">
         <Image
           src="/magloader.png"
-          alt="MAG CRM Loading"
+          alt="VIN17x CRM Loading"
           width={140}
           height={140}
           priority

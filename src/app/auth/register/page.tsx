@@ -79,13 +79,13 @@ export default function RegisterPage() {
             <Car className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">MAG CRM</h1>
+            <h1 className="text-2xl font-bold text-gray-900">VIN17x CRM</h1>
             <p className="text-sm text-gray-600">Automotive Excellence</p>
           </div>
         </div>
       }
       featureTitle="Transform Your Automotive Business"
-      featureDescription="Join thousands of dealerships and service centers using MAG CRM to increase efficiency, boost sales, and deliver outstanding customer experiences."
+      featureDescription="Join thousands of dealerships and service centers using VIN17x CRM to increase efficiency, boost sales, and deliver outstanding customer experiences."
       backgroundGradient="from-orange-50 via-white to-amber-50"
       accentColor="orange"
     >

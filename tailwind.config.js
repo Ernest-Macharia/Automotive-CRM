@@ -7,7 +7,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // MAG Brand Colors
+        // VIN17x Brand Colors
         'mag': {
           'orange': '#E65C00',
           'amber': '#C44A00',

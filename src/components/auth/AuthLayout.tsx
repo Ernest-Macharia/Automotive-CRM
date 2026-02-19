@@ -170,7 +170,7 @@ export default function AuthLayout({
         <div className="lg:hidden mt-8 px-4">
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 p-6 shadow-xl">
             <h3 className="text-lg font-bold text-gray-900 mb-4 text-center">
-              {featureTitle || 'Why Choose MAG CRM?'}
+              {featureTitle || 'Why Choose VIN17x CRM?'}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {features.map((feature, index) => (
