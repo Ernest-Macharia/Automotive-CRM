@@ -1,7 +1,7 @@
 // app/kpi/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { 
   Target, TrendingUp, CheckCircle, Clock, AlertCircle,
@@ -9,7 +9,8 @@ import {
   ChevronRight, MoreVertical, Eye, Edit,
   RefreshCw, Activity, Award,
   AlertTriangle, CheckCheck, LineChart, Search,
-  Filter, FileText, ArrowUpRight, ArrowDownRight
+  Filter, FileText, ArrowUpRight, ArrowDownRight,
+  Menu, X, ArrowLeft
 } from 'lucide-react';
 import { kpiService, Kpi, KPI_STATUS } from '@/services/kpiService';
 import { useToast } from '@/contexts/ToastContext';
@@ -71,6 +72,22 @@ export default function KPIDashboard() {
   const [selectedView, setSelectedView] = useState<'all' | 'active' | 'completed' | 'overdue'>('active');
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [showMobileTabs, setShowMobileTabs] = useState(false);
+  
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close mobile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
+        setMobileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     fetchDashboardData();
@@ -316,15 +333,25 @@ export default function KPIDashboard() {
     kpi.assignedTo?.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Mobile view tabs configuration
+  const viewTabs = [
+    { id: 'active', label: 'Active', count: stats.inProgressKpis + stats.pendingKpis },
+    { id: 'all', label: 'All', count: stats.totalKpis },
+    { id: 'completed', label: 'Completed', count: stats.completedKpis },
+    { id: 'overdue', label: 'Overdue', count: stats.overdueKpis },
+  ];
+
+  const currentViewLabel = viewTabs.find(tab => tab.id === selectedView)?.label || 'Active';
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Desktop Header - Hidden on mobile */}
+      <div className="hidden lg:block bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700">
+        <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">KPI Dashboard</h1>
-              <p className="text-gray-600 mt-1">
+              <h1 className="text-2xl font-bold text-white">KPI Dashboard</h1>
+              <p className="text-blue-100 mt-1">
                 Track and manage your key performance indicators
               </p>
             </div>
@@ -337,7 +364,7 @@ export default function KPIDashboard() {
                   placeholder="Search KPIs..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 w-full lg:w-64 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="pl-10 pr-4 py-2 w-64 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent"
                 />
               </form>
               
@@ -346,8 +373,8 @@ export default function KPIDashboard() {
                 disabled={refreshing}
                 className={`p-2 rounded-lg transition-colors ${
                   refreshing 
-                    ? 'text-gray-400 cursor-not-allowed' 
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    ? 'text-white/50 cursor-not-allowed' 
+                    : 'text-white hover:bg-white/20'
                 }`}
                 title="Refresh"
               >
@@ -356,7 +383,7 @@ export default function KPIDashboard() {
               
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-white text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition-colors"
               >
                 <Plus className="h-5 w-5" />
                 New KPI
@@ -364,28 +391,23 @@ export default function KPIDashboard() {
             </div>
           </div>
 
-          {/* View Tabs */}
-          <div className="flex gap-2 mt-6 overflow-x-auto pb-2">
-            {[
-              { id: 'active', label: 'Active', count: stats.inProgressKpis + stats.pendingKpis },
-              { id: 'all', label: 'All', count: stats.totalKpis },
-              { id: 'completed', label: 'Completed', count: stats.completedKpis },
-              { id: 'overdue', label: 'Overdue', count: stats.overdueKpis },
-            ].map(({ id, label, count }) => (
+          {/* Desktop View Tabs */}
+          <div className="flex gap-2 mt-6">
+            {viewTabs.map(({ id, label, count }) => (
               <button
                 key={id}
                 onClick={() => setSelectedView(id as any)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   selectedView === id
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    ? 'bg-white/20 text-white'
+                    : 'text-white/70 hover:bg-white/10'
                 }`}
               >
                 {label}
                 <span className={`px-2 py-0.5 text-xs rounded-full min-w-[24px] text-center ${
                   selectedView === id 
-                    ? 'bg-blue-200 text-blue-700' 
-                    : 'bg-gray-200 text-gray-700'
+                    ? 'bg-white/30 text-white' 
+                    : 'bg-white/10 text-white/70'
                 }`}>
                   {count}
                 </span>
@@ -395,10 +417,151 @@ export default function KPIDashboard() {
         </div>
       </div>
 
+      {/* Mobile Header */}
+      <div className="lg:hidden sticky top-0 z-30 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700">
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <Link
+                href="/dashboard"
+                className="p-2 -ml-2 hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="h-5 w-5 text-white" />
+              </Link>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-lg font-semibold text-white truncate">KPI Dashboard</h1>
+                <p className="text-xs text-white/80 truncate">Track your performance</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowMobileSearch(!showMobileSearch)}
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <Search className="h-5 w-5 text-white" />
+              </button>
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`h-5 w-5 text-white ${refreshing ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <MoreVertical className="h-5 w-5 text-white" />
+              </button>
+            </div>
+          </div>
+
+          {/* Mobile Search Bar */}
+          {showMobileSearch && (
+            <div className="mt-3">
+              <form onSubmit={handleSearch} className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-white/60" />
+                <input
+                  type="text"
+                  placeholder="Search KPIs..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
+                  autoFocus
+                />
+              </form>
+            </div>
+          )}
+
+          {/* Mobile View Selector */}
+          <div className="mt-3">
+            <button
+              onClick={() => setShowMobileTabs(!showMobileTabs)}
+              className="w-full flex items-center justify-between px-3 py-2 bg-white/10 rounded-lg"
+            >
+              <span className="text-sm font-medium text-white">{currentViewLabel} KPIs</span>
+              <ChevronRight className={`h-4 w-4 text-white transition-transform ${showMobileTabs ? 'rotate-90' : ''}`} />
+            </button>
+
+            {/* Mobile Tabs Dropdown */}
+            {showMobileTabs && (
+              <div className="absolute left-4 right-4 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-40">
+                {viewTabs.map(({ id, label, count }) => (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      setSelectedView(id as any);
+                      setShowMobileTabs(false);
+                    }}
+                    className={`w-full text-left px-4 py-3 flex items-center justify-between hover:bg-gray-50 ${
+                      selectedView === id ? 'bg-blue-50' : ''
+                    }`}
+                  >
+                    <span className={`text-sm font-medium ${
+                      selectedView === id ? 'text-blue-600' : 'text-gray-700'
+                    }`}>
+                      {label}
+                    </span>
+                    <span className={`px-2 py-0.5 text-xs rounded-full ${
+                      selectedView === id 
+                        ? 'bg-blue-100 text-blue-700' 
+                        : 'bg-gray-100 text-gray-700'
+                    }`}>
+                      {count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Mobile Menu Dropdown */}
+        {mobileMenuOpen && (
+          <div 
+            ref={mobileMenuRef}
+            className="absolute right-4 top-20 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50"
+          >
+            <div className="px-4 py-2 text-xs font-medium text-gray-500 border-b border-gray-200">
+              Quick Actions
+            </div>
+            <button
+              onClick={() => {
+                setShowCreateModal(true);
+                setMobileMenuOpen(false);
+              }}
+              className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3"
+            >
+              <Plus className="h-4 w-4 text-blue-600" />
+              New KPI
+            </button>
+            <button
+              onClick={() => {
+                // Add export functionality
+                setMobileMenuOpen(false);
+              }}
+              className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3"
+            >
+              <Download className="h-4 w-4 text-gray-600" />
+              Export Data
+            </button>
+            <Link
+              href="/kpi/list"
+              className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <FileText className="h-4 w-4 text-gray-600" />
+              View All
+            </Link>
+          </div>
+        )}
+      </div>
+
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        {/* Stats Cards - Responsive Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6 lg:mb-8">
           {loading ? (
             Array.from({ length: 4 }).map((_, i) => (
               <StatsCardSkeleton key={i} />
@@ -406,18 +569,18 @@ export default function KPIDashboard() {
           ) : (
             <>
               {/* Total KPIs */}
-              <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-blue-100 rounded-lg">
-                    <Target className="h-6 w-6 text-blue-600" />
+              <div className="bg-white rounded-xl border border-gray-200 p-4 lg:p-6 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 lg:p-3 bg-blue-100 rounded-lg">
+                    <Target className="h-5 w-5 lg:h-6 lg:w-6 text-blue-600" />
                   </div>
-                  <span className="text-sm font-medium text-blue-600">
+                  <span className="text-xs lg:text-sm font-medium text-blue-600">
                     {stats.totalKpis} total
                   </span>
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900">{stats.totalKpis}</h3>
-                <p className="text-sm text-gray-600">Total KPIs</p>
-                <div className="mt-4 pt-4 border-t border-gray-100">
+                <h3 className="text-xl lg:text-2xl font-bold text-gray-900">{stats.totalKpis}</h3>
+                <p className="text-xs lg:text-sm text-gray-600">Total KPIs</p>
+                <div className="mt-3 lg:mt-4 pt-3 lg:pt-4 border-t border-gray-100">
                   <div className="text-xs text-gray-500">
                     {stats.inProgressKpis} active • {stats.pendingKpis} pending
                   </div>
@@ -425,12 +588,12 @@ export default function KPIDashboard() {
               </div>
 
               {/* Completed */}
-              <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-green-100 rounded-lg">
-                    <CheckCheck className="h-6 w-6 text-green-600" />
+              <div className="bg-white rounded-xl border border-gray-200 p-4 lg:p-6 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 lg:p-3 bg-green-100 rounded-lg">
+                    <CheckCheck className="h-5 w-5 lg:h-6 lg:w-6 text-green-600" />
                   </div>
-                  <span className={`text-sm font-medium ${
+                  <span className={`text-xs lg:text-sm font-medium ${
                     stats.completionRate >= 80 ? 'text-green-600' :
                     stats.completionRate >= 60 ? 'text-yellow-600' :
                     'text-red-600'
@@ -438,9 +601,9 @@ export default function KPIDashboard() {
                     {stats.completionRate.toFixed(1)}%
                   </span>
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900">{stats.completedKpis}</h3>
-                <p className="text-sm text-gray-600">Completed</p>
-                <div className="mt-4 pt-4 border-t border-gray-100">
+                <h3 className="text-xl lg:text-2xl font-bold text-gray-900">{stats.completedKpis}</h3>
+                <p className="text-xs lg:text-sm text-gray-600">Completed</p>
+                <div className="mt-3 lg:mt-4 pt-3 lg:pt-4 border-t border-gray-100">
                   <div className="text-xs text-gray-500">
                     Completion rate
                   </div>
@@ -448,12 +611,12 @@ export default function KPIDashboard() {
               </div>
 
               {/* In Progress */}
-              <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-yellow-100 rounded-lg">
-                    <Activity className="h-6 w-6 text-yellow-600" />
+              <div className="bg-white rounded-xl border border-gray-200 p-4 lg:p-6 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 lg:p-3 bg-yellow-100 rounded-lg">
+                    <Activity className="h-5 w-5 lg:h-6 lg:w-6 text-yellow-600" />
                   </div>
-                  <span className={`text-sm font-medium ${
+                  <span className={`text-xs lg:text-sm font-medium ${
                     stats.inProgressKpis > 10 ? 'text-red-600' :
                     stats.inProgressKpis > 5 ? 'text-yellow-600' :
                     'text-green-600'
@@ -463,9 +626,9 @@ export default function KPIDashboard() {
                      'Normal'}
                   </span>
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900">{stats.inProgressKpis}</h3>
-                <p className="text-sm text-gray-600">In Progress</p>
-                <div className="mt-4 pt-4 border-t border-gray-100">
+                <h3 className="text-xl lg:text-2xl font-bold text-gray-900">{stats.inProgressKpis}</h3>
+                <p className="text-xs lg:text-sm text-gray-600">In Progress</p>
+                <div className="mt-3 lg:mt-4 pt-3 lg:pt-4 border-t border-gray-100">
                   <div className="text-xs text-gray-500">
                     Currently working on
                   </div>
@@ -473,20 +636,20 @@ export default function KPIDashboard() {
               </div>
 
               {/* Overdue */}
-              <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-red-100 rounded-lg">
-                    <AlertCircle className="h-6 w-6 text-red-600" />
+              <div className="bg-white rounded-xl border border-gray-200 p-4 lg:p-6 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="p-2 lg:p-3 bg-red-100 rounded-lg">
+                    <AlertCircle className="h-5 w-5 lg:h-6 lg:w-6 text-red-600" />
                   </div>
-                  <span className={`text-sm font-medium ${
+                  <span className={`text-xs lg:text-sm font-medium ${
                     stats.overdueKpis > 0 ? 'text-red-600' : 'text-green-600'
                   }`}>
                     {stats.overdueKpis > 0 ? 'Attention needed' : 'On track'}
                   </span>
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900">{stats.overdueKpis}</h3>
-                <p className="text-sm text-gray-600">Overdue</p>
-                <div className="mt-4 pt-4 border-t border-gray-100">
+                <h3 className="text-xl lg:text-2xl font-bold text-gray-900">{stats.overdueKpis}</h3>
+                <p className="text-xs lg:text-sm text-gray-600">Overdue</p>
+                <div className="mt-3 lg:mt-4 pt-3 lg:pt-4 border-t border-gray-100">
                   <div className="text-xs text-gray-500">
                     Requires immediate action
                   </div>
@@ -496,28 +659,28 @@ export default function KPIDashboard() {
           )}
         </div>
 
-        {/* KPIs List */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-          <div className="p-6 border-b border-gray-200">
+        {/* KPIs List - Responsive */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-4 lg:px-6 py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Your KPIs</h2>
-                <p className="text-sm text-gray-600 mt-1">
+                <h2 className="text-base lg:text-lg font-semibold text-gray-900">Your KPIs</h2>
+                <p className="text-xs lg:text-sm text-gray-600 mt-1">
                   {filteredKpis.length} KPI{filteredKpis.length !== 1 ? 's' : ''} found
                   {searchQuery && ` for "${searchQuery}"`}
                 </p>
               </div>
               <Link
                 href="/kpi/list"
-                className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                className="flex items-center gap-1 text-xs lg:text-sm text-blue-600 hover:text-blue-700 font-medium"
               >
                 View all
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-3 w-3 lg:h-4 lg:w-4" />
               </Link>
             </div>
           </div>
           
-          <div className="p-6">
+          <div className="p-4 lg:p-6">
             {loading ? (
               <div className="space-y-4">
                 {[1, 2, 3].map((i) => (
@@ -525,12 +688,12 @@ export default function KPIDashboard() {
                 ))}
               </div>
             ) : filteredKpis.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Target className="h-8 w-8 text-gray-400" />
+              <div className="text-center py-8 lg:py-12">
+                <div className="w-12 h-12 lg:w-16 lg:h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3 lg:mb-4">
+                  <Target className="h-6 w-6 lg:h-8 lg:w-8 text-gray-400" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No KPIs found</h3>
-                <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-2">No KPIs found</h3>
+                <p className="text-sm lg:text-base text-gray-600 mb-4 lg:mb-6 max-w-md mx-auto px-4">
                   {searchQuery 
                     ? `No KPIs found matching "${searchQuery}"`
                     : selectedView === 'active'
@@ -541,15 +704,15 @@ export default function KPIDashboard() {
                 {!searchQuery && selectedView === 'active' && (
                   <button
                     onClick={() => setShowCreateModal(true)}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                    className="inline-flex items-center gap-2 px-4 lg:px-6 py-2.5 lg:py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm lg:text-base"
                   >
-                    <Plus className="h-5 w-5" />
+                    <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
                     Create First KPI
                   </button>
                 )}
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3 lg:space-y-4">
                 {filteredKpis.slice(0, 10).map((kpi) => {
                   const progress = kpiService.calculateKpiProgress(kpi);
                   const isOverdue = kpiService.isKpiOverdue(kpi);
@@ -560,11 +723,11 @@ export default function KPIDashboard() {
                   return (
                     <div
                       key={kpi._id}
-                      className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-sm transition-all"
+                      className="p-3 lg:p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-sm transition-all"
                     >
-                      <div className="flex items-start justify-between mb-3">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
                             <span className={`px-2 py-1 text-xs rounded-full ${statusDisplay.color}`}>
                               {statusDisplay.label}
                             </span>
@@ -577,16 +740,16 @@ export default function KPIDashboard() {
                               {daysRemainingDisplay.text}
                             </span>
                           </div>
-                          <h3 className="font-semibold text-gray-900 mb-1">
+                          <h3 className="font-semibold text-gray-900 mb-1 text-sm lg:text-base">
                             {kpi.title}
                           </h3>
-                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                          <p className="text-xs lg:text-sm text-gray-600 mb-3 line-clamp-2">
                             {kpi.description || 'No description provided'}
                           </p>
                         </div>
                         
-                        <div className="text-right">
-                          <div className={`text-lg font-bold ${getScoreColor(score)}`}>
+                        <div className="sm:text-right">
+                          <div className={`text-lg lg:text-xl font-bold ${getScoreColor(score)}`}>
                             {score.toFixed(0)}%
                           </div>
                           <div className="text-xs text-gray-500">Score</div>
@@ -596,13 +759,13 @@ export default function KPIDashboard() {
                       <div className="space-y-3">
                         {/* Progress Bar */}
                         <div>
-                          <div className="flex justify-between text-sm mb-1">
+                          <div className="flex justify-between text-xs lg:text-sm mb-1">
                             <span className="text-gray-600">Progress</span>
                             <span className={`font-medium ${getScoreColor(progress)}`}>
                               {progress.toFixed(0)}%
                             </span>
                           </div>
-                          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div className="h-1.5 lg:h-2 bg-gray-200 rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all ${getProgressColor(progress)}`}
                               style={{ width: `${Math.min(100, progress)}%` }}
@@ -610,32 +773,32 @@ export default function KPIDashboard() {
                           </div>
                         </div>
                         
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div className="flex items-center gap-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-3 lg:gap-4">
                             <div className="flex items-center gap-2">
-                              <Users className="h-4 w-4 text-gray-400" />
-                              <span className="text-sm text-gray-600">
+                              <Users className="h-3 w-3 lg:h-4 lg:w-4 text-gray-400" />
+                              <span className="text-xs lg:text-sm text-gray-600">
                                 {kpi.assignedTo?.name || 'Unassigned'}
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-gray-400" />
-                              <span className="text-sm text-gray-600">
+                              <Calendar className="h-3 w-3 lg:h-4 lg:w-4 text-gray-400" />
+                              <span className="text-xs lg:text-sm text-gray-600">
                                 Due {formatDate(kpi.periodEnd)}
                               </span>
                             </div>
                           </div>
                           
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm text-gray-500">
+                          <div className="flex items-center justify-between sm:justify-end gap-3">
+                            <span className="text-xs lg:text-sm text-gray-500">
                               {kpiService.getFrequencyLabel(kpi.frequency)}
                             </span>
                             <Link
                               href={`/kpi/${kpi._id}`}
-                              className="text-blue-600 hover:text-blue-700 font-medium text-sm flex items-center gap-1"
+                              className="text-blue-600 hover:text-blue-700 font-medium text-xs lg:text-sm flex items-center gap-1"
                             >
-                              View Details
-                              <ChevronRight className="h-4 w-4" />
+                              View
+                              <ChevronRight className="h-3 w-3 lg:h-4 lg:w-4" />
                             </Link>
                           </div>
                         </div>
@@ -648,34 +811,34 @@ export default function KPIDashboard() {
           </div>
         </div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-gray-100 rounded-lg">
-                <LineChart className="h-5 w-5 text-gray-600" />
+        {/* Quick Stats - Responsive Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 mt-6 lg:mt-8">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 lg:p-6">
+            <div className="flex items-center gap-3 mb-3 lg:mb-4">
+              <div className="p-1.5 lg:p-2 bg-gray-100 rounded-lg">
+                <LineChart className="h-4 w-4 lg:h-5 lg:w-5 text-gray-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900">Average Score</h3>
-                <p className="text-sm text-gray-600">Overall performance</p>
+                <h3 className="font-semibold text-gray-900 text-sm lg:text-base">Average Score</h3>
+                <p className="text-xs text-gray-600">Overall performance</p>
               </div>
             </div>
-            <div className={`text-3xl font-bold ${getScoreColor(stats.averageScore)}`}>
+            <div className={`text-xl lg:text-3xl font-bold ${getScoreColor(stats.averageScore)}`}>
               {stats.averageScore.toFixed(1)}%
             </div>
           </div>
           
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-gray-100 rounded-lg">
-                <TrendingUp className="h-5 w-5 text-gray-600" />
+          <div className="bg-white rounded-xl border border-gray-200 p-4 lg:p-6">
+            <div className="flex items-center gap-3 mb-3 lg:mb-4">
+              <div className="p-1.5 lg:p-2 bg-gray-100 rounded-lg">
+                <TrendingUp className="h-4 w-4 lg:h-5 lg:w-5 text-gray-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900">Completion Rate</h3>
-                <p className="text-sm text-gray-600">KPI completion</p>
+                <h3 className="font-semibold text-gray-900 text-sm lg:text-base">Completion Rate</h3>
+                <p className="text-xs text-gray-600">KPI completion</p>
               </div>
             </div>
-            <div className={`text-3xl font-bold ${
+            <div className={`text-xl lg:text-3xl font-bold ${
               stats.completionRate >= 80 ? 'text-green-600' :
               stats.completionRate >= 60 ? 'text-yellow-600' :
               'text-red-600'
@@ -684,17 +847,17 @@ export default function KPIDashboard() {
             </div>
           </div>
           
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-gray-100 rounded-lg">
-                <Award className="h-5 w-5 text-gray-600" />
+          <div className="bg-white rounded-xl border border-gray-200 p-4 lg:p-6 sm:col-span-2 lg:col-span-1">
+            <div className="flex items-center gap-3 mb-3 lg:mb-4">
+              <div className="p-1.5 lg:p-2 bg-gray-100 rounded-lg">
+                <Award className="h-4 w-4 lg:h-5 lg:w-5 text-gray-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900">Performance</h3>
-                <p className="text-sm text-gray-600">Based on all KPIs</p>
+                <h3 className="font-semibold text-gray-900 text-sm lg:text-base">Performance</h3>
+                <p className="text-xs text-gray-600">Based on all KPIs</p>
               </div>
             </div>
-            <div className={`text-3xl font-bold ${
+            <div className={`text-xl lg:text-3xl font-bold ${
               stats.averageScore >= 90 ? 'text-green-600' :
               stats.averageScore >= 80 ? 'text-blue-600' :
               stats.averageScore >= 70 ? 'text-yellow-600' :
@@ -717,6 +880,9 @@ export default function KPIDashboard() {
           onSuccess={handleCreateKpi}
         />
       )}
+
+      {/* Mobile Bottom Padding */}
+      <div className="lg:hidden h-16"></div>
     </div>
   );
 }

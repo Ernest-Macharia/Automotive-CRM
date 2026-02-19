@@ -278,17 +278,17 @@ export default function ProductsList() {
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-b from-gray-50 to-blue-50">
-      {/* Header */}
-      <div className="h-16 flex items-center px-6 flex-shrink-0 bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg">
+    <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
+      {/* Header - Matching Services page style exactly */}
+      <div className="h-16 flex items-center px-6 flex-shrink-0 bg-gradient-to-r from-blue-600 to-purple-600">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+            <div className="p-2 bg-white/20 rounded-lg">
               <Package className="h-5 w-5 text-white" />
             </div>
             <div>
               <h1 className="text-lg font-semibold text-white">Product Inventory</h1>
-              <p className="text-emerald-100 text-xs">Manage your product catalog and inventory</p>
+              <p className="text-blue-100 text-xs">Manage your product catalog and inventory</p>
             </div>
           </div>
           
@@ -296,7 +296,7 @@ export default function ProductsList() {
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="p-2 rounded-xl text-white hover:bg-white/10 transition-colors disabled:opacity-60"
+              className="p-2 rounded-lg text-white hover:bg-white/10 transition-colors disabled:opacity-60"
               title="Refresh"
             >
               {refreshing ? (
@@ -307,7 +307,7 @@ export default function ProductsList() {
             </button>
             <Link
               href="/products/create"
-              className="px-3 py-1.5 bg-white text-emerald-600 font-medium rounded-lg hover:bg-gray-100 flex items-center gap-1.5 text-sm shadow-sm"
+              className="px-3 py-1.5 bg-white text-blue-600 font-medium rounded-lg hover:bg-gray-100 flex items-center gap-1.5 text-sm"
             >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">New Product</span>
@@ -329,14 +329,14 @@ export default function ProductsList() {
             ))}
           </div>
         ) : stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {[
-              { label: 'Total Products', value: stats.total || 0, icon: Package, color: '#10b981' },
+              { label: 'Total Products', value: stats.total || 0, icon: Package, color: '#2563eb' }, // Changed to blue
               { label: 'Active', value: stats.active || 0, icon: CheckCircle, color: '#10b981' },
               { label: 'Out of Stock', value: stats.outOfStock || 0, icon: XCircle, color: '#ef4444' },
               { label: 'Low Stock', value: stats.lowStock || 0, icon: AlertTriangle, color: '#f59e0b' },
             ].map((item, idx) => (
-              <div key={idx} className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+              <div key={idx} className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-gray-500">{item.label}</p>
@@ -363,7 +363,7 @@ export default function ProductsList() {
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
               {Object.entries(stats.byCategory).map(([category, count]) => {
-                let bgColor = 'bg-green-100 text-green-800';
+                let bgColor = 'bg-blue-100 text-blue-800'; // Changed from green to blue
                 let icon = Box;
                 
                 switch (category) {
@@ -419,7 +419,7 @@ export default function ProductsList() {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search products by name, code, manufacturer, or tags..."
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                   disabled={loading}
                 />
               </div>
@@ -429,7 +429,7 @@ export default function ProductsList() {
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="pl-3 pr-8 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 appearance-none bg-white"
+                    className="pl-3 pr-8 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white"
                     disabled={loading}
                   >
                     {statusOptions.map((option) => (
@@ -445,7 +445,7 @@ export default function ProductsList() {
                   <select
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="pl-3 pr-8 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 appearance-none bg-white"
+                    className="pl-3 pr-8 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white"
                     disabled={loading}
                   >
                     {categoryOptions.map((option) => (
@@ -461,7 +461,7 @@ export default function ProductsList() {
                   <select
                     value={stockFilter}
                     onChange={(e) => setStockFilter(e.target.value)}
-                    className="pl-3 pr-8 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 appearance-none bg-white"
+                    className="pl-3 pr-8 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white"
                     disabled={loading}
                   >
                     {stockOptions.map((option) => (
@@ -486,8 +486,8 @@ export default function ProductsList() {
               </div>
             ) : products.length === 0 ? (
               <div className="text-center py-10">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 mb-4">
-                  <Package className="h-6 w-6 text-emerald-600" />
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-50 mb-4">
+                  <Package className="h-6 w-6 text-blue-600" />
                 </div>
                 <h3 className="text-base font-semibold text-gray-800 mb-1">No products found</h3>
                 <p className="text-gray-500 text-sm mb-4 max-w-md mx-auto">
@@ -497,7 +497,7 @@ export default function ProductsList() {
                 </p>
                 <Link
                   href="/products/create"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium shadow-sm"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium shadow-sm"
                 >
                   <Plus className="h-4 w-4" />
                   Create New Product
@@ -598,7 +598,7 @@ export default function ProductsList() {
                         <div className="flex gap-1.5">
                           <button
                             onClick={() => handleQuickStockUpdate(product, 'add')}
-                            className="px-2 py-1 text-xs bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200"
+                            className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
                             title="Add Stock"
                           >
                             + Stock

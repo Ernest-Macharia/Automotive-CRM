@@ -1,4 +1,4 @@
-# MAG CRM - Modern CRM Frontend
+# VIN17x CRM - Modern CRM Frontend
 
 A modern, production-ready CRM frontend built with Next.js 14, TypeScript, and Tailwind CSS.
 

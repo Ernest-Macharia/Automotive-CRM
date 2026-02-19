@@ -11,7 +11,7 @@ export default function DefaultDashboard({ user }: DefaultDashboardProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 md:p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Welcome to MAG CRM</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Welcome to VIN17x CRM</h1>
         <p className="text-gray-600">
           Welcome back, {user?.name || user?.email?.split('@')[0] || 'User'}!
         </p>

@@ -86,7 +86,7 @@ export default function LeadsDashboard({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Compact Header - Same height as MAG CRM sidebar header */}
+      {/* Compact Header - Same height as VIN17x CRM sidebar header */}
       <div className="flex-shrink-0 flex items-center justify-between h-16 px-6 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-purple-600">
         <div className="flex items-center gap-3">
           <div className="p-1.5 bg-white/20 rounded-lg backdrop-blur-sm">

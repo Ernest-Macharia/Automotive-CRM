@@ -33,11 +33,13 @@ import {
   Server,
   Palette,
   Network,
-  Building2, // Added for Organizations
+  Building2,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { userService } from '@/services/settings/userService';
-import { organizationService } from '@/services/settings/organizationService'; // Import organization service
+import { organizationService } from '@/services/settings/organizationService';
 import { blueprintsService } from '@/services/settings/blueprintsService';
 import { workflowService } from '@/services/settings/workflowService';
 import { roleService } from '@/services/settings/roleService';
@@ -54,6 +56,15 @@ interface MenuItem {
   description?: string;
   category: string;
   featured: boolean;
+}
+
+interface ServiceStatus {
+  users: boolean;
+  organizations: boolean;
+  blueprints: boolean;
+  workflows: boolean;
+  permissions: boolean;
+  profiles: boolean;
 }
 
 const SettingsCardSkeleton = () => (
@@ -94,6 +105,21 @@ const CategorySkeleton = () => (
   </div>
 );
 
+const ErrorBanner = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
+  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+    <div className="flex items-center gap-3">
+      <AlertCircle className="h-5 w-5 text-red-500" />
+      <p className="text-sm text-red-700 flex-1">{message}</p>
+      <button
+        onClick={onRetry}
+        className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+      >
+        Retry
+      </button>
+    </div>
+  </div>
+);
+
 export default function SettingsDashboard() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -102,86 +128,113 @@ export default function SettingsDashboard() {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   const [userStats, setUserStats] = useState<{ total: number; active: number }>({ total: 0, active: 0 });
-  const [organizationsStats, setOrganizationsStats] = useState<{ total: number; active: number }>({ total: 0, active: 0 }); // Added for organizations
+  const [organizationsStats, setOrganizationsStats] = useState<{ total: number; active: number }>({ total: 0, active: 0 });
   const [blueprintsCount, setBlueprintsCount] = useState(0);
   const [workflowsCount, setWorkflowsCount] = useState(0);
   const [permissionsCount, setPermissionsCount] = useState(0);
   const [profilesCount, setProfilesCount] = useState(0);
+  
+  const [serviceStatus, setServiceStatus] = useState<ServiceStatus>({
+    users: false,
+    organizations: false,
+    blueprints: false,
+    workflows: false,
+    permissions: false,
+    profiles: false
+  });
+
+  // Load data with timeout and error handling
+  const loadDataWithTimeout = async <T,>(
+    promise: Promise<T>,
+    timeoutMs: number = 5000
+  ): Promise<T | null> => {
+    try {
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout')), timeoutMs);
+      });
+      
+      const result = await Promise.race([promise, timeoutPromise]);
+      return result;
+    } catch (error) {
+      console.warn('Service request failed:', error);
+      return null;
+    }
+  };
 
   useEffect(() => {
     loadRealData();
   }, []);
 
-  const loadProfilesCount = async () => {
-    try {
-      const profiles = await profileService.getProfiles();
-      setProfilesCount(profiles.length);
-    } catch (error) {
-      console.error('Error loading profiles count:', error);
-      setProfilesCount(0);
-    }
-  };
-
-  const loadOrganizationsStats = async () => {
-    try {
-      const orgStats = await organizationService.getOrganizationStatistics();
-      setOrganizationsStats({
-        total: orgStats.total || 0,
-        active: orgStats.active || 0
-      });
-    } catch (error) {
-      console.error('Error loading organization stats:', error);
-      // Don't show error for organizations - might be new feature
-      setOrganizationsStats({ total: 0, active: 0 });
-    }
-  };
-
   const loadRealData = async () => {
     try {
       setLoading(true);
+      setError(null);
       
-      // Load user statistics
+      const newServiceStatus = { ...serviceStatus };
+      
+      // Load user statistics with timeout
       try {
-        const userStatsData = await userService.getUserStatistics();
-        setUserStats({
-          total: (userStatsData as any)?.total || 0,
-          active: (userStatsData as any)?.active || 0
-        });
+        const userStatsData = await loadDataWithTimeout(userService.getUserStatistics());
+        if (userStatsData) {
+          setUserStats({
+            total: (userStatsData as any)?.total || 0,
+            active: (userStatsData as any)?.active || 0
+          });
+          newServiceStatus.users = true;
+        }
       } catch (userError) {
         console.error('Error loading user stats:', userError);
+        // Set default values
         setUserStats({ total: 0, active: 0 });
       }
       
-      // Load organization statistics
-      await loadOrganizationsStats();
+      // Load organization statistics with timeout
+      try {
+        const orgStats = await loadDataWithTimeout(organizationService.getOrganizationStatistics());
+        if (orgStats) {
+          setOrganizationsStats({
+            total: (orgStats as any)?.total || 0,
+            active: (orgStats as any)?.active || 0
+          });
+          newServiceStatus.organizations = true;
+        }
+      } catch (orgError) {
+        console.error('Error loading organization stats:', orgError);
+        setOrganizationsStats({ total: 0, active: 0 });
+      }
       
       // Load blueprints count
       try {
-        const blueprintsResponse = await blueprintsService.getBlueprints();
-        let blueprintsData: any[] = [];
-        if (Array.isArray(blueprintsResponse)) {
-          blueprintsData = blueprintsResponse;
-        } else if (blueprintsResponse) {
-          blueprintsData = blueprintsResponse;
+        const blueprintsResponse = await loadDataWithTimeout(blueprintsService.getBlueprints());
+        if (blueprintsResponse) {
+          let blueprintsData: any[] = [];
+          if (Array.isArray(blueprintsResponse)) {
+            blueprintsData = blueprintsResponse;
+          }
+          setBlueprintsCount(blueprintsData.length);
+          newServiceStatus.blueprints = true;
         }
-        setBlueprintsCount(blueprintsData.length);
       } catch (blueprintsError) {
         console.error('Error loading blueprints:', blueprintsError);
         setBlueprintsCount(0);
       }
       
-      // Load workflows count  
+      // Load workflows count
       try {
-        const workflowsResponse = await workflowService.getAllWorkflows();
-        let workflowsData: any[] = [];
-        if (Array.isArray(workflowsResponse)) {
-          workflowsData = workflowsResponse;
-        } else if (workflowsResponse?.data && Array.isArray(workflowsResponse.data)) {
-          workflowsData = workflowsResponse.data;
+        const workflowsResponse = await loadDataWithTimeout(workflowService.getAllWorkflows());
+        if (workflowsResponse) {
+          let workflowsData: any[] = [];
+          if (Array.isArray(workflowsResponse)) {
+            workflowsData = workflowsResponse;
+          } else if (workflowsResponse?.data && Array.isArray(workflowsResponse.data)) {
+            workflowsData = workflowsResponse.data;
+          }
+          setWorkflowsCount(workflowsData.length);
+          newServiceStatus.workflows = true;
         }
-        setWorkflowsCount(workflowsData.length);
       } catch (workflowsError) {
         console.error('Error loading workflows:', workflowsError);
         setWorkflowsCount(0);
@@ -189,33 +242,54 @@ export default function SettingsDashboard() {
       
       // Load permissions count
       try {
-        const permissionsResponse = await roleService.getAllPermissions();
-        let permissionsList: any[] = [];
-        if (Array.isArray(permissionsResponse)) {
-          permissionsList = permissionsResponse;
-        } else if (permissionsResponse?.permissions && Array.isArray(permissionsResponse.permissions)) {
-          permissionsList = permissionsResponse.permissions;
+        const permissionsResponse = await loadDataWithTimeout(roleService.getAllPermissions());
+        if (permissionsResponse) {
+          let permissionsList: any[] = [];
+          if (Array.isArray(permissionsResponse)) {
+            permissionsList = permissionsResponse;
+          } else if (permissionsResponse?.permissions && Array.isArray(permissionsResponse.permissions)) {
+            permissionsList = permissionsResponse.permissions;
+          }
+          setPermissionsCount(permissionsList.length);
+          newServiceStatus.permissions = true;
         }
-        setPermissionsCount(permissionsList.length);
       } catch (permissionsError) {
         console.error('Error loading permissions:', permissionsError);
         setPermissionsCount(0);
       }
 
-      await loadProfilesCount();
+      // Load profiles count
+      try {
+        const profiles = await loadDataWithTimeout(profileService.getProfiles());
+        if (profiles) {
+          setProfilesCount(profiles.length);
+          newServiceStatus.profiles = true;
+        }
+      } catch (profilesError) {
+        console.error('Error loading profiles count:', profilesError);
+        setProfilesCount(0);
+      }
+
+      setServiceStatus(newServiceStatus);
+      
+      // Check if all services failed
+      const anyServiceWorking = Object.values(newServiceStatus).some(status => status);
+      if (!anyServiceWorking) {
+        setError('Unable to load settings data. Please try again later.');
+      }
       
     } catch (error) {
       console.error('Error loading real data:', error);
-      showToast('Failed to load settings data', 'error');
+      setError('Failed to load settings data');
     } finally {
       setLoading(false);
     }
   };
 
   const categories = [
-    { id: 'all', label: 'All Settings', icon: Grid, count: 19 }, // Increased count for organizations
-    { id: 'featured', label: 'Most Used', icon: Sparkles, count: 5 }, // Increased count
-    { id: 'administration', label: 'Administration', icon: Users, count: 7 }, // Increased count
+    { id: 'all', label: 'All Settings', icon: Grid, count: 19 },
+    { id: 'featured', label: 'Most Used', icon: Sparkles, count: 6 },
+    { id: 'administration', label: 'Administration', icon: Users, count: 7 },
     { id: 'automation', label: 'Automation', icon: Workflow, count: 4 },
     { id: 'security', label: 'Security', icon: ShieldCheck, count: 4 },
     { id: 'customization', label: 'Customization', icon: Palette, count: 2 },
@@ -225,7 +299,7 @@ export default function SettingsDashboard() {
   // Get menu items dynamically based on fetched data
   const getMenuItems = useMemo((): MenuItem[] => [
     {
-      id: 'organizations', // Added Organizations as featured item
+      id: 'organizations',
       label: 'Organizations',
       icon: Building2,
       href: '/settings/organizations',
@@ -343,6 +417,7 @@ export default function SettingsDashboard() {
   ], [userStats.total, organizationsStats.total, workflowsCount, blueprintsCount, permissionsCount, profilesCount]);
 
   const featuredItems = useMemo(() => getMenuItems.filter(item => item.featured), [getMenuItems]);
+  
   const filteredMenuItems = useMemo(() => {
     return getMenuItems.filter(item => {
       const matchesSearch = !searchQuery || 
@@ -380,7 +455,7 @@ export default function SettingsDashboard() {
       case 'create-workflow':
         router.push('/settings/workflows?action=create');
         break;
-      case 'add-organization': // Added quick action for organizations
+      case 'add-organization':
         router.push('/settings/organizations/create');
         break;
       case 'view-analytics':
@@ -388,6 +463,60 @@ export default function SettingsDashboard() {
         break;
     }
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header skeleton */}
+        <div className="mb-8">
+          <div className="h-8 w-64 bg-gray-200 rounded animate-pulse mb-2"></div>
+          <div className="h-4 w-96 bg-gray-200 rounded animate-pulse"></div>
+        </div>
+
+        {/* Search skeleton */}
+        <div className="mb-6 max-w-2xl">
+          <div className="h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+        </div>
+
+        {/* Quick actions skeleton */}
+        <div className="mb-8">
+          <div className="h-4 w-24 bg-gray-200 rounded mb-3 animate-pulse"></div>
+          <div className="flex gap-3">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-10 w-28 bg-gray-200 rounded-lg animate-pulse"></div>
+            ))}
+          </div>
+        </div>
+
+        {/* Stats skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {[1, 2, 3, 4].map((i) => (
+            <StatsCardSkeleton key={i} />
+          ))}
+        </div>
+
+        {/* Category filters skeleton */}
+        <div className="mb-8">
+          <div className="flex gap-2">
+            {[1, 2, 3, 4, 5].map(i => (
+              <CategorySkeleton key={i} />
+            ))}
+          </div>
+        </div>
+
+        {/* Featured settings skeleton */}
+        <div className="mb-8">
+          <div className="h-6 w-32 bg-gray-200 rounded mb-4 animate-pulse"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <SettingsCardSkeleton key={i} />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -400,16 +529,17 @@ export default function SettingsDashboard() {
           </div>
           
           <div className="flex items-center gap-3">
-            {loading ? (
-              <div className="h-8 w-32 bg-gray-200 rounded-lg animate-pulse"></div>
-            ) : (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm font-medium">
-                <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                Operational
-              </div>
-            )}
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm font-medium">
+              <div className="h-2 w-2 rounded-full bg-green-500"></div>
+              Operational
+            </div>
           </div>
         </div>
+
+        {/* Error Banner */}
+        {error && (
+          <ErrorBanner message={error} onRetry={simulateRefresh} />
+        )}
 
         {/* Search */}
         <div className="mb-6 max-w-2xl">
@@ -434,188 +564,158 @@ export default function SettingsDashboard() {
         </div>
 
         {/* Quick Actions */}
-        {!loading && (
-          <div className="mb-8">
-            <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-3">Quick Actions</h3>
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={() => handleQuickAction('add-user')}
-                className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-purple-200 text-purple-700 rounded-lg hover:bg-purple-50 text-sm font-medium"
-              >
-                <Users className="h-4 w-4" />
-                Add User
-              </button>
-              <button
-                onClick={() => handleQuickAction('add-organization')}
-                className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-emerald-200 text-emerald-700 rounded-lg hover:bg-emerald-50 text-sm font-medium"
-              >
-                <Building2 className="h-4 w-4" />
-                Add Organization
-              </button>
-              <button
-                onClick={() => handleQuickAction('create-workflow')}
-                className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-pink-200 text-pink-700 rounded-lg hover:bg-pink-50 text-sm font-medium"
-              >
-                <Workflow className="h-4 w-4" />
-                Create Workflow
-              </button>
-              <button
-                onClick={() => handleQuickAction('view-analytics')}
-                className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50 text-sm font-medium"
-              >
-                <BarChart className="h-4 w-4" />
-                View Analytics
-              </button>
-              <button
-                onClick={simulateRefresh}
-                disabled={refreshing}
-                className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium disabled:opacity-50"
-              >
-                {refreshing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                {refreshing ? 'Refreshing...' : 'Refresh'}
-              </button>
-            </div>
+        <div className="mb-8">
+          <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-3">Quick Actions</h3>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => handleQuickAction('add-user')}
+              className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-purple-200 text-purple-700 rounded-lg hover:bg-purple-50 text-sm font-medium"
+            >
+              <Users className="h-4 w-4" />
+              Add User
+            </button>
+            <button
+              onClick={() => handleQuickAction('add-organization')}
+              className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-emerald-200 text-emerald-700 rounded-lg hover:bg-emerald-50 text-sm font-medium"
+            >
+              <Building2 className="h-4 w-4" />
+              Add Organization
+            </button>
+            <button
+              onClick={() => handleQuickAction('create-workflow')}
+              className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-pink-200 text-pink-700 rounded-lg hover:bg-pink-50 text-sm font-medium"
+            >
+              <Workflow className="h-4 w-4" />
+              Create Workflow
+            </button>
+            <button
+              onClick={() => handleQuickAction('view-analytics')}
+              className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50 text-sm font-medium"
+            >
+              <BarChart className="h-4 w-4" />
+              View Analytics
+            </button>
+            <button
+              onClick={simulateRefresh}
+              disabled={refreshing}
+              className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium disabled:opacity-50"
+            >
+              {refreshing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Stats */}
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {[1, 2, 3, 4].map((i) => (
-            <StatsCardSkeleton key={i} />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {[
-            { label: 'Organizations', value: organizationsStats.total, icon: Building2, href: '/settings/organizations', color: 'bg-emerald-100 text-emerald-600' },
-            { label: 'Users', value: userStats.total, icon: Users, href: '/settings/users', color: 'bg-purple-100 text-purple-600' },
-            { label: 'Workflows', value: workflowsCount, icon: Workflow, href: '/settings/workflows', color: 'bg-pink-100 text-pink-600' },
-            { label: 'Permissions', value: permissionsCount, icon: Shield, href: '/settings/permissions', color: 'bg-indigo-100 text-indigo-600' },
-          ].map((stat, i) => {
-            const Icon = stat.icon;
-            return (
-              <Link
-                key={i}
-                href={stat.href}
-                className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-600 uppercase tracking-wider">{stat.label}</p>
-                    <p className="text-xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                  </div>
-                  <div className={`p-2.5 ${stat.color} rounded-lg`}>
-                    <Icon className="h-5 w-5" />
-                  </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {[
+          { label: 'Organizations', value: organizationsStats.total, icon: Building2, href: '/settings/organizations', color: 'bg-emerald-100 text-emerald-600' },
+          { label: 'Users', value: userStats.total, icon: Users, href: '/settings/users', color: 'bg-purple-100 text-purple-600' },
+          { label: 'Workflows', value: workflowsCount, icon: Workflow, href: '/settings/workflows', color: 'bg-pink-100 text-pink-600' },
+          { label: 'Permissions', value: permissionsCount, icon: Shield, href: '/settings/permissions', color: 'bg-indigo-100 text-indigo-600' },
+        ].map((stat, i) => {
+          const Icon = stat.icon;
+          return (
+            <Link
+              key={i}
+              href={stat.href}
+              className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-600 uppercase tracking-wider">{stat.label}</p>
+                  <p className="text-xl font-bold text-gray-900 mt-1">{stat.value}</p>
                 </div>
-              </Link>
-            );
-          })}
-        </div>
-      )}
+                <div className={`p-2.5 ${stat.color} rounded-lg`}>
+                  <Icon className="h-5 w-5" />
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
 
       {/* Category Filters */}
       <div className="mb-8">
         <div className="flex flex-wrap gap-2">
-          {loading ? (
-            Array.from({ length: 5 }).map((_, i) => (
-              <CategorySkeleton key={i} />
-            ))
-          ) : (
-            categories.map((category) => {
-              const Icon = category.icon;
-              return (
-                <button
-                  key={category.id}
-                  onClick={() => setActiveCategory(category.id)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                    activeCategory === category.id
-                      ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {category.label}
-                  <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                    activeCategory === category.id
-                      ? 'bg-blue-200 text-blue-800'
-                      : 'bg-gray-200 text-gray-600'
-                  }`}>
-                    {category.count}
-                  </span>
-                </button>
-              );
-            })
-          )}
+          {categories.map((category) => {
+            const Icon = category.icon;
+            return (
+              <button
+                key={category.id}
+                onClick={() => setActiveCategory(category.id)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                  activeCategory === category.id
+                    ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {category.label}
+                <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                  activeCategory === category.id
+                    ? 'bg-blue-200 text-blue-800'
+                    : 'bg-gray-200 text-gray-600'
+                }`}>
+                  {category.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Featured Settings */}
       <div className="mb-8">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Core Settings</h2>
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <SettingsCardSkeleton key={i} />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {featuredItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className={`p-2 bg-gradient-to-br ${item.gradient} bg-opacity-10 rounded-lg`}>
-                      <Icon className={`h-5 w-5 ${item.color}`} />
-                    </div>
-                    {item.badge !== undefined && (
-                      <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
-                        {item.badge}
-                      </span>
-                    )}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {featuredItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className={`p-2 bg-gradient-to-br ${item.gradient} bg-opacity-10 rounded-lg`}>
+                    <Icon className={`h-5 w-5 ${item.color}`} />
                   </div>
-                  <h3 className="font-medium text-gray-900 mb-1">{item.label}</h3>
-                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.description}</p>
-                  <div className="flex items-center text-sm text-blue-600 font-medium">
-                    Configure
-                    <ChevronRight className="h-4 w-4 ml-1" />
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+                  {item.badge !== undefined && (
+                    <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
+                <h3 className="font-medium text-gray-900 mb-1">{item.label}</h3>
+                <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.description}</p>
+                <div className="flex items-center text-sm text-blue-600 font-medium">
+                  Configure
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </div>
+              </Link>
+            );
+          })}
+        </div>
       </div>
 
       {/* All Settings */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">All Settings</h2>
-          {!loading && filteredMenuItems.length > 0 && (
+          {filteredMenuItems.length > 0 && (
             <span className="text-sm text-gray-500">
               {filteredMenuItems.length} settings
             </span>
           )}
         </div>
 
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <SettingsCardSkeleton key={i} />
-            ))}
-          </div>
-        ) : filteredMenuItems.length === 0 ? (
+        {filteredMenuItems.length === 0 ? (
           <div className="text-center py-12">
             <div className="inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-4">
               <Search className="h-6 w-6 text-gray-400" />
@@ -657,69 +757,43 @@ export default function SettingsDashboard() {
       </div>
 
       {/* Help */}
-      {!loading && (
-        <div className="pt-8 border-t border-gray-200">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Need help?</h3>
-              <p className="text-gray-600 mb-4">
-                Our documentation covers everything from basic configuration to advanced customization.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <button className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium">
-                  <BookOpen className="h-4 w-4" />
-                  Documentation
-                </button>
-                <button className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
-                  <Headphones className="h-4 w-4" />
-                  Support
-                </button>
-              </div>
-            </div>
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
-              <h4 className="font-medium text-gray-900 mb-3">Quick Tips</h4>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-                  <span>Start with <strong>Organizations</strong> for multi-tenant setup</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-                  <span>Use <strong>User Management</strong> to control access</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-                  <span>Automate tasks with <strong>Workflows</strong></span>
-                </li>
-              </ul>
+      {/* <div className="pt-8 border-t border-gray-200">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Need help?</h3>
+            <p className="text-gray-600 mb-4">
+              Our documentation covers everything from basic configuration to advanced customization.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium">
+                <BookOpen className="h-4 w-4" />
+                Documentation
+              </button>
+              <button className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+                <Headphones className="h-4 w-4" />
+                Support
+              </button>
             </div>
           </div>
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <h4 className="font-medium text-gray-900 mb-3">Quick Tips</h4>
+            <ul className="space-y-2 text-sm text-gray-600">
+              <li className="flex items-start gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                <span>Start with <strong>Organizations</strong> for multi-tenant setup</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                <span>Use <strong>User Management</strong> to control access</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                <span>Automate tasks with <strong>Workflows</strong></span>
+              </li>
+            </ul>
+          </div>
         </div>
-      )}
+      </div> */}
     </div>
   );
 }
-
-// Add this if not already present (for refresh button)
-const Loader2 = ({ className }: { className?: string }) => (
-  <svg
-    className={`animate-spin ${className}`}
-    xmlns="http://www.w3.org/2000/svg"
-    fill="none"
-    viewBox="0 0 24 24"
-  >
-    <circle
-      className="opacity-25"
-      cx="12"
-      cy="12"
-      r="10"
-      stroke="currentColor"
-      strokeWidth="4"
-    ></circle>
-    <path
-      className="opacity-75"
-      fill="currentColor"
-      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-    ></path>
-  </svg>
-);

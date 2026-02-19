@@ -12,15 +12,18 @@ import {
   Package,
   Trash2,
   Loader2,
+  User,
+  Calendar,
+  Clock,
+  DollarSign,
+  CheckCircle,
+  XCircle,
+  AlertCircle
 } from 'lucide-react';
 
 import { jobCardService, JobCard, type UpdateJobCardData, type UserRef } from '@/services/jobCardService';
-import { lifecycleIntegrationService } from '@/services/lifecycleIntegrationService';
-import { opportunityService, Opportunity } from '@/services/opportunityService';
-import { vehicleService, Vehicle } from '@/services/vehicleService';
 import { useToast } from '@/contexts/ToastContext';
 import { format } from 'date-fns';
-import { workOrderService } from '@/services/workOrderService';
 
 interface JobCardDetailProps {
   jobCardId: string;
@@ -37,10 +40,6 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
 
-  // Keep these if you still want the right-side Opportunity/Vehicle panels
-  const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
-  const [vehicleDetails, setVehicleDetails] = useState<Vehicle | null>(null);
-
   useEffect(() => {
     fetchJobCard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -51,30 +50,6 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
       setLoading(true);
       const data = await jobCardService.getJobCardById(jobCardId);
       setJobCard(data);
-
-      // Load opportunity + vehicle details for the sidebar (optional, but kept)
-      if (data?.opportunityId) {
-        const oppId =
-          typeof data.opportunityId === 'object'
-            ? (data.opportunityId as any)._id
-            : data.opportunityId;
-
-        if (oppId) {
-          const opp = await opportunityService.getOpportunityById(oppId);
-          setSelectedOpportunity(opp);
-
-          const vehicleId = opp?.vehicles?.[0]?._id;
-          if (vehicleId) {
-            const vehicle = await vehicleService.getVehicleById(vehicleId);
-            setVehicleDetails(vehicle);
-          } else {
-            setVehicleDetails(null);
-          }
-        }
-      } else {
-        setSelectedOpportunity(null);
-        setVehicleDetails(null);
-      }
     } catch (error) {
       console.error('Error fetching job card:', error);
       showToast('Failed to load job card details', 'error');
@@ -107,79 +82,17 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
       }
 
       // Update the job card
-      const updatedJobCard = await jobCardService.updateJobCard(jobCardId, payload);
+      await jobCardService.updateJobCard(jobCardId, payload);
 
       showToast(`Job card marked as ${status.replace('_', ' ')}`, 'success');
 
-      // If job card was completed, handle workflow transition
-      if (status === 'completed') {
-        try {
-          // Handle job card completion with lifecycle integration
-          const transitionResult = await lifecycleIntegrationService.handleJobCardCompletion(
-            jobCardId,
-            sessionStorage.getItem('userId') || undefined
-          );
-          
-          if (transitionResult.transitioned) {
-            showToast(transitionResult.message, 'success');
-            
-            // Update work order stage if we have workOrderId
-            if (workOrderId) {
-              await workOrderService.updateWorkOrder(workOrderId, {
-                currentStage: 'post_checklist',
-                updatedAt: new Date().toISOString(),
-              });
-            }
-            
-            // Auto-create post-checklist
-            try {
-              const opportunityId = typeof updatedJobCard.opportunityId === 'object' 
-                ? updatedJobCard.opportunityId._id 
-                : updatedJobCard.opportunityId;
-              
-              if (opportunityId) {
-                await lifecycleIntegrationService.autoCreateChecklistIfNeeded(
-                  opportunityId,
-                  'postchecklist',
-                  sessionStorage.getItem('userId') || undefined
-                );
-              }
-            } catch (postChecklistError) {
-              console.warn('Could not auto-create post-checklist:', postChecklistError);
-              // Continue anyway - user can create post-checklist manually
-            }
-            
-            // IMPORTANT: Redirect to work order page
-            if (workOrderId) {
-              router.push(`/orders/work-orders/${workOrderId}`);
-              return; // Exit early after redirect
-            }
-          } else {
-            // If auto-transition failed, still update work order and redirect
-            if (workOrderId) {
-              await workOrderService.updateWorkOrder(workOrderId, {
-                currentStage: 'post_checklist',
-                updatedAt: new Date().toISOString(),
-              });
-              
-              showToast('Job completed! Ready for post-checklist quality verification.', 'success');
-              router.push(`/orders/work-orders/${workOrderId}`);
-              return; // Exit early after redirect
-            }
-          }
-        } catch (workflowError) {
-          console.error('Workflow transition error:', workflowError);
-          // showToast('Job completed, but workflow transition had issues', 'warning');
-          
-          // Still try to redirect to work order if available
-          if (workOrderId) {
-            router.push(`/orders/work-orders/${workOrderId}`);
-            return; // Exit early after redirect
-          }
-        }
+      // If job card was completed and we have workOrderId, redirect back
+      if (status === 'completed' && workOrderId) {
+        router.push(`/orders/work-orders/${workOrderId}`);
+        return;
       }
 
-      // If not completed or redirection didn't happen, refresh the page
+      // Otherwise refresh the page
       await fetchJobCard();
 
     } catch (error) {
@@ -190,27 +103,15 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
     }
   };
   
-  // Replace the existing handleBackToWorkOrder function with this:
   const handleBackToWorkOrder = () => {
     if (workOrderId) {
       router.push(`/orders/work-orders/${workOrderId}`);
-    } else if (jobCard?.opportunityId) {
-      // Try to get work order from opportunity
-      const oppId = typeof jobCard.opportunityId === 'object' 
-        ? jobCard.opportunityId._id 
-        : jobCard.opportunityId;
-      
-      if (oppId) {
-        router.push(`/opportunities/${oppId}`);
-      } else {
-        router.push('/job-cards');
-      }
     } else {
       router.push('/job-cards');
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string) => {
     if (!dateString) return 'Not set';
     try {
       return format(new Date(dateString), 'MMM dd, yyyy HH:mm');
@@ -219,7 +120,7 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
     }
   };
 
-  const formatDuration = (hours: number) => {
+  const formatDuration = (hours?: number) => {
     if (!hours || hours === 0) return 'N/A';
     if (hours < 1) return `${Math.round(hours * 60)} mins`;
     if (hours < 24) return `${hours.toFixed(1)} hours`;
@@ -228,12 +129,15 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
 
   const getTechnicianName = () => {
     if (!jobCard?.assignedTo) return 'Unassigned';
-    if (typeof jobCard.assignedTo === 'string') return 'Loading...';
+    if (typeof jobCard.assignedTo === 'string') {
+      // If it's just an ID, we don't have the name
+      return 'Technician Assigned';
+    }
     const userRef: any = jobCard.assignedTo;
     return userRef.name || userRef.email || 'Technician';
   };
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = (priority?: string) => {
     switch (priority?.toLowerCase()) {
       case 'low':
         return 'bg-green-100 text-green-800';
@@ -248,15 +152,36 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
     }
   };
 
-  const calculateTotals = () => {
-    const partsTotal =
-      (jobCard?.partsUsed?.reduce((sum, part: any) => sum + (part.totalCost || 0), 0) as number) || 0;
-    const laborCost = jobCard?.laborCost || 0;
-    const totalCost = partsTotal + laborCost;
-    return { partsTotal, laborCost, totalCost };
+  const getStatusColor = (status?: string) => {
+    switch (status) {
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'in_progress':
+        return 'bg-blue-100 text-blue-800';
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
   };
 
-  const totals = calculateTotals();
+  const getOpportunityInfo = () => {
+    if (!jobCard?.opportunityId) return null;
+    
+    if (typeof jobCard.opportunityId === 'object') {
+      return {
+        id: jobCard.opportunityId._id || jobCard.opportunityId.id,
+        name: jobCard.opportunityId.subject || 'Opportunity'
+      };
+    }
+    
+    return {
+      id: jobCard.opportunityId,
+      name: `Opportunity ID: ${jobCard.opportunityId}`
+    };
+  };
 
   if (loading) {
     return (
@@ -268,9 +193,11 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
 
   if (!jobCard) return null;
 
+  const opportunityInfo = getOpportunityInfo();
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header - Blue to Purple Theme */}
+      {/* Header */}
       <div className="h-16 bg-gradient-to-r from-blue-500 to-purple-600 shadow-md flex items-center px-6 flex-shrink-0">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
@@ -304,46 +231,24 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
             >
               <Edit className="h-5 w-5 text-white" />
             </Link>
-            <button
-              onClick={handleBackToWorkOrder}
-              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors flex items-center gap-2 font-medium"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Work Order
-            </button>
-
+            
+            {workOrderId && (
+              <button
+                onClick={handleBackToWorkOrder}
+                className="px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors flex items-center gap-2 font-medium"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Work Order
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Optional reminder banner (NO modal now) */}
-        {/* {(jobCard.status === 'pending' && (!jobCard.assignedTo || !jobCard.startDate)) && (
-          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
-                <div>
-                  <h3 className="font-medium text-gray-900">Missing job details</h3>
-                  <p className="text-sm text-gray-600">
-                    This job card is missing key details (e.g. technician or start date). You can edit it anytime.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => router.push(`/job-cards/${jobCard._id}/edit`)}
-                className="px-3 py-1.5 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700"
-              >
-                Edit Now
-              </button>
-            </div>
-          </div>
-        )} */}
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* LEFT COLUMN */}
+          {/* LEFT COLUMN - Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Status & Actions */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
@@ -352,13 +257,13 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
                 <div className="flex items-center gap-2">
                   <span
                     className={`text-xs px-2 py-0.5 rounded-full font-medium ${getPriorityColor(
-                      jobCard.priority || 'medium'
+                      jobCard.priority
                     )}`}
                   >
                     {(jobCard.priority || 'MEDIUM').toUpperCase()}
                   </span>
                   <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${jobCardService.getStatusColor(
+                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${getStatusColor(
                       jobCard.status
                     )}`}
                   >
@@ -367,27 +272,35 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
                 </div>
               </div>
 
-              {/* Progress (kept) */}
+              {/* Progress */}
               <div className="mb-5">
                 <div className="flex justify-between text-xs text-gray-600 mb-1">
                   <span>Progress</span>
-                  <span>{jobCardService.calculateCompletionPercentage(jobCard)}%</span>
+                  <span>
+                    {jobCard.status === 'completed' ? 100 : 
+                     jobCard.status === 'in_progress' ? 50 : 
+                     jobCard.status === 'pending' ? 0 : 0}%
+                  </span>
                 </div>
                 <div className="h-1.5 bg-gray-200 rounded-full">
                   <div
                     className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"
-                    style={{ width: `${jobCardService.calculateCompletionPercentage(jobCard)}%` }}
+                    style={{ 
+                      width: `${jobCard.status === 'completed' ? 100 : 
+                              jobCard.status === 'in_progress' ? 50 : 0}%` 
+                    }}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {jobCard.status === 'pending' && (
                   <button
                     onClick={() => handleStatusUpdate('in_progress')}
                     disabled={updating}
-                    className="px-2.5 py-1.5 text-xs rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-60"
+                    className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 flex items-center gap-1"
                   >
+                    {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
                     Start Job
                   </button>
                 )}
@@ -396,9 +309,10 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
                   <button
                     onClick={() => handleStatusUpdate('completed')}
                     disabled={updating}
-                    className="px-2.5 py-1.5 text-xs rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 disabled:opacity-60 font-medium"
+                    className="px-3 py-1.5 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 flex items-center gap-1"
                   >
-                    {updating ? 'Processing...' : 'Complete Job'}
+                    {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                    Complete Job
                   </button>
                 )}
 
@@ -406,36 +320,44 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
                   <button
                     onClick={() => handleStatusUpdate('cancelled')}
                     disabled={updating}
-                    className="px-2.5 py-1.5 text-xs rounded-lg bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-60"
+                    className="px-3 py-1.5 text-sm rounded-lg bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-60 flex items-center gap-1"
                   >
+                    <XCircle className="h-4 w-4" />
                     Cancel
                   </button>
                 )}
 
-                <button
-                  onClick={() => router.push(`/job-cards/${jobCard._id}/edit`)}
-                  className="px-2.5 py-1.5 text-xs rounded-lg bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
+                <Link
+                  href={`/job-cards/${jobCard._id}/edit`}
+                  className="px-3 py-1.5 text-sm rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-1"
                 >
+                  <Edit className="h-4 w-4" />
                   Edit Details
-                </button>
+                </Link>
               </div>
             </div>
 
             {/* Job Description */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-              <h2 className="text-base font-semibold text-gray-900 mb-4">Job Details</h2>
+              <h2 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Wrench className="h-4 w-4" />
+                Job Details
+              </h2>
+              
               <div className="space-y-4">
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Job Title</p>
-                  <p className="text-gray-900">{jobCard.jobTitle || 'No title provided'}</p>
+                  <p className="text-gray-900 font-medium">{jobCard.jobTitle || 'No title provided'}</p>
                 </div>
 
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Description</p>
-                  <p className="text-gray-700 whitespace-pre-line">
-                    {jobCard.jobDescription || 'No description.'}
-                  </p>
-                </div>
+                {jobCard.jobDescription && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Description</p>
+                    <p className="text-gray-700 whitespace-pre-line">
+                      {jobCard.jobDescription}
+                    </p>
+                  </div>
+                )}
 
                 {jobCard.notes && jobCard.notes.length > 0 && (
                   <div>
@@ -455,7 +377,7 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
               </div>
             </div>
 
-            {/* Parts Used */}
+            {/* Parts Used (if any) */}
             {jobCard.partsUsed && jobCard.partsUsed.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                 <h2 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-1.5">
@@ -481,10 +403,8 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
                           <td className="py-2 px-3">{part.partNumber || '—'}</td>
                           <td className="py-2 px-3">{part.name || 'Unnamed'}</td>
                           <td className="py-2 px-3">{part.quantity || 0}</td>
-                          <td className="py-2 px-3">{jobCardService.formatCurrency(part.unitPrice)}</td>
-                          <td className="py-2 px-3 font-medium">
-                            {jobCardService.formatCurrency(part.totalCost)}
-                          </td>
+                          <td className="py-2 px-3">KES {(part.unitPrice || 0).toFixed(2)}</td>
+                          <td className="py-2 px-3 font-medium">KES {(part.totalCost || 0).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -495,7 +415,7 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
                           Total Parts Cost:
                         </td>
                         <td className="py-2 px-3 font-bold text-purple-600">
-                          {jobCardService.formatCurrency(totals.partsTotal)}
+                          KES {jobCard.partsUsed.reduce((sum, part) => sum + (part.totalCost || 0), 0).toFixed(2)}
                         </td>
                       </tr>
                     </tfoot>
@@ -505,80 +425,40 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
             )}
           </div>
 
-          {/* RIGHT COLUMN */}
+          {/* RIGHT COLUMN - Sidebar Info */}
           <div className="space-y-6">
-            {/* Opportunity */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-              <h2 className="text-base font-semibold text-gray-900 mb-3">Opportunity</h2>
-              {selectedOpportunity ? (
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <p className="text-xs text-gray-500">Subject</p>
-                    <p className="font-medium">{selectedOpportunity.subject || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Customer</p>
-                    <p className="font-medium">{selectedOpportunity.customer?.name || '—'}</p>
-                  </div>
-
+            {/* Opportunity Info */}
+            {opportunityInfo && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <h2 className="text-base font-semibold text-gray-900 mb-3">Related Opportunity</h2>
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600">{opportunityInfo.name}</p>
                   <button
-                    onClick={() => router.push(`/opportunities/${selectedOpportunity._id}`)}
-                    className="mt-3 w-full text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    onClick={() => router.push(`/opportunities/${opportunityInfo.id}`)}
+                    className="w-full text-sm px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                   >
                     View Opportunity
                   </button>
                 </div>
-              ) : (
-                <p className="text-sm text-gray-500 text-center py-2">No opportunity linked</p>
-              )}
-            </div>
-
-            {/* Vehicle */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-              <h2 className="text-base font-semibold text-gray-900 mb-3">Vehicle</h2>
-              {vehicleDetails ? (
-                <div className="text-sm">
-                  <p className="font-medium">{vehicleDetails.registrationNumber || '—'}</p>
-                  <p className="text-gray-600">
-                    {vehicleDetails.make} {vehicleDetails.model} ({vehicleDetails.year})
-                  </p>
-                </div>
-              ) : selectedOpportunity?.vehicles?.[0] ? (
-                <div className="text-sm">
-                  <p className="font-medium">{(selectedOpportunity.vehicles as any)[0].registrationNumber || '—'}</p>
-                  <p className="text-gray-600">
-                    {(selectedOpportunity.vehicles as any)[0].make} {(selectedOpportunity.vehicles as any)[0].model}
-                  </p>
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500 text-center py-2">No vehicle assigned</p>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Technician */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-              <h2 className="text-base font-semibold text-gray-900 mb-3">Technician</h2>
-              {jobCard.assignedTo && typeof jobCard.assignedTo === 'object' ? (
-                <div className="text-sm">
+              <h2 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Technician
+              </h2>
+              
+              {jobCard.assignedTo ? (
+                <div>
                   <p className="font-medium">{getTechnicianName()}</p>
-                  <button
-                    onClick={() => router.push(`/job-cards/${jobCard._id}/edit`)}
-                    className="mt-2 text-xs text-blue-600 hover:underline flex items-center gap-1"
-                  >
-                    <Edit className="h-3 w-3" />
-                    Change Technician
-                  </button>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {typeof jobCard.assignedTo === 'object' && jobCard.assignedTo.email}
+                  </p>
                 </div>
               ) : (
-                <div className="text-center py-2">
-                  <p className="text-sm text-gray-500 mb-2">No technician assigned</p>
-                  <button
-                    onClick={() => router.push(`/job-cards/${jobCard._id}/edit`)}
-                    className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Assign Technician
-                  </button>
-                </div>
+                <p className="text-sm text-gray-500">No technician assigned</p>
               )}
             </div>
 
@@ -587,36 +467,28 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
               <h2 className="text-base font-semibold text-gray-900 mb-3">Time & Cost</h2>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Estimated:</span>
-                  <span className="font-medium">{formatDuration(jobCard.estimatedHours || 0)}</span>
+                  <span className="text-gray-600">Estimated Hours:</span>
+                  <span className="font-medium">{formatDuration(jobCard.estimatedHours)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Actual:</span>
-                  <span className="font-medium">{formatDuration(jobCard.actualHours || 0)}</span>
+                  <span className="text-gray-600">Actual Hours:</span>
+                  <span className="font-medium">{formatDuration(jobCard.actualHours)}</span>
                 </div>
 
-                {(jobCard.laborCost || totals.partsTotal > 0) && (
+                {(jobCard.laborCost || 0) > 0 && (
                   <>
                     <div className="pt-2 border-t border-gray-200">
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Labor:</span>
-                        <span className="font-medium">
-                          {jobCardService.formatCurrency(jobCard.laborCost || 0)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Parts:</span>
-                        <span className="font-medium">
-                          {jobCardService.formatCurrency(totals.partsTotal)}
-                        </span>
+                        <span className="text-gray-600">Labor Cost:</span>
+                        <span className="font-medium">KES {(jobCard.laborCost || 0).toFixed(2)}</span>
                       </div>
                     </div>
 
                     <div className="pt-2 border-t border-gray-200">
                       <div className="flex justify-between font-bold">
                         <span>Total Cost:</span>
-                        <span className="text-purple-600 font-bold">
-                          {jobCardService.formatCurrency(totals.totalCost)}
+                        <span className="text-purple-600">
+                          KES {((jobCard.laborCost || 0) + (jobCard.partsCost || 0)).toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -631,11 +503,11 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Created:</span>
-                  <span>{formatDate(jobCard.createdAt || '')}</span>
+                  <span>{formatDate(jobCard.createdAt)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Updated:</span>
-                  <span>{formatDate(jobCard.updatedAt || '')}</span>
+                  <span>{formatDate(jobCard.updatedAt)}</span>
                 </div>
                 {jobCard.startDate && (
                   <div className="flex justify-between">

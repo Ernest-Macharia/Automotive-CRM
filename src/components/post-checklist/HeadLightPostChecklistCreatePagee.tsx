@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Image from 'next/image';
 import { userService, User } from '@/services/settings/userService';
 import SignatureCanvas from 'react-signature-canvas';
 import {
@@ -43,7 +42,30 @@ import {
   Eye,
   Trash2,
   Plus,
-  Wrench
+  Wrench,
+  Home,
+  Mail,
+  Phone,
+  MapPin,
+  FileCheck,
+  ClipboardList,
+  Thermometer,
+  Droplets,
+  Zap,
+  Wrench as WrenchIcon,
+  Sun,
+  Moon,
+  Navigation,
+  AlertTriangle as AlertTriangleIcon,
+  Droplet,
+  Wind,
+  Battery,
+  Activity,
+  Gauge,
+  Edit,
+  RotateCw,
+  Hammer,
+  PaintBucket
 } from 'lucide-react';
 import { postChecklistService, ChecklistItem, ChecklistItemStatus } from '@/services/postChecklistService';
 import { workOrderService } from '@/services/workOrderService';
@@ -92,27 +114,16 @@ export default function HeadlightPostChecklistCreatePage({
   const [selectedBeforeFiles, setSelectedBeforeFiles] = useState<File[]>([]);
   const [selectedAfterFiles, setSelectedAfterFiles] = useState<File[]>([]);
   const [inspectorName, setInspectorName] = useState('');
+  const [draftSaved, setDraftSaved] = useState(false);
 
-  // Step-by-step wizard state
-  const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 5;
-
-  // Step titles and descriptions
-  const stepTitles = [
-    'Customer & Warranty',
-    'Inspection Results', 
-    'Photos Documentation',
-    'Product Handover & Terms',
-    'Feedback & Rating'
-  ];
-
-  const stepDescriptions = [
-    'Enter customer information and warranty details',
-    'Document post-service inspection results',
-    'Upload before/after photos and documentation',
-    'Confirm product handover and accept terms',
-    'Collect customer feedback and ratings'
-  ];
+  // Section expansion state
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    customer: true,
+    inspection: true,
+    photos: true,
+    handover: true,
+    feedback: true
+  });
 
   // Form state for post-checklist
   const [formData, setFormData] = useState({
@@ -196,8 +207,6 @@ export default function HeadlightPostChecklistCreatePage({
 
   const [selectedTemplate, setSelectedTemplate] = useState('headlight_comprehensive');
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<number[]>([]);
-  const [draftSaved, setDraftSaved] = useState(false);
 
   const [customerSignature, setCustomerSignature] = useState(formData.customerSignature);
   const [showCustomerSignature, setShowCustomerSignature] = useState(false);
@@ -362,24 +371,6 @@ export default function HeadlightPostChecklistCreatePage({
         try {
           const preChecklistData = await preChecklistService.getPreChecklistById(preChecklistId);
           setPreChecklist(preChecklistData);
-          
-          // if (preChecklistData.customerDetails && typeof preChecklistData.customerDetails === 'object') {
-          //   customerDetails = {
-          //     firstName: preChecklistData.customerDetails.firstName || '',
-          //     lastName: preChecklistData.customerDetails.lastName || '',
-          //     email: preChecklistData.customerDetails.email || '',
-          //     phone: preChecklistData.customerDetails.phone || '',
-          //   };
-          // }
-          
-          // if (preChecklistData.carDetails && typeof preChecklistData.carDetails === 'object') {
-          //   vehicleDetails = {
-          //     regNo: preChecklistData.carDetails.regNo || '',
-          //     make: preChecklistData.carDetails.make || '',
-          //     model: preChecklistData.carDetails.model || '',
-          //     year: preChecklistData.carDetails.year || '',
-          //   };
-          // }
           
           serviceDetails = {
             productServiceNeeded: preChecklistData.productServiceNeeded || '',
@@ -598,28 +589,24 @@ export default function HeadlightPostChecklistCreatePage({
       // Validation checks
       if (!formData.customerDetails.firstName.trim() || !formData.customerDetails.lastName.trim()) {
         showToast('Customer name is required', 'error');
-        setCurrentStep(1);
         setSubmitting(false);
         return;
       }
 
       if (!formData.productHandoverConfirmed) {
         showToast('Please confirm product handover', 'error');
-        setCurrentStep(4);
         setSubmitting(false);
         return;
       }
 
       if (!formData.acceptTerms) {
         showToast('Please accept the terms and conditions', 'error');
-        setCurrentStep(4);
         setSubmitting(false);
         return;
       }
 
       if (!formData.customerSignature) {
         showToast('Customer signature is required', 'error');
-        setCurrentStep(4);
         setSubmitting(false);
         return;
       }
@@ -727,12 +714,11 @@ export default function HeadlightPostChecklistCreatePage({
       : <AlertCircle className="h-4 w-4" />;
   };
 
-  const toggleSection = (index: number) => {
-    setExpandedSections(prev =>
-      prev.includes(index)
-        ? prev.filter(i => i !== index)
-        : [...prev, index]
-    );
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
   };
 
   const handleSaveAsDraft = () => {
@@ -827,48 +813,11 @@ export default function HeadlightPostChecklistCreatePage({
     }
   };
 
-  const renderProgressStepper = () => (
-    <div className="mb-8">
-      <div className="flex items-center justify-between">
-        {[1, 2, 3, 4, 5].map((stepNumber) => (
-          <div key={stepNumber} className="flex items-center">
-            <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-300 ${
-              currentStep === stepNumber 
-                ? 'bg-green-600 border-green-600 text-white scale-110 shadow-lg' 
-                : currentStep > stepNumber 
-                  ? 'bg-emerald-100 border-emerald-500 text-emerald-600'
-                  : 'bg-transparent border-gray-300 text-gray-500'
-            }`}>
-              {currentStep > stepNumber ? <Check className="h-5 w-5" /> : stepNumber}
-            </div>
-            <div className="ml-3">
-              <div className={`text-sm font-medium transition-all ${
-                currentStep >= stepNumber ? 'text-gray-900' : 'text-gray-500'
-              }`}>
-                {stepTitles[stepNumber - 1]}
-              </div>
-              <div className={`text-xs transition-all ${
-                currentStep >= stepNumber ? 'text-gray-600' : 'text-gray-400'
-              }`}>
-                {stepDescriptions[stepNumber - 1]}
-              </div>
-            </div>
-            {stepNumber < 5 && (
-              <div className={`h-0.5 w-16 md:w-24 mx-4 transition-all ${
-                currentStep > stepNumber ? 'bg-emerald-500' : 'bg-gray-300'
-              }`} />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50/30 via-white to-emerald-50/30 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-teal-50/30 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-green-600 mx-auto mb-4" />
+          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">Loading post-checklist form...</p>
         </div>
       </div>
@@ -879,8 +828,8 @@ export default function HeadlightPostChecklistCreatePage({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-purple-50/30">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-8 py-6 shadow-lg">
+      {/* Header - Matching pre-checklist style */}
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-6 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
@@ -894,17 +843,17 @@ export default function HeadlightPostChecklistCreatePage({
                 <ClipboardCheck className="h-6 w-6" />
                 {mode === 'edit' ? 'Edit Headlight Post-Checklist' : 'Headlight Post-Service Inspection'}
               </h1>
-              <p className="text-emerald-100">
+              <p className="text-blue-100">
                 {mode === 'edit' 
                   ? `Editing: Post-Checklist #${existingChecklist?._id?.slice(-6) || ''}`
-                  : 'Post-Service Quality Assurance Checklist'
+                  : 'Post-Service Quality Assurance Checklist - All sections in one form'
                 }
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="hidden md:flex items-center gap-4 text-sm">
+            <div className="hidden md:flex items-center gap-4 text-sm bg-white/10 px-4 py-2 rounded-lg">
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full bg-green-500"></div>
                 <span>Working: {stats.working}</span>
@@ -918,360 +867,402 @@ export default function HeadlightPostChecklistCreatePage({
         </div>
       </div>
 
-      {/* Main Content with Step-by-Step Wizard */}
+      {/* Main Content - Single page form */}
       <div className="max-w-7xl mx-auto px-8 py-8">
-        {renderProgressStepper()}
-        
-        <div className="bg-white rounded-2xl shadow-xl border p-6 md:p-8">
-          {currentStep === 1 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">{stepTitles[0]}</h2>
-              <p className="text-gray-600 mb-6">{stepDescriptions[0]}</p>
-              
-              <div className="bg-white rounded-2xl shadow-xl border p-6 space-y-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                    <UserType className="h-5 w-5 text-green-600" />
-                    CUSTOMER DETAILS
-                  </h2>
+        <form onSubmit={handleSubmit}>
+          <div className="bg-white rounded-2xl shadow-xl border p-6 md:p-8 space-y-8">
+            
+            {/* SECTION 1: Customer & Warranty */}
+            <div className="border-2 border-gray-200 rounded-xl overflow-hidden">
+              <div 
+                className="bg-gradient-to-r from-gray-50 to-blue-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between cursor-pointer"
+                onClick={() => toggleSection('customer')}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <UserType className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Customer & Warranty Details</h3>
+                    <p className="text-xs text-gray-600">Customer information, vehicle details, and warranty</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
                   <button
+                    type="button"
                     onClick={handleRefreshData}
                     className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
                   >
                     <Sparkles className="h-4 w-4" />
-                    Refresh Data from Sources
+                    Refresh Data
                   </button>
+                  {expandedSections.customer ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
                 </div>
-                
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-                  <div className="flex items-start gap-3">
-                    <Info className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm text-green-700">
-                        Customer, vehicle, and service details are automatically populated from the opportunity and pre-checklist.
-                      </p>
-                      <div className="mt-2 text-xs text-green-800 space-y-1">
-                        {preChecklist && <div>✓ Data loaded from Pre-Checklist</div>}
-                        {opportunity && <div>✓ Data loaded from Opportunity</div>}
+              </div>
+              
+              {expandedSections.customer && (
+                <div className="p-6 space-y-6">
+                  {/* Data source info */}
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-2">
+                    <div className="flex items-start gap-3">
+                      <Info className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm text-green-700">
+                          Customer, vehicle, and service details are automatically populated from the opportunity and pre-checklist.
+                        </p>
+                        <div className="mt-2 text-xs text-green-800 space-y-1">
+                          {preChecklist && <div>✓ Data loaded from Pre-Checklist</div>}
+                          {opportunity && <div>✓ Data loaded from Opportunity</div>}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                
-                {/* Inspector Information */}
-                <div className="mb-6 p-4 border border-gray-200 rounded-lg">
-                  <h3 className="text-lg font-medium text-gray-900 mb-3">Inspector Information</h3>
+                  
+                  {/* Inspector Information */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Inspector Name
+                        Inspector Name *
                       </label>
                       <input
                         type="text"
                         value={formData.inspectorName}
                         onChange={(e) => handleInputChange('inspectorName', e.target.value)}
                         placeholder="Enter inspector name"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Inspection Date
+                        Inspection Date & Time *
                       </label>
                       <input
                         type="datetime-local"
                         value={formData.dateTime.split('.')[0]}
                         onChange={(e) => handleInputChange('dateTime', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         required
                       />
                     </div>
                   </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  
+                  {/* Customer Information */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Name
-                    </label>
-                    <div className="space-y-3">
-                      <input
-                        type="text"
-                        value={formData.customerDetails.firstName}
-                        onChange={(e) => handleCustomerDetailChange('firstName', e.target.value)}
-                        placeholder="First Name"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                      />
-                      <input
-                        type="text"
-                        value={formData.customerDetails.lastName}
-                        onChange={(e) => handleCustomerDetailChange('lastName', e.target.value)}
-                        placeholder="Last Name"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                      />
+                    <h4 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <UserType className="h-4 w-4 text-blue-600" />
+                      Customer Information
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          First Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.customerDetails.firstName}
+                          onChange={(e) => handleCustomerDetailChange('firstName', e.target.value)}
+                          placeholder="First Name"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Last Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.customerDetails.lastName}
+                          onChange={(e) => handleCustomerDetailChange('lastName', e.target.value)}
+                          placeholder="Last Name"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Email
+                        </label>
+                        <input
+                          type="email"
+                          value={formData.customerDetails.email}
+                          onChange={(e) => handleCustomerDetailChange('email', e.target.value)}
+                          placeholder="Email"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Phone
+                        </label>
+                        <input
+                          type="tel"
+                          value={formData.customerDetails.phone}
+                          onChange={(e) => handleCustomerDetailChange('phone', e.target.value)}
+                          placeholder="Phone"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
                     </div>
                   </div>
+                  
+                  {/* Vehicle Information */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Contact Information
-                    </label>
-                    <div className="space-y-3">
-                      <input
-                        type="email"
-                        value={formData.customerDetails.email}
-                        onChange={(e) => handleCustomerDetailChange('email', e.target.value)}
-                        placeholder="Email"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                      />
-                      <input
-                        type="tel"
-                        value={formData.customerDetails.phone}
-                        onChange={(e) => handleCustomerDetailChange('phone', e.target.value)}
-                        placeholder="Phone"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Vehicle Information */}
-                <div className="mt-8 pt-6 border-t border-gray-200">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Vehicle Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Registration Number
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.vehicleDetails.regNo}
-                        onChange={(e) => handleVehicleDetailChange('regNo', e.target.value)}
-                        placeholder="Reg No"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Make & Model
-                      </label>
-                      <div className="grid grid-cols-2 gap-3">
+                    <h4 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <CarIcon className="h-4 w-4 text-blue-600" />
+                      Vehicle Information
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Registration Number *
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.vehicleDetails.regNo}
+                          onChange={(e) => handleVehicleDetailChange('regNo', e.target.value)}
+                          placeholder="Reg No"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Make
+                        </label>
                         <input
                           type="text"
                           value={formData.vehicleDetails.make}
                           onChange={(e) => handleVehicleDetailChange('make', e.target.value)}
                           placeholder="Make"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Model
+                        </label>
                         <input
                           type="text"
                           value={formData.vehicleDetails.model}
                           onChange={(e) => handleVehicleDetailChange('model', e.target.value)}
                           placeholder="Model"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Year
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.vehicleDetails.year}
+                          onChange={(e) => handleVehicleDetailChange('year', e.target.value)}
+                          placeholder="Year"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                       </div>
                     </div>
                   </div>
-                </div>
-
-                {/* Service Information */}
-                <div className="mt-8 pt-6 border-t border-gray-200">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Service Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Service Description
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.serviceDetails.productServiceNeeded}
-                        onChange={(e) => handleInputChange('serviceDetails', {
-                          ...formData.serviceDetails,
-                          productServiceNeeded: e.target.value
-                        })}
-                        placeholder="Service Description"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Service Price (KES)
-                      </label>
-                      <input
-                        type="number"
-                        value={formData.serviceDetails.productPrice}
-                        onChange={(e) => handleInputChange('serviceDetails', {
-                          ...formData.serviceDetails,
-                          productPrice: parseFloat(e.target.value) || 0
-                        })}
-                        placeholder="Price"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    WARRANTY DURATION *Required
-                  </label>
-                  <select
-                    value={formData.warrantyDuration}
-                    onChange={(e) => handleInputChange('warrantyDuration', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  >
-                    <option value="6 months">6 Months</option>
-                    <option value="12 months">12 Months</option>
-                    <option value="18 months">18 Months</option>
-                    <option value="24 months">24 Months</option>
-                    <option value="36 months">36 Months</option>
-                  </select>
-                </div>
-
-                <div className="mt-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Additional Comments
-                  </label>
-                  <textarea
-                    value={formData.additionalComments}
-                    onChange={(e) => handleInputChange('additionalComments', e.target.value)}
-                    placeholder="Any additional notes or comments..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                    rows={3}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {currentStep === 2 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">{stepTitles[1]}</h2>
-              <p className="text-gray-600 mb-6">{stepDescriptions[1]}</p>
-              
-              <div className="bg-white rounded-2xl shadow-xl border p-6">
-                <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-green-100 rounded-lg">
-                        <ClipboardCheck className="h-5 w-5 text-green-600" />
+                  
+                  {/* Service Information */}
+                  <div>
+                    <h4 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <Wrench className="h-4 w-4 text-blue-600" />
+                      Service Information
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Service Description
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.serviceDetails.productServiceNeeded}
+                          onChange={(e) => handleInputChange('serviceDetails', {
+                            ...formData.serviceDetails,
+                            productServiceNeeded: e.target.value
+                          })}
+                          placeholder="Service Description"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </div>
                       <div>
-                        <h2 className="text-xl font-bold text-gray-900">INSPECTION ITEM(TICK IF IT IS WORKING)</h2>
-                        <p className="text-sm text-gray-600">R-RIGHT SIDE | L-LEFT SIDE</p>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Service Price (KES)
+                        </label>
+                        <input
+                          type="number"
+                          value={formData.serviceDetails.productPrice}
+                          onChange={(e) => handleInputChange('serviceDetails', {
+                            ...formData.serviceDetails,
+                            productPrice: parseFloat(e.target.value) || 0
+                          })}
+                          placeholder="Price"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setShowTemplateSelector(!showTemplateSelector)}
-                        className="inline-flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <Settings className="h-4 w-4" />
-                        Templates
-                      </button>
                     </div>
                   </div>
-
-                  {showTemplateSelector && (
-                    <div className="mt-4 p-4 bg-white border border-gray-200 rounded-lg shadow-lg">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <button
-                          onClick={() => handleTemplateSelect('headlight_basic')}
-                          className={`p-4 border rounded-lg text-left transition-all ${
-                            selectedTemplate === 'headlight_basic'
-                              ? 'border-green-500 bg-green-50'
-                              : 'border-gray-200 hover:border-green-300 hover:bg-green-50/50'
-                          }`}
-                        >
-                          <div className="font-medium text-gray-900 mb-1">Basic Headlight Check</div>
-                          <p className="text-sm text-gray-600">6 essential post-service items</p>
-                        </button>
-                        <button
-                          onClick={() => handleTemplateSelect('headlight_comprehensive')}
-                          className={`p-4 border rounded-lg text-left transition-all ${
-                            selectedTemplate === 'headlight_comprehensive'
-                              ? 'border-green-500 bg-green-50'
-                              : 'border-gray-200 hover:border-green-300 hover:bg-green-50/50'
-                          }`}
-                        >
-                          <div className="font-medium text-gray-900 mb-1">Comprehensive Headlight</div>
-                          <p className="text-sm text-gray-600">16 detailed inspection items</p>
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  
+                  {/* Warranty Duration */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      WARRANTY DURATION *
+                    </label>
+                    <select
+                      value={formData.warrantyDuration}
+                      onChange={(e) => handleInputChange('warrantyDuration', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      required
+                    >
+                      <option value="6 months">6 Months</option>
+                      <option value="12 months">12 Months</option>
+                      <option value="18 months">18 Months</option>
+                      <option value="24 months">24 Months</option>
+                      <option value="36 months">36 Months</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Additional Comments
+                    </label>
+                    <textarea
+                      value={formData.additionalComments}
+                      onChange={(e) => handleInputChange('additionalComments', e.target.value)}
+                      placeholder="Any additional notes or comments..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      rows={2}
+                    />
+                  </div>
                 </div>
-
+              )}
+            </div>
+            
+            {/* SECTION 2: Inspection Results */}
+            <div className="border-2 border-gray-200 rounded-xl overflow-hidden">
+              <div 
+                className="bg-gradient-to-r from-gray-50 to-blue-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between cursor-pointer"
+                onClick={() => toggleSection('inspection')}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <ClipboardCheck className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Inspection Results</h3>
+                    <p className="text-xs text-gray-600">Tick if component is working properly after service</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" /> Working
+                    </span>
+                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" /> Not Working
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setShowTemplateSelector(!showTemplateSelector); }}
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Templates
+                  </button>
+                  {expandedSections.inspection ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+                </div>
+              </div>
+              
+              {showTemplateSelector && (
+                <div className="p-4 bg-blue-50 border-b border-blue-200">
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleTemplateSelect('headlight_basic')}
+                      className={`p-4 border rounded-lg text-left transition-all ${
+                        selectedTemplate === 'headlight_basic'
+                          ? 'border-blue-500 bg-white shadow-md'
+                          : 'border-blue-200 bg-white/50 hover:bg-white'
+                      }`}
+                    >
+                      <div className="font-medium text-gray-900">Basic Check</div>
+                      <p className="text-xs text-gray-600 mt-1">Essential post-service items</p>
+                      <div className="mt-2 text-xs text-blue-600">6 items</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTemplateSelect('headlight_comprehensive')}
+                      className={`p-4 border rounded-lg text-left transition-all ${
+                        selectedTemplate === 'headlight_comprehensive'
+                          ? 'border-blue-500 bg-white shadow-md'
+                          : 'border-blue-200 bg-white/50 hover:bg-white'
+                      }`}
+                    >
+                      <div className="font-medium text-gray-900">Comprehensive</div>
+                      <p className="text-xs text-gray-600 mt-1">Detailed inspection</p>
+                      <div className="mt-2 text-xs text-blue-600">16 items</div>
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {expandedSections.inspection && (
                 <div className="divide-y divide-gray-200 max-h-[600px] overflow-y-auto">
-                  {formData.inspectionItems.map((item, index) => {
-                    const isExpanded = expandedSections.includes(index);
-                    
-                    return (
-                      <div key={index} className="hover:bg-gray-50 transition-colors">
-                        <div className="px-6 py-4">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3 mb-2">
-                                <span className="text-sm font-medium text-gray-500">#{index + 1}</span>
-                                <div className="flex-1">
-                                  <div className="text-lg font-medium text-gray-900">{item.item}</div>
-                                  <div className="text-xs text-gray-500 mt-1">
-                                    {item.side === 'both' ? 'R-RIGHT | L-LEFT' : item.side === 'vehicle' ? 'VEHICLE' : 'BOTH SIDES'}
-                                  </div>
-                                </div>
-                                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getWorkingColor(item.working)}`}>
-                                  {getWorkingIcon(item.working)}
-                                  <span className="capitalize">{item.working ? 'Working' : 'Not Working'}</span>
-                                </span>
-                              </div>
-                              
-                              <div className="flex items-center gap-2 mt-3">
-                                <label className="inline-flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={item.working}
-                                    onChange={(e) => handleWorkingChange(index, e.target.checked)}
-                                    className="h-4 w-4 text-green-600 rounded focus:ring-green-500"
-                                  />
-                                  <span className="text-sm text-gray-700">Tick if working</span>
-                                </label>
-                                <button
-                                  onClick={() => toggleSection(index)}
-                                  className="ml-auto p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                                  title={isExpanded ? 'Collapse' : 'Expand'}
-                                >
-                                  {isExpanded ? (
-                                    <ChevronUp className="h-4 w-4" />
-                                  ) : (
-                                    <ChevronDown className="h-4 w-4" />
-                                  )}
-                                </button>
-                              </div>
+                  {formData.inspectionItems.map((item, index) => (
+                    <div key={index} className="p-5 hover:bg-gray-50">
+                      <div className="flex items-start gap-4">
+                        <div className="p-2 bg-gray-100 rounded-lg flex-shrink-0">
+                          <Lightbulb className="h-5 w-5 text-gray-600" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <span className="font-semibold text-gray-900">{item.item}</span>
+                              <span className="ml-3 text-xs text-gray-500">
+                                {item.side === 'both' ? 'Both sides' : item.side === 'vehicle' ? 'Vehicle' : item.side}
+                              </span>
                             </div>
+                            <span className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium ${getWorkingColor(item.working)}`}>
+                              {getWorkingIcon(item.working)}
+                              <span>{item.working ? 'Working' : 'Not Working'}</span>
+                            </span>
                           </div>
-
-                          {isExpanded && (
-                            <div className="mt-4 pt-4 border-t border-gray-200">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Remarks
-                                </label>
-                                <textarea
-                                  value={item.remarks}
-                                  onChange={(e) => handleItemChange(index, 'remarks', e.target.value)}
-                                  placeholder="Add specific observations or notes..."
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                  rows={2}
-                                />
-                              </div>
-                            </div>
-                          )}
+                          
+                          {/* Working Toggle */}
+                          <div className="flex items-center gap-2 mb-3">
+                            <label className="inline-flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={item.working}
+                                onChange={(e) => handleWorkingChange(index, e.target.checked)}
+                                className="h-4 w-4 text-green-600 rounded focus:ring-green-500"
+                              />
+                              <span className="text-sm text-gray-700">Tick if working properly</span>
+                            </label>
+                          </div>
+                          
+                          {/* Remarks */}
+                          <div>
+                            <textarea
+                              value={item.remarks}
+                              onChange={(e) => handleItemChange(index, 'remarks', e.target.value)}
+                              placeholder="Add remarks or observations..."
+                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              rows={1}
+                            />
+                          </div>
                         </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
-
+              )}
+              
+              {expandedSections.inspection && (
                 <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-medium text-gray-700">
@@ -1293,521 +1284,517 @@ export default function HeadlightPostChecklistCreatePage({
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
-          )}
-
-          {currentStep === 3 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">{stepTitles[2]}</h2>
-              <p className="text-gray-600 mb-6">{stepDescriptions[2]}</p>
-              
-              <div className="bg-white rounded-2xl shadow-xl border p-6 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Before Photos */}
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
-                      <Camera className="h-5 w-5 text-green-600" />
-                      UPLOAD BEFORE PHOTOS
-                    </h3>
-                    
-                    <div 
-                      onClick={() => document.getElementById('before-file-input')?.click()}
-                      className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-green-500 hover:bg-green-50 transition-colors"
-                    >
-                      <input
-                        id="before-file-input"
-                        type="file"
-                        multiple
-                        accept="image/*"
-                        onChange={handleBeforeFileSelect}
-                        className="hidden"
-                      />
-                      <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                      <p className="text-sm text-gray-600 mb-1">Choose File(s)</p>
-                      <p className="text-xs text-gray-500">Select multiple images</p>
-                      <div className="mt-2 text-xs text-gray-500">
-                        {selectedBeforeFiles.length > 0 
-                          ? `${selectedBeforeFiles.length} file(s) selected` 
-                          : 'No file chosen'}
-                      </div>
-                    </div>
-
-                    {formData.beforePhotos.length > 0 && (
-                      <div className="mt-4">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">
-                          Before Photos ({formData.beforePhotos.length})
-                        </h4>
-                        <div className="grid grid-cols-2 gap-3">
-                          {formData.beforePhotos.map((image, index) => (
-                            <div key={index} className="relative group">
-                              <div className="aspect-square rounded-lg overflow-hidden border border-gray-200">
-                                <img
-                                  src={image}
-                                  alt={`Before ${index + 1}`}
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => removeBeforePhoto(index)}
-                                className="absolute -top-2 -right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+            
+            {/* SECTION 3: Photos Documentation */}
+            <div className="border-2 border-gray-200 rounded-xl overflow-hidden">
+              <div 
+                className="bg-gradient-to-r from-gray-50 to-blue-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between cursor-pointer"
+                onClick={() => toggleSection('photos')}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <Camera className="h-5 w-5 text-blue-600" />
                   </div>
-
-                  {/* After Photos */}
                   <div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
-                      <Camera className="h-5 w-5 text-green-600" />
-                      UPLOAD AFTER PHOTOS
-                    </h3>
-                    
-                    <div 
-                      onClick={() => document.getElementById('after-file-input')?.click()}
-                      className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-green-500 hover:bg-green-50 transition-colors"
-                    >
-                      <input
-                        id="after-file-input"
-                        type="file"
-                        multiple
-                        accept="image/*"
-                        onChange={handleAfterFileSelect}
-                        className="hidden"
-                      />
-                      <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                      <p className="text-sm text-gray-600 mb-1">Choose File(s)</p>
-                      <p className="text-xs text-gray-500">Select multiple images</p>
-                      <div className="mt-2 text-xs text-gray-500">
-                        {selectedAfterFiles.length > 0 
-                          ? `${selectedAfterFiles.length} file(s) selected` 
-                          : 'No file chosen'}
-                      </div>
-                    </div>
-
-                    {formData.afterPhotos.length > 0 && (
-                      <div className="mt-4">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">
-                          After Photos ({formData.afterPhotos.length})
-                        </h4>
-                        <div className="grid grid-cols-2 gap-3">
-                          {formData.afterPhotos.map((image, index) => (
-                            <div key={index} className="relative group">
-                              <div className="aspect-square rounded-lg overflow-hidden border border-gray-200">
-                                <img
-                                  src={image}
-                                  alt={`After ${index + 1}`}
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => removeAfterPhoto(index)}
-                                className="absolute -top-2 -right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    <h3 className="text-lg font-semibold text-gray-900">Photos Documentation</h3>
+                    <p className="text-xs text-gray-600">Upload before and after photos</p>
                   </div>
                 </div>
+                {expandedSections.photos ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
               </div>
-            </div>
-          )}
-
-          {currentStep === 4 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">{stepTitles[3]}</h2>
-              <p className="text-gray-600 mb-6">{stepDescriptions[3]}</p>
               
-              <div className="bg-white rounded-2xl shadow-xl border p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                    <FileSignature className="h-5 w-5 text-green-600" />
-                    Product Handover & Terms
-                  </h2>
-                  <span className="text-sm text-gray-500">Required Fields *</span>
-                </div>
-                
-                {/* Product Handover Confirmation */}
-                <div className="mb-8 p-6 border border-gray-200 rounded-lg bg-blue-50">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">
-                    Initial Product Handover Confirmation
-                  </h3>
-                  
-                  <div className="flex items-start gap-3 mb-4">
-                    <input
-                      type="checkbox"
-                      id="productHandoverConfirmed"
-                      checked={formData.productHandoverConfirmed}
-                      onChange={(e) => handleInputChange('productHandoverConfirmed', e.target.checked)}
-                      className="mt-1"
-                      required
-                    />
-                    <label htmlFor="productHandoverConfirmed" className="text-sm text-gray-700">
-                      I confirm that I have received and reviewed the initial product after installation *
-                    </label>
+              {expandedSections.photos && (
+                <div className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Before Photos */}
+                    <div>
+                      <h4 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
+                        <Camera className="h-4 w-4 text-blue-600" />
+                        UPLOAD BEFORE PHOTOS
+                      </h4>
+                      
+                      <div 
+                        onClick={() => document.getElementById('before-file-input')?.click()}
+                        className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                      >
+                        <input
+                          id="before-file-input"
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          onChange={handleBeforeFileSelect}
+                          className="hidden"
+                        />
+                        <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600 mb-1">Choose File(s)</p>
+                        <p className="text-xs text-gray-500">Select multiple images</p>
+                        <div className="mt-2 text-xs text-gray-500">
+                          {selectedBeforeFiles.length > 0 
+                            ? `${selectedBeforeFiles.length} file(s) selected` 
+                            : 'No file chosen'}
+                        </div>
+                      </div>
+
+                      {formData.beforePhotos.length > 0 && (
+                        <div className="mt-4">
+                          <h5 className="text-sm font-medium text-gray-700 mb-2">
+                            Before Photos ({formData.beforePhotos.length})
+                          </h5>
+                          <div className="grid grid-cols-2 gap-3">
+                            {formData.beforePhotos.map((image, index) => (
+                              <div key={index} className="relative group">
+                                <div className="aspect-square rounded-lg overflow-hidden border border-gray-200">
+                                  <img
+                                    src={image}
+                                    alt={`Before ${index + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeBeforePhoto(index)}
+                                  className="absolute -top-2 -right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* After Photos */}
+                    <div>
+                      <h4 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
+                        <Camera className="h-4 w-4 text-blue-600" />
+                        UPLOAD AFTER PHOTOS
+                      </h4>
+                      
+                      <div 
+                        onClick={() => document.getElementById('after-file-input')?.click()}
+                        className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                      >
+                        <input
+                          id="after-file-input"
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          onChange={handleAfterFileSelect}
+                          className="hidden"
+                        />
+                        <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600 mb-1">Choose File(s)</p>
+                        <p className="text-xs text-gray-500">Select multiple images</p>
+                        <div className="mt-2 text-xs text-gray-500">
+                          {selectedAfterFiles.length > 0 
+                            ? `${selectedAfterFiles.length} file(s) selected` 
+                            : 'No file chosen'}
+                        </div>
+                      </div>
+
+                      {formData.afterPhotos.length > 0 && (
+                        <div className="mt-4">
+                          <h5 className="text-sm font-medium text-gray-700 mb-2">
+                            After Photos ({formData.afterPhotos.length})
+                          </h5>
+                          <div className="grid grid-cols-2 gap-3">
+                            {formData.afterPhotos.map((image, index) => (
+                              <div key={index} className="relative group">
+                                <div className="aspect-square rounded-lg overflow-hidden border border-gray-200">
+                                  <img
+                                    src={image}
+                                    alt={`After ${index + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeAfterPhoto(index)}
+                                  className="absolute -top-2 -right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3">
+                </div>
+              )}
+            </div>
+            
+            {/* SECTION 4: Product Handover & Terms */}
+            <div className="border-2 border-gray-200 rounded-xl overflow-hidden">
+              <div 
+                className="bg-gradient-to-r from-gray-50 to-blue-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between cursor-pointer"
+                onClick={() => toggleSection('handover')}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <FileSignature className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Product Handover & Terms</h3>
+                    <p className="text-xs text-gray-600">Confirm handover, accept terms, and sign</p>
+                  </div>
+                </div>
+                {expandedSections.handover ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+              </div>
+              
+              {expandedSections.handover && (
+                <div className="p-6 space-y-6">
+                  {/* Product Handover Confirmation */}
+                  <div className="p-6 border border-gray-200 rounded-lg bg-blue-50">
+                    <h4 className="text-md font-medium text-gray-900 mb-4">
+                      Initial Product Handover Confirmation *
+                    </h4>
+                    
+                    <div className="flex items-start gap-3 mb-4">
                       <input
-                        type="radio"
-                        id="productSatisfactory"
-                        checked={formData.productSatisfactory}
-                        onChange={() => handleInputChange('productSatisfactory', true)}
-                        className="mt-1"
+                        type="checkbox"
+                        id="productHandoverConfirmed"
+                        checked={formData.productHandoverConfirmed}
+                        onChange={(e) => handleInputChange('productHandoverConfirmed', e.target.checked)}
+                        className="mt-1 h-5 w-5 text-blue-600 rounded"
+                        required
                       />
-                      <label htmlFor="productSatisfactory" className="text-sm text-gray-700">
-                        The initial product is satisfactory
+                      <label htmlFor="productHandoverConfirmed" className="text-sm text-gray-700">
+                        I confirm that I have received and reviewed the initial product after installation *
                       </label>
                     </div>
                     
-                    <div className="flex items-start gap-3">
-                      <input
-                        type="radio"
-                        id="issuesNoted"
-                        checked={!formData.productSatisfactory}
-                        onChange={() => handleInputChange('productSatisfactory', false)}
-                        className="mt-1"
-                      />
-                      <div className="flex-1">
-                        <label htmlFor="issuesNoted" className="text-sm text-gray-700 block mb-2">
-                          Issues noted (if any):
-                        </label>
-                        <textarea
-                          value={formData.issuesNoted}
-                          onChange={(e) => handleInputChange('issuesNoted', e.target.value)}
-                          placeholder="Describe any issues with the installation..."
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                          rows={3}
-                          disabled={formData.productSatisfactory}
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="radio"
+                          id="productSatisfactory"
+                          name="productSatisfactory"
+                          checked={formData.productSatisfactory}
+                          onChange={() => handleInputChange('productSatisfactory', true)}
+                          className="mt-1 h-5 w-5 text-blue-600"
                         />
+                        <label htmlFor="productSatisfactory" className="text-sm text-gray-700">
+                          The initial product is satisfactory
+                        </label>
+                      </div>
+                      
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="radio"
+                          id="issuesNoted"
+                          name="productSatisfactory"
+                          checked={!formData.productSatisfactory}
+                          onChange={() => handleInputChange('productSatisfactory', false)}
+                          className="mt-1 h-5 w-5 text-blue-600"
+                        />
+                        <div className="flex-1">
+                          <label htmlFor="issuesNoted" className="text-sm text-gray-700 block mb-2">
+                            Issues noted (if any):
+                          </label>
+                          <textarea
+                            value={formData.issuesNoted}
+                            onChange={(e) => handleInputChange('issuesNoted', e.target.value)}
+                            placeholder="Describe any issues with the installation..."
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            rows={3}
+                            disabled={formData.productSatisfactory}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                
-                {/* Terms and Conditions */}
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <div className="h-64 overflow-y-auto p-4">
-                    <h3 className="text-sm font-medium text-gray-900 mb-3">TERMS AND CONDITIONS</h3>
-                    <ol className="space-y-2 text-xs text-gray-700">
-                      <li className="flex gap-2">
-                        <span className="font-medium">1.</span>
-                        <span>Eagle Lights Automotive LTD takes great care in servicing your vehicle, but we strongly recommend that you remove all personal items, valuables, and items of sentimental value from your vehicle before leaving it in our care for service.</span>
-                      </li>
-                      <li className="flex gap-2">
-                        <span className="font-medium">2.</span>
-                        <span>While we make every effort to ensure the safety and security of your personal belongings, we want to make it clear that we cannot accept liability for any loss, damage, or theft of items left in your vehicle during the service process.</span>
-                      </li>
-                      <li className="flex gap-2">
-                        <span className="font-medium">3.</span>
-                        <span>This includes, but is not limited to, electronic devices, jewelry, cash, documents, and any other personal property.</span>
-                      </li>
-                      <li className="flex gap-2">
-                        <span className="font-medium">4.</span>
-                        <span>We advise you to thoroughly inspect your vehicle before handing it over to us for service and ensure that all personal items are removed.</span>
-                      </li>
-                      <li className="flex gap-2">
-                        <span className="font-medium">5.</span>
-                        <span>By choosing to leave personal items in your vehicle during service, you acknowledge and accept that Eagle Lights Automotive LTD is not liable for any loss or damage to these items.</span>
-                      </li>
-                    </ol>
+                  
+                  {/* Terms and Conditions */}
+                  <div>
+                    <h4 className="text-md font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-blue-600" />
+                      Terms and Conditions
+                    </h4>
                     
-                    <div className="mt-4">
-                      <h4 className="text-sm font-medium text-gray-900 mb-2">Additional Terms:</h4>
-                      <div className="text-xs text-gray-700 space-y-1">
-                        <p>1. Scope and Customer Obligations: Eagle Lights specialises in automotive lighting, offering headlight installations and customizations.</p>
-                        <p>2. Manufacturer's Warranty and Voiding Conditions: While Eagle Lights provides a limited warranty for workmanship, manufacturer's warranties vary and are not their responsibility.</p>
-                        <p>3. Warranty Period and Refund: The warranty period for workmanship is Six Months to One Year depending on the product.</p>
-                        <p>14. Non-Liability for Damages Resulting from Customization: Eagle Lights shall not be held liable for any damages, losses, or costs resulting from the customization process.</p>
+                    <div className="border border-gray-200 rounded-lg overflow-hidden">
+                      <div className="h-48 overflow-y-auto p-4 bg-gray-50">
+                        <ol className="space-y-2 text-xs text-gray-700">
+                          <li className="flex gap-2">
+                            <span className="font-medium">1.</span>
+                            <span>Eagle Lights Automotive LTD takes great care in servicing your vehicle, but we strongly recommend that you remove all personal items, valuables, and items of sentimental value from your vehicle before leaving it in our care for service.</span>
+                          </li>
+                          <li className="flex gap-2">
+                            <span className="font-medium">2.</span>
+                            <span>While we make every effort to ensure the safety and security of your personal belongings, we want to make it clear that we cannot accept liability for any loss, damage, or theft of items left in your vehicle during the service process.</span>
+                          </li>
+                          <li className="flex gap-2">
+                            <span className="font-medium">3.</span>
+                            <span>This includes, but is not limited to, electronic devices, jewelry, cash, documents, and any other personal property.</span>
+                          </li>
+                          <li className="flex gap-2">
+                            <span className="font-medium">4.</span>
+                            <span>We advise you to thoroughly inspect your vehicle before handing it over to us for service and ensure that all personal items are removed.</span>
+                          </li>
+                          <li className="flex gap-2">
+                            <span className="font-medium">5.</span>
+                            <span>By choosing to leave personal items in your vehicle during service, you acknowledge and accept that Eagle Lights Automotive LTD is not liable for any loss or damage to these items.</span>
+                          </li>
+                        </ol>
                       </div>
                     </div>
                   </div>
-                </div>
-                
-                {/* Terms Acceptance */}
-                <div className="mt-6 space-y-4">
+                  
+                  {/* Terms Acceptance */}
                   <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
                       id="acceptTerms"
                       checked={formData.acceptTerms}
                       onChange={(e) => handleInputChange('acceptTerms', e.target.checked)}
-                      className="mt-1"
+                      className="mt-1 h-5 w-5 text-blue-600 rounded"
                       required
                     />
                     <label htmlFor="acceptTerms" className="text-sm text-gray-700">
                       I accept the Terms and Conditions *
                     </label>
                   </div>
-                </div>
-                
-                {/* Customer Signature */}
-                <div className="mt-8 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Customer Signature *
-                    </label>
-                    {customerSignature && (
-                      <button
-                        type="button"
-                        onClick={clearSignature}
-                        className="text-xs text-red-600 hover:text-red-800"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
                   
-                  {showCustomerSignature ? (
-                    <div className="space-y-3">
-                      <div className="border border-gray-300 rounded-lg bg-white p-2">
-                        <SignatureCanvas
-                          ref={customerSigRef}
-                          penColor="black"
-                          canvasProps={{
-                            width: 400,
-                            height: 150,
-                            className: 'w-full h-32 border rounded bg-white'
-                          }}
-                        />
-                      </div>
-                      <div className="flex gap-2">
+                  {/* Customer Signature */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Customer Signature *
+                      </label>
+                      {customerSignature && (
                         <button
                           type="button"
-                          onClick={saveSignature}
-                          className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                          onClick={clearSignature}
+                          className="text-xs text-red-600 hover:text-red-800"
                         >
-                          Save Signature
+                          Clear
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowCustomerSignature(false)}
-                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => setShowCustomerSignature(true)}
-                      className="h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-green-500 hover:bg-green-50 transition-colors"
-                    >
-                      {customerSignature ? (
-                        <div className="text-center p-2">
-                          <img 
-                            src={customerSignature} 
-                            alt="Customer Signature" 
-                            className="h-20 mx-auto object-contain"
-                          />
-                          <p className="text-xs text-gray-500 mt-1">Click to change signature</p>
-                        </div>
-                      ) : (
-                        <div className="text-center">
-                          <FileSignature className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                          <p className="text-sm text-gray-600">Click to sign</p>
-                          <p className="text-xs text-gray-500">Draw your signature</p>
-                        </div>
                       )}
                     </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {currentStep === 5 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">{stepTitles[4]}</h2>
-              <p className="text-gray-600 mb-6">{stepDescriptions[4]}</p>
-              
-              <div className="bg-white rounded-2xl shadow-xl border p-6 space-y-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                  <Star className="h-5 w-5 text-yellow-500" />
-                  Feedback & Rating
-                </h2>
-                
-                {/* Service Rating */}
-                <div className="space-y-4">
-                  <label className="block text-sm font-medium text-gray-700">
-                    RATE US
-                  </label>
-                  <div className="flex items-center gap-2">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() => handleInputChange('serviceRating', star)}
-                        className="p-1 hover:scale-110 transition-transform"
+                    
+                    {showCustomerSignature ? (
+                      <div className="space-y-3">
+                        <div className="border border-gray-300 rounded-lg bg-white p-2">
+                          <SignatureCanvas
+                            ref={customerSigRef}
+                            penColor="black"
+                            canvasProps={{
+                              width: 600,
+                              height: 150,
+                              className: 'w-full h-32 border rounded bg-white'
+                            }}
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={saveSignature}
+                            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                          >
+                            Save Signature
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowCustomerSignature(false)}
+                            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => setShowCustomerSignature(true)}
+                        className="h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors"
                       >
-                        <Star className={`h-8 w-8 ${star <= formData.serviceRating ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'}`} />
-                      </button>
-                    ))}
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    {formData.serviceRating === 1 && 'Poor'}
-                    {formData.serviceRating === 2 && 'Fair'}
-                    {formData.serviceRating === 3 && 'Good'}
-                    {formData.serviceRating === 4 && 'Very Good'}
-                    {formData.serviceRating === 5 && 'Excellent'}
-                  </div>
-                </div>
-                
-                {/* Service Comments */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    LEAVE A COMMENT ABOUT OUR SERVICES
-                  </label>
-                  <textarea
-                    value={formData.serviceComments}
-                    onChange={(e) => handleInputChange('serviceComments', e.target.value)}
-                    placeholder="Tell us about your experience..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                    rows={4}
-                  />
-                </div>
-                
-                {/* Overall Experience */}
-                <div className="space-y-4">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Overall Experience
-                  </label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <button
-                      type="button"
-                      onClick={() => handleInputChange('rating', 5)}
-                      className={`p-4 border rounded-lg flex items-center justify-center gap-3 transition-all ${
-                        formData.rating === 5
-                          ? 'border-green-500 bg-green-50'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      <ThumbsUp className="h-6 w-6 text-green-600" />
-                      <div className="text-left">
-                        <div className="font-medium">Satisfied</div>
-                        <div className="text-sm text-gray-600">Everything was perfect</div>
+                        {customerSignature ? (
+                          <div className="text-center p-2">
+                            <img 
+                              src={customerSignature} 
+                              alt="Customer Signature" 
+                              className="h-20 mx-auto object-contain"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Click to change signature</p>
+                          </div>
+                        ) : (
+                          <div className="text-center">
+                            <FileSignature className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                            <p className="text-sm text-gray-600">Click to sign</p>
+                            <p className="text-xs text-gray-500">Draw your signature</p>
+                          </div>
+                        )}
                       </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleInputChange('rating', 1)}
-                      className={`p-4 border rounded-lg flex items-center justify-center gap-3 transition-all ${
-                        formData.rating === 1
-                          ? 'border-red-500 bg-red-50'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      <ThumbsDown className="h-6 w-6 text-red-600" />
-                      <div className="text-left">
-                        <div className="font-medium">Needs Improvement</div>
-                        <div className="text-sm text-gray-600">Issues need attention</div>
-                      </div>
-                    </button>
+                    )}
                   </div>
                 </div>
-                
-                {/* Additional Comments */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Additional Comments
-                  </label>
-                  <textarea
-                    value={formData.comments}
-                    onChange={(e) => handleInputChange('comments', e.target.value)}
-                    placeholder="Any additional feedback or suggestions..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                    rows={3}
-                  />
-                </div>
-              </div>
+              )}
             </div>
-          )}
-        </div>
-        
-        {/* Navigation Buttons */}
-        <div className="mt-8 flex justify-between">
-          <button
-            onClick={() => currentStep > 1 && setCurrentStep(currentStep - 1)}
-            disabled={currentStep === 1}
-            className={`px-6 py-3 rounded-lg font-medium flex items-center gap-2 ${
-              currentStep === 1
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            <ArrowLeft className="h-5 w-5" />
-            Previous
-          </button>
+            
+            {/* SECTION 5: Feedback & Rating */}
+            <div className="border-2 border-gray-200 rounded-xl overflow-hidden">
+              <div 
+                className="bg-gradient-to-r from-gray-50 to-blue-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between cursor-pointer"
+                onClick={() => toggleSection('feedback')}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <Star className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Feedback & Rating</h3>
+                    <p className="text-xs text-gray-600">Customer satisfaction and comments</p>
+                  </div>
+                </div>
+                {expandedSections.feedback ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+              </div>
+              
+              {expandedSections.feedback && (
+                <div className="p-6 space-y-6">
+                  {/* Service Rating */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      RATE US
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => handleInputChange('serviceRating', star)}
+                          className="p-1 hover:scale-110 transition-transform"
+                        >
+                          <Star className={`h-8 w-8 ${star <= formData.serviceRating ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'}`} />
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-2 text-sm text-gray-600">
+                      {formData.serviceRating === 1 && 'Poor'}
+                      {formData.serviceRating === 2 && 'Fair'}
+                      {formData.serviceRating === 3 && 'Good'}
+                      {formData.serviceRating === 4 && 'Very Good'}
+                      {formData.serviceRating === 5 && 'Excellent'}
+                    </div>
+                  </div>
+                  
+                  {/* Service Comments */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      LEAVE A COMMENT ABOUT OUR SERVICES
+                    </label>
+                    <textarea
+                      value={formData.serviceComments}
+                      onChange={(e) => handleInputChange('serviceComments', e.target.value)}
+                      placeholder="Tell us about your experience..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      rows={3}
+                    />
+                  </div>
+                  
+                  {/* Overall Experience */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Overall Experience
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <button
+                        type="button"
+                        onClick={() => handleInputChange('rating', 5)}
+                        className={`p-4 border rounded-lg flex items-center justify-center gap-3 transition-all ${
+                          formData.rating === 5
+                            ? 'border-green-500 bg-green-50'
+                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        <ThumbsUp className="h-6 w-6 text-green-600" />
+                        <div className="text-left">
+                          <div className="font-medium">Satisfied</div>
+                          <div className="text-sm text-gray-600">Everything was perfect</div>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleInputChange('rating', 1)}
+                        className={`p-4 border rounded-lg flex items-center justify-center gap-3 transition-all ${
+                          formData.rating === 1
+                            ? 'border-red-500 bg-red-50'
+                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        <ThumbsDown className="h-6 w-6 text-red-600" />
+                        <div className="text-left">
+                          <div className="font-medium">Needs Improvement</div>
+                          <div className="text-sm text-gray-600">Issues need attention</div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Additional Comments */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Additional Comments
+                    </label>
+                    <textarea
+                      value={formData.comments}
+                      onChange={(e) => handleInputChange('comments', e.target.value)}
+                      placeholder="Any additional feedback or suggestions..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      rows={2}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
           
-          <div className="flex justify-between gap-4 mt-6 pt-6 border-t border-gray-200">
+          {/* Form Actions */}
+          <div className="mt-8 flex justify-between gap-4">
             <button
               type="button"
               onClick={handleCancel}
-              className="px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+              className="px-6 py-3 rounded-lg font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center gap-2"
               disabled={submitting}
             >
-              <ArrowLeft className="h-4 w-4" />
-              Cancel & Back to Work Order
+              <ArrowLeft className="h-5 w-5" />
+              Cancel
             </button>
             
             <div className="flex gap-4">
               <button
+                type="button"
                 onClick={handleSaveAsDraft}
                 className="px-6 py-3 rounded-lg font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                 disabled={submitting}
               >
                 <Save className="h-5 w-5" />
-                Save as Draft
-                {draftSaved && (
-                  <span className="text-xs text-green-600">
-                    ✓ Saved
-                  </span>
-                )}
+                Save Draft
+                {draftSaved && <span className="text-xs text-green-600">✓</span>}
               </button>
               
-              {currentStep < totalSteps ? (
-                <button
-                  onClick={() => setCurrentStep(currentStep + 1)}
-                  className="px-6 py-3 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2"
-                  disabled={submitting}
-                >
-                  Next
-                  <ArrowRight className="h-5 w-5" />
-                </button>
-              ) : (
-                <button
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                  className="px-6 py-3 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      {mode === 'edit' ? 'Updating...' : 'Creating...'}
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-5 w-5" />
-                      {mode === 'edit' ? 'Update Checklist' : 'Create Post-Checklist'}
-                    </>
-                  )}
-                </button>
-              )}
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl disabled:opacity-50 flex items-center gap-2"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {mode === 'edit' ? 'Updating...' : 'Creating...'}
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    {mode === 'edit' ? 'Update Inspection' : 'Create Post-Checklist'}
+                  </>
+                )}
+              </button>
             </div>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );

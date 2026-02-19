@@ -9,7 +9,7 @@ import LISStatusModal from '@/components/opportunities/LISStatusModal';
 import SLAStatusModal from '@/components/opportunities/SLAStatusModal';
 import StageHistoryModal from '@/components/opportunities/StageHistoryModal';
 import { useToast } from '@/contexts/ToastContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOpportunityStatusUpdate } from '@/hooks/useOpportunityStatusUpdate';
 import { useOpportunityRefresh, OpportunityStatus } from '@/hooks/useOpportunityRefresh';
@@ -24,7 +24,8 @@ import {
   Eye, UserPlus, GitMerge, History, AlertTriangle,
   RefreshCw, BarChart, CheckSquare, Copy, Download,
   Share2, Link, Tag, Percent, DollarSign, Package,
-  Wrench, Truck, ClipboardList, CheckCircle2, XCircle
+  Wrench, Truck, ClipboardList, CheckCircle2, XCircle,
+  Menu, MoreVertical
 } from 'lucide-react';
 
 interface LeadScoreBreakdown {
@@ -390,7 +391,27 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   const [isCheckingSLA, setIsCheckingSLA] = useState(false);
   const [isRefreshingLIS, setIsRefreshingLIS] = useState(false);
   const [availableSalesReps, setAvailableSalesReps] = useState<any[]>([]);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeMobileTab, setActiveMobileTab] = useState('overview');
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
   
+  const statusMenuRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (statusMenuRef.current && !statusMenuRef.current.contains(event.target as Node)) {
+        setShowStatusMenu(false);
+      }
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
+        setMobileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const {
     updatingStatus,
     showGenericConfirm,
@@ -598,28 +619,444 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
       : { label: 'Breached', color: 'bg-red-100 text-red-600', icon: AlertTriangle };
   };
 
+  const mobileTabs = [
+    { id: 'overview', label: 'Overview', icon: Info },
+    { id: 'customer', label: 'Customer', icon: User },
+    { id: 'items', label: 'Items', icon: Package },
+    { id: 'vehicles', label: 'Vehicles', icon: Car },
+    { id: 'status', label: 'Status', icon: Activity }
+  ];
+
+  const renderMobileContent = () => {
+    switch (activeMobileTab) {
+      case 'customer':
+        return (
+          <div className="space-y-4">
+            {/* Customer Profile Card - Mobile */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="relative">
+                  <div className="h-12 w-12 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
+                    <span className="text-lg font-semibold text-white">
+                      {opportunity?.customer?.name?.charAt(0).toUpperCase() || 'C'}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-medium text-gray-900">
+                    {opportunity?.customer?.name || 'No Name'}
+                  </h3>
+                  <p className="text-xs text-gray-600">
+                    {opportunity?.type === 'organization' ? 'Organization' : 'Individual'}
+                  </p>
+                </div>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(opportunity?.status || '')}`}>
+                  {getStatusLabel(opportunity?.status || '')}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {opportunity?.customer?.phone && (
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-50 rounded-lg">
+                      <Phone className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-500">Phone</div>
+                      <div className="text-sm text-gray-900">{opportunity.customer.phone}</div>
+                    </div>
+                  </div>
+                )}
+                
+                {opportunity?.customer?.email && (
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-green-50 rounded-lg">
+                      <Mail className="h-4 w-4 text-green-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-500">Email</div>
+                      <div className="text-sm text-gray-900 truncate">{opportunity.customer.email}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Lead Score Card - Mobile */}
+            {opportunity?.leadScore && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-purple-50 rounded-lg">
+                      <BarChart className="h-4 w-4 text-purple-600" />
+                    </div>
+                    <span className="font-medium text-gray-900">Lead Score</span>
+                  </div>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTierColor(opportunity.leadScore.tier)}`}>
+                    {getTierLabel(opportunity.leadScore.tier)}
+                  </span>
+                </div>
+                
+                <div className="mb-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-gray-600">Score</span>
+                    <span className="text-lg font-bold text-gray-900">{opportunity.leadScore.totalScore}</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full ${getScoreProgressColor(opportunity.leadScore.totalScore)}`}
+                      style={{ width: `${Math.min(opportunity.leadScore.totalScore, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Quick Actions - Mobile */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <h3 className="font-medium text-gray-900 mb-3">Quick Actions</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <button className="flex items-center justify-center gap-2 p-3 bg-blue-50 text-blue-600 rounded-lg text-sm">
+                  <Phone className="h-4 w-4" />
+                  Call
+                </button>
+                <button className="flex items-center justify-center gap-2 p-3 bg-green-50 text-green-600 rounded-lg text-sm">
+                  <Mail className="h-4 w-4" />
+                  Email
+                </button>
+                <button className="flex items-center justify-center gap-2 p-3 bg-purple-50 text-purple-600 rounded-lg text-sm">
+                  <MessageCircle className="h-4 w-4" />
+                  Message
+                </button>
+                <button className="flex items-center justify-center gap-2 p-3 bg-amber-50 text-amber-600 rounded-lg text-sm">
+                  <Calendar className="h-4 w-4" />
+                  Schedule
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'items':
+        return (
+          <div className="space-y-4">
+            {/* Services/Products Section - Mobile */}
+            {opportunity?.servicesProducts && opportunity.servicesProducts.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-indigo-50 rounded-lg">
+                      <Package className="h-4 w-4 text-indigo-600" />
+                    </div>
+                    <span className="font-medium text-gray-900">Items</span>
+                  </div>
+                  <span className="text-sm font-medium text-gray-900">
+                    {formatCurrency(opportunity.total)}
+                  </span>
+                </div>
+                
+                <div className="space-y-3">
+                  {opportunity.servicesProducts.map((item, index) => (
+                    <div key={index} className="border-b border-gray-100 last:border-0 pb-3 last:pb-0">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="font-medium text-gray-900">{item.title}</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(item.total)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-gray-600">
+                        <span className={`px-2 py-0.5 rounded-full ${
+                          item.type === 'SERVICE' ? 'bg-blue-100 text-blue-700' :
+                          item.type === 'PRODUCT' ? 'bg-green-100 text-green-700' :
+                          'bg-purple-100 text-purple-700'
+                        }`}>
+                          {item.type}
+                        </span>
+                        <span>Qty: {item.quantity}</span>
+                        {item.discount > 0 && <span>Discount: {item.discount}%</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Financial Summary - Mobile */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <h3 className="font-medium text-gray-900 mb-3">Financial Summary</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Subtotal</span>
+                  <span className="font-medium text-gray-900">{formatCurrency(opportunity?.subtotal)}</span>
+                </div>
+                {opportunity?.totalDiscount && opportunity.totalDiscount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Discount</span>
+                    <span className="font-medium text-green-600">-{formatCurrency(opportunity.totalDiscount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-base font-bold pt-2 border-t border-gray-200">
+                  <span className="text-gray-900">Total</span>
+                  <span className="text-gray-900">{formatCurrency(opportunity?.total)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'vehicles':
+        return (
+          <div className="space-y-4">
+            {/* Vehicles Section - Mobile */}
+            {opportunity?.vehicles && opportunity.vehicles.length > 0 ? (
+              opportunity.vehicles.map((vehicle) => (
+                <div 
+                  key={vehicle._id}
+                  className="bg-white rounded-xl shadow-sm border border-gray-200 p-4"
+                  onClick={() => handleViewVehicleDetails(vehicle)}
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-gray-100 rounded-lg">
+                      <Car className="h-5 w-5 text-gray-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-medium text-gray-900">
+                        {vehicle.year} {vehicle.make} {vehicle.model}
+                      </h3>
+                      <p className="text-xs text-gray-600">
+                        {vehicle.color} • {vehicle.registrationNumber || 'No plate'}
+                      </p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-gray-400" />
+                  </div>
+                  
+                  {(vehicle.vin || vehicle.fuelType) && (
+                    <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-gray-100">
+                      {vehicle.vin && (
+                        <div>
+                          <p className="text-xs text-gray-500">VIN</p>
+                          <p className="text-xs font-mono text-gray-900 truncate">{vehicle.vin}</p>
+                        </div>
+                      )}
+                      {vehicle.fuelType && (
+                        <div>
+                          <p className="text-xs text-gray-500">Fuel</p>
+                          <p className="text-xs font-medium text-gray-900">{vehicle.fuelType}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+                <Car className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-600">No vehicles associated</p>
+              </div>
+            )}
+          </div>
+        );
+
+      case 'status':
+        return (
+          <div className="space-y-4">
+            {/* LIS Status Card - Mobile */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className={`p-1.5 ${LISStatus.color.replace('text-', 'bg-').replace('600', '100')} rounded-lg`}>
+                    <LISStatus.icon className={`h-4 w-4 ${LISStatus.color.replace('bg-', 'text-')}`} />
+                  </div>
+                  <span className="font-medium text-gray-900">LIS Status</span>
+                </div>
+                <button
+                  onClick={handleRefreshLIS}
+                  disabled={isRefreshingLIS}
+                  className="p-1.5 hover:bg-gray-100 rounded-lg"
+                >
+                  <RefreshCw className={`h-4 w-4 text-gray-600 ${isRefreshingLIS ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+              
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${LISStatus.color}`}>
+                {LISStatus.label}
+              </span>
+              
+              {opportunity?.lisStatus?.missingFields && opportunity.lisStatus.missingFields.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <p className="text-xs font-medium text-gray-700 mb-2">Missing Fields:</p>
+                  {opportunity.lisStatus.missingFields.map((field, index) => (
+                    <div key={index} className="flex items-center gap-1 text-xs text-gray-600 mb-1">
+                      <AlertCircle className="h-3 w-3 text-amber-500 flex-shrink-0" />
+                      <span className="truncate">{field}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* SLA Status Card - Mobile */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className={`p-1.5 ${SLAStatus.color.replace('text-', 'bg-').replace('600', '100')} rounded-lg`}>
+                    <SLAStatus.icon className={`h-4 w-4 ${SLAStatus.color.replace('bg-', 'text-')}`} />
+                  </div>
+                  <span className="font-medium text-gray-900">SLA Status</span>
+                </div>
+                <button
+                  onClick={handleCheckSLA}
+                  disabled={isCheckingSLA}
+                  className="p-1.5 hover:bg-gray-100 rounded-lg"
+                >
+                  <RefreshCw className={`h-4 w-4 text-gray-600 ${isCheckingSLA ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+              
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${SLAStatus.color}`}>
+                {SLAStatus.label}
+              </span>
+              
+              {opportunity?.slaStatus?.deadlines && opportunity.slaStatus.deadlines.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <p className="text-xs font-medium text-gray-700 mb-2">Deadlines:</p>
+                  {opportunity.slaStatus.deadlines.slice(0, 2).map((deadline, index) => (
+                    <div key={index} className="flex justify-between items-center text-xs mb-1">
+                      <span className="text-gray-600">{deadline.type}:</span>
+                      <span className={`font-medium ${
+                        deadline.status === 'breached' ? 'text-red-600' :
+                        deadline.status === 'approaching' ? 'text-amber-600' :
+                        'text-green-600'
+                      }`}>
+                        {formatDate(deadline.dueDate)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Notes Section - Mobile */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <h3 className="font-medium text-gray-900 mb-3">Notes</h3>
+              <NotesSection opportunityId={opportunityId} />
+            </div>
+          </div>
+        );
+
+      default: // overview
+        return (
+          <div className="space-y-4">
+            {/* Stage History - Mobile */}
+            {opportunity?.stageHistory && opportunity.stageHistory.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-amber-50 rounded-lg">
+                      <History className="h-4 w-4 text-amber-600" />
+                    </div>
+                    <span className="font-medium text-gray-900">Recent Activity</span>
+                  </div>
+                  <button
+                    onClick={() => setShowStageHistoryModal(true)}
+                    className="text-xs text-blue-600 font-medium"
+                  >
+                    View All
+                  </button>
+                </div>
+                
+                <div className="space-y-2">
+                  {opportunity.stageHistory.slice(0, 3).map((history, index) => (
+                    <div key={index} className="flex items-start gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            statusConfig[history.stage]?.color || 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {getStatusLabel(history.stage)}
+                          </span>
+                          <span className="text-xs text-gray-500">{formatDate(history.date)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Opportunity Details - Mobile */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <h3 className="font-medium text-gray-900 mb-3">Details</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between py-1 border-b border-gray-100">
+                  <span className="text-xs text-gray-600">Source</span>
+                  <span className="text-xs font-medium text-gray-900 capitalize">
+                    {opportunity?.source?.replace('_', ' ') || 'Unknown'}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-gray-100">
+                  <span className="text-xs text-gray-600">Type</span>
+                  <span className="text-xs font-medium text-gray-900 capitalize">
+                    {opportunity?.type === 'organization' ? 'Organization' : 'Individual'}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-gray-100">
+                  <span className="text-xs text-gray-600">Created</span>
+                  <span className="text-xs font-medium text-gray-900">
+                    {formatDate(opportunity?.createdAt || '')}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1">
+                  <span className="text-xs text-gray-600">Last Updated</span>
+                  <span className="text-xs font-medium text-gray-900">
+                    {formatDate(opportunity?.updatedAt || '')}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions Grid - Mobile */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <h3 className="font-medium text-gray-900 mb-3">Actions</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <button className="flex items-center justify-center gap-2 p-3 bg-indigo-50 text-indigo-600 rounded-lg text-sm">
+                  <FileText className="h-4 w-4" />
+                  Quote
+                </button>
+                <button className="flex items-center justify-center gap-2 p-3 bg-emerald-50 text-emerald-600 rounded-lg text-sm">
+                  <Briefcase className="h-4 w-4" />
+                  Job Card
+                </button>
+                <button className="flex items-center justify-center gap-2 p-3 bg-amber-50 text-amber-600 rounded-lg text-sm">
+                  <Receipt className="h-4 w-4" />
+                  Invoice
+                </button>
+                <button className="flex items-center justify-center gap-2 p-3 bg-purple-50 text-purple-600 rounded-lg text-sm">
+                  <Copy className="h-4 w-4" />
+                  Duplicate
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="h-16 bg-white border-b border-gray-200 flex items-center px-6">
-          <div className="flex items-center gap-3">
+        <div className="h-14 bg-white border-b border-gray-200 flex items-center px-4">
+          <div className="flex items-center gap-3 w-full">
             <div className="h-8 w-8 bg-gray-200 rounded-full animate-pulse"></div>
-            <div className="h-6 w-48 bg-gray-200 rounded animate-pulse"></div>
+            <div className="h-5 w-32 bg-gray-200 rounded animate-pulse"></div>
           </div>
         </div>
-        <div className="p-6">
-          <div className="max-w-7xl mx-auto">
-            <div className="animate-pulse space-y-6">
-              <div className="grid grid-cols-3 gap-6">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="bg-white rounded-xl p-6">
-                    <div className="h-4 w-24 bg-gray-200 rounded mb-4"></div>
-                    <div className="space-y-3">
-                      <div className="h-3 w-full bg-gray-200 rounded"></div>
-                      <div className="h-3 w-2/3 bg-gray-200 rounded"></div>
-                    </div>
-                  </div>
-                ))}
+        <div className="p-4">
+          <div className="animate-pulse space-y-4">
+            <div className="bg-white rounded-xl p-4">
+              <div className="h-4 w-24 bg-gray-200 rounded mb-3"></div>
+              <div className="space-y-2">
+                <div className="h-3 w-full bg-gray-200 rounded"></div>
+                <div className="h-3 w-2/3 bg-gray-200 rounded"></div>
               </div>
             </div>
           </div>
@@ -631,27 +1068,25 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   if (error || !opportunity) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="h-16 bg-white border-b border-gray-200 flex items-center px-6">
-          <button onClick={() => onBack ? onBack() : router.push('/opportunities')} className="mr-4">
+        <div className="h-14 bg-white border-b border-gray-200 flex items-center px-4">
+          <button onClick={() => onBack ? onBack() : router.push('/opportunities')} className="mr-3">
             <ArrowLeft className="h-5 w-5 text-gray-600" />
           </button>
-          <h1 className="text-xl font-semibold text-gray-900">Opportunity Details</h1>
+          <h1 className="text-lg font-semibold text-gray-900">Opportunity Details</h1>
         </div>
-        <div className="p-6">
-          <div className="max-w-7xl mx-auto">
-            <div className="bg-white rounded-xl p-8 text-center">
-              <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-              <h2 className="text-lg font-medium text-gray-900 mb-2">
-                {error ? 'Error Loading Opportunity' : 'Opportunity Not Found'}
-              </h2>
-              <p className="text-gray-600 mb-4">{error || 'The opportunity could not be found.'}</p>
-              <button
-                onClick={() => onBack ? onBack() : router.push('/opportunities')}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Back to Opportunities
-              </button>
-            </div>
+        <div className="p-4">
+          <div className="bg-white rounded-xl p-6 text-center">
+            <AlertCircle className="h-10 w-10 text-red-500 mx-auto mb-3" />
+            <h2 className="text-base font-medium text-gray-900 mb-1">
+              {error ? 'Error Loading' : 'Not Found'}
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">{error || 'The opportunity could not be found.'}</p>
+            <button
+              onClick={() => onBack ? onBack() : router.push('/opportunities')}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm w-full"
+            >
+              Back to Opportunities
+            </button>
           </div>
         </div>
       </div>
@@ -664,10 +1099,92 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   const PackageTypeIcon = opportunity.packageType ? packageTypeConfig[opportunity.packageType]?.icon : FileText;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 pb-16 md:pb-0">
+      {/* Mobile Header */}
+      <div className="lg:hidden bg-white border-b border-gray-200 sticky top-0 z-20">
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <button
+                onClick={() => onBack ? onBack() : router.push('/opportunities')}
+                className="p-2 -ml-2 hover:bg-gray-100 rounded-lg flex-shrink-0"
+              >
+                <ArrowLeft className="h-5 w-5 text-gray-600" />
+              </button>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-base font-semibold text-gray-900 truncate">
+                  {opportunity.subject}
+                </h1>
+                <p className="text-xs text-gray-600 truncate">
+                  ID: {opportunity._id.slice(-8)} • {formatDate(opportunity.createdAt)}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <MoreVertical className="h-5 w-5 text-gray-600" />
+              </button>
+            </div>
+          </div>
+
+          {/* Mobile Menu Dropdown */}
+          {mobileMenuOpen && (
+            <div ref={mobileMenuRef} className="absolute right-4 top-16 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-30">
+              <div className="px-3 py-2 text-xs font-medium text-gray-500 border-b border-gray-200">
+                Actions
+              </div>
+              <button
+                onClick={() => {
+                  setShowReassignModal(true);
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 flex items-center gap-2"
+              >
+                <UserPlus className="h-4 w-4 text-gray-600" />
+                Reassign
+              </button>
+              <button
+                onClick={() => {
+                  handleEdit();
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 flex items-center gap-2"
+              >
+                <Edit className="h-4 w-4 text-gray-600" />
+                Edit
+              </button>
+              <button
+                onClick={() => {
+                  handleDelete();
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 flex items-center gap-2 text-red-600"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </button>
+            </div>
+          )}
+
+          {/* Assigned To Badge - Mobile */}
+          <div className="mt-2 flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-100 rounded-lg">
+              <Users className="h-3 w-3 text-gray-600" />
+              <span className="text-xs font-medium text-gray-700 truncate max-w-[150px]">
+                {opportunity.assignedTo?.name || opportunity.assignedTo?.email || 'Unassigned'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Header */}
+      <div className="hidden lg:block bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
               <button
@@ -687,7 +1204,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
             </div>
             
             <div className="flex items-center gap-2">
-              {/* Assigned To Badge */}
               <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg">
                 <Users className="h-4 w-4 text-gray-600" />
                 <span className="text-sm font-medium text-gray-700">
@@ -724,9 +1240,33 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
         </div>
       </div>
 
-      {/* Status Tabs */}
-      <div className="border-b border-gray-200 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Mobile Status Tabs - Horizontal Scroll */}
+      <div className="lg:hidden border-b border-gray-200 bg-white">
+        <div className="flex overflow-x-auto no-scrollbar px-4">
+          {mobileTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeMobileTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveMobileTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-3 border-b-2 text-sm font-medium whitespace-nowrap ${
+                  isActive
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Desktop Status Tabs */}
+      <div className="hidden lg:block border-b border-gray-200 bg-white">
+        <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center gap-2 py-3 overflow-x-auto">
             {Object.entries(statusConfig).map(([status, config]) => {
               const isActive = opportunity.status === status;
@@ -750,9 +1290,10 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Main Info */}
+      <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 lg:py-6">
+        {/* Desktop Grid Layout */}
+        <div className="hidden lg:grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Main Info (Desktop) */}
           <div className="lg:col-span-2 space-y-6">
             {/* Customer Profile Card */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -824,27 +1365,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                       </div>
                     )}
                   </div>
-                  
-                  {/* Company Contact Info */}
-                  {(opportunity.customer?.companyEmail || opportunity.customer?.companyPhone) && (
-                    <div className="mt-4 pt-4 border-t border-gray-100">
-                      <p className="text-xs font-medium text-gray-500 uppercase mb-2">Company Contact</p>
-                      <div className="space-y-2">
-                        {opportunity.customer?.companyEmail && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <Mail className="h-3 w-3 text-gray-400" />
-                            <span className="text-gray-700">{opportunity.customer.companyEmail}</span>
-                          </div>
-                        )}
-                        {opportunity.customer?.companyPhone && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <Phone className="h-3 w-3 text-gray-400" />
-                            <span className="text-gray-700">{opportunity.customer.companyPhone}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -906,11 +1426,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                       className={`h-full rounded-full ${getScoreProgressColor(opportunity.leadScore.totalScore)} transition-all`}
                       style={{ width: `${Math.min(opportunity.leadScore.totalScore, 100)}%` }}
                     />
-                  </div>
-                  <div className="flex justify-between mt-1">
-                    <span className="text-xs text-gray-500">Cold</span>
-                    <span className="text-xs text-gray-500">Warm</span>
-                    <span className="text-xs text-gray-500">Hot</span>
                   </div>
                 </div>
                 
@@ -1113,7 +1628,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                     onClick={() => setShowStageHistoryModal(true)}
                     className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
                   >
-                    View All
+                    View
                     <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
@@ -1146,7 +1661,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
             )}
           </div>
 
-          {/* Right Column - Sidebar */}
+          {/* Right Column - Sidebar (Desktop) */}
           <div className="space-y-6">
             {/* LIS Status Card */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -1344,9 +1859,14 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
             </div>
           </div>
         </div>
+
+        {/* Mobile Content */}
+        <div className="lg:hidden space-y-4">
+          {renderMobileContent()}
+        </div>
       </div>
 
-      {/* Modals */}
+      {/* All Modals (keep as is) */}
       <VehicleDetailsModal
         vehicle={selectedVehicle}
         isOpen={showVehicleModal}

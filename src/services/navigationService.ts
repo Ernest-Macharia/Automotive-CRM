@@ -13,7 +13,7 @@ export interface NavItem {
 export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
   { href: '/opportunities', label: 'Opportunities', icon: 'Target', permission: 'opportunities.read' },
-  { href: '/customers', label: 'Customers', icon: 'Users', permission: 'clients.read' },
+  // { href: '/customers', label: 'Customers', icon: 'Users', permission: 'clients.read' },
   { href: '/orders/sales-orders', label: 'Sales Orders', icon: 'ShoppingBag', permission: 'orders.read' },
   { href: '/orders/work-orders', label: 'Work Orders', icon: 'Wrench', permission: 'jobs.read' },
   { href: '/manychat', label: 'ManyChat', icon: 'MessageSquare', permission: 'manychat.access' },
