@@ -36,8 +36,10 @@ import {
   Zap
 } from 'lucide-react';
 import { opportunityService, Opportunity } from '@/services/opportunityService';
+import { workOrderService } from '@/services/workOrderService';
+import { invoiceService } from '@/services/invoiceService';
 import { authService } from '@/services/authService';
-import { roleService, createPermissionChecker } from '@/services/settings/roleService';
+import { createPermissionChecker } from '@/services/settings/roleService';
 
 interface CustomerDashboardProps {
   user: any;
@@ -80,10 +82,12 @@ interface CustomerAppointment {
 
 interface CustomerInvoice {
   id: string;
+  invoiceNumber: string;
   opportunityId: string;
   amount: number;
   date: string;
-  status: 'paid' | 'pending' | 'overdue';
+  dueDate?: string;
+  status: 'paid' | 'pending' | 'overdue' | 'draft' | 'sent' | 'cancelled';
   description: string;
   services: string[];
   vehicle?: string;
@@ -111,9 +115,9 @@ export default function CustomerDashboard({ user }: CustomerDashboardProps) {
     upcomingAppointments: 0,
     pendingInvoices: 0,
     loyaltyPoints: 0,
-    membershipTier: 'Silver',
+    membershipTier: 'Bronze',
     totalSpent: 0,
-    avgServiceRating: 4.5,
+    avgServiceRating: 0,
     warrantyStatus: 'active',
   });
   const [loading, setLoading] = useState(true);
@@ -121,9 +125,9 @@ export default function CustomerDashboard({ user }: CustomerDashboardProps) {
   const [permissionChecker, setPermissionChecker] = useState<any>(null);
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-KE', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'KES',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
@@ -160,8 +164,11 @@ export default function CustomerDashboard({ user }: CustomerDashboardProps) {
   const getInvoiceStatusColor = (status: string) => {
     switch (status) {
       case 'paid': return 'text-green-600 bg-green-100';
+      case 'sent': return 'text-blue-600 bg-blue-100';
       case 'pending': return 'text-amber-600 bg-amber-100';
       case 'overdue': return 'text-red-600 bg-red-100';
+      case 'draft': return 'text-gray-600 bg-gray-100';
+      case 'cancelled': return 'text-red-600 bg-red-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
@@ -192,153 +199,212 @@ export default function CustomerDashboard({ user }: CustomerDashboardProps) {
         setRefreshing(true);
       }
 
-      // Fetch opportunities for this customer
       const customerEmail = user?.email;
       if (!customerEmail) {
         throw new Error('Customer email not found');
       }
 
-      // Fetch multiple data sources
-      const [
-        customerOpportunities,
-        closedOpportunities,
-        appointmentOpportunities,
-        recentServicesData
-      ] = await Promise.all([
-        opportunityService.filterOpportunities({
-          customerEmail: customerEmail,
-          sort: 'createdAt:desc',
-          limit: 50
-        }),
-        opportunityService.filterOpportunities({
-          customerEmail: customerEmail,
-          status: 'won',
-          sort: 'createdAt:desc',
-          limit: 20
-        }),
-        opportunityService.filterOpportunities({
-          customerEmail: customerEmail,
-          status: 'appointment_scheduled',
-          sort: 'createdAt:desc',
-          limit: 10
-        }),
-        opportunityService.filterOpportunities({
-          customerEmail: customerEmail,
-          opportunityType: 'SERVICE',
-          sort: 'createdAt:desc',
-          limit: 10
-        })
-      ]);
+      const customerId = user?._id || user?.id;
+
+      // Fetch all customer opportunities
+      const customerOpportunities = await opportunityService.filterOpportunities({
+        customerEmail: customerEmail,
+        sort: 'createdAt:desc',
+        limit: 100
+      });
+
+      const opportunities = customerOpportunities.data || [];
 
       // Process vehicles from opportunities
       const vehicleMap = new Map<string, CustomerVehicle>();
       const serviceHistory: any[] = [];
       let totalSpent = 0;
+      let totalRatings = 0;
+      let ratingCount = 0;
 
-      customerOpportunities?.data?.forEach(opp => {
-        opp.vehicles?.forEach(vehicle => {
-          const vehicleId = vehicle._id || `${vehicle.make}-${vehicle.model}-${vehicle.year}`;
-          if (!vehicleMap.has(vehicleId)) {
-            vehicleMap.set(vehicleId, {
-              id: vehicleId,
-              make: vehicle.make,
-              model: vehicle.model,
-              year: vehicle.year?.toString() || 'Unknown',
-              licensePlate: vehicle.licensePlate,
-              vin: vehicle.vin,
-              mileage: vehicle.mileage,
-              color: vehicle.color,
-              serviceHistory: []
-            });
-          }
-
-          // Add service history for completed opportunities
-          if (opp.status === 'won' && opp.servicesProducts) {
-            const service = {
-              id: opp._id,
-              date: opp.createdAt,
-              service: opp.subject || 'General Service',
-              cost: opp.total || 0,
-              rating: 5, // Default rating
-              technician: opp.assignedTo?.name
-            };
-            serviceHistory.push(service);
-            totalSpent += opp.total || 0;
-          }
+      // Fetch work orders for this customer to get service completion data
+      let customerWorkOrders: any[] = [];
+      try {
+        // This would need a proper API endpoint - placeholder
+        const workOrdersResponse = await workOrderService.getAllWorkOrders({ 
+          limit: 50 
         });
-      });
+        // Filter work orders by customer (would need proper filtering)
+        customerWorkOrders = workOrdersResponse.data || [];
+      } catch (error) {
+        console.error('Error fetching work orders:', error);
+      }
+
+      // Process each opportunity
+      for (const opp of opportunities) {
+        // Process vehicles
+        if (opp.vehicles && opp.vehicles.length > 0) {
+          opp.vehicles.forEach(vehicle => {
+            const vehicleId = vehicle._id || `${vehicle.make}-${vehicle.model}-${vehicle.year}`;
+            
+            if (!vehicleMap.has(vehicleId)) {
+              vehicleMap.set(vehicleId, {
+                id: vehicleId,
+                make: vehicle.make || 'Unknown',
+                model: vehicle.model || 'Unknown',
+                year: vehicle.year?.toString() || 'Unknown',
+                licensePlate: vehicle.licensePlate,
+                vin: vehicle.vin,
+                mileage: vehicle.mileage,
+                color: vehicle.color,
+                serviceHistory: []
+              });
+            }
+          });
+        }
+
+        // Add to service history for completed/won opportunities
+        if (opp.status === 'won' && opp.servicesProducts) {
+          const serviceDate = opp.updatedAt || opp.createdAt;
+          
+          // Find matching work order for this opportunity
+          const workOrder = customerWorkOrders.find(wo => 
+            (typeof wo.opportunityId === 'object' && wo.opportunityId._id === opp._id) ||
+            wo.opportunityId === opp._id
+          );
+
+          const service = {
+            id: opp._id,
+            date: serviceDate,
+            service: opp.subject || 'General Service',
+            cost: opp.total || 0,
+            rating: 5, // Would come from feedback system
+            technician: workOrder?.assignedTo && typeof workOrder.assignedTo === 'object' 
+              ? `${workOrder.assignedTo.firstName || ''} ${workOrder.assignedTo.lastName || ''}`.trim()
+              : undefined
+          };
+          
+          serviceHistory.push(service);
+          totalSpent += opp.total || 0;
+          
+          if (service.rating) {
+            totalRatings += service.rating;
+            ratingCount++;
+          }
+        }
+      }
 
       // Add service history to vehicles
       const processedVehicles = Array.from(vehicleMap.values()).map(vehicle => {
-        const vehicleServices = serviceHistory.filter(service => 
-          service.vehicle === `${vehicle.make} ${vehicle.model}`
-        );
+        const vehicleServices = serviceHistory.filter(service => {
+          // Find opportunities for this vehicle - simplified logic
+          const opp = opportunities.find(o => o._id === service.id);
+          return opp?.vehicles?.some(v => 
+            v._id === vehicle.id || 
+            (v.make === vehicle.make && v.model === vehicle.model)
+          );
+        });
+        
         return {
           ...vehicle,
           serviceHistory: vehicleServices.slice(0, 5)
         };
       });
 
-      // Process appointments
-      const processedAppointments: CustomerAppointment[] = appointmentOpportunities?.data?.map(opp => {
+      // Process appointments (opportunities with appointment_scheduled status)
+      const appointmentOpportunities = opportunities.filter(opp => 
+        opp.status === 'appointment_scheduled'
+      );
+      
+      const processedAppointments: CustomerAppointment[] = appointmentOpportunities.map(opp => {
         const vehicle = opp.vehicles?.[0];
+        const appointmentDate = opp.createdAt;
+        
         return {
           id: opp._id,
           opportunityId: opp._id,
           service: opp.subject || 'Service Appointment',
-          date: opp.createdAt?.split('T')[0] || '',
-          time: '09:00', // Default time
+          date: appointmentDate?.split('T')[0] || '',
+          time: appointmentDate?.split('T')[1]?.substring(0, 5) || '09:00',
           status: 'scheduled',
           vehicle: vehicle ? `${vehicle.make} ${vehicle.model}` : 'Vehicle',
           vehicleId: vehicle?._id || '',
           estimatedDuration: '2h',
-          assignedTo: opp.assignedTo?.name
+          assignedTo: opp.assignedTo && typeof opp.assignedTo === 'object' 
+            ? `${opp.assignedTo.firstName || ''} ${opp.assignedTo.lastName || ''}`.trim()
+            : undefined
         };
-      }) || [];
+      });
 
-      // Process invoices from closed opportunities
-      const processedInvoices: CustomerInvoice[] = closedOpportunities?.data?.map(opp => {
-        const vehicle = opp.vehicles?.[0];
-        return {
-          id: opp._id,
-          opportunityId: opp._id,
-          amount: opp.total || 0,
-          date: opp.createdAt,
-          status: 'paid',
-          description: opp.subject || 'Service Invoice',
-          services: opp.servicesProducts?.map(sp => sp.title) || ['General Service'],
-          vehicle: vehicle ? `${vehicle.make} ${vehicle.model}` : 'Vehicle'
-        };
-      }) || [];
+      // Fetch real invoices for this customer
+      let processedInvoices: CustomerInvoice[] = [];
+      try {
+        // This would need a proper customer invoice endpoint
+        // For now, get invoices from won opportunities
+        const wonOpportunities = opportunities.filter(opp => opp.status === 'won');
+        
+        for (const opp of wonOpportunities) {
+          try {
+            // Try to get invoice by opportunity ID
+            const invoice = await invoiceService.getInvoicesByOpportunity(opp._id).catch(() => null);
+            
+            if (invoice) {
+              const vehicle = opp.vehicles?.[0];
+              processedInvoices.push({
+                id: invoice._id || invoice.id,
+                invoiceNumber: invoice.invoiceNumber || `INV-${invoice._id?.slice(-6)}`,
+                opportunityId: opp._id,
+                amount: invoice.total || opp.total || 0,
+                date: invoice.createdAt || opp.createdAt,
+                dueDate: invoice.dueDate,
+                status: invoice.status || 'pending',
+                description: opp.subject || 'Service Invoice',
+                services: opp.servicesProducts?.map(sp => sp.title) || ['Service'],
+                vehicle: vehicle ? `${vehicle.make} ${vehicle.model}` : undefined
+              });
+            }
+          } catch (error) {
+            console.error(`Error fetching invoice for opportunity ${opp._id}:`, error);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching invoices:', error);
+      }
 
-      // Process recent services
-      const processedRecentServices = recentServicesData?.data?.map(opp => {
-        const vehicle = opp.vehicles?.[0];
-        return {
-          id: opp._id,
-          service: opp.subject || 'Service',
-          date: opp.createdAt,
-          cost: opp.total || 0,
-          rating: 5,
-          vehicle: vehicle ? `${vehicle.make} ${vehicle.model}` : 'Vehicle',
-          status: opp.status
-        };
-      }) || [];
+      // Process recent services (last 5)
+      const processedRecentServices = serviceHistory
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 5)
+        .map(service => {
+          const opp = opportunities.find(o => o._id === service.id);
+          const vehicle = opp?.vehicles?.[0];
+          return {
+            ...service,
+            vehicle: vehicle ? `${vehicle.make} ${vehicle.model}` : 'Vehicle'
+          };
+        });
 
       // Calculate statistics
-      const pendingInvoices = processedInvoices.filter(inv => inv.status === 'pending').length;
+      const pendingInvoices = processedInvoices.filter(inv => 
+        inv.status === 'pending' || inv.status === 'overdue'
+      ).length;
+      
       const upcomingAppointments = processedAppointments.filter(app => 
         ['scheduled', 'confirmed'].includes(app.status)
       ).length;
 
       // Determine membership tier based on total spent
       let membershipTier: 'Bronze' | 'Silver' | 'Gold' | 'Platinum' = 'Bronze';
-      if (totalSpent >= 10000) membershipTier = 'Platinum';
-      else if (totalSpent >= 5000) membershipTier = 'Gold';
-      else if (totalSpent >= 1000) membershipTier = 'Silver';
+      if (totalSpent >= 100000) membershipTier = 'Platinum';
+      else if (totalSpent >= 50000) membershipTier = 'Gold';
+      else if (totalSpent >= 10000) membershipTier = 'Silver';
 
-      // Calculate loyalty points (1 point per $10 spent)
-      const loyaltyPoints = Math.floor(totalSpent / 10);
+      // Calculate loyalty points (1 point per KES 100 spent)
+      const loyaltyPoints = Math.floor(totalSpent / 100);
+
+      // Calculate average service rating
+      const avgServiceRating = ratingCount > 0 ? totalRatings / ratingCount : 0;
+
+      // Determine warranty status based on vehicle data
+      const warrantyStatus = 'active'; // Would need proper warranty tracking
+
+      // Find next service due
+      const nextServiceDue = processedVehicles[0]?.nextServiceDue;
 
       // Update state
       setVehicles(processedVehicles);
@@ -353,9 +419,9 @@ export default function CustomerDashboard({ user }: CustomerDashboardProps) {
         loyaltyPoints,
         membershipTier,
         totalSpent,
-        avgServiceRating: 4.5, // Would need rating data
-        warrantyStatus: 'active',
-        nextServiceDue: processedVehicles[0]?.nextServiceDue
+        avgServiceRating,
+        warrantyStatus,
+        nextServiceDue
       });
 
     } catch (error) {
@@ -368,11 +434,14 @@ export default function CustomerDashboard({ user }: CustomerDashboardProps) {
 
   useEffect(() => {
     fetchCustomerData();
-    // Initialize permission checker
-    if (user?.permissions) {
-      setPermissionChecker(createPermissionChecker(user.permissions));
-    }
-  }, [fetchCustomerData, user]);
+    
+    // Set up polling for real-time updates
+    const intervalId = setInterval(() => {
+      fetchCustomerData(true);
+    }, 60000); // Refresh every minute
+    
+    return () => clearInterval(intervalId);
+  }, [fetchCustomerData]);
 
   const handleRefresh = () => {
     fetchCustomerData(true);

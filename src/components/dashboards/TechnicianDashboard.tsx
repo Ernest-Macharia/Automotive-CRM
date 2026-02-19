@@ -49,6 +49,9 @@ import {
 } from 'lucide-react';
 import { authService } from '@/services/authService';
 import { opportunityService } from '@/services/opportunityService';
+import { workOrderService, WorkOrder } from '@/services/workOrderService';
+import { jobCardService, JobCard } from '@/services/jobCardService';
+import { vehicleService, Vehicle } from '@/services/vehicleService';
 
 interface TechnicianDashboardProps {
   user: any;
@@ -56,6 +59,8 @@ interface TechnicianDashboardProps {
 
 interface Job {
   id: string;
+  jobCardId?: string;
+  workOrderId?: string;
   opportunityId: string;
   subject: string;
   customer: {
@@ -110,14 +115,20 @@ interface TechnicianStats {
   onTimeCompletionRate: number;
   customerSatisfaction: number;
   totalVehiclesServiced: number;
+  inProgressJobs: number;
+  totalHoursWorked: number;
 }
 
 interface VehicleStatus {
+  id: string;
   make: string;
   model: string;
+  registrationNumber?: string;
   status: 'in_shop' | 'ready' | 'waiting_parts' | 'diagnostics';
   since: string;
   technician: string;
+  workOrderId?: string;
+  jobCardId?: string;
 }
 
 export default function TechnicianDashboard({ user }: TechnicianDashboardProps) {
@@ -126,16 +137,18 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
     completedToday: 0,
     pendingParts: 0,
     avgCompletionTime: '0h',
-    efficiencyRate: 0,
-    qualityScore: 0,
+    efficiencyRate: 85,
+    qualityScore: 92,
     urgentJobs: 0,
     nextAppointment: 'No upcoming jobs',
     waitingForInspection: 0,
     awaitingCustomerApproval: 0,
     monthlyCompletions: 0,
-    onTimeCompletionRate: 0,
-    customerSatisfaction: 0,
+    onTimeCompletionRate: 88,
+    customerSatisfaction: 94,
     totalVehiclesServiced: 0,
+    inProgressJobs: 0,
+    totalHoursWorked: 0,
   });
 
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -145,6 +158,11 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [jobCards, setJobCards] = useState<JobCard[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+
+  const userId = user?.id || user?._id || user?.userId;
 
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
@@ -216,6 +234,50 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
     return <Car className="h-4 w-4 text-gray-400" />;
   };
 
+  const calculateAverageCompletionTime = (jobCards: JobCard[]): string => {
+    const completedJobs = jobCards.filter(jc => jc.status === 'completed' && jc.actualHours);
+    if (completedJobs.length === 0) return '0h';
+    
+    const totalHours = completedJobs.reduce((sum, jc) => sum + (jc.actualHours || 0), 0);
+    const avgHours = totalHours / completedJobs.length;
+    
+    if (avgHours < 1) {
+      return `${Math.round(avgHours * 60)}m`;
+    }
+    return `${avgHours.toFixed(1)}h`;
+  };
+
+  const calculateOnTimeRate = (jobCards: JobCard[]): number => {
+    const completedJobs = jobCards.filter(jc => jc.status === 'completed');
+    if (completedJobs.length === 0) return 88; // Default fallback
+    
+    const onTime = completedJobs.filter(jc => {
+      if (!jc.actualHours || !jc.estimatedHours) return true;
+      return jc.actualHours <= jc.estimatedHours * 1.2; // Within 20% over estimate
+    }).length;
+    
+    return Math.round((onTime / completedJobs.length) * 100);
+  };
+
+  const getNextAppointment = (jobs: Job[]): string => {
+    const now = new Date();
+    const upcoming = jobs
+      .filter(j => j.status === 'scheduled' && new Date(j.scheduledDate || '') >= now)
+      .sort((a, b) => new Date(a.scheduledDate || '').getTime() - new Date(b.scheduledDate || '').getTime());
+    
+    if (upcoming.length === 0) return 'No upcoming jobs';
+    
+    const next = upcoming[0];
+    const date = new Date(next.scheduledDate || '');
+    const today = new Date();
+    
+    if (date.toDateString() === today.toDateString()) {
+      return `Today at ${formatTime(next.scheduledTime || '09:00')} - ${next.customer.name}`;
+    }
+    
+    return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at ${formatTime(next.scheduledTime || '09:00')} - ${next.customer.name}`;
+  };
+
   const fetchTechnicianData = useCallback(async (isRefresh = false) => {
     try {
       if (!isRefresh) {
@@ -224,191 +286,257 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
         setRefreshing(true);
       }
 
-      // Fetch opportunities that are relevant to technicians
-      // These would be opportunities with service/repair types that have job cards
-      const [opportunitiesResponse] = await Promise.allSettled([
+      // Fetch all necessary data in parallel
+      const [workOrdersResponse, jobCardsResponse, vehiclesResponse, opportunitiesResponse] = await Promise.allSettled([
+        workOrderService.getAllWorkOrders({ limit: 100 }),
+        jobCardService.getAllJobCards({ limit: 100 }),
+        vehicleService.getAllVehicles({ limit: 100 }),
         opportunityService.filterOpportunities({
           opportunityType: 'SERVICE',
-          status: 'appointment_scheduled',
-          sort: 'createdAt:desc',
-          limit: 100
+          limit: 100,
+          sort: 'createdAt:desc'
         })
       ]);
 
-      let fetchedJobs: Job[] = [];
-      let fetchedStats: TechnicianStats = {
-        assignedJobs: 0,
-        completedToday: 0,
-        pendingParts: 0,
-        avgCompletionTime: '2.5h',
-        efficiencyRate: 85,
-        qualityScore: 92,
-        urgentJobs: 0,
-        nextAppointment: 'No upcoming jobs',
-        waitingForInspection: 0,
-        awaitingCustomerApproval: 0,
-        monthlyCompletions: 12,
-        onTimeCompletionRate: 88,
-        customerSatisfaction: 94,
-        totalVehiclesServiced: 45,
-      };
+      let fetchedWorkOrders: WorkOrder[] = [];
+      let fetchedJobCards: JobCard[] = [];
+      let fetchedVehicles: Vehicle[] = [];
+      let fetchedOpportunities: any[] = [];
 
-      // Process opportunities into jobs
+      // Process work orders
+      if (workOrdersResponse.status === 'fulfilled' && workOrdersResponse.value) {
+        if (Array.isArray(workOrdersResponse.value)) {
+          fetchedWorkOrders = workOrdersResponse.value;
+        } else if (workOrdersResponse.value.data) {
+          fetchedWorkOrders = workOrdersResponse.value.data;
+        }
+      }
+      setWorkOrders(fetchedWorkOrders);
+
+      // Process job cards
+      if (jobCardsResponse.status === 'fulfilled' && jobCardsResponse.value) {
+        if (Array.isArray(jobCardsResponse.value)) {
+          fetchedJobCards = jobCardsResponse.value;
+        }
+      }
+      setJobCards(fetchedJobCards);
+
+      // Process vehicles
+      if (vehiclesResponse.status === 'fulfilled' && vehiclesResponse.value) {
+        if (Array.isArray(vehiclesResponse.value)) {
+          fetchedVehicles = vehiclesResponse.value;
+        }
+      }
+      setVehicles(fetchedVehicles);
+
+      // Process opportunities
       if (opportunitiesResponse.status === 'fulfilled' && opportunitiesResponse.value) {
-        const opportunities = opportunitiesResponse.value.data || [];
-        
-        // Convert opportunities to jobs format
-        fetchedJobs = opportunities.map((opp, index) => {
-          // Determine job status based on opportunity status
-          let jobStatus: Job['status'] = 'scheduled';
-          if (opp.status === 'won') jobStatus = 'completed';
-          else if (opp.status === 'appointment_scheduled') jobStatus = 'scheduled';
-          
-          // Extract vehicles from opportunity
-          const vehicles = opp.vehicles || [];
-          if (!vehicles.length && opp.customer) {
-            vehicles.push({
-              make: 'Unknown',
-              model: 'Vehicle',
-              year: '2023',
-              licensePlate: 'N/A'
-            });
-          }
-
-          // Extract services from servicesProducts
-          const services = opp.servicesProducts?.map(sp => ({
-            title: sp.title,
-            type: sp.type as any,
-            status: 'pending' as const,
-            estimatedTime: '1h',
-            priority: 'medium' as const
-          })) || [
-            {
-              title: opp.opportunityType === 'SERVICE' ? 'General Service' : 'Repair',
-              type: opp.opportunityType as any || 'SERVICE',
-              status: 'pending' as const,
-              estimatedTime: '2h',
-              priority: 'medium' as const
-            }
-          ];
-
-          // Calculate urgency based on lead score
-          const priority = opp.leadScore?.priority > 80 ? 'high' : 
-                          opp.leadScore?.priority > 60 ? 'medium' : 'low';
-
-          // Check if there are pending parts
-          const hasPendingParts = opp.notes?.toLowerCase().includes('waiting for parts') || 
-                                 opp.notes?.toLowerCase().includes('parts ordered');
-
-          const job: Job = {
-            id: `JOB-${String(index + 1).padStart(3, '0')}`,
-            opportunityId: opp._id,
-            subject: opp.subject || `Service for ${opp.customer?.name || 'Customer'}`,
-            customer: {
-              name: opp.customer?.name || 'Unknown Customer',
-              phone: opp.customer?.phone,
-              email: opp.customer?.email
-            },
-            vehicles,
-            services,
-            status: jobStatus,
-            scheduledDate: opp.createdAt?.split('T')[0],
-            scheduledTime: '09:00',
-            assignedTo: opp.assignedTo?.name || user?.firstName || 'You',
-            notes: opp.notes,
-            partsRequired: hasPendingParts ? [
-              { name: 'Brake Pads', status: 'ordered', estimatedArrival: 'Tomorrow' },
-              { name: 'Oil Filter', status: 'available' }
-            ] : [],
-            estimatedDuration: '2h',
-            actualDuration: jobStatus === 'completed' ? '1.5h' : undefined,
-            createdAt: opp.createdAt,
-            updatedAt: opp.updatedAt || opp.createdAt
-          };
-
-          return job;
-        });
-
-        // Calculate statistics
-        const today = new Date().toISOString().split('T')[0];
-        const assignedJobs = fetchedJobs.length;
-        const completedToday = fetchedJobs.filter(j => 
-          j.status === 'completed' && j.createdAt.includes(today)
-        ).length;
-        const pendingParts = fetchedJobs.reduce((count, job) => 
-          count + (job.partsRequired.filter(p => p.status !== 'available').length), 0
-        );
-        const urgentJobs = fetchedJobs.filter(j => 
-          j.services.some(s => s.priority === 'urgent' || s.priority === 'high')
-        ).length;
-
-        // Get next appointment
-        const upcomingJobs = fetchedJobs
-          .filter(j => j.status === 'scheduled')
-          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-        
-        const nextAppointment = upcomingJobs.length > 0 ? 
-          `${upcomingJobs[0].scheduledTime} - ${upcomingJobs[0].customer.name}` : 
-          'No upcoming jobs';
-
-        // Update stats
-        fetchedStats = {
-          ...fetchedStats,
-          assignedJobs,
-          completedToday,
-          pendingParts,
-          urgentJobs,
-          nextAppointment
-        };
-
-        // Set active jobs (jobs that are in progress or scheduled for today)
-        const active = fetchedJobs.filter(j => 
-          j.status === 'in_progress' || 
-          (j.status === 'scheduled' && j.scheduledDate === today)
-        );
-        setActiveJobs(active);
-
-        // Set today's schedule
-        const todaysJobs = fetchedJobs.filter(j => 
-          j.scheduledDate === today && j.status !== 'completed'
-        );
-        setTodaysSchedule(todaysJobs);
-
-        // Generate mock vehicles in shop status
-        const vehiclesStatus: VehicleStatus[] = fetchedJobs
-          .filter(j => j.status === 'in_progress' && j.vehicles.length > 0)
-          .map(job => ({
-            make: job.vehicles[0].make,
-            model: job.vehicles[0].model,
-            status: (job.partsRequired.length > 0 ? 'waiting_parts' : 'in_shop') as VehicleStatus['status'],
-            since: formatTimeAgo(job.createdAt),
-            technician: job.assignedTo || 'You'
-          }))
-          .slice(0, 5);
-
-        setVehiclesInShop(vehiclesStatus);
+        fetchedOpportunities = opportunitiesResponse.value.data || [];
       }
 
-      setJobs(fetchedJobs);
-      setStats(fetchedStats);
+      // Filter job cards assigned to current user
+      const userJobCards = fetchedJobCards.filter(jc => {
+        if (typeof jc.assignedTo === 'string') {
+          return jc.assignedTo === userId;
+        }
+        return jc.assignedTo?._id === userId || jc.assignedTo?.id === userId;
+      });
+
+      // Get work orders that have job cards assigned to user
+      const relevantWorkOrderIds = new Set(
+        userJobCards
+          .map(jc => typeof jc.opportunityId === 'string' ? jc.opportunityId : jc.opportunityId?._id)
+          .filter(id => id)
+      );
+
+      const userWorkOrders = fetchedWorkOrders.filter(wo => {
+        const oppId = typeof wo.opportunityId === 'string' ? wo.opportunityId : wo.opportunityId?._id;
+        return oppId && relevantWorkOrderIds.has(oppId);
+      });
+
+      // Convert to Job format for UI
+      const today = new Date().toISOString().split('T')[0];
+      const allJobs: Job[] = [];
+
+      // Create jobs from job cards
+      userJobCards.forEach(jc => {
+        // Find associated work order
+        const workOrder = userWorkOrders.find(wo => {
+          const oppId = typeof wo.opportunityId === 'string' ? wo.opportunityId : wo.opportunityId?._id;
+          const jcOppId = typeof jc.opportunityId === 'string' ? jc.opportunityId : jc.opportunityId?._id;
+          return oppId === jcOppId;
+        });
+
+        // Find associated opportunity
+        const opportunity = fetchedOpportunities.find(opp => {
+          const oppId = typeof jc.opportunityId === 'string' ? jc.opportunityId : jc.opportunityId?._id;
+          return opp._id === oppId;
+        });
+
+        // Find vehicle
+        const vehicle = fetchedVehicles.find(v => {
+          if (typeof jc.vehicleId === 'string') {
+            return v._id === jc.vehicleId || v.id === jc.vehicleId;
+          }
+          return v._id === jc.vehicleId?._id || v.id === jc.vehicleId?.id;
+        });
+
+        // Map job card status to UI status
+        let jobStatus: Job['status'] = 'scheduled';
+        if (jc.status === 'in_progress') jobStatus = 'in_progress';
+        else if (jc.status === 'completed') jobStatus = 'completed';
+        else if (jc.status === 'cancelled') jobStatus = 'cancelled';
+        else if (workOrder?.delayInfo) jobStatus = 'waiting_parts';
+
+        const job: Job = {
+          id: jc.jobNumber || `JOB-${jc.id.slice(-6)}`,
+          jobCardId: jc.id,
+          workOrderId: workOrder?._id,
+          opportunityId: typeof jc.opportunityId === 'string' ? jc.opportunityId : jc.opportunityId?._id || '',
+          subject: jc.jobTitle,
+          customer: {
+            name: opportunity?.customer?.name || 'Unknown Customer',
+            phone: opportunity?.customer?.phone,
+            email: opportunity?.customer?.email
+          },
+          vehicles: vehicle ? [{
+            make: vehicle.make || 'Unknown',
+            model: vehicle.model || 'Vehicle',
+            year: vehicle.year?.toString(),
+            licensePlate: vehicle.registrationNumber,
+            mileage: vehicle.mileage?.toString(),
+            color: vehicle.color,
+            vin: vehicle.vin
+          }] : [{
+            make: 'Unknown',
+            model: 'Vehicle',
+            licensePlate: 'N/A'
+          }],
+          services: [{
+            title: jc.jobTitle,
+            type: 'REPAIR',
+            status: jc.status === 'in_progress' ? 'in_progress' : 
+                    jc.status === 'completed' ? 'completed' : 'pending',
+            estimatedTime: jc.estimatedHours ? `${jc.estimatedHours}h` : '2h',
+            priority: jc.priority || 'medium'
+          }],
+          status: jobStatus,
+          scheduledDate: jc.startDate?.split('T')[0] || today,
+          scheduledTime: jc.startDate ? new Date(jc.startDate).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) : '09:00',
+          assignedTo: typeof jc.assignedTo === 'string' ? 'Technician' : jc.assignedTo?.name || 'You',
+          notes: jc.jobDescription,
+          partsRequired: (jc.partsUsed || []).map(p => ({
+            name: typeof p === 'string' ? p : p.partId || 'Part',
+            status: 'available'
+          })),
+          estimatedDuration: jc.estimatedHours ? `${jc.estimatedHours}h` : '2h',
+          actualDuration: jc.actualHours ? `${jc.actualHours}h` : undefined,
+          createdAt: jc.createdAt || new Date().toISOString(),
+          updatedAt: jc.updatedAt || new Date().toISOString()
+        };
+
+        allJobs.push(job);
+      });
+
+      setJobs(allJobs);
+
+      // Calculate statistics
+      const completedToday = allJobs.filter(j => 
+        j.status === 'completed' && j.updatedAt.includes(today)
+      ).length;
+
+      const inProgressJobs = allJobs.filter(j => j.status === 'in_progress').length;
+
+      const pendingParts = allJobs.reduce((count, job) => 
+        count + (job.partsRequired.filter(p => p.status !== 'available').length), 0
+      );
+
+      const urgentJobs = allJobs.filter(j => 
+        j.services.some(s => s.priority === 'urgent')
+      ).length;
+
+      const monthlyCompletions = allJobs.filter(j => {
+        const jobDate = new Date(j.updatedAt);
+        const now = new Date();
+        return j.status === 'completed' && 
+               jobDate.getMonth() === now.getMonth() &&
+               jobDate.getFullYear() === now.getFullYear();
+      }).length;
+
+      const totalHoursWorked = userJobCards
+        .filter(jc => jc.actualHours)
+        .reduce((sum, jc) => sum + (jc.actualHours || 0), 0);
+
+      // Set active jobs (in progress)
+      setActiveJobs(allJobs.filter(j => j.status === 'in_progress'));
+
+      // Set today's schedule
+      setTodaysSchedule(allJobs.filter(j => 
+        j.scheduledDate === today && j.status !== 'completed'
+      ));
+
+      // Generate vehicles in shop status from in-progress jobs
+        const vehiclesStatus: VehicleStatus[] = allJobs
+          .filter(j => j.status === 'in_progress' && j.vehicles.length > 0)
+          .map(job => {
+            // Determine the status with proper typing
+            let vehicleStatus: 'in_shop' | 'ready' | 'waiting_parts' | 'diagnostics' = 'in_shop';
+            
+            if (job.partsRequired.some(p => p.status !== 'available')) {
+              vehicleStatus = 'waiting_parts';
+            } else if (job.status === 'completed') {
+              vehicleStatus = 'ready';
+            } else {
+              vehicleStatus = 'in_shop';
+            }
+            
+            return {
+              id: job.vehicles[0].vin || `vehicle-${Math.random()}`,
+              make: job.vehicles[0].make,
+              model: job.vehicles[0].model,
+              registrationNumber: job.vehicles[0].licensePlate,
+              status: vehicleStatus, // Now properly typed
+              since: formatTimeAgo(job.createdAt),
+              technician: job.assignedTo || 'You',
+              workOrderId: job.workOrderId,
+              jobCardId: job.jobCardId
+            };
+          })
+          .slice(0, 5);
+
+      setVehiclesInShop(vehiclesStatus);
+
+      // Update stats
+      setStats(prev => ({
+        ...prev,
+        assignedJobs: allJobs.length,
+        completedToday,
+        pendingParts,
+        urgentJobs,
+        monthlyCompletions,
+        inProgressJobs,
+        totalHoursWorked,
+        avgCompletionTime: calculateAverageCompletionTime(userJobCards),
+        onTimeCompletionRate: calculateOnTimeRate(userJobCards),
+        nextAppointment: getNextAppointment(allJobs),
+        totalVehiclesServiced: vehiclesStatus.length + prev.totalVehiclesServiced,
+        waitingForInspection: allJobs.filter(j => j.status === 'completed' && !j.actualDuration).length,
+        awaitingCustomerApproval: allJobs.filter(j => j.notes?.toLowerCase().includes('awaiting approval')).length
+      }));
 
     } catch (error) {
       console.error('Error fetching technician data:', error);
-      
-      // Fallback to default data
-      setStats(prev => ({
-        ...prev,
-        systemHealth: 'Degraded',
-      }));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
-    fetchTechnicianData();
-  }, [fetchTechnicianData]);
+    if (userId) {
+      fetchTechnicianData();
+    }
+  }, [fetchTechnicianData, userId]);
 
   const handleRefresh = () => {
     fetchTechnicianData(true);
@@ -496,7 +624,7 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
             </div>
             <div>
               <h1 className="text-xl font-bold text-white">Technician Dashboard</h1>
-              <p className="text-orange-100 text-sm">
+              <p className="text-blue-100 text-sm">
                 Welcome back, <span className="font-semibold text-white">{user?.firstName || 'Technician'}</span>
                 <span className="ml-2 px-2 py-0.5 bg-white/10 text-white text-xs rounded-full">
                   {user?.role?.name || 'Technician'}
@@ -559,9 +687,9 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
                 <div className="p-3 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100">
                   <Wrench className="h-6 w-6 text-blue-600" />
                 </div>
-                <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-orange-100/80 text-orange-600 text-xs font-medium">
+                <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-blue-100/80 text-blue-600 text-xs font-medium">
                   <Activity className="h-3 w-3" />
-                  <span>{stats.assignedJobs}</span>
+                  <span>{stats.assignedJobs} total</span>
                 </span>
               </div>
               <div>
@@ -570,7 +698,33 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
               </div>
               <div className="mt-4 pt-4 border-t border-gray-100/50">
                 <div className="text-sm text-gray-600">
-                  <span>{stats.urgentJobs} urgent • {stats.waitingForInspection} awaiting inspection</span>
+                  <span>{stats.inProgressJobs} in progress • {stats.urgentJobs} urgent</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* In Progress */}
+          <div className="group relative">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-amber-400 via-orange-400 to-red-400 rounded-2xl opacity-0 group-hover:opacity-50 blur transition duration-500"></div>
+            <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5 hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-amber-100 to-orange-100">
+                  <Activity className="h-6 w-6 text-amber-600" />
+                </div>
+                <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100/80 text-amber-600 text-xs font-medium">
+                  <Clock className="h-3 w-3" />
+                  <span>Active</span>
+                </span>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 font-medium mb-1">In Progress</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.inProgressJobs}</p>
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-100/50">
+                <div className="flex items-center text-sm">
+                  <Clock className="h-4 w-4 text-amber-500 mr-1" />
+                  <span className="text-gray-600">{stats.totalHoursWorked.toFixed(1)} hours worked</span>
                 </div>
               </div>
             </div>
@@ -595,8 +749,7 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
               </div>
               <div className="mt-4 pt-4 border-t border-gray-100/50">
                 <div className="flex items-center text-sm">
-                  <Clock className="h-4 w-4 text-emerald-500 mr-1" />
-                  <span className="text-gray-600">On schedule</span>
+                  <span className="text-gray-600">{stats.monthlyCompletions} this month</span>
                 </div>
               </div>
             </div>
@@ -608,7 +761,7 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
             <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5 hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
                 <div className="p-3 rounded-xl bg-gradient-to-br from-red-100 to-rose-100">
-                  <AlertTriangle className="h-6 w-6 text-red-600" />
+                  <Package className="h-6 w-6 text-red-600" />
                 </div>
                 <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-red-100/80 text-red-600 text-xs font-medium">
                   <AlertCircle className="h-3 w-3" />
@@ -616,37 +769,12 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
                 </span>
               </div>
               <div>
-                <p className="text-sm text-gray-600 font-medium mb-1">Pending Parts</p>
+                <p className="text-sm text-gray-600 font-medium mb-1">Parts on Order</p>
                 <p className="text-2xl font-bold text-gray-900">{stats.pendingParts}</p>
               </div>
               <div className="mt-4 pt-4 border-t border-gray-100/50">
                 <div className="text-sm text-gray-600">
                   <span>{stats.awaitingCustomerApproval} awaiting approval</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Completion Time */}
-          <div className="group relative">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 rounded-2xl opacity-0 group-hover:opacity-50 blur transition duration-500"></div>
-            <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5 hover:shadow-xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-100 to-blue-100">
-                  <Clock className="h-6 w-6 text-cyan-600" />
-                </div>
-                <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-blue-100/80 text-blue-600 text-xs font-medium">
-                  <Activity className="h-3 w-3" />
-                  <span>Avg. Time</span>
-                </span>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 font-medium mb-1">Completion Time</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.avgCompletionTime}</p>
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-100/50">
-                <div className="flex items-center text-sm">
-                  <span className="text-gray-600">{stats.onTimeCompletionRate}% on time</span>
                 </div>
               </div>
             </div>
@@ -658,7 +786,7 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
           {/* Active Jobs */}
           <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Active Jobs</h2>
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
               {activeJobs.length > 0 ? activeJobs.map((job, index) => (
                 <div key={index} className="flex items-start justify-between p-3 hover:bg-gray-50 rounded-lg border border-gray-100 transition-all duration-300">
                   <div className="flex-1">
@@ -673,7 +801,8 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
                         job.services.some(s => s.priority === 'urgent') ? 'urgent' : 
                         job.services.some(s => s.priority === 'high') ? 'high' : 'medium'
                       )}`}>
-                        {job.services.some(s => s.priority === 'urgent') ? 'URGENT' : 'PRIORITY'}
+                        {job.services.some(s => s.priority === 'urgent') ? 'URGENT' : 
+                         job.services.some(s => s.priority === 'high') ? 'HIGH' : 'MEDIUM'}
                       </span>
                     </div>
                     
@@ -855,7 +984,7 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
                   <h3 className="text-sm font-medium text-gray-700">Today's Schedule</h3>
                   <span className="text-xs text-gray-500">{todaysSchedule.length} jobs</span>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2">
                   {todaysSchedule.length > 0 ? todaysSchedule.map((job, index) => (
                     <div key={index} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50/50 transition-colors">
                       <div className="flex items-center gap-3">
@@ -893,7 +1022,7 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
                   <h3 className="text-sm font-medium text-gray-700">Vehicles in Shop</h3>
                   <span className="text-xs text-gray-500">{vehiclesInShop.length} vehicles</span>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2">
                   {vehiclesInShop.map((vehicle, index) => (
                     <div key={index} className="flex items-center justify-between p-2 hover:bg-gray-50/50 rounded-lg">
                       <div className="flex items-center gap-2">
@@ -902,6 +1031,9 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
                         </div>
                         <div>
                           <span className="text-sm font-medium text-gray-900">{vehicle.make} {vehicle.model}</span>
+                          {vehicle.registrationNumber && (
+                            <p className="text-xs text-gray-500">{vehicle.registrationNumber}</p>
+                          )}
                           <p className="text-xs text-gray-500">Since: {vehicle.since}</p>
                         </div>
                       </div>
@@ -1046,7 +1178,7 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
                 <span className="text-sm font-medium text-gray-700">Urgent Jobs</span>
               </div>
               <p className="text-sm text-gray-700">
-                {stats.urgentJobs} jobs require immediate attention
+                {stats.urgentJobs} job{stats.urgentJobs !== 1 ? 's' : ''} require immediate attention
               </p>
               <button className="mt-2 w-full py-1.5 text-sm bg-red-50 text-red-600 rounded-lg hover:bg-red-100">
                 View Urgent
@@ -1061,7 +1193,7 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
                 <span className="text-sm font-medium text-gray-700">Parts Status</span>
               </div>
               <p className="text-sm text-gray-700">
-                {stats.pendingParts} parts awaiting delivery
+                {stats.pendingParts} part{stats.pendingParts !== 1 ? 's' : ''} awaiting delivery
               </p>
               <button className="mt-2 w-full py-1.5 text-sm bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100">
                 Check Parts
@@ -1076,7 +1208,7 @@ export default function TechnicianDashboard({ user }: TechnicianDashboardProps) 
                 <span className="text-sm font-medium text-gray-700">Ready for Inspection</span>
               </div>
               <p className="text-sm text-gray-700">
-                {stats.waitingForInspection} jobs await final inspection
+                {stats.waitingForInspection} job{stats.waitingForInspection !== 1 ? 's' : ''} await final inspection
               </p>
               <button className="mt-2 w-full py-1.5 text-sm bg-green-50 text-green-600 rounded-lg hover:bg-green-100">
                 Inspect Now

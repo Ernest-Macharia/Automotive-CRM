@@ -38,6 +38,8 @@ import {
   Zap
 } from 'lucide-react';
 import { opportunityService, Opportunity } from '@/services/opportunityService';
+import { invoiceService, Invoice, PAYMENT_STATUS, INVOICE_STATUS } from '@/services/invoiceService';
+import { workOrderService } from '@/services/workOrderService';
 import { createPermissionChecker } from '@/services/settings/roleService';
 
 interface FinanceDashboardProps {
@@ -80,11 +82,13 @@ interface RevenueSource {
 
 interface PaymentDue {
   id: string;
+  invoiceNumber: string;
   client: string;
   amount: number;
   dueDate: string;
   status: 'pending' | 'overdue' | 'paid';
   opportunityId: string;
+  invoiceId: string;
   daysOverdue?: number;
 }
 
@@ -96,6 +100,7 @@ interface Transaction {
   date: string;
   status: 'completed' | 'pending' | 'failed';
   opportunityId?: string;
+  invoiceId?: string;
   category: string;
 }
 
@@ -105,6 +110,16 @@ interface BudgetStatus {
   spent: number;
   variance: number;
   forecast: number;
+}
+
+interface InvoiceStats {
+  total: number;
+  paid: number;
+  unpaid: number;
+  overdue: number;
+  totalAmount: number;
+  paidAmount: number;
+  outstandingAmount: number;
 }
 
 export default function FinanceDashboard({ user }: FinanceDashboardProps) {
@@ -127,6 +142,15 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
   const [upcomingPayments, setUpcomingPayments] = useState<PaymentDue[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [budgetStatus, setBudgetStatus] = useState<BudgetStatus[]>([]);
+  const [invoiceStats, setInvoiceStats] = useState<InvoiceStats>({
+    total: 0,
+    paid: 0,
+    unpaid: 0,
+    overdue: 0,
+    totalAmount: 0,
+    paidAmount: 0,
+    outstandingAmount: 0
+  });
   
   const [showDetailedNumbers, setShowDetailedNumbers] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -135,9 +159,9 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
   const [selectedMetric, setSelectedMetric] = useState('revenue');
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-KE', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'KES',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
@@ -188,6 +212,11 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
     return <ShoppingBag className="h-4 w-4" />;
   };
 
+  const calculateGrowth = (current: number, previous: number): number => {
+    if (previous === 0) return 0;
+    return ((current - previous) / previous) * 100;
+  };
+
   const fetchFinancialData = useCallback(async (isRefresh = false) => {
     try {
       if (!isRefresh) {
@@ -198,23 +227,70 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
 
       const dateRange = calculateTimeRange();
       
+      // Calculate previous period for growth
+      const prevDate = new Date(dateRange.start);
+      prevDate.setMonth(prevDate.getMonth() - 1);
+      const prevStart = prevDate.toISOString().split('T')[0];
+      const prevEnd = dateRange.start;
+
       // Fetch multiple data sources in parallel
       const [
-        wonOpportunities,
-        serviceOpportunities,
-        allOpportunities,
-        highValueOpportunities,
-        recentTransactionsData,
-        revenueStats
-      ] = await Promise.all([
-        // Won opportunities for revenue calculation
+        // Current period invoices
+        currentInvoicesResult,
+        // Previous period invoices for growth
+        previousInvoicesResult,
+        // Paid invoices
+        paidInvoicesResult,
+        // Unpaid invoices
+        unpaidInvoicesResult,
+        // All opportunities for analysis
+        opportunitiesResult,
+        // Won opportunities
+        wonOpportunitiesResult,
+        // Service opportunities for breakdown
+        serviceOpportunitiesResult,
+        // High value opportunities
+        highValueOpportunitiesResult,
+        // Invoice statistics
+        invoiceStatsResult,
+        // Work orders for expense estimation
+        workOrdersResult
+      ] = await Promise.allSettled([
+        // Current period invoices
+        invoiceService.getAllInvoices({
+          fromDate: dateRange.start,
+          toDate: dateRange.end
+        }),
+        
+        // Previous period invoices
+        invoiceService.getAllInvoices({
+          fromDate: prevStart,
+          toDate: prevEnd
+        }),
+        
+        // Paid invoices
+        invoiceService.getInvoicesByPaymentStatus('paid'),
+        
+        // Unpaid invoices (pending + overdue)
+        invoiceService.getAllInvoices({
+          paymentStatus: 'unpaid'
+        }),
+        
+        // All opportunities for analysis
+        opportunityService.filterOpportunities({
+          fromDate: dateRange.start,
+          toDate: dateRange.end,
+          sort: 'createdAt:desc',
+          limit: 200
+        }),
+        
+        // Won opportunities
         opportunityService.filterOpportunities({
           status: 'won',
           fromDate: dateRange.start,
           toDate: dateRange.end,
-          sort: 'createdAt:desc',
           limit: 100
-        }).catch(() => ({ data: [] })),
+        }),
         
         // Service opportunities for breakdown
         opportunityService.filterOpportunities({
@@ -223,86 +299,91 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
           toDate: dateRange.end,
           sort: 'total:desc',
           limit: 50
-        }).catch(() => ({ data: [] })),
+        }),
         
-        // All opportunities for trend analysis
-        opportunityService.filterOpportunities({
+        // High value opportunities
+        opportunityService.getHighValueOpportunities(10000),
+        
+        // Invoice statistics
+        invoiceService.getInvoiceStatistics(),
+        
+        // Work orders for expense estimation
+        workOrderService.getAllWorkOrders({
           fromDate: dateRange.start,
-          toDate: dateRange.end,
-          sort: 'createdAt:desc',
-          limit: 200
-        }).catch(() => ({ data: [] })),
-        
-        // High value opportunities for top revenue
-        opportunityService.getHighValueOpportunities(10000).catch(() => ({ data: [] })),
-        
-        // Recent transactions (mock for now - would come from invoice system)
-        opportunityService.filterOpportunities({
-          status: 'won',
-          sort: 'updatedAt:desc',
-          limit: 20
-        }).catch(() => ({ data: [] })),
-        
-        // Revenue stats
-        opportunityService.getRevenueStats().catch(() => ({ 
-          monthlyRevenue: 0, 
-          avgDealSize: 0,
-          totalRevenue: 0
-        }))
+          toDate: dateRange.end
+        })
       ]);
 
-      const sumOpportunityTotals = (opportunities: Opportunity[] = []): number => {
-        return opportunities.reduce((sum: number, opp: Opportunity) => 
-          sum + (Number(opp.total) || 0), 0
-        );
-      };
-
-      // Calculate revenue from won opportunities
-      const revenue = sumOpportunityTotals(wonOpportunities.data);
-
-      // Calculate previous period for growth
-      const prevDate = new Date(dateRange.start);
-      prevDate.setMonth(prevDate.getMonth() - 1);
-      const prevStart = prevDate.toISOString().split('T')[0];
+      // Process invoices
+      const currentInvoices: Invoice[] = currentInvoicesResult.status === 'fulfilled' 
+        ? currentInvoicesResult.value 
+        : [];
       
-      const prevOpportunities = await opportunityService.filterOpportunities({
-        status: 'won',
-        fromDate: prevStart,
-        toDate: dateRange.start,
-        limit: 100
-      }).catch(() => ({ data: [] }));
+      const previousInvoices: Invoice[] = previousInvoicesResult.status === 'fulfilled' 
+        ? previousInvoicesResult.value 
+        : [];
+      
+      const paidInvoices: Invoice[] = paidInvoicesResult.status === 'fulfilled' 
+        ? paidInvoicesResult.value 
+        : [];
+      
+      const unpaidInvoices: Invoice[] = unpaidInvoicesResult.status === 'fulfilled' 
+        ? unpaidInvoicesResult.value 
+        : [];
 
-      const prevRevenue = sumOpportunityTotals(prevOpportunities.data);
+      // Calculate revenue from paid invoices
+      const revenue = paidInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+      
+      // Calculate previous period revenue
+      const previousRevenue = previousInvoices
+        .filter(inv => inv.paymentStatus === 'paid')
+        .reduce((sum, inv) => sum + (inv.total || 0), 0);
 
-      const revenueGrowth = prevRevenue > 0 
-        ? ((revenue - prevRevenue) / prevRevenue) * 100 
-        : 0;
+      // Calculate accounts receivable from unpaid invoices
+      const accountsReceivable = unpaidInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
 
-      // Calculate expenses (mock data - would come from expense system)
-      // For now, estimate as 75% of revenue
-      const expenses = revenue * 0.75;
+      // Calculate revenue growth
+      const revenueGrowth = calculateGrowth(revenue, previousRevenue);
+
+      // Process work orders for expense estimation
+      const workOrders = workOrdersResult.status === 'fulfilled' 
+        ? workOrdersResult.value.data || [] 
+        : [];
+
+      // Calculate expenses (labor + parts from work orders)
+      const expenses = workOrders.reduce((sum, wo) => {
+        return sum + (wo.laborCost || 0) + (wo.partsCost || 0);
+      }, 0);
+
+      // Calculate profit
       const profit = revenue - expenses;
       const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
-      // Calculate cash flow (mock - would come from cash flow analysis)
-      const cashFlow = profit * 0.8;
+      // Calculate cash flow (simplified: revenue collected - expenses)
+      const cashFlow = revenue * 0.8; // 80% of revenue as cash flow (placeholder)
 
-      // Calculate accounts receivable from open opportunities
-      const openOpportunities = await opportunityService.filterOpportunities({
-        status: 'appointment_scheduled',
-        fromDate: dateRange.start,
-        toDate: dateRange.end,
-        limit: 50
-      }).catch(() => ({ data: [] }));
+      // Calculate accounts payable from pending work orders
+      const pendingWorkOrders = workOrders.filter(wo => 
+        wo.status !== 'completed' && wo.status !== 'cancelled'
+      );
+      const accountsPayable = pendingWorkOrders.reduce((sum, wo) => {
+        return sum + (wo.laborCost || 0) + (wo.partsCost || 0);
+      }, 0);
 
-      const accountsReceivable = sumOpportunityTotals(openOpportunities.data);
+      // Process opportunities for deal size
+      const opportunities = opportunitiesResult.status === 'fulfilled' 
+        ? opportunitiesResult.value.data || [] 
+        : [];
 
-      // Accounts payable (mock - would come from vendor system)
-      const accountsPayable = expenses * 0.6;
+      const wonOpportunities = wonOpportunitiesResult.status === 'fulfilled'
+        ? wonOpportunitiesResult.value.data || []
+        : [];
 
-      // Calculate average deal size
-      const dealCount = wonOpportunities.data?.length || 1;
+      const dealCount = wonOpportunities.length || 1;
       const avgDealSize = revenue / dealCount;
+      
+      // Customer lifetime value (simplified: avg deal size * 3 years * repeat rate)
+      const customerLTV = avgDealSize * 3 * 0.6; // 60% repeat rate assumption
 
       // Calculate monthly revenue trend
       const monthlyData: MonthlyRevenue[] = [];
@@ -314,27 +395,41 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
         const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
         const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
         
-        const monthOpps = allOpportunities.data?.filter(opp => {
-          const oppDate = new Date(opp.createdAt);
-          return oppDate >= monthStart && oppDate <= monthEnd;
-        }) || [];
+        const monthInvoices = currentInvoices.filter(inv => {
+          const invDate = new Date(inv.createdAt || '');
+          return invDate >= monthStart && invDate <= monthEnd && inv.paymentStatus === 'paid';
+        });
         
-        const monthRevenue = monthOpps.reduce((sum, opp) => sum + (opp.total || 0), 0);
-        const prevMonthRevenue = i > 0 ? monthlyData[i-1]?.amount || 0 : 0;
-        const growth = prevMonthRevenue > 0 ? ((monthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100 : 0;
+        const monthRevenue = monthInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+        
+        // Previous month for growth
+        const prevMonthStart = new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1);
+        const prevMonthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth(), 0);
+        
+        const prevMonthInvoices = currentInvoices.filter(inv => {
+          const invDate = new Date(inv.createdAt || '');
+          return invDate >= prevMonthStart && invDate <= prevMonthEnd && inv.paymentStatus === 'paid';
+        });
+        
+        const prevMonthRevenue = prevMonthInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+        const growth = calculateGrowth(monthRevenue, prevMonthRevenue);
         
         monthlyData.push({
           month: monthNames[monthDate.getMonth()],
           amount: monthRevenue,
           growth: parseFloat(growth.toFixed(1)),
-          count: monthOpps.length
+          count: monthInvoices.length
         });
       }
 
       // Calculate revenue sources by opportunity type
       const sourceMap = new Map<string, {amount: number, count: number}>();
       
-      serviceOpportunities.data?.forEach(opp => {
+      const serviceOpps = serviceOpportunitiesResult.status === 'fulfilled'
+        ? serviceOpportunitiesResult.value.data || []
+        : [];
+
+      serviceOpps.forEach(opp => {
         const type = opp.opportunityType || 'SERVICE';
         const existing = sourceMap.get(type) || { amount: 0, count: 0 };
         sourceMap.set(type, {
@@ -358,51 +453,154 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
         .sort((a, b) => b.amount - a.amount)
         .slice(0, 5);
 
-      // Expense breakdown (mock - would come from expense system)
+      // Expense breakdown (based on work order costs)
+      const laborCost = workOrders.reduce((sum, wo) => sum + (wo.laborCost || 0), 0);
+      const partsCost = workOrders.reduce((sum, wo) => sum + (wo.partsCost || 0), 0);
+      
+      // Allocate remaining expenses proportionally (would need actual expense data)
+      const remainingExpenses = expenses - laborCost - partsCost;
+      
       const expenseData: ExpenseBreakdown[] = [
-        { category: 'Parts & Inventory', amount: expenses * 0.35, percentage: 35 },
-        { category: 'Labor', amount: expenses * 0.23, percentage: 23 },
-        { category: 'Operations', amount: expenses * 0.16, percentage: 16 },
-        { category: 'Marketing', amount: expenses * 0.11, percentage: 11 },
-        { category: 'Administration', amount: expenses * 0.08, percentage: 8 },
-        { category: 'Other', amount: expenses * 0.07, percentage: 7 }
+        { category: 'Parts & Inventory', amount: partsCost, percentage: (partsCost / expenses) * 100 },
+        { category: 'Labor', amount: laborCost, percentage: (laborCost / expenses) * 100 },
+        { category: 'Operations', amount: remainingExpenses * 0.4, percentage: ((remainingExpenses * 0.4) / expenses) * 100 },
+        { category: 'Marketing', amount: remainingExpenses * 0.3, percentage: ((remainingExpenses * 0.3) / expenses) * 100 },
+        { category: 'Administration', amount: remainingExpenses * 0.2, percentage: ((remainingExpenses * 0.2) / expenses) * 100 },
+        { category: 'Other', amount: remainingExpenses * 0.1, percentage: ((remainingExpenses * 0.1) / expenses) * 100 }
       ];
 
-      // Upcoming payments from high value opportunities
-      const payments: PaymentDue[] = highValueOpportunities.data?.slice(0, 4).map((opp, index) => {
-        const dueDate = new Date(opp.createdAt);
-        dueDate.setDate(dueDate.getDate() + 30);
-        const isOverdue = dueDate < new Date();
-        
-        return {
-          id: `INV-${opp._id.slice(-6)}`,
-          client: opp.customer?.name || 'Unknown Client',
-          amount: opp.total || 0,
-          dueDate: dueDate.toISOString().split('T')[0],
-          status: isOverdue ? 'overdue' : 'pending',
-          opportunityId: opp._id,
-          daysOverdue: isOverdue ? Math.floor((new Date().getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)) : undefined
-        };
-      }) || [];
+      // Filter expense data to remove zeros and sort
+      const filteredExpenseData = expenseData
+        .filter(e => e.amount > 0)
+        .sort((a, b) => b.amount - a.amount);
 
-      // Recent transactions (mock from recent won opportunities)
-      const transactions: Transaction[] = recentTransactionsData.data?.slice(0, 8).map((opp, index) => ({
-        id: `TXN-${opp._id.slice(-6)}`,
-        type: 'revenue',
-        description: opp.subject || 'Service Revenue',
-        amount: opp.total || 0,
-        date: opp.createdAt.split('T')[0],
-        status: 'completed',
-        opportunityId: opp._id,
-        category: opp.opportunityType || 'SERVICE'
-      })) || [];
+      // Process upcoming payments (unpaid invoices with due dates)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const payments: PaymentDue[] = unpaidInvoices
+        .filter(inv => inv.dueDate) // Only invoices with due dates
+        .map(inv => {
+          const dueDate = new Date(inv.dueDate!);
+          const isOverdue = dueDate < today && inv.paymentStatus !== 'paid';
+          const daysOverdue = isOverdue 
+            ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
+            : undefined;
+          
+          // Get client name from opportunity if available
+          let clientName = 'Unknown Client';
+          if (inv.opportunityId && typeof inv.opportunityId === 'object') {
+            clientName = inv.opportunityId.customer?.name || 
+                        inv.opportunityId.subject || 
+                        'Unknown Client';
+          }
 
-      // Budget status (mock - would come from budget system)
+          // Explicitly type the status
+          const status: 'overdue' | 'pending' = isOverdue ? 'overdue' : 'pending';
+
+          return {
+            id: inv.id || inv._id || '',
+            invoiceNumber: inv.invoiceNumber,
+            client: clientName,
+            amount: inv.total || 0,
+            dueDate: inv.dueDate!.split('T')[0],
+            status, // Now properly typed
+            opportunityId: typeof inv.opportunityId === 'string' 
+              ? inv.opportunityId 
+              : inv.opportunityId?._id || '',
+            invoiceId: inv.id || inv._id || '',
+            daysOverdue
+          };
+        })
+        .sort((a, b) => {
+          // Sort by overdue first, then by due date
+          if (a.status === 'overdue' && b.status !== 'overdue') return -1;
+          if (a.status !== 'overdue' && b.status === 'overdue') return 1;
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        })
+        .slice(0, 5); // Top 5
+
+      // Process recent transactions from paid invoices
+      const transactions: Transaction[] = paidInvoices
+        .sort((a, b) => {
+          const dateA = new Date(a.paidAt || a.updatedAt || a.createdAt || '').getTime();
+          const dateB = new Date(b.paidAt || b.updatedAt || b.createdAt || '').getTime();
+          return dateB - dateA;
+        })
+        .slice(0, 8)
+        .map(inv => {
+          let description = 'Invoice Payment';
+          if (inv.opportunityId && typeof inv.opportunityId === 'object') {
+            description = inv.opportunityId.subject || 'Service Revenue';
+          }
+
+          return {
+            id: `TXN-${inv.invoiceNumber}`,
+            type: 'revenue' as const,
+            description,
+            amount: inv.total || 0,
+            date: (inv.paidAt || inv.createdAt || '').split('T')[0],
+            status: 'completed' as const,
+            opportunityId: typeof inv.opportunityId === 'string' 
+              ? inv.opportunityId 
+              : inv.opportunityId?._id,
+            invoiceId: inv.id || inv._id,
+            category: 'SERVICE' // Would need actual category
+          };
+        });
+
+      // Calculate invoice statistics
+      const totalInvoices = currentInvoices.length;
+      const paidCount = paidInvoices.length;
+      const unpaidCount = unpaidInvoices.length;
+      
+      // Calculate overdue count
+      const overdueCount = unpaidInvoices.filter(inv => {
+        if (!inv.dueDate) return false;
+        const dueDate = new Date(inv.dueDate);
+        return dueDate < today;
+      }).length;
+
+      setInvoiceStats({
+        total: totalInvoices,
+        paid: paidCount,
+        unpaid: unpaidCount,
+        overdue: overdueCount,
+        totalAmount: currentInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0),
+        paidAmount: revenue,
+        outstandingAmount: accountsReceivable
+      });
+
+      // Budget status (mock for now - would come from budget system)
       const budgets: BudgetStatus[] = [
-        { department: 'Parts & Inventory', budget: expenses * 0.4, spent: expenses * 0.35, variance: 12.5, forecast: expenses * 0.38 },
-        { department: 'Labor', budget: expenses * 0.25, spent: expenses * 0.23, variance: 8.0, forecast: expenses * 0.24 },
-        { department: 'Marketing', budget: expenses * 0.12, spent: expenses * 0.11, variance: 8.3, forecast: expenses * 0.115 },
-        { department: 'Operations', budget: expenses * 0.18, spent: expenses * 0.16, variance: 11.1, forecast: expenses * 0.17 }
+        { 
+          department: 'Parts & Inventory', 
+          budget: expenses * 0.4, 
+          spent: partsCost, 
+          variance: ((expenses * 0.4 - partsCost) / (expenses * 0.4)) * 100, 
+          forecast: expenses * 0.38 
+        },
+        { 
+          department: 'Labor', 
+          budget: expenses * 0.25, 
+          spent: laborCost, 
+          variance: ((expenses * 0.25 - laborCost) / (expenses * 0.25)) * 100, 
+          forecast: expenses * 0.24 
+        },
+        { 
+          department: 'Marketing', 
+          budget: expenses * 0.12, 
+          spent: expenseData.find(e => e.category === 'Marketing')?.amount || 0, 
+          variance: 8.3, 
+          forecast: expenses * 0.115 
+        },
+        { 
+          department: 'Operations', 
+          budget: expenses * 0.18, 
+          spent: expenseData.find(e => e.category === 'Operations')?.amount || 0, 
+          variance: 11.1, 
+          forecast: expenses * 0.17 
+        }
       ];
 
       // Update all state
@@ -416,11 +614,11 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
         revenueGrowth: parseFloat(revenueGrowth.toFixed(1)),
         profitMargin: parseFloat(profitMargin.toFixed(1)),
         avgDealSize: parseFloat(avgDealSize.toFixed(0)),
-        customerLifetimeValue: parseFloat((avgDealSize * 3).toFixed(0)) // Mock: 3x average deal
+        customerLifetimeValue: parseFloat(customerLTV.toFixed(0))
       });
 
       setMonthlyRevenue(monthlyData);
-      setExpenseBreakdown(expenseData);
+      setExpenseBreakdown(filteredExpenseData);
       setRevenueSources(revenueSourcesData);
       setUpcomingPayments(payments);
       setRecentTransactions(transactions);
@@ -436,6 +634,13 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
 
   useEffect(() => {
     fetchFinancialData();
+    
+    // Set up polling for real-time updates
+    const intervalId = setInterval(() => {
+      fetchFinancialData(true);
+    }, 60000); // Refresh every minute
+    
+    return () => clearInterval(intervalId);
   }, [fetchFinancialData]);
 
   const handleRefresh = () => {
@@ -617,9 +822,9 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
                 </p>
               </div>
               <div className="mt-4 pt-4 border-t border-gray-100/50">
-                <div className="flex items-center text-sm">
-                  <Calendar className="h-4 w-4 text-emerald-500 mr-1" />
-                  <span className="text-gray-600">This {timeframe}</span>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">Paid Invoices: {invoiceStats.paid}</span>
+                  <span className="text-gray-600">Total: {formatCurrency(invoiceStats.paidAmount)}</span>
                 </div>
               </div>
             </div>
@@ -653,6 +858,34 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
             </div>
           </div>
 
+          {/* Accounts Receivable Card */}
+          <div className="group relative">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-amber-400 via-orange-400 to-red-400 rounded-2xl opacity-0 group-hover:opacity-50 blur transition duration-500"></div>
+            <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5 hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-amber-100 to-orange-100">
+                  <Receipt className="h-6 w-6 text-amber-600" />
+                </div>
+                <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-amber-100/80 to-orange-100/80">
+                  <AlertCircle className="h-3 w-3 text-amber-600" />
+                  <span className="text-xs font-medium text-amber-700">{invoiceStats.unpaid} pending</span>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 font-medium mb-1">Accounts Receivable</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {showDetailedNumbers ? formatCurrency(metrics.accountsReceivable) : '••••••'}
+                </p>
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-100/50">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">{invoiceStats.overdue} overdue</span>
+                  <span className="text-red-600 font-medium">{formatCurrency(invoiceStats.outstandingAmount)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Cash Flow Card */}
           <div className="group relative">
             <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 rounded-2xl opacity-0 group-hover:opacity-50 blur transition duration-500"></div>
@@ -663,7 +896,11 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
                 </div>
                 <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-cyan-100/80 to-blue-100/80">
                   <Activity className="h-3 w-3 text-cyan-600" />
-                  <span className="text-xs font-medium text-cyan-700">Positive</span>
+                  <span className={`text-xs font-medium ${
+                    metrics.cashFlow > 0 ? 'text-cyan-700' : 'text-red-700'
+                  }`}>
+                    {metrics.cashFlow > 0 ? 'Positive' : 'Negative'}
+                  </span>
                 </div>
               </div>
               <div>
@@ -675,56 +912,38 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
               <div className="mt-4 pt-4 border-t border-gray-100/50">
                 <div className="flex items-center text-sm">
                   <Banknote className="h-4 w-4 text-cyan-500 mr-1" />
-                  <span className="text-emerald-600 font-medium">
+                  <span className={`font-medium ${
+                    metrics.cashFlow > 0 ? 'text-emerald-600' : 'text-red-600'
+                  }`}>
                     {metrics.cashFlow > 0 ? 'Healthy' : 'Negative'}
                   </span>
                 </div>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* AR/AP Summary */}
-          <div className="group relative">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-violet-400 via-purple-400 to-pink-400 rounded-2xl opacity-0 group-hover:opacity-50 blur transition duration-500"></div>
-            <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5 hover:shadow-xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-violet-100 to-purple-100">
-                  <CreditCard className="h-6 w-6 text-violet-600" />
-                </div>
-                <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-violet-100/80 to-purple-100/80">
-                  <Wallet className="h-3 w-3 text-violet-600" />
-                  <span className="text-xs font-medium text-violet-700">
-                    Net: {formatCurrency(metrics.accountsReceivable - metrics.accountsPayable)}
-                  </span>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600 font-medium">Accounts Receivable</p>
-                  <p className="text-xl font-bold text-gray-900">
-                    {showDetailedNumbers ? formatCurrency(metrics.accountsReceivable) : '••••••'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 font-medium">Accounts Payable</p>
-                  <p className="text-xl font-bold text-gray-900">
-                    {showDetailedNumbers ? formatCurrency(metrics.accountsPayable) : '••••••'}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-100/50">
-                <div className="flex items-center text-sm">
-                  <Building className="h-4 w-4 text-violet-500 mr-1" />
-                  <span className={`font-medium ${
-                    metrics.accountsReceivable > metrics.accountsPayable 
-                      ? 'text-emerald-600' 
-                      : 'text-amber-600'
-                  }`}>
-                    {metrics.accountsReceivable > metrics.accountsPayable ? 'Positive' : 'Negative'} balance
-                  </span>
-                </div>
-              </div>
-            </div>
+        {/* Invoice Stats Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-gradient-to-br from-emerald-50/80 to-green-50/80 backdrop-blur-sm rounded-xl border border-white/30 p-4">
+            <p className="text-sm text-emerald-700 font-medium mb-1">Total Invoices</p>
+            <p className="text-2xl font-bold text-gray-900">{invoiceStats.total}</p>
+            <p className="text-xs text-gray-600 mt-1">{formatCurrency(invoiceStats.totalAmount)} total value</p>
+          </div>
+          <div className="bg-gradient-to-br from-green-50/80 to-emerald-50/80 backdrop-blur-sm rounded-xl border border-white/30 p-4">
+            <p className="text-sm text-green-700 font-medium mb-1">Paid Invoices</p>
+            <p className="text-2xl font-bold text-gray-900">{invoiceStats.paid}</p>
+            <p className="text-xs text-gray-600 mt-1">{formatCurrency(invoiceStats.paidAmount)} collected</p>
+          </div>
+          <div className="bg-gradient-to-br from-amber-50/80 to-orange-50/80 backdrop-blur-sm rounded-xl border border-white/30 p-4">
+            <p className="text-sm text-amber-700 font-medium mb-1">Unpaid Invoices</p>
+            <p className="text-2xl font-bold text-gray-900">{invoiceStats.unpaid}</p>
+            <p className="text-xs text-gray-600 mt-1">{formatCurrency(invoiceStats.outstandingAmount)} outstanding</p>
+          </div>
+          <div className="bg-gradient-to-br from-red-50/80 to-pink-50/80 backdrop-blur-sm rounded-xl border border-white/30 p-4">
+            <p className="text-sm text-red-700 font-medium mb-1">Overdue</p>
+            <p className="text-2xl font-bold text-gray-900">{invoiceStats.overdue}</p>
+            <p className="text-xs text-red-600 mt-1">Requires immediate attention</p>
           </div>
         </div>
 
@@ -757,15 +976,15 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
               {/* Chart Bars */}
               <div className="h-48 flex items-end justify-between gap-2 pt-4">
                 {monthlyRevenue.map((item, index) => {
-                  const maxAmount = Math.max(...monthlyRevenue.map(m => m.amount));
+                  const maxAmount = Math.max(...monthlyRevenue.map(m => m.amount), 1);
                   return (
                     <div key={index} className="flex flex-col items-center flex-1">
                       <div className="relative w-full">
                         <div 
                           className="w-full bg-gradient-to-t from-emerald-400 to-teal-400 rounded-t-lg transition-all duration-300 hover:opacity-90"
-                          style={{ height: `${(item.amount / maxAmount) * 100}%` }}
+                          style={{ height: `${Math.max((item.amount / maxAmount) * 100, 5)}%` }}
                         >
-                          <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs font-medium text-emerald-700">
+                          <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs font-medium text-emerald-700 whitespace-nowrap">
                             {formatCurrency(item.amount)}
                           </div>
                         </div>
@@ -807,7 +1026,7 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
                     ></div>
                   </div>
                   <div className="flex justify-between text-xs text-gray-600">
-                    <span>{expense.percentage}% of total</span>
+                    <span>{expense.percentage.toFixed(1)}% of total</span>
                     <span>{formatCurrency(expense.amount)}</span>
                   </div>
                 </div>
@@ -852,7 +1071,7 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
                         }`} />
                       </div>
                       <div>
-                        <h4 className="font-medium text-gray-900">{payment.id}</h4>
+                        <h4 className="font-medium text-gray-900">{payment.invoiceNumber}</h4>
                         <p className="text-sm text-gray-600">{payment.client}</p>
                         {payment.daysOverdue && (
                           <p className="text-xs text-red-600 mt-1">{payment.daysOverdue} days overdue</p>
@@ -864,7 +1083,7 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
                         ? 'bg-gradient-to-r from-red-100 to-pink-100 text-red-700 border border-red-200/50' 
                         : 'bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700 border border-amber-200/50'
                     }`}>
-                      {payment.status === 'overdue' ? 'Overdue' : 'Due ' + payment.dueDate}
+                      {payment.status === 'overdue' ? 'Overdue' : `Due ${payment.dueDate}`}
                     </span>
                   </div>
                   
@@ -886,7 +1105,7 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
                 <div className="text-center py-8">
                   <CheckCircle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-600">No upcoming payments</p>
-                  <p className="text-sm text-gray-500 mt-1">All payments are current</p>
+                  <p className="text-sm text-gray-500 mt-1">All invoices are paid</p>
                 </div>
               )}
             </div>
