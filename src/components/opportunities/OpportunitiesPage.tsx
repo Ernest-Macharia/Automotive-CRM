@@ -1070,7 +1070,7 @@ export default function OpportunitiesContent() {
       }
     } catch (error) {
       console.error(`Error loading more for stage ${stageId}:`, error);
-      showToast(`Failed to load more opportunities for ${stageId}`, 'error', 3000);
+      // showToast(`Failed to load more opportunities for ${stageId}`, 'error', 3000);
     } finally {
       setColumnLoading(prev => ({ ...prev, [stageId]: false }));
     }
