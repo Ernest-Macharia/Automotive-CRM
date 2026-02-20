@@ -511,6 +511,7 @@ class AuthService {
       }
       
       await apiClient.patch('/auth/force-change-password', data);
+      await this.refreshUserData();
       
     } catch (error: any) {
       if (error instanceof ValidationError) {
