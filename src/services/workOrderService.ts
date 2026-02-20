@@ -190,7 +190,7 @@ export interface WorkOrder {
 }
 
 export interface CreateWorkOrderData {
-  opportunityId: string;
+  opportunityId?: string;
   quoteId: string;
   waiverId?: string;
   jobCards?: string[];
