@@ -413,27 +413,6 @@ export default function HRDashboardPage() {
       </div>
 
       <div className="flex flex-col xl:flex-row gap-6">
-        {/* Left Sidebar */}
-        <div className="xl:w-80 flex-shrink-0">
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-gray-200">
-              <h2 className="font-medium text-gray-900">Quick Actions</h2>
-            </div>
-            <HRQuickActions quickActions={quickActions} router={router} />
-            
-            <div className="p-5 border-t border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-medium text-gray-900">System Alerts</h2>
-                <Bell className="h-5 w-5 text-gray-500" />
-              </div>
-              <HRAlertsPanel 
-                alerts={dashboardData?.alerts || []} 
-                onAlertClick={handleAlertAction}
-                getAlertPriorityColor={getAlertPriorityColor}
-              />
-            </div>
-          </div>
-        </div>
 
         {/* Main Content */}
         <div className="flex-1">
