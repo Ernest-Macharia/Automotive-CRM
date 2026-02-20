@@ -202,7 +202,7 @@ export default function ReportsDashboard() {
         } else if (error.message?.includes('401')) {
         setError('Authentication error: Please log in again.');
         sessionStorage.removeItem('accessToken');
-        window.location.href = '/login';
+        window.location.href = '/auth/login';
         } else if (error.message?.includes('404')) {
         setError('API endpoint not found. Please check if the reports API is available.');
         } else {

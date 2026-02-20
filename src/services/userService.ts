@@ -354,7 +354,7 @@ class UserService {
       if (error instanceof Error) {
         if (error.message.includes('401') || error.message.includes('403')) {
           sessionStorage.removeItem('accessToken');
-          window.location.href = '/login';
+          window.location.href = '/auth/login';
           throw new Error('Session expired or insufficient permissions. Please log in again.');
         } else if (error.message.includes('409')) {
           throw new Error('A user with this email already exists.');

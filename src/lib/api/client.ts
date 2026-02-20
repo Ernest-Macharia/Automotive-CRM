@@ -37,7 +37,7 @@ class ApiClient {
       
       if (response.status === 401) {
         sessionStorage.removeItem('accessToken');
-        window.location.href = '/login';
+        window.location.href = '/auth/login';
       }
       
       throw new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
