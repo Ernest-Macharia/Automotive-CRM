@@ -457,6 +457,13 @@ export default function WorkOrdersList() {
                 <RefreshCw className="h-5 w-5 text-white" />
               )}
             </button>
+            <Link
+              href="/orders/work-orders/create"
+              className="px-4 py-2 bg-white text-blue-600 font-semibold rounded-xl hover:bg-gray-100 flex items-center gap-2 transition-colors"
+            >
+              <Plus className="h-5 w-5" />
+              <span className="hidden sm:inline">New Order</span>
+            </Link>
           </div>
         </div>
       </div>
