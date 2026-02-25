@@ -29,24 +29,51 @@ class ApiClient {
       credentials: 'include',
     };
 
-    const response = await fetch(url, config);
+    try {
+      const response = await fetch(url, config);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API Error Response:', errorText);
-      
-      if (response.status === 401) {
-        sessionStorage.removeItem('accessToken');
-        window.location.href = '/auth/login';
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        
+        // Create an error object with status and response data
+        const error = new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
+        
+        // Add status and response data to the error object
+        (error as any).status = response.status;
+        (error as any).response = {
+          status: response.status,
+          statusText: response.statusText,
+          data: errorText
+        };
+        
+        if (response.status === 401) {
+          sessionStorage.removeItem('accessToken');
+          // Don't redirect here - let the component handle it
+          // window.location.href = '/auth/login';
+        }
+        
+        throw error;
       }
       
-      throw new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        return response.json();
+      }
+      return {} as T;
+      
+    } catch (error) {
+      // If it's already our enhanced error, rethrow it
+      if (error instanceof Error && (error as any).status) {
+        throw error;
+      }
+      
+      // Handle network errors
+      const networkError = new Error('Network error');
+      (networkError as any).isNetworkError = true;
+      (networkError as any).message = error instanceof Error ? error.message : 'Network error';
+      throw networkError;
     }
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      return response.json();
-    }
-    return {} as T;
   }
 
   async get<T>(endpoint: string, params?: Record<string, string>): Promise<T> {

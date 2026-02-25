@@ -382,13 +382,20 @@ class AuthService {
     } catch (error: any) {
       if (error instanceof ValidationError) {
         throw error;
-      } else if (error.status === 401) {
-        throw new AuthenticationError('Invalid email or password');
-      } else if (error.message?.includes('Network') || error.message?.includes('CORS') || error.message?.includes('fetch')) {
-        throw new NetworkError('Cannot connect to server. Please check: 1) Server is running, 2) CORS is enabled, 3) Network connection');
-      } else {
-        throw new Error(error.message || 'Login failed. Please try again.');
+      } 
+      
+      // Check if it's an authentication error from the API
+      if (error?.status === 401 || error?.response?.status === 401) {
+        throw new AuthenticationError('Invalid email or password. Please check your credentials and try again.');
+      } 
+      
+      // Check for network issues
+      if (error?.isNetworkError || error?.message?.includes('Network') || error?.message?.includes('fetch')) {
+        throw new NetworkError('Cannot connect to server. Please check your internet connection.');
       }
+      
+      // Default error
+      throw new Error(error.message || 'Login failed. Please try again.');
     }
   }
 

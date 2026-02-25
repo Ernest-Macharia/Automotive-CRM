@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import ConfirmationModal from '@/components/opportunities/ConfirmationModal';
 import { useOpportunityStatusUpdate } from '@/hooks/useOpportunityStatusUpdate';
+import { OrganizationError } from '@/services/settings/organizationService';
 
 type StageId = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost';
 
@@ -792,6 +793,7 @@ export default function OpportunitiesContent() {
   const [showFilters, setShowFilters] = useState(false);
   const [pagination, setPagination] = useState<any>(null);
   const [activeQuickFilter, setActiveQuickFilter] = useState<string | null>(null);
+  const [organizationError, setOrganizationError] = useState<string | null>(null);
   
   const [filters, setFilters] = useState<FilterParams>({
     status: undefined,
@@ -1086,6 +1088,7 @@ export default function OpportunitiesContent() {
         setRefreshing(true);
       }
       setError(null);
+      setOrganizationError(null); // Clear any previous organization error
       
       const params: FilterParams = { ...memoizedFilters };
 
@@ -1172,8 +1175,17 @@ export default function OpportunitiesContent() {
       
     } catch (err: any) {
       console.error('Error fetching opportunities:', err);
-      setError(err.message || 'Failed to fetch opportunities');
-      showToast('Failed to load opportunities', 'error', 3000);
+      
+      // Check if it's an OrganizationError
+      if (err instanceof OrganizationError) {
+        setOrganizationError(err.message);
+        // Show specific toast message
+        showToast('You do not have access to this organization', 'error', 5000);
+        setError(null); // Clear general error
+      } else {
+        setError(err.message || 'Failed to fetch opportunities');
+        showToast('Failed to load opportunities', 'error', 3000);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -1200,6 +1212,21 @@ export default function OpportunitiesContent() {
       console.error('Error fetching overview:', err);
     }
   }, []);
+
+  // Add this function to handle organization-specific actions
+  const handleOrganizationAction = async (action: () => Promise<any>, errorMessage: string) => {
+    try {
+      setOrganizationError(null);
+      await action();
+    } catch (err) {
+      if (err instanceof OrganizationError) {
+        setOrganizationError(err.message);
+        showToast(err.message, 'error', 5000);
+      } else {
+        showToast(errorMessage, 'error', 3000);
+      }
+    }
+  };
 
   // Fetch data on mount and when filters change
   useEffect(() => {
@@ -1494,6 +1521,39 @@ export default function OpportunitiesContent() {
           </button>
         </div>
       </div>
+
+      {/* Organization Error State */}
+      {organizationError && (
+        <div className="mx-4 md:mx-6 mt-4 p-6 rounded-xl bg-red-50/80 backdrop-blur-sm border border-red-200/50 flex items-start gap-4 animate-in fade-in slide-in-from-top-1 duration-300">
+          <div className="p-2 bg-red-100 rounded-lg flex-shrink-0">
+            <Shield className="h-5 w-5 text-red-600" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold text-red-800 mb-1">Access Denied</h3>
+            <p className="text-red-600 mb-3">{organizationError}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => router.push('/organizations')}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+              >
+                View My Organizations
+              </button>
+              <button
+                onClick={() => router.push('/dashboard')}
+                className="px-4 py-2 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                Go to Dashboard
+              </button>
+            </div>
+          </div>
+          <button 
+            onClick={() => setOrganizationError(null)}
+            className="p-1 hover:bg-red-100 rounded-lg transition-colors"
+          >
+            <X className="h-4 w-4 text-red-600" />
+          </button>
+        </div>
+      )}
 
       {/* Main Content Area - Scrollable */}
       <div className="flex-1 overflow-y-auto">

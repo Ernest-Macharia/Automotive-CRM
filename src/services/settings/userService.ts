@@ -25,6 +25,15 @@ export interface User {
   allPermissions?: string[];
   createdAt?: string;
   updatedAt?: string;
+  organizationId?: string;
+  organizationName?: string;
+  organization?: {
+    id: string;
+    name: string;
+    slug?: string;
+    logo?: string;
+    tier?: string;
+  };
 }
 
 export interface RegisterUserData {
@@ -334,6 +343,17 @@ class UserService {
       allPermissions,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
+      
+      // Add organization fields
+      organizationId: data.organizationId || data.organization?._id,
+      organizationName: data.organizationName || data.organization?.name,
+      organization: data.organization ? {
+        id: data.organization._id || data.organization.id,
+        name: data.organization.name,
+        slug: data.organization.slug,
+        logo: data.organization.logo,
+        tier: data.organization.tier,
+      } : undefined,
     };
   }
 

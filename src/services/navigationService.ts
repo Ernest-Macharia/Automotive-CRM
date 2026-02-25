@@ -41,7 +41,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     ]
   },
   { href: '/settings', label: 'Settings', icon: 'Settings', permission: 'settings.manage' },
-  { href: '/my-profile', label: 'My Profile', icon: 'User', permission: 'profile.view' },
+  // { href: '/my-profile', label: 'My Profile', icon: 'User', permission: 'profile.view' },
   { href: '/hr-portal', label: 'HR Portal', icon: 'Users', permission: 'hr.dashboard.view' },
 ];
 
@@ -60,7 +60,7 @@ export class NavigationService {
     
     return ALL_NAV_ITEMS.filter(item => {
       if (item.href === '/dashboard') return true;
-      if (item.href === '/my-profile') return true;
+      // if (item.href === '/my-profile') return true;
       
       if (item.permission) {
         return this.userHasPermission(user, item.permission);

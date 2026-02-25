@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/Sidebar';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 export default function ClientLayout({
   children,
@@ -13,9 +14,13 @@ export default function ClientLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const { user, isLoading: userLoading } = useCurrentUser();
 
   const pathname = usePathname();
   const router = useRouter();
+
+console.log('Sidebar - user:', user);
+console.log('Sidebar - userLoading:', userLoading);
 
   /* ---------------------------
      AUTH GUARD
@@ -61,7 +66,7 @@ export default function ClientLayout({
     const checkIfMobile = () => {
       const mobile = window.innerWidth < 1024;
       setIsMobile(mobile);
-      setSidebarOpen(!mobile); // open on desktop, closed on mobile
+      setSidebarOpen(!mobile);
     };
 
     checkIfMobile();
@@ -91,11 +96,6 @@ export default function ClientLayout({
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100/30">
         <div className="text-center">
           <LoadingSpinner />
-          {/* <div className="loading-spinner mx-auto mb-4" />
-          <p className="text-gray-600 text-sm">Loading VIN17x CRM...</p>
-          <p className="text-gray-500 text-xs mt-1">
-            Please wait while we load your dashboard
-          </p> */}
         </div>
       </div>
     );
@@ -136,19 +136,12 @@ export default function ClientLayout({
       </div>
 
       {/* Main Content */}
-      <main
-        className="
-          flex-1 h-full min-w-0
-          transition-all duration-300
-          w-full overflow-hidden
-          flex flex-col
-        "
-      >
-        {/* Mobile menu button */}
+      <main className="flex-1 h-full min-w-0 overflow-hidden relative">
+        {/* Mobile menu button - only show when sidebar is closed */}
         {isMobile && !sidebarOpen && (
           <button
             onClick={toggleSidebar}
-            className="lg:hidden fixed top-4 left-4 z-20 w-10 h-10 bg-white border border-gray-200 rounded-xl shadow-md flex items-center justify-center hover:bg-gray-50 transition-all duration-200"
+            className="fixed top-4 left-4 z-20 w-10 h-10 bg-white border border-gray-200 rounded-xl shadow-md flex items-center justify-center hover:bg-gray-50 transition-all duration-200"
           >
             <svg
               className="w-5 h-5 text-gray-600"
@@ -166,8 +159,8 @@ export default function ClientLayout({
           </button>
         )}
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto pt-4 lg:pt-0 pb-4">
+        {/* Content - with proper padding for mobile menu button */}
+        <div className={`h-full overflow-y-auto ${isMobile && !sidebarOpen ? 'pt-16' : ''}`}>
           {children}
         </div>
       </main>

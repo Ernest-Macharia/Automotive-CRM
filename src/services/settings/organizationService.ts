@@ -181,6 +181,18 @@ export interface SuspendOrganizationData {
   reason: string;
 }
 
+export class OrganizationError extends Error {
+  code: string;
+  status?: number;
+
+  constructor(message: string, code: string, status?: number) {
+    super(message);
+    this.name = 'OrganizationError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
 // ============ SERVICE CLASS ============
 
 class OrganizationService {
@@ -265,8 +277,21 @@ class OrganizationService {
     try {
       const response = await apiClient.get<any>(`/organizations/${id}`);
       return this.normalizeOrganization(response);
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error fetching organization ${id}:`, error);
+      
+      // Check if it's an ApiError with organization-specific message
+      if (error.status === 403) {
+        if (error.message?.includes('does not belong in this organization') || 
+            error.code === 'USER_NOT_IN_ORGANIZATION') {
+          throw new OrganizationError(
+            'User does not belong in this organization',
+            'USER_NOT_IN_ORGANIZATION',
+            403
+          );
+        }
+      }
+      
       throw error;
     }
   }
@@ -327,8 +352,20 @@ class OrganizationService {
         settings
       );
       return this.normalizeOrganization(response);
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error updating organization settings ${id}:`, error);
+      
+      if (error.status === 403) {
+        if (error.message?.includes('does not belong in this organization') || 
+            error.code === 'USER_NOT_IN_ORGANIZATION') {
+          throw new OrganizationError(
+            'User does not belong in this organization',
+            'USER_NOT_IN_ORGANIZATION',
+            403
+          );
+        }
+      }
+      
       throw error;
     }
   }
@@ -419,8 +456,20 @@ class OrganizationService {
         `/organizations/${id}/invite`,
         data
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error inviting user to organization ${id}:`, error);
+      
+      if (error.status === 403) {
+        if (error.message?.includes('does not belong in this organization') || 
+            error.code === 'USER_NOT_IN_ORGANIZATION') {
+          throw new OrganizationError(
+            'User does not belong in this organization',
+            'USER_NOT_IN_ORGANIZATION',
+            403
+          );
+        }
+      }
+      
       throw error;
     }
   }
@@ -456,8 +505,20 @@ class OrganizationService {
     try {
       const response = await apiClient.get<any[]>(`/organizations/${id}/users`);
       return response;
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error fetching users for organization ${id}:`, error);
+      
+      if (error.status === 403) {
+        if (error.message?.includes('does not belong in this organization') || 
+            error.code === 'USER_NOT_IN_ORGANIZATION') {
+          throw new OrganizationError(
+            'User does not belong in this organization',
+            'USER_NOT_IN_ORGANIZATION',
+            403
+          );
+        }
+      }
+      
       throw error;
     }
   }
@@ -471,6 +532,16 @@ class OrganizationService {
       return await apiClient.get<OrganizationStats>(`/organizations/${id}/stats`);
     } catch (error) {
       console.error(`Error fetching stats for organization ${id}:`, error);
+      if (error.status === 403) {
+        if (error.message?.includes('does not belong in this organization') || 
+            error.code === 'USER_NOT_IN_ORGANIZATION') {
+          throw new OrganizationError(
+            'User does not belong in this organization',
+            'USER_NOT_IN_ORGANIZATION',
+            403
+          );
+        }
+      }
       throw error;
     }
   }
@@ -488,6 +559,16 @@ class OrganizationService {
       return this.normalizeOrganization(response);
     } catch (error) {
       console.error(`Error suspending organization ${id}:`, error);
+      if (error.status === 403) {
+        if (error.message?.includes('does not belong in this organization') || 
+            error.code === 'USER_NOT_IN_ORGANIZATION') {
+          throw new OrganizationError(
+            'User does not belong in this organization',
+            'USER_NOT_IN_ORGANIZATION',
+            403
+          );
+        }
+      }
       throw error;
     }
   }
@@ -502,6 +583,16 @@ class OrganizationService {
       return this.normalizeOrganization(response);
     } catch (error) {
       console.error(`Error activating organization ${id}:`, error);
+      if (error.status === 403) {
+        if (error.message?.includes('does not belong in this organization') || 
+            error.code === 'USER_NOT_IN_ORGANIZATION') {
+          throw new OrganizationError(
+            'User does not belong in this organization',
+            'USER_NOT_IN_ORGANIZATION',
+            403
+          );
+        }
+      }
       throw error;
     }
   }

@@ -13,6 +13,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOpportunityStatusUpdate } from '@/hooks/useOpportunityStatusUpdate';
 import { useOpportunityRefresh, OpportunityStatus } from '@/hooks/useOpportunityRefresh';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import {
   ArrowLeft, Phone, Mail, Building, User, Calendar,
   Car, FileText, CheckCircle, Clock,
@@ -25,9 +26,10 @@ import {
   RefreshCw, BarChart, CheckSquare, Copy, Download,
   Share2, Link, Tag, Percent, DollarSign, Package,
   Wrench, Truck, ClipboardList, CheckCircle2, XCircle,
-  Menu, MoreVertical
+  Menu, MoreVertical, Lock
 } from 'lucide-react';
 
+// ... (keep all your existing interfaces and configs) ...
 interface LeadScoreBreakdown {
   behavioral?: Record<string, number>;
   automotive?: Record<string, number>;
@@ -376,6 +378,9 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   const router = useRouter();
   const { showToast } = useToast();
   
+  // Get current user and permissions
+  const { user, isAdmin, isManagement, hasPermission, isLoading: userLoading } = useCurrentUser();
+  
   const [opportunity, setOpportunity] = useState<OpportunityWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -397,6 +402,16 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   
   const statusMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+
+  // Permission checks
+  const canManageOpportunity = isAdmin || isManagement || hasPermission('opportunities.manage');
+  const canReassign = isAdmin || isManagement || hasPermission('opportunities.reassign');
+  const canEdit = isAdmin || isManagement || hasPermission('opportunities.update');
+  const canDelete = isAdmin || isManagement || hasPermission('opportunities.delete');
+  const canViewSLA = isAdmin || isManagement || hasPermission('sla.view');
+  const canViewLIS = isAdmin || isManagement || hasPermission('lis.view');
+  const canViewLeadScore = isAdmin || isManagement || hasPermission('leadscore.view');
+  const canUpdateStatus = isAdmin || isManagement || hasPermission('opportunities.update.status');
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -453,6 +468,10 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   };
 
   const handleDelete = async () => {
+    if (!canDelete) {
+      showToast('You do not have permission to delete opportunities', 'error', 3000);
+      return;
+    }
     setShowDeleteModal(true);
   };
 
@@ -477,6 +496,10 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   };
 
   const handleReassign = async (userId: string, notes?: string) => {
+    if (!canReassign) {
+      showToast('You do not have permission to reassign opportunities', 'error', 3000);
+      return;
+    }
     if (!opportunity) return;
     try {
       await opportunityService.reassignOpportunity(opportunity._id, userId, notes);
@@ -492,6 +515,10 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   const { updateStatus, loading: isUpdating } = useOpportunityRefresh(opportunityId);
 
   const handleStatusUpdateClick = async (newStatus: OpportunityStatus) => {
+    if (!canUpdateStatus) {
+      showToast('You do not have permission to update opportunity status', 'error', 3000);
+      return;
+    }
     if (!opportunity || opportunity.status === newStatus) return;
     
     const updated = await updateStatus(newStatus);
@@ -501,6 +528,10 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   };
 
   const handleRecalculateScore = async () => {
+    if (!canViewLeadScore) {
+      showToast('You do not have permission to view lead scores', 'error', 3000);
+      return;
+    }
     if (!opportunity) return;
     
     try {
@@ -517,6 +548,10 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   };
 
   const handleRefreshLIS = async () => {
+    if (!canViewLIS) {
+      showToast('You do not have permission to view LIS status', 'error', 3000);
+      return;
+    }
     if (!opportunity) return;
     
     try {
@@ -533,6 +568,10 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   };
 
   const handleCheckSLA = async () => {
+    if (!canViewSLA) {
+      showToast('You do not have permission to view SLA status', 'error', 3000);
+      return;
+    }
     if (!opportunity) return;
     
     try {
@@ -549,6 +588,10 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   };
 
   const handleEdit = () => {
+    if (!canEdit) {
+      showToast('You do not have permission to edit opportunities', 'error', 3000);
+      return;
+    }
     if (!opportunity) return;
     router.push(`/opportunities/edit?id=${opportunity._id}`);
   };
@@ -1041,7 +1084,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
     }
   };
 
-  if (loading) {
+  if (loading || userLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="h-14 bg-white border-b border-gray-200 flex items-center px-4">
@@ -1131,42 +1174,58 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
             </div>
           </div>
 
-          {/* Mobile Menu Dropdown */}
+          {/* Mobile Menu Dropdown - Permission Based */}
           {mobileMenuOpen && (
             <div ref={mobileMenuRef} className="absolute right-4 top-16 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-30">
               <div className="px-3 py-2 text-xs font-medium text-gray-500 border-b border-gray-200">
                 Actions
               </div>
-              <button
-                onClick={() => {
-                  setShowReassignModal(true);
-                  setMobileMenuOpen(false);
-                }}
-                className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 flex items-center gap-2"
-              >
-                <UserPlus className="h-4 w-4 text-gray-600" />
-                Reassign
-              </button>
-              <button
-                onClick={() => {
-                  handleEdit();
-                  setMobileMenuOpen(false);
-                }}
-                className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 flex items-center gap-2"
-              >
-                <Edit className="h-4 w-4 text-gray-600" />
-                Edit
-              </button>
-              <button
-                onClick={() => {
-                  handleDelete();
-                  setMobileMenuOpen(false);
-                }}
-                className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 flex items-center gap-2 text-red-600"
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete
-              </button>
+              
+              {canReassign && (
+                <button
+                  onClick={() => {
+                    setShowReassignModal(true);
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 flex items-center gap-2"
+                >
+                  <UserPlus className="h-4 w-4 text-gray-600" />
+                  Reassign
+                </button>
+              )}
+              
+              {canEdit && (
+                <button
+                  onClick={() => {
+                    handleEdit();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 flex items-center gap-2"
+                >
+                  <Edit className="h-4 w-4 text-gray-600" />
+                  Edit
+                </button>
+              )}
+              
+              {canDelete && (
+                <button
+                  onClick={() => {
+                    handleDelete();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 flex items-center gap-2 text-red-600"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </button>
+              )}
+
+              {!canReassign && !canEdit && !canDelete && (
+                <div className="px-4 py-3 text-sm text-gray-500 flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
+                  No actions available
+                </div>
+              )}
             </div>
           )}
 
@@ -1211,30 +1270,36 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                 </span>
               </div>
               
-              <button
-                onClick={() => setShowReassignModal(true)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
-              >
-                <UserPlus className="h-4 w-4" />
-                <span className="text-sm font-medium">Reassign</span>
-              </button>
+              {canReassign && (
+                <button
+                  onClick={() => setShowReassignModal(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  <span className="text-sm font-medium">Reassign</span>
+                </button>
+              )}
               
-              <button
-                onClick={handleEdit}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                <Edit className="h-4 w-4 text-gray-600" />
-                <span className="text-sm font-medium text-gray-700">Edit</span>
-              </button>
+              {canEdit && (
+                <button
+                  onClick={handleEdit}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  <Edit className="h-4 w-4 text-gray-600" />
+                  <span className="text-sm font-medium text-gray-700">Edit</span>
+                </button>
+              )}
               
-              <button
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-red-300 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span className="text-sm font-medium">{isDeleting ? 'Deleting...' : 'Delete'}</span>
-              </button>
+              {canDelete && (
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white border border-red-300 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span className="text-sm font-medium">{isDeleting ? 'Deleting...' : 'Delete'}</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1264,30 +1329,32 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
         </div>
       </div>
 
-      {/* Desktop Status Tabs */}
-      <div className="hidden lg:block border-b border-gray-200 bg-white">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center gap-2 py-3 overflow-x-auto">
-            {Object.entries(statusConfig).map(([status, config]) => {
-              const isActive = opportunity.status === status;
-              return (
-                <button
-                  key={status}
-                  onClick={() => handleStatusUpdateClick(status as OpportunityStatus)}
-                  disabled={updatingStatus || isActive}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                    isActive 
-                      ? config.activeClass
-                      : `bg-gray-100 text-gray-700 hover:bg-gray-200 ${updatingStatus ? 'opacity-50 cursor-not-allowed' : ''}`
-                  }`}
-                >
-                  {config.label}
-                </button>
-              );
-            })}
+      {/* Desktop Status Tabs - Permission Based */}
+      {canUpdateStatus && (
+        <div className="hidden lg:block border-b border-gray-200 bg-white">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="flex items-center gap-2 py-3 overflow-x-auto">
+              {Object.entries(statusConfig).map(([status, config]) => {
+                const isActive = opportunity.status === status;
+                return (
+                  <button
+                    key={status}
+                    onClick={() => handleStatusUpdateClick(status as OpportunityStatus)}
+                    disabled={updatingStatus || isActive}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                      isActive 
+                        ? config.activeClass
+                        : `bg-gray-100 text-gray-700 hover:bg-gray-200 ${updatingStatus ? 'opacity-50 cursor-not-allowed' : ''}`
+                    }`}
+                  >
+                    {config.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 lg:py-6">
@@ -1315,6 +1382,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                 </div>
               </div>
               
+              {/* Customer Profile Content - always visible */}
               <div className="flex items-start gap-4">
                 <div className="relative">
                   <div className="h-16 w-16 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
@@ -1369,9 +1437,10 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
               </div>
             </div>
 
-            {/* Lead Score Card */}
-            {opportunity.leadScore && (
+            {/* Lead Score Card - Permission Based */}
+            {canViewLeadScore && opportunity.leadScore && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                {/* ... Lead Score Card Content (keep as is) ... */}
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-purple-50 rounded-lg">
@@ -1461,7 +1530,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
               </div>
             )}
 
-            {/* Services/Products Section */}
+            {/* Services/Products Section - always visible */}
             {opportunity.servicesProducts && opportunity.servicesProducts.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -1550,7 +1619,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
               </div>
             )}
 
-            {/* Vehicles Section */}
+            {/* Vehicles Section - always visible */}
             {opportunity.vehicles && opportunity.vehicles.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center gap-3 mb-4">
@@ -1611,7 +1680,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
               </div>
             )}
 
-            {/* Stage History Section */}
+            {/* Stage History Section - always visible */}
             {opportunity.stageHistory && opportunity.stageHistory.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -1663,158 +1732,172 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
 
           {/* Right Column - Sidebar (Desktop) */}
           <div className="space-y-6">
-            {/* LIS Status Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 ${LISStatus.color.replace('text-', 'bg-').replace('600', '100')} rounded-lg`}>
-                    <LISStatus.icon className={`h-5 w-5 ${LISStatus.color.replace('bg-', 'text-')}`} />
+            {/* LIS Status Card - Permission Based */}
+            {canViewLIS && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 ${LISStatus.color.replace('text-', 'bg-').replace('600', '100')} rounded-lg`}>
+                      <LISStatus.icon className={`h-5 w-5 ${LISStatus.color.replace('bg-', 'text-')}`} />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">LIS Status</h3>
+                      <p className="text-xs text-gray-600">Lead Information Standard</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">LIS Status</h3>
-                    <p className="text-xs text-gray-600">Lead Information Standard</p>
-                  </div>
+                  <button
+                    onClick={handleRefreshLIS}
+                    disabled={isRefreshingLIS}
+                    className="p-1.5 hover:bg-gray-100 rounded-lg disabled:opacity-50"
+                  >
+                    <RefreshCw className={`h-4 w-4 text-gray-600 ${isRefreshingLIS ? 'animate-spin' : ''}`} />
+                  </button>
                 </div>
-                <button
-                  onClick={handleRefreshLIS}
-                  disabled={isRefreshingLIS}
-                  className="p-1.5 hover:bg-gray-100 rounded-lg disabled:opacity-50"
-                >
-                  <RefreshCw className={`h-4 w-4 text-gray-600 ${isRefreshingLIS ? 'animate-spin' : ''}`} />
-                </button>
-              </div>
-              
-              <div className="mb-4">
-                <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${LISStatus.color}`}>
-                  {LISStatus.label}
-                </span>
-                {opportunity.lisStatus?.lastChecked && (
-                  <p className="text-xs text-gray-500 mt-2">
-                    Last checked: {formatDate(opportunity.lisStatus.lastChecked)}
-                  </p>
+                
+                <div className="mb-4">
+                  <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${LISStatus.color}`}>
+                    {LISStatus.label}
+                  </span>
+                  {opportunity.lisStatus?.lastChecked && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Last checked: {formatDate(opportunity.lisStatus.lastChecked)}
+                    </p>
+                  )}
+                </div>
+                
+                {opportunity.lisStatus?.missingFields && opportunity.lisStatus.missingFields.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-700 mb-2">Missing Required Fields:</p>
+                    <ul className="space-y-1">
+                      {opportunity.lisStatus.missingFields.map((field, index) => (
+                        <li key={index} className="text-xs text-gray-600 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3 text-amber-500" />
+                          {field}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
-              </div>
-              
-              {opportunity.lisStatus?.missingFields && opportunity.lisStatus.missingFields.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-gray-700 mb-2">Missing Required Fields:</p>
-                  <ul className="space-y-1">
-                    {opportunity.lisStatus.missingFields.map((field, index) => (
-                      <li key={index} className="text-xs text-gray-600 flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3 text-amber-500" />
-                        {field}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              
-              <button
-                onClick={() => setShowLISModal(true)}
-                className="w-full mt-4 px-3 py-2 text-sm text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50"
-              >
-                View Details
-              </button>
-            </div>
-
-            {/* SLA Status Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 ${SLAStatus.color.replace('text-', 'bg-').replace('600', '100')} rounded-lg`}>
-                    <SLAStatus.icon className={`h-5 w-5 ${SLAStatus.color.replace('bg-', 'text-')}`} />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">SLA Status</h3>
-                    <p className="text-xs text-gray-600">Service Level Agreement</p>
-                  </div>
-                </div>
+                
                 <button
-                  onClick={handleCheckSLA}
-                  disabled={isCheckingSLA}
-                  className="p-1.5 hover:bg-gray-100 rounded-lg disabled:opacity-50"
+                  onClick={() => setShowLISModal(true)}
+                  className="w-full mt-4 px-3 py-2 text-sm text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50"
                 >
-                  <RefreshCw className={`h-4 w-4 text-gray-600 ${isCheckingSLA ? 'animate-spin' : ''}`} />
+                  View Details
                 </button>
               </div>
-              
-              <div className="mb-4">
-                <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${SLAStatus.color}`}>
-                  {SLAStatus.label}
-                </span>
-              </div>
-              
-              {opportunity.slaStatus?.deadlines && opportunity.slaStatus.deadlines.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-gray-700 mb-2">Upcoming Deadlines:</p>
-                  <ul className="space-y-2">
-                    {opportunity.slaStatus.deadlines.slice(0, 2).map((deadline, index) => (
-                      <li key={index} className="text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-600">{deadline.type}:</span>
-                          <span className={`font-medium ${
-                            deadline.status === 'breached' ? 'text-red-600' :
-                            deadline.status === 'approaching' ? 'text-amber-600' :
-                            'text-green-600'
-                          }`}>
-                            {formatDate(deadline.dueDate)}
-                          </span>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              
-              <button
-                onClick={() => setShowSLAModal(true)}
-                className="w-full mt-4 px-3 py-2 text-sm text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50"
-              >
-                View Details
-              </button>
-            </div>
+            )}
 
-            {/* Notes Section */}
+            {/* SLA Status Card - Permission Based */}
+            {canViewSLA && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 ${SLAStatus.color.replace('text-', 'bg-').replace('600', '100')} rounded-lg`}>
+                      <SLAStatus.icon className={`h-5 w-5 ${SLAStatus.color.replace('bg-', 'text-')}`} />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">SLA Status</h3>
+                      <p className="text-xs text-gray-600">Service Level Agreement</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleCheckSLA}
+                    disabled={isCheckingSLA}
+                    className="p-1.5 hover:bg-gray-100 rounded-lg disabled:opacity-50"
+                  >
+                    <RefreshCw className={`h-4 w-4 text-gray-600 ${isCheckingSLA ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+                
+                <div className="mb-4">
+                  <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${SLAStatus.color}`}>
+                    {SLAStatus.label}
+                  </span>
+                </div>
+                
+                {opportunity.slaStatus?.deadlines && opportunity.slaStatus.deadlines.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-700 mb-2">Upcoming Deadlines:</p>
+                    <ul className="space-y-2">
+                      {opportunity.slaStatus.deadlines.slice(0, 2).map((deadline, index) => (
+                        <li key={index} className="text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">{deadline.type}:</span>
+                            <span className={`font-medium ${
+                              deadline.status === 'breached' ? 'text-red-600' :
+                              deadline.status === 'approaching' ? 'text-amber-600' :
+                              'text-green-600'
+                            }`}>
+                              {formatDate(deadline.dueDate)}
+                            </span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                <button
+                  onClick={() => setShowSLAModal(true)}
+                  className="w-full mt-4 px-3 py-2 text-sm text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50"
+                >
+                  View Details
+                </button>
+              </div>
+            )}
+
+            {/* Notes Section - always visible */}
             <NotesSection opportunityId={opportunityId} />
 
-            {/* Quick Actions */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Quick Actions</h3>
-              
-              <div className="space-y-2">
-                <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
-                  <FileText className="h-4 w-4 text-gray-400" />
-                  Create Quote
-                </button>
+            {/* Quick Actions - Permission Based */}
+            {(canManageOpportunity || canEdit || canReassign) && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h3 className="font-semibold text-gray-900 mb-4">Quick Actions</h3>
                 
-                <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
-                  <Briefcase className="h-4 w-4 text-gray-400" />
-                  Create Job Card
-                </button>
-                
-                <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
-                  <Receipt className="h-4 w-4 text-gray-400" />
-                  Generate Invoice
-                </button>
-                
-                <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
-                  <Copy className="h-4 w-4 text-gray-400" />
-                  Duplicate Opportunity
-                </button>
-                
-                <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
-                  <Share2 className="h-4 w-4 text-gray-400" />
-                  Share Opportunity
-                </button>
-                
-                <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
-                  <Download className="h-4 w-4 text-gray-400" />
-                  Export Details
-                </button>
+                <div className="space-y-2">
+                  {canManageOpportunity && (
+                    <>
+                      <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
+                        <FileText className="h-4 w-4 text-gray-400" />
+                        Create Quote
+                      </button>
+                      
+                      <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
+                        <Briefcase className="h-4 w-4 text-gray-400" />
+                        Create Job Card
+                      </button>
+                      
+                      <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
+                        <Receipt className="h-4 w-4 text-gray-400" />
+                        Generate Invoice
+                      </button>
+                    </>
+                  )}
+                  
+                  {canEdit && (
+                    <>
+                      <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
+                        <Copy className="h-4 w-4 text-gray-400" />
+                        Duplicate Opportunity
+                      </button>
+                      
+                      <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
+                        <Share2 className="h-4 w-4 text-gray-400" />
+                        Share Opportunity
+                      </button>
+                    </>
+                  )}
+                  
+                  <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
+                    <Download className="h-4 w-4 text-gray-400" />
+                    Export Details
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Metadata */}
+            {/* Metadata - always visible */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               <h3 className="font-semibold text-gray-900 mb-4">Opportunity Details</h3>
               
@@ -1860,13 +1943,13 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
           </div>
         </div>
 
-        {/* Mobile Content */}
+        {/* Mobile Content - Permission Based */}
         <div className="lg:hidden space-y-4">
           {renderMobileContent()}
         </div>
       </div>
 
-      {/* All Modals (keep as is) */}
+      {/* All Modals - Pass permission props where needed */}
       <VehicleDetailsModal
         vehicle={selectedVehicle}
         isOpen={showVehicleModal}
@@ -1876,29 +1959,35 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
         }}
       />
 
-      <ReassignModal
-        isOpen={showReassignModal}
-        onClose={() => setShowReassignModal(false)}
-        onReassign={handleReassign}
-        currentAssignee={opportunity.assignedTo}
-        opportunityId={opportunity._id}
-      />
+      {canReassign && (
+        <ReassignModal
+          isOpen={showReassignModal}
+          onClose={() => setShowReassignModal(false)}
+          onReassign={handleReassign}
+          currentAssignee={opportunity.assignedTo}
+          opportunityId={opportunity._id}
+        />
+      )}
 
-      <LISStatusModal
-        isOpen={showLISModal}
-        onClose={() => setShowLISModal(false)}
-        lisStatus={opportunity.lisStatus}
-        opportunityId={opportunity._id}
-        onRefresh={handleRefreshLIS}
-      />
+      {canViewLIS && (
+        <LISStatusModal
+          isOpen={showLISModal}
+          onClose={() => setShowLISModal(false)}
+          lisStatus={opportunity.lisStatus}
+          opportunityId={opportunity._id}
+          onRefresh={handleRefreshLIS}
+        />
+      )}
 
-      <SLAStatusModal
-        isOpen={showSLAModal}
-        onClose={() => setShowSLAModal(false)}
-        slaStatus={opportunity.slaStatus}
-        opportunityId={opportunity._id}
-        onCheck={handleCheckSLA}
-      />
+      {canViewSLA && (
+        <SLAStatusModal
+          isOpen={showSLAModal}
+          onClose={() => setShowSLAModal(false)}
+          slaStatus={opportunity.slaStatus}
+          opportunityId={opportunity._id}
+          onCheck={handleCheckSLA}
+        />
+      )}
 
       <StageHistoryModal
         isOpen={showStageHistoryModal}
@@ -1907,13 +1996,15 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
         opportunityId={opportunity._id}
       />
 
-      <DeleteConfirmationModal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        onConfirm={handleDeleteConfirm}
-        itemName={opportunity?.subject}
-        type="opportunity"
-      />
+      {canDelete && (
+        <DeleteConfirmationModal
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={handleDeleteConfirm}
+          itemName={opportunity?.subject}
+          type="opportunity"
+        />
+      )}
 
       <ConfirmationModal
         isOpen={showGenericConfirm}
