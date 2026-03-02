@@ -1450,55 +1450,184 @@ class OpportunityService {
   }
 
   async addNote(opportunityId: string, noteData: CreateNoteData): Promise<Note> {
-    try {
-      return await extendedApiClient.post<CreateNoteData, Note>(
-        `/opportunities/${opportunityId}/notes`,
-        noteData
-      );
-    } catch (error: any) {
-      console.error(`Error adding note to opportunity ${opportunityId}:`, error);
-      
-      let errorMessage = 'Failed to add note';
-      
-      if (error.message) {
-        try {
-          const parsed = JSON.parse(error.message.replace('API Error (500): ', ''));
-          if (parsed.message) {
-            errorMessage = parsed.message;
-          }
-        } catch {
-          errorMessage = error.message;
-        }
-      }
-      
-      throw new Error(errorMessage);
+  try {
+    // Transform frontend data structure to backend expected format
+    const backendData: Record<string, any> = {
+      content: noteData.content
+    };
+    
+    // Add type if provided (backend makes it optional)
+    if (noteData.type) {
+      backendData.type = noteData.type;
     }
-  }
-
-  // In your opportunityService.ts file, update the notes methods:
-
-  async getNotes(opportunityId: string): Promise<Note[]> {
-    try {
-      const response = await extendedApiClient.get<any>(
-        `/opportunities/${opportunityId}/notes`
-      );
-      
-      // Handle different response formats
-      if (Array.isArray(response)) {
-        return response as Note[];
-      } else if (response.data && Array.isArray(response.data)) {
-        return response.data as Note[];
-      } else if (response.notes && Array.isArray(response.notes)) {
-        return response.notes as Note[];
-      } else {
-        console.warn('Unexpected notes response format:', response);
-        return [];
+    
+    // Handle tags - backend expects a comma-separated string, not array
+    if (noteData.metadata?.tags && noteData.metadata.tags.length > 0) {
+      backendData.tags = noteData.metadata.tags.join(',');
+    }
+    
+    // Note: backend doesn't support attachments or pinned status yet
+    // You might want to log a warning if these are being sent
+    if (noteData.metadata?.attachments || noteData.metadata?.pinned !== undefined) {
+      console.warn('Backend does not support attachments or pinned status yet');
+    }
+    
+    console.log('Sending to backend:', backendData);
+    
+    // Make the API call
+    const response = await extendedApiClient.post<any, any>(
+      `/opportunities/${opportunityId}/notes`,
+      backendData
+    );
+    
+    console.log('Backend response:', response);
+    
+    // Transform backend response back to frontend Note format
+    const note: Note = {
+      _id: response._id || response.id,
+      id: response.id || response._id,
+      opportunityId: opportunityId,
+      type: response.type || noteData.type || 'general',
+      content: response.content,
+      author: response.author || {
+        _id: response.createdBy || 'unknown',
+        name: response.createdByName || 'Current User', // You might want to get this from user context
+        email: response.createdByEmail || 'user@example.com'
+      },
+      metadata: {
+        tags: response.tags ? response.tags.split(',').filter((t: string) => t.trim()) : [],
+        pinned: false, // Default to false since backend doesn't support
+        attachments: []
+      },
+      createdAt: response.createdAt || new Date().toISOString(),
+      updatedAt: response.updatedAt || new Date().toISOString()
+    };
+    
+    return note;
+  } catch (error: any) {
+    console.error(`Error adding note to opportunity ${opportunityId}:`, error);
+    console.error('Original data:', noteData);
+    
+    let errorMessage = 'Failed to add note';
+    
+    if (error.message) {
+      try {
+        const parsed = JSON.parse(error.message.replace('API Error (500): ', ''));
+        if (parsed.message) {
+          errorMessage = parsed.message;
+        }
+      } catch {
+        errorMessage = error.message;
       }
-    } catch (error) {
-      console.error(`Error fetching notes for opportunity ${opportunityId}:`, error);
+    }
+    
+    throw new Error(errorMessage);
+  }
+}
+
+async getNotes(opportunityId: string): Promise<Note[]> {
+  try {
+    const response = await extendedApiClient.get<any>(
+      `/opportunities/${opportunityId}/notes`
+    );
+    
+    console.log('Raw notes response:', response);
+    
+    // Handle different response formats
+    let notesData: any[] = [];
+    if (Array.isArray(response)) {
+      notesData = response;
+    } else if (response.data && Array.isArray(response.data)) {
+      notesData = response.data;
+    } else if (response.notes && Array.isArray(response.notes)) {
+      notesData = response.notes;
+    } else {
+      console.warn('Unexpected notes response format:', response);
       return [];
     }
+    
+    // Transform each note to match frontend Note interface
+    const notes: Note[] = notesData.map(note => ({
+      _id: note._id || note.id,
+      id: note.id || note._id,
+      opportunityId: opportunityId,
+      type: note.type || 'general',
+      content: note.content,
+      author: note.author || {
+        _id: note.createdBy || 'unknown',
+        name: note.createdByName || note.author?.name || 'Unknown User',
+        email: note.createdByEmail || note.author?.email || 'unknown@example.com'
+      },
+      metadata: {
+        tags: note.tags ? 
+          (Array.isArray(note.tags) ? note.tags : note.tags.split(',').filter((t: string) => t.trim())) 
+          : [],
+        pinned: note.pinned || false,
+        attachments: note.attachments || []
+      },
+      createdAt: note.createdAt || new Date().toISOString(),
+      updatedAt: note.updatedAt || new Date().toISOString()
+    }));
+    
+    return notes;
+  } catch (error) {
+    console.error(`Error fetching notes for opportunity ${opportunityId}:`, error);
+    return [];
   }
+}
+
+async updateNote(opportunityId: string, noteId: string, noteData: UpdateNoteData): Promise<Note> {
+  try {
+    // Transform update data for backend
+    const backendData: Record<string, any> = {};
+    
+    if (noteData.content) {
+      backendData.content = noteData.content;
+    }
+    
+    if (noteData.type) {
+      backendData.type = noteData.type;
+    }
+    
+    // Handle tags if present in metadata
+    if (noteData.metadata?.tags) {
+      backendData.tags = noteData.metadata.tags.join(',');
+    }
+    
+    // Note: pinned and attachments aren't supported by backend yet
+    
+    const response = await extendedApiClient.patch<any, any>(
+      `/opportunities/${opportunityId}/notes/${noteId}`,
+      backendData
+    );
+    
+    // Transform response back to frontend format
+    return {
+      _id: response._id || response.id || noteId,
+      id: response.id || response._id || noteId,
+      opportunityId: opportunityId,
+      type: response.type || noteData.type || 'general',
+      content: response.content || noteData.content || '',
+      author: response.author || {
+        _id: 'unknown',
+        name: 'Unknown User',
+        email: 'unknown@example.com'
+      },
+      metadata: {
+        tags: response.tags ? 
+          (Array.isArray(response.tags) ? response.tags : response.tags.split(',').filter((t: string) => t.trim())) 
+          : noteData.metadata?.tags || [],
+        pinned: noteData.metadata?.pinned || false,
+        // attachments: noteData.metadata?.attachments || []
+      },
+      createdAt: response.createdAt || new Date().toISOString(),
+      updatedAt: response.updatedAt || new Date().toISOString()
+    };
+  } catch (error) {
+    console.error(`Error updating note ${noteId}:`, error);
+    throw error;
+  }
+}
 
   async getNotesSummary(opportunityId: string): Promise<NoteSummary> {
     try {
@@ -1543,18 +1672,6 @@ class OpportunityService {
       );
     } catch (error) {
       console.error(`Error fetching notes by type for opportunity ${opportunityId}:`, error);
-      throw error;
-    }
-  }
-
-  async updateNote(opportunityId: string, noteId: string, noteData: UpdateNoteData): Promise<Note> {
-    try {
-      return await extendedApiClient.patch<UpdateNoteData, Note>(
-        `/opportunities/${opportunityId}/notes/${noteId}`,
-        noteData
-      );
-    } catch (error) {
-      console.error(`Error updating note ${noteId}:`, error);
       throw error;
     }
   }

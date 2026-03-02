@@ -432,7 +432,7 @@ export default function CreateOpportunityPage() {
         setUsers(salesPeople || []);
       } catch (error) {
         console.error('Error fetching users:', error);
-        showToast('Failed to load users list', 'error', 3000);
+        // showToast('Failed to load users list', 'error', 3000);
       } finally {
         setLoadingUsers(false);
       }

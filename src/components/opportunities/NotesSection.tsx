@@ -121,7 +121,13 @@ export default function NotesSection({ opportunityId, className = '' }: NotesSec
       const notesData = await opportunityService.getNotes(opportunityId);
       
       if (Array.isArray(notesData)) {
-        const sortedNotes = notesData.sort((a, b) => 
+        const validNotes = notesData.map(note => ({
+          ...note,
+          // Ensure type is a valid NoteType, default to 'general' if not
+          type: isValidNoteType(note.type) ? note.type : 'general'
+        }));
+        
+        const sortedNotes = validNotes.sort((a, b) => 
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
         setNotes(sortedNotes);
@@ -142,6 +148,12 @@ export default function NotesSection({ opportunityId, className = '' }: NotesSec
     }
   };
 
+  function isValidNoteType(type: string): type is NoteType {
+    return ['general', 'customer_feedback', 'internal_comment', 'follow_up', 
+            'issue', 'solution', 'meeting_summary', 'phone_call', 'email', 
+            'quote_discussion', 'service_update', 'payment_remark'].includes(type);
+  }
+
   const handleSubmitNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNote.content.trim()) {
@@ -150,6 +162,29 @@ export default function NotesSection({ opportunityId, className = '' }: NotesSec
     }
 
     try {
+      // Prepare note data - only include metadata if it has content
+      const noteData: CreateNoteData = {
+        content: newNote.content,
+        type: newNote.type,
+      };
+
+      // Only add metadata if it has meaningful data
+      if (newNote.metadata?.tags?.length || newNote.metadata?.attachments?.length || newNote.metadata?.pinned) {
+        noteData.metadata = {};
+        
+        if (newNote.metadata.tags?.length) {
+          noteData.metadata.tags = newNote.metadata.tags;
+        }
+        if (newNote.metadata.attachments?.length) {
+          noteData.metadata.attachments = newNote.metadata.attachments;
+        }
+        if (newNote.metadata.pinned !== undefined) {
+          noteData.metadata.pinned = newNote.metadata.pinned;
+        }
+      }
+
+      console.log('Sending note data:', noteData);
+
       if (editingNote) {
         await opportunityService.updateNote(opportunityId, editingNote._id, {
           content: newNote.content,
@@ -158,11 +193,7 @@ export default function NotesSection({ opportunityId, className = '' }: NotesSec
         });
         showToast('Note updated', 'success');
       } else {
-        await opportunityService.addNote(opportunityId, {
-          content: newNote.content,
-          type: newNote.type,
-          metadata: newNote.metadata
-        });
+        await opportunityService.addNote(opportunityId, noteData);
         showToast('Note added', 'success');
       }
 
@@ -405,7 +436,11 @@ function NoteCard({ note, onEdit, onDelete, onPin }: {
   onPin: (note: Note) => void;
 }) {
   const [showActions, setShowActions] = useState(false);
-  const config = noteTypeConfig[note.type];
+  const config = noteTypeConfig[note.type] || {
+    label: note.type || 'Unknown',
+    icon: <MessageSquare className="h-4 w-4" />,
+    bgColor: 'bg-gray-100'
+  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
