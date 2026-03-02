@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useToast } from '@/contexts/ToastContext';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { opportunityService } from '@/services/opportunityService';
 import { Note, NoteType, CreateNoteData } from '@/types/note';
 import {
@@ -98,6 +99,7 @@ const noteTypeConfig: Record<NoteType, { label: string; icon: React.ReactNode; b
 
 export default function NotesSection({ opportunityId, className = '' }: NotesSectionProps) {
   const { showToast } = useToast();
+  const { user } = useCurrentUser(); // Get current user
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -114,7 +116,6 @@ export default function NotesSection({ opportunityId, className = '' }: NotesSec
     fetchNotes();
   }, [opportunityId]);
 
-
   const fetchNotes = async (retryCount = 0) => {
     try {
       setLoading(true);
@@ -124,7 +125,13 @@ export default function NotesSection({ opportunityId, className = '' }: NotesSec
         const validNotes = notesData.map(note => ({
           ...note,
           // Ensure type is a valid NoteType, default to 'general' if not
-          type: isValidNoteType(note.type) ? note.type : 'general'
+          type: isValidNoteType(note.type) ? note.type : 'general',
+          // Ensure author object exists
+          author: note.author || {
+            _id: 'unknown',
+            name: 'Unknown User',
+            email: 'unknown@example.com'
+          }
         }));
         
         const sortedNotes = validNotes.sort((a, b) => 
@@ -158,6 +165,11 @@ export default function NotesSection({ opportunityId, className = '' }: NotesSec
     e.preventDefault();
     if (!newNote.content.trim()) {
       showToast('Note content is required', 'error');
+      return;
+    }
+
+    if (!user) {
+      showToast('You must be logged in to add notes', 'error');
       return;
     }
 
@@ -257,8 +269,23 @@ export default function NotesSection({ opportunityId, className = '' }: NotesSec
   const regularNotes = filteredNotes.filter(note => !note.metadata?.pinned);
 
   const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
+    if (!name) return 'U';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
   };
+
+  // Get current user display info
+  const getCurrentUserDisplay = () => {
+    if (!user) return { name: 'Current User', initials: 'CU', email: '' };
+    
+    const name = user.name || user.email?.split('@')[0] || 'Current User';
+    const initials = user.name 
+      ? getInitials(user.name)
+      : (user.email?.charAt(0).toUpperCase() || 'C') + 'U';
+    
+    return { name, initials, email: user.email || '' };
+  };
+
+  const currentUser = getCurrentUserDisplay();
 
   return (
     <div className={`bg-white rounded-lg border border-gray-200 ${className}`}>
@@ -391,6 +418,7 @@ export default function NotesSection({ opportunityId, className = '' }: NotesSec
                   <NoteCard
                     key={note._id}
                     note={note}
+                    currentUser={currentUser}
                     onEdit={handleEditNote}
                     onDelete={handleDeleteNote}
                     onPin={handlePinNote}
@@ -414,6 +442,7 @@ export default function NotesSection({ opportunityId, className = '' }: NotesSec
                   <NoteCard
                     key={note._id}
                     note={note}
+                    currentUser={currentUser}
                     onEdit={handleEditNote}
                     onDelete={handleDeleteNote}
                     onPin={handlePinNote}
@@ -429,13 +458,21 @@ export default function NotesSection({ opportunityId, className = '' }: NotesSec
 }
 
 // NoteCard Component
-function NoteCard({ note, onEdit, onDelete, onPin }: {
+function NoteCard({ note, currentUser, onEdit, onDelete, onPin }: {
   note: Note;
+  currentUser: { name: string; initials: string; email: string };
   onEdit: (note: Note) => void;
   onDelete: (id: string) => void;
   onPin: (note: Note) => void;
 }) {
   const [showActions, setShowActions] = useState(false);
+  
+  // Ensure note has valid author data
+  const authorName = note.author?.name || note.author?.email?.split('@')[0] || 'Unknown User';
+  const authorInitials = note.author?.name 
+    ? getInitials(note.author.name)
+    : (note.author?.email?.charAt(0).toUpperCase() || 'U') + 'U';
+  
   const config = noteTypeConfig[note.type] || {
     label: note.type || 'Unknown',
     icon: <MessageSquare className="h-4 w-4" />,
@@ -453,6 +490,10 @@ function NoteCard({ note, onEdit, onDelete, onPin }: {
     return format(date, 'MMM d, yyyy');
   };
 
+  // Check if current user is the author
+  const isCurrentUserAuthor = note.author?.email === currentUser.email || 
+                             note.author?.name === currentUser.name;
+
   return (
     <div className={`p-4 rounded-lg border ${note.metadata?.pinned ? 'border-amber-200 bg-amber-50/50' : 'border-gray-200 bg-white'}`}>
       {/* Header */}
@@ -462,7 +503,7 @@ function NoteCard({ note, onEdit, onDelete, onPin }: {
           <div className="flex-shrink-0">
             <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
               <span className="text-xs font-medium text-gray-600">
-                {note.author?.name ? getInitials(note.author.name) : 'U'}
+                {authorInitials}
               </span>
             </div>
           </div>
@@ -470,9 +511,9 @@ function NoteCard({ note, onEdit, onDelete, onPin }: {
           {/* Info */}
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className={`px-2 py-1 rounded-md text-xs font-medium ${config.bgColor} text-gray-700`}>
+              <span className={`px-2 py-1 rounded-md text-xs font-medium ${config.bgColor} text-gray-700 flex items-center gap-1`}>
                 {config.icon}
-                <span className="ml-1">{config.label}</span>
+                <span>{config.label}</span>
               </span>
               <span className="text-xs text-gray-500">
                 {formatDate(note.createdAt)}
@@ -480,8 +521,13 @@ function NoteCard({ note, onEdit, onDelete, onPin }: {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-gray-900">
-                {note.author?.name || 'Unknown'}
+                {authorName}
               </span>
+              {isCurrentUserAuthor && (
+                <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                  You
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -512,26 +558,31 @@ function NoteCard({ note, onEdit, onDelete, onPin }: {
                   <Pin className="h-4 w-4" />
                   {note.metadata?.pinned ? 'Unpin' : 'Pin'}
                 </button>
-                <button
-                  onClick={() => {
-                    onEdit(note);
-                    setShowActions(false);
-                  }}
-                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                >
-                  <Edit className="h-4 w-4" />
-                  Edit
-                </button>
-                <button
-                  onClick={() => {
-                    onDelete(note._id);
-                    setShowActions(false);
-                  }}
-                  className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete
-                </button>
+                {/* Only show edit/delete if current user is author */}
+                {isCurrentUserAuthor && (
+                  <>
+                    <button
+                      onClick={() => {
+                        onEdit(note);
+                        setShowActions(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      <Edit className="h-4 w-4" />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => {
+                        onDelete(note._id);
+                        setShowActions(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </button>
+                  </>
+                )}
               </div>
             </>
           )}
@@ -564,6 +615,7 @@ function NoteCard({ note, onEdit, onDelete, onPin }: {
 
 // Helper function
 function getInitials(name: string): string {
+  if (!name) return 'U';
   return name
     .split(' ')
     .map(part => part[0])

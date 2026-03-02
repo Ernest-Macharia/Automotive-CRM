@@ -616,8 +616,13 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   };
 
   const formatCurrency = (amount?: number) => {
-    if (!amount) return '$0.00';
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    if (!amount) return 'KSH 0.00';
+    return new Intl.NumberFormat('en-KE', { 
+      style: 'currency', 
+      currency: 'KES',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount).replace('KES', 'KSH');
   };
 
   const getScoreProgressColor = (score: number) => {
@@ -1440,7 +1445,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
             {/* Lead Score Card - Permission Based */}
             {canViewLeadScore && opportunity.leadScore && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                {/* ... Lead Score Card Content (keep as is) ... */}
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-purple-50 rounded-lg">
@@ -1455,11 +1459,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                     <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${getTierColor(opportunity.leadScore.tier)}`}>
                       {getTierLabel(opportunity.leadScore.tier)} Lead
                     </span>
-                    {opportunity.leadScore.autoAssigned && (
-                      <span className="px-3 py-1.5 rounded-full text-xs font-medium bg-green-100 text-green-600">
-                        AI-Assigned
-                      </span>
-                    )}
                     <button
                       onClick={handleRecalculateScore}
                       disabled={isRecalculatingScore}
@@ -1503,8 +1502,8 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                     <div className="p-3 bg-blue-50 rounded-lg">
                       <p className="text-xs text-gray-600 mb-1">Behavioral</p>
                       <p className="text-lg font-semibold text-blue-600">
-                        {Object.values(opportunity.leadScore.behavioral).reduce((a, b) => a + b, 0) / 
-                         Object.values(opportunity.leadScore.behavioral).length || 0}%
+                        {Math.round(Object.values(opportunity.leadScore.behavioral).reduce((a, b) => a + b, 0) / 
+                          Object.values(opportunity.leadScore.behavioral).length || 0)}%
                       </p>
                     </div>
                   )}
@@ -1512,8 +1511,8 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                     <div className="p-3 bg-green-50 rounded-lg">
                       <p className="text-xs text-gray-600 mb-1">Automotive</p>
                       <p className="text-lg font-semibold text-green-600">
-                        {Object.values(opportunity.leadScore.automotive).reduce((a, b) => a + b, 0) / 
-                         Object.values(opportunity.leadScore.automotive).length || 0}%
+                        {Math.round(Object.values(opportunity.leadScore.automotive).reduce((a, b) => a + b, 0) / 
+                          Object.values(opportunity.leadScore.automotive).length || 0)}%
                       </p>
                     </div>
                   )}
@@ -1521,8 +1520,8 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                     <div className="p-3 bg-purple-50 rounded-lg">
                       <p className="text-xs text-gray-600 mb-1">Commercial</p>
                       <p className="text-lg font-semibold text-purple-600">
-                        {Object.values(opportunity.leadScore.commercial).reduce((a, b) => a + b, 0) / 
-                         Object.values(opportunity.leadScore.commercial).length || 0}%
+                        {Math.round(Object.values(opportunity.leadScore.commercial).reduce((a, b) => a + b, 0) / 
+                          Object.values(opportunity.leadScore.commercial).length || 0)}%
                       </p>
                     </div>
                   )}
@@ -1533,7 +1532,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
             {/* Services/Products Section - always visible */}
             {opportunity.servicesProducts && opportunity.servicesProducts.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-indigo-50 rounded-lg">
                       {opportunity.packageType === 'work_order' ? (
@@ -1560,29 +1559,75 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                   )}
                 </div>
                 
-                <div className="overflow-x-auto">
+                {/* Product cards for mobile/tablet view */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  {opportunity.servicesProducts.map((item, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <h3 className="font-medium text-gray-900">{item.title}</h3>
+                          {item.description && (
+                            <p className="text-xs text-gray-500 mt-1">{item.description}</p>
+                          )}
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          item.type === 'SERVICE' ? 'bg-blue-100 text-blue-700' :
+                          item.type === 'PRODUCT' ? 'bg-green-100 text-green-700' :
+                          item.type === 'PART' ? 'bg-amber-100 text-amber-700' :
+                          'bg-purple-100 text-purple-700'
+                        }`}>
+                          {item.type}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-gray-100">
+                        <div>
+                          <p className="text-xs text-gray-500">Quantity</p>
+                          <p className="text-sm font-medium text-gray-900">{item.quantity}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Unit Price</p>
+                          <p className="text-sm font-medium text-gray-900">{formatCurrency(item.unitPrice)}</p>
+                        </div>
+                        {item.discount > 0 && (
+                          <div>
+                            <p className="text-xs text-gray-500">Discount</p>
+                            <p className="text-sm font-medium text-green-600">{item.discount}%</p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-xs text-gray-500">Total</p>
+                          <p className="text-sm font-bold text-gray-900">{formatCurrency(item.total)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Desktop table view */}
+                <div className="hidden lg:block overflow-x-auto mt-6">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Unit Price</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Discount</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {opportunity.servicesProducts.map((item, index) => (
-                        <tr key={index}>
-                          <td className="px-4 py-2">
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
                             <div className="font-medium text-gray-900">{item.title}</div>
                             {item.description && (
-                              <div className="text-xs text-gray-500">{item.description}</div>
+                              <div className="text-xs text-gray-500 mt-0.5">{item.description}</div>
                             )}
                           </td>
-                          <td className="px-4 py-2">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
                               item.type === 'SERVICE' ? 'bg-blue-100 text-blue-700' :
                               item.type === 'PRODUCT' ? 'bg-green-100 text-green-700' :
                               item.type === 'PART' ? 'bg-amber-100 text-amber-700' :
@@ -1591,30 +1636,57 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                               {item.type}
                             </span>
                           </td>
-                          <td className="px-4 py-2 text-right text-gray-900">{item.quantity}</td>
-                          <td className="px-4 py-2 text-right text-gray-900">{formatCurrency(item.unitPrice)}</td>
-                          <td className="px-4 py-2 text-right text-gray-900">{item.discount}%</td>
-                          <td className="px-4 py-2 text-right font-medium text-gray-900">{formatCurrency(item.total)}</td>
+                          <td className="px-4 py-3 text-right font-medium text-gray-900">{item.quantity}</td>
+                          <td className="px-4 py-3 text-right text-gray-900">{formatCurrency(item.unitPrice)}</td>
+                          <td className="px-4 py-3 text-right">
+                            {item.discount > 0 ? (
+                              <span className="text-green-600 font-medium">{item.discount}%</span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-gray-900">{formatCurrency(item.total)}</td>
                         </tr>
                       ))}
                     </tbody>
-                    <tfoot className="bg-gray-50">
+                    <tfoot className="bg-gray-50 border-t-2 border-gray-200">
                       <tr>
-                        <td colSpan={5} className="px-4 py-2 text-right text-sm font-medium text-gray-700">Subtotal:</td>
-                        <td className="px-4 py-2 text-right font-medium text-gray-900">{formatCurrency(opportunity.subtotal)}</td>
+                        <td colSpan={5} className="px-4 py-3 text-right text-sm font-medium text-gray-700">Subtotal:</td>
+                        <td className="px-4 py-3 text-right font-medium text-gray-900">{formatCurrency(opportunity.subtotal)}</td>
                       </tr>
                       {opportunity.totalDiscount && opportunity.totalDiscount > 0 && (
                         <tr>
-                          <td colSpan={5} className="px-4 py-2 text-right text-sm font-medium text-gray-700">Total Discount:</td>
-                          <td className="px-4 py-2 text-right font-medium text-green-600">-{formatCurrency(opportunity.totalDiscount)}</td>
+                          <td colSpan={5} className="px-4 py-3 text-right text-sm font-medium text-gray-700">Total Discount:</td>
+                          <td className="px-4 py-3 text-right font-medium text-green-600">-{formatCurrency(opportunity.totalDiscount)}</td>
                         </tr>
                       )}
-                      <tr>
-                        <td colSpan={5} className="px-4 py-2 text-right text-sm font-bold text-gray-900">Total:</td>
-                        <td className="px-4 py-2 text-right font-bold text-gray-900">{formatCurrency(opportunity.total)}</td>
+                      <tr className="border-t border-gray-200">
+                        <td colSpan={5} className="px-4 py-4 text-right text-base font-bold text-gray-900">Grand Total:</td>
+                        <td className="px-4 py-4 text-right text-base font-bold text-gray-900">{formatCurrency(opportunity.total)}</td>
                       </tr>
                     </tfoot>
                   </table>
+                </div>
+                
+                {/* Financial summary card for mobile */}
+                <div className="lg:hidden mt-4 bg-gray-50 rounded-lg p-4">
+                  <h3 className="text-sm font-medium text-gray-700 mb-3">Financial Summary</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Subtotal</span>
+                      <span className="font-medium text-gray-900">{formatCurrency(opportunity.subtotal)}</span>
+                    </div>
+                    {opportunity.totalDiscount && opportunity.totalDiscount > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Total Discount</span>
+                        <span className="font-medium text-green-600">-{formatCurrency(opportunity.totalDiscount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-base font-bold pt-2 border-t border-gray-200">
+                      <span className="text-gray-900">Grand Total</span>
+                      <span className="text-gray-900">{formatCurrency(opportunity.total)}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
