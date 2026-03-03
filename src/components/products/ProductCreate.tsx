@@ -235,8 +235,6 @@ export default function ProductCreate() {
         internalNotes: formData.internalNotes.trim() || undefined
       };
       
-      console.log('Submitting product data:', createData);
-      
       const newProduct = await productService.createProduct(createData);
       showToast('Product created successfully!', 'success');
       

@@ -10,6 +10,7 @@ import { NavigationService } from '@/services/navigationService';
 import { organizationService } from '@/services/settings/organizationService';
 import { userService } from '@/services/settings/userService';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { authService } from '@/services/authService';
 
 interface SidebarProps {
   sidebarOpen: boolean;
@@ -75,10 +76,8 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     }
   }, [setSidebarOpen]);
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('accessToken');
-    sessionStorage.removeItem('refreshToken');
-    sessionStorage.removeItem('user');
+  const handleLogout = async () => {
+    await authService.logout();
     router.push('/auth/login');
   };
 
@@ -320,9 +319,9 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                 <div className="border-t border-gray-100 my-1"></div>
 
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     setShowUserMenu(false);
-                    handleLogout();
+                    await handleLogout();
                   }}
                   className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
                 >

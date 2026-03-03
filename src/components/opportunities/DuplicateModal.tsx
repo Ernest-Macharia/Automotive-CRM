@@ -224,7 +224,6 @@ export default function DuplicateModal({
               <button
                 onClick={() => {
                   existingOpportunities.forEach(opp => {
-                    console.log('Existing opportunity details:', opp);
                   });
                   onContinueAnyway();
                 }}

@@ -19,9 +19,6 @@ export default function ClientLayout({
   const pathname = usePathname();
   const router = useRouter();
 
-console.log('Sidebar - user:', user);
-console.log('Sidebar - userLoading:', userLoading);
-
   /* ---------------------------
      AUTH GUARD
   ----------------------------*/

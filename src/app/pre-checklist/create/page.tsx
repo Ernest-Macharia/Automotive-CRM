@@ -29,14 +29,6 @@ export default function PreChecklistCreatePage() {
     }
   }, [mode, opportunityId, workOrderId]);
 
-  // Debug logging
-  useEffect(() => {
-    console.log('=== Pre-Checklist Create Page ===');
-    console.log('Mode:', mode);
-    console.log('ClientType:', clientType);
-    console.log('URL:', window.location.href);
-  }, [clientType, mode]);
-
   // Handle edit mode with invalid ID
   if (mode === 'edit' && (!checklistId || checklistId === 'undefined')) {
     return (
@@ -81,7 +73,6 @@ export default function PreChecklistCreatePage() {
 
   // Render Eagle Lights form if clientType is eagle-lights
   if (clientType === 'eagle-lights') {
-    console.log('✅ Rendering HeadlightPreChecklistCreatePage');
     return (
       <ProtectedRoute>
         <HeadlightPreChecklistCreatePage 
@@ -91,9 +82,6 @@ export default function PreChecklistCreatePage() {
       </ProtectedRoute>
     );
   }
-
-  // Default to Diamond Rims
-  console.log('✅ Rendering DiamondRimsPreChecklistCreatePage');
   return (
     <ProtectedRoute>
       <DiamondRimsPreChecklistCreatePage 

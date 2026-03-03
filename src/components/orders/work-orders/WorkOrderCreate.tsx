@@ -110,8 +110,6 @@ export default function WorkOrderCreate() {
         quoteId: formData.quoteId
       };
       
-      console.log('Creating work order for opportunity:', formData.opportunityId);
-      
       const newWorkOrder = await workOrderService.createWorkOrder(createData);
       showToast('Work order created successfully!', 'success');
       

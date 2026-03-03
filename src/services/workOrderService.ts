@@ -487,7 +487,6 @@ class WorkOrderService {
       
       if (isFullRequest && workOrderCache.data && 
           (now - workOrderCache.timestamp) < CACHE_TTL) {
-        console.log('Using cached work orders');
         
         // Apply pagination to cached data
         const page = params?.page || 1;
@@ -505,12 +504,9 @@ class WorkOrderService {
           }
         };
       }
-      
-      console.log('Fetching from:', endpoint);
       const response = await apiClient.get<any>(endpoint);
       
       if (Array.isArray(response)) {
-        console.log(`API returned ${response.length} items total`);
         
         // Cache the full response
         if (isFullRequest) {

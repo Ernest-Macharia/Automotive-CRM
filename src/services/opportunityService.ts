@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api/client';
+import { API_BASE_URL } from '@/lib/api/config';
 import { 
   Note, 
   CreateNoteData, 
@@ -511,17 +512,7 @@ export interface MergeDuplicatesResponse {
 // Extended ApiClient with headers support
 class ExtendedApiClient {
   private getApiBaseUrl(): string {
-    // Try to access API_BASE_URL from apiClient
-    if ((apiClient as any).API_BASE_URL) {
-      return (apiClient as any).API_BASE_URL;
-    }
-    // Fallback to config import if available
-    try {
-      const config = require('@/lib/api/config');
-      return config.API_BASE_URL || '';
-    } catch {
-      return '';
-    }
+    return API_BASE_URL;
   }
 
   private getHeaders(): Record<string, string> {
@@ -1472,15 +1463,11 @@ class OpportunityService {
       console.warn('Backend does not support attachments or pinned status yet');
     }
     
-    console.log('Sending to backend:', backendData);
-    
     // Make the API call
     const response = await extendedApiClient.post<any, any>(
       `/opportunities/${opportunityId}/notes`,
       backendData
     );
-    
-    console.log('Backend response:', response);
     
     // Transform backend response back to frontend Note format
     const note: Note = {
@@ -1530,8 +1517,6 @@ async getNotes(opportunityId: string): Promise<Note[]> {
     const response = await extendedApiClient.get<any>(
       `/opportunities/${opportunityId}/notes`
     );
-    
-    console.log('Raw notes response:', response);
     
     // Handle different response formats
     let notesData: any[] = [];

@@ -195,8 +195,6 @@ export default function NotesSection({ opportunityId, className = '' }: NotesSec
         }
       }
 
-      console.log('Sending note data:', noteData);
-
       if (editingNote) {
         await opportunityService.updateNote(opportunityId, editingNote._id, {
           content: newNote.content,

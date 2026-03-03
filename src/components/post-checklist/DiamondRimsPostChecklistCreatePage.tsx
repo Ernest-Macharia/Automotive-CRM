@@ -344,9 +344,7 @@ export default function DiamondRimsPostChecklistCreatePage({
       // Load work order if ID provided
       if (workOrderId) {
         try {
-          console.log('Fetching work order details for ID:', workOrderId);
           const wo = await workOrderService.getWorkOrderById(workOrderId);
-          console.log('Work order details:', wo);
           setWorkOrder(wo);
           
           // Extract jobCardId from workOrder.jobCards array
@@ -358,7 +356,6 @@ export default function DiamondRimsPostChecklistCreatePage({
             } else {
               jobCardId = wo.jobCards[0] as string || '';
             }
-            console.log('Found jobCardId from jobCards:', jobCardId);
           }
           
           setFormData(prev => ({
@@ -744,18 +741,6 @@ export default function DiamondRimsPostChecklistCreatePage({
       else if (opportunity?.vehicles?.[0]?._id) {
         finalVehicleId = opportunity.vehicles[0]._id;
       }
-
-      // Log for debugging
-      console.log('Submitting post-checklist with:', {
-        workOrderId: formData.workOrderId || workOrderId,
-        jobCardId,
-        opportunityId: formData.opportunityId || opportunityId,
-        vehicleId: finalVehicleId,
-        vehicleFromForm: formData.vehicleId,
-        vehicleFromObject: vehicle?._id,
-        vehicleFromPreChecklist: preChecklist?.vehicleId,
-        jobCards: workOrder?.jobCards
-      });
 
       // Validate required IDs
       if (!finalVehicleId) {

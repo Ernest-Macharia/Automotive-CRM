@@ -329,8 +329,6 @@ export default function EmployeeCreateProfilePage() {
         active: true,
         };
         
-        console.log('Submitting profile data:', JSON.stringify(profileData, null, 2));
-        
         const newProfile = await profileService.createProfile(profileData);
         
         showToast('Profile created successfully!', 'success');

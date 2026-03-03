@@ -165,6 +165,7 @@ const vehicleBodyTypes = [
 export default function CreateOpportunityPage() {
   const router = useRouter();
   const { showToast } = useToast();
+  const submitInFlightRef = useRef(false);
   const [step, setStep] = useState(1);
   const [userPreferences, setUserPreferences] = useState<UserPreferences>(() => {
     if (typeof window !== 'undefined') {
@@ -736,56 +737,29 @@ export default function CreateOpportunityPage() {
   };
 
   const handleSubmit = async () => {
+    if (submitInFlightRef.current || isSubmitting) {
+      return;
+    }
+
     if (!validateStep()) {
       showToast('Please fix the validation errors before submitting.', 'error', 3000);
       return;
     }
 
+    submitInFlightRef.current = true;
     setIsSubmitting(true);
 
     try {
-      // Use the enhanced validation API
-      const validationData = {
-        type: formData.accountType,
-        subject: formData.accountType === 'individual'
-          ? `${formData.firstName} ${formData.lastName}'s ${formData.opportunityType.toLowerCase()} request`
-          : `${formData.companyName}'s ${formData.opportunityType.toLowerCase()} request`,
-        status: 'new',
-        source: formData.source,
-        customer: {
-          name: formData.accountType === 'individual'
-            ? `${formData.firstName} ${formData.lastName}`.trim()
-            : formData.companyName,
-          email: formData.email || undefined,
-          phone: `${formData.phoneCode}${formData.phone}` || undefined,
-          companyName: formData.accountType === 'organization' ? formData.companyName : undefined,
-          ...(formData.accountType === 'organization' && {
-            contactPersonName: formData.contactPersonName || undefined,
-            contactPersonEmail: formData.contactPersonEmail || undefined,
-            contactPersonPhone: formData.contactPersonPhone ? 
-              `${formData.phoneCode}${formData.contactPersonPhone}` : undefined,
-            contactPersonTitle: formData.contactPersonTitle || undefined,
-          }),
-        },
-        vehicles: formData.vehicles.map(v => ({
-          vin: v.vin,
-          registrationNumber: v.registrationNumber,
-          make: v.make,
-          model: v.model
-        })),
-        opportunityType: formData.opportunityType
-      };
-
       // Validate with duplicates
       try {
       // Use a simpler duplicate check that doesn't require the broken endpoint
       const similarOpportunities = await findSimilarOpportunities();
       
       if (similarOpportunities && similarOpportunities.length > 0) {
-        console.log('Found similar opportunities:', similarOpportunities.length);
         setDuplicateOpportunities(similarOpportunities);
         setShowDuplicateModal(true);
         setIsSubmitting(false);
+        submitInFlightRef.current = false;
         return;
       }
     } catch (duplicateError) {
@@ -812,13 +786,18 @@ export default function CreateOpportunityPage() {
       }
       
       showToast(errorMessage, 'error', 5000);
-      setIsSubmitting(false); // IMPORTANT: Reset submitting state
+      setIsSubmitting(false);
+      submitInFlightRef.current = false;
     }
   };
 
   // Update the createOpportunity function to handle the actual creation
   const createOpportunity = async () => {
-    if (isSubmitting) return;
+    if (!submitInFlightRef.current) {
+      submitInFlightRef.current = true;
+      setIsSubmitting(true);
+    }
+
     try {
       const isIndividual = formData.accountType === 'individual';
 
@@ -916,13 +895,18 @@ export default function CreateOpportunityPage() {
       handleCreateOpportunityError(error);
     } finally {
       setIsSubmitting(false);
+      submitInFlightRef.current = false;
     }
   };
 
   // Update the handleContinueAnyway function
   const handleContinueAnyway = () => {
+    if (submitInFlightRef.current || isSubmitting) {
+      return;
+    }
     setShowDuplicateModal(false);
-    // Continue with creation despite duplicates
+    submitInFlightRef.current = true;
+    setIsSubmitting(true);
     createOpportunity();
   };
 
@@ -958,7 +942,6 @@ export default function CreateOpportunityPage() {
         
         if (similarOpportunities.length > 0) {
           // You could show these in a modal or as suggestions
-          console.log('Found similar opportunities:', similarOpportunities);
           // Optional: Show a notification or suggestions
           if (similarOpportunities.length > 0) {
             showToast(`Found ${similarOpportunities.length} similar opportunity(s)`, 'info', 2000);

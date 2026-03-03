@@ -114,8 +114,6 @@ export default function SalesOrderCreate() {
         quoteId: formData.quoteId
       };
       
-      console.log('Creating sales order for opportunity:', formData.opportunityId);
-      
       const newSalesOrder = await salesOrderService.createSalesOrder(createData);
       showToast('Sales order created successfully!', 'success');
       

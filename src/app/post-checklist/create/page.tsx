@@ -27,13 +27,6 @@ export default function PostChecklistCreatePage() {
     }
   }, [mode, opportunityId, workOrderId]);
 
-  useEffect(() => {
-    console.log('=== Post-Checklist Create Page ===');
-    console.log('Mode:', mode);
-    console.log('ClientType:', clientType);
-    console.log('URL:', window.location.href);
-  }, [clientType, mode]);
-
   if (mode === 'edit' && (!checklistId || checklistId === 'undefined')) {
     return (
       <ProtectedRoute>
@@ -85,7 +78,6 @@ export default function PostChecklistCreatePage() {
     );
   }
 
-  console.log('✅ Rendering DiamondRimsPostChecklistCreatePage');
   return (
     <ProtectedRoute>
       <DiamondRimsPostChecklistCreatePage 

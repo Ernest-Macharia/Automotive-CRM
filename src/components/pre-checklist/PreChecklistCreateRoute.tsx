@@ -24,15 +24,6 @@ export default function PreChecklistCreateRoute() {
 
   // Log all params for debugging
   useEffect(() => {
-    console.log('=== PreChecklistCreateRoute Debug ===');
-    console.log('Mode:', mode);
-    console.log('ChecklistId:', checklistId);
-    console.log('clientType:', clientType);
-    console.log('opportunityId:', opportunityId);
-    console.log('workOrderId:', workOrderId);
-    console.log('source:', source);
-    console.log('Full URL:', window.location.href);
-    console.log('=====================================');
     
     setDebug({
       mode,
@@ -82,7 +73,6 @@ export default function PreChecklistCreateRoute() {
 
   // Render Eagle Lights form if clientType is eagle-lights
   if (clientType === 'eagle-lights') {
-    console.log('✅ Rendering HeadlightPreChecklistCreatePage');
     return (
       <ProtectedRoute>
         <HeadlightPreChecklistCreatePage 
@@ -92,9 +82,6 @@ export default function PreChecklistCreateRoute() {
       </ProtectedRoute>
     );
   }
-
-  // Default to Diamond Rims for 'diamond-rims' or any other value
-  console.log('✅ Rendering DiamondRimsPreChecklistCreatePage');
   return (
     <ProtectedRoute>
       <DiamondRimsPreChecklistCreatePage 
