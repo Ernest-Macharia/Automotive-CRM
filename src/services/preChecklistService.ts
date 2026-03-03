@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api/client';
+import { handleUnauthorizedRedirect } from '@/lib/auth/unauthorized';
 
 // Added file interfaces
 export interface ChecklistFile {
@@ -569,8 +570,7 @@ class ExtendedApiClient {
       console.error('API Error Response:', errorText);
       
       if (response.status === 401) {
-        sessionStorage.removeItem('accessToken');
-        window.location.href = '/auth/login';
+        handleUnauthorizedRedirect();
       }
       
       throw new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
@@ -644,8 +644,7 @@ class ExtendedApiClient {
       console.error('API Error Response:', errorText);
       
       if (response.status === 401) {
-        sessionStorage.removeItem('accessToken');
-        window.location.href = '/auth/login';
+        handleUnauthorizedRedirect();
       }
       
       throw new Error(`API Error (${response.status}): ${errorText || response.statusText}`);

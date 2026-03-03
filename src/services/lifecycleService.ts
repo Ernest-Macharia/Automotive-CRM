@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api/client';
+import { handleUnauthorizedRedirect } from '@/lib/auth/unauthorized';
 
 export type PackageType = 'work_order' | 'sales_order';
 export type WorkOrderStage = 'quote' | 'waiver' | 'jobcard' | 'prechecklist' | 'postchecklist' | 'invoice';
@@ -163,8 +164,7 @@ class ExtendedApiClient {
       console.error('API Error Response:', errorText);
       
       if (response.status === 401) {
-        sessionStorage.removeItem('accessToken');
-        window.location.href = '/auth/login';
+        handleUnauthorizedRedirect();
       }
       
       throw new Error(`API Error (${response.status}): ${errorText || response.statusText}`);

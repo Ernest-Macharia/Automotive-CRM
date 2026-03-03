@@ -1,5 +1,6 @@
 // services/customerService.ts
 import { apiClient } from '@/lib/api/client';
+import { handleUnauthorizedRedirect } from '@/lib/auth/unauthorized';
 
 export interface Customer {
   _id: string;
@@ -210,11 +211,8 @@ class CustomerService {
         console.error(`API Error (${response.status}):`, errorText);
         
         if (response.status === 401) {
-          if (typeof window !== 'undefined') {
-            sessionStorage.removeItem('accessToken');
-            window.location.href = '/auth/login';
-          }
-        }
+        handleUnauthorizedRedirect();
+      }
         
         throw new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
       }

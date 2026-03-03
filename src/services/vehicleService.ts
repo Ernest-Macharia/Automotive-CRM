@@ -1,5 +1,6 @@
 // src/services/vehicleService.ts
 import { apiClient } from '@/lib/api/client';
+import { handleUnauthorizedRedirect } from '@/lib/auth/unauthorized';
 
 export interface VehicleImage {
   url: string;
@@ -185,8 +186,7 @@ class VehicleService {
       console.error('Upload Error Response:', errorText);
       
       if (response.status === 401) {
-        sessionStorage.removeItem('accessToken');
-        window.location.href = '/auth/login';
+        handleUnauthorizedRedirect();
       }
       
       throw new Error(`Upload Error (${response.status}): ${errorText || response.statusText}`);

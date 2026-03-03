@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './config';
+import { handleUnauthorizedRedirect } from '@/lib/auth/unauthorized';
 
 class ApiClient {
   private getHeaders(): Record<string, string> {
@@ -48,9 +49,7 @@ class ApiClient {
         };
         
         if (response.status === 401) {
-          sessionStorage.removeItem('accessToken');
-          // Don't redirect here - let the component handle it
-          // window.location.href = '/auth/login';
+          handleUnauthorizedRedirect();
         }
         
         throw error;

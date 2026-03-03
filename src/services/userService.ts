@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api/client';
+import { handleUnauthorizedRedirect } from '@/lib/auth/unauthorized';
 
 export interface Role {
   _id?: string;
@@ -353,8 +354,7 @@ class UserService {
       
       if (error instanceof Error) {
         if (error.message.includes('401') || error.message.includes('403')) {
-          sessionStorage.removeItem('accessToken');
-          window.location.href = '/auth/login';
+          handleUnauthorizedRedirect();
           throw new Error('Session expired or insufficient permissions. Please log in again.');
         } else if (error.message.includes('409')) {
           throw new Error('A user with this email already exists.');
