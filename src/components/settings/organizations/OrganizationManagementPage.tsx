@@ -1,4 +1,3 @@
-// components/settings/organizations/OrganizationManagementPage.tsx
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';

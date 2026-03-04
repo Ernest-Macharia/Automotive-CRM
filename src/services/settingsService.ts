@@ -253,7 +253,6 @@ class SettingsService {
   async getUser(id: string): Promise<User> {
     try {
       // If you have a specific endpoint for single user, use it
-      // For now, we'll fetch all and filter, but you should create this endpoint
       const users = await this.getUsers();
       const user = users.find(u => u.id === id);
       if (!user) throw new Error('User not found');

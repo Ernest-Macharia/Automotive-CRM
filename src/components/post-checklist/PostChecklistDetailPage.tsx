@@ -120,22 +120,16 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
       setComparedItems(comparison);
     }
   }, [showComparison, preChecklist, checklist]);
-
-  // Add this function to handle checking/unchecking
   const handleToggleOkay = (index: number) => {
     setComparedItems(prev => prev.map((item, i) => 
       i === index ? { ...item, isOkay: !item.isOkay } : item
     ));
   };
-
-  // Add this function to update notes
   const handleUpdateNotes = (index: number, notes: string) => {
     setComparedItems(prev => prev.map((item, i) => 
       i === index ? { ...item, notes } : item
     ));
   };
-
-  // Add this function to save comparison results
   const handleSaveComparison = async () => {
     if (!checklist) return;
     
@@ -144,7 +138,6 @@ export default function PostChecklistDetailPage({ id }: PostChecklistDetailPageP
       const totalCount = comparedItems.length;
       
       // You can save this comparison data to your backend
-      // For now, we'll just show a toast
       showToast(`Marked ${okayCount}/${totalCount} items as okay`, 'success');
       setShowComparison(false);
     } catch (error) {

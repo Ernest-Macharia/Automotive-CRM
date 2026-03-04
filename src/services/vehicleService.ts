@@ -1,4 +1,3 @@
-// src/services/vehicleService.ts
 import { apiClient } from '@/lib/api/client';
 import { handleUnauthorizedRedirect } from '@/lib/auth/unauthorized';
 
@@ -713,3 +712,4 @@ class VehicleService {
 }
 
 export const vehicleService = new VehicleService();
+

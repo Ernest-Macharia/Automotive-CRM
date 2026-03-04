@@ -771,8 +771,6 @@ export default function CreateOpportunityPage() {
       await createOpportunity();
     } catch (error: any) {
       console.error('Validation error:', error);
-      
-      // FIXED: Better error handling
       let errorMessage = 'Failed to validate opportunity.';
       
       if (error?.response?.data?.validationErrors) {
@@ -790,8 +788,6 @@ export default function CreateOpportunityPage() {
       submitInFlightRef.current = false;
     }
   };
-
-  // Update the createOpportunity function to handle the actual creation
   const createOpportunity = async () => {
     if (!submitInFlightRef.current) {
       submitInFlightRef.current = true;
@@ -898,8 +894,6 @@ export default function CreateOpportunityPage() {
       submitInFlightRef.current = false;
     }
   };
-
-  // Update the handleContinueAnyway function
   const handleContinueAnyway = () => {
     if (submitInFlightRef.current || isSubmitting) {
       return;
@@ -909,8 +903,6 @@ export default function CreateOpportunityPage() {
     setIsSubmitting(true);
     createOpportunity();
   };
-
-  // Add this function to find similar opportunities (optional, can be used for suggestions)
   const findSimilarOpportunities = async () => {
     try {
       const params: SimilarOpportunitiesRequest = {};
@@ -957,8 +949,6 @@ export default function CreateOpportunityPage() {
       return [];
     }
   };
-
-// Add this helper function
   const mapOpportunityTypeToServiceProductType = (
     opportunityType: 'SERVICE' | 'SALE' | 'REPAIR' | 'MAINTENANCE' | 'INSPECTION'
   ): 'SERVICE' | 'PRODUCT' | 'PART' | 'LABOR' => {
@@ -2695,3 +2685,4 @@ export default function CreateOpportunityPage() {
     </>
   );
 }
+

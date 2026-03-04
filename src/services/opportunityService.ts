@@ -989,8 +989,6 @@ class OpportunityService {
       throw error;
     }
   }
-
-  // Add this method to your opportunity service
   async initializeWorkflow(opportunityId: string, packageType: 'work_order' | 'sales_order'): Promise<any> {
     try {
       const headers: Record<string, string> = {};
@@ -2002,4 +2000,5 @@ async updateNote(opportunityId: string, noteId: string, noteData: UpdateNoteData
 }
 
 export const opportunityService = new OpportunityService();
+
 

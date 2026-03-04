@@ -396,7 +396,6 @@ class UserService {
     try {
       // Since the API might not have a PATCH /users/{id} endpoint for general updates,
       // we'll need to handle different update types
-      // For now, we'll use the summary-access endpoint as an example
       if (data.canViewSummary !== undefined) {
         return await this.updateSummaryAccess(id, data.canViewSummary);
       }
@@ -604,3 +603,4 @@ class UserService {
 }
 
 export const userService = new UserService();
+

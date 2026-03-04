@@ -1,4 +1,3 @@
-// components/dashboards/TechnicianDashboard.tsx
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';

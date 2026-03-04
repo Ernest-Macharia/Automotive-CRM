@@ -1,4 +1,3 @@
-// services/lifecycleIntegrationService.ts
 
 import { lifecycleService, LifecycleStatus, LifecycleStage } from './lifecycleService';
 import { workOrderService } from './workOrderService';
@@ -340,8 +339,6 @@ export class LifecycleIntegrationService {
       };
     }
   }
-
-  // Update the getStageOverview method to handle uninitialized workflow
   public async getStageOverview(opportunityId: string): Promise<any> {
     try {
       // First, check if we have a pre-checklist for this opportunity
@@ -478,8 +475,6 @@ export class LifecycleIntegrationService {
       }]
     };
   }
-
-  // Update the transformWorkOrderToStages method to handle stage name mapping
   private mapStageName(stage: string): string {
     const mapping: Record<string, string> = {
       'pre_checklist': 'prechecklist',
@@ -1326,8 +1321,6 @@ public async canStageAutoTransition(stage: string, document: any): Promise<boole
     
     return undefined;
   }
-
-  // Add this method to mark a stage as completed
   async markStageAsCompleted(
     opportunityId: string, 
     stage: string, 
@@ -1394,8 +1387,6 @@ public async canStageAutoTransition(stage: string, document: any): Promise<boole
       throw error;
     }
   }
-
-  // Add this method to move to a specific stage (backwards movement)
   async moveToStage(
     opportunityId: string,
     targetStage: string,
@@ -1479,8 +1470,6 @@ public async canStageAutoTransition(stage: string, document: any): Promise<boole
 // In LifecycleIntegrationService.ts - Update the transitionToStage method
 
 // In LifecycleIntegrationService.ts
-
-// Add this method to check if job card is properly created
 async isJobCardProperlyCreated(opportunityId: string): Promise<{
   hasJobCard: boolean;
   isAssigned: boolean;
@@ -1533,8 +1522,6 @@ async isJobCardProperlyCreated(opportunityId: string): Promise<{
     };
   }
 }
-
-// Update the transitionToStage method to NOT auto-create job cards
 async transitionToStage(opportunityId: string, targetStage: string, options?: any): Promise<any> {
   try {
     const lifecycle = await lifecycleService.getOpportunityLifecycle(opportunityId);
@@ -2131,8 +2118,6 @@ async checkStageRequirements(opportunityId: string): Promise<{
       throw error;
     }
   }
-
-// Update the autoTransitionOnDocumentUpdate method to handle job card completion
 private async shouldAutoTransition(
   documentType: string,
   document: any,
@@ -2244,8 +2229,6 @@ private async shouldAutoTransition(
       
       // Create the invoice
       const invoice = await invoiceService.createInvoice(invoiceData);
-      
-      // IMPORTANT: Update sales order with invoice ID
       const updatedSalesOrder = await salesOrderService.updateSalesOrder(salesOrder._id || salesOrder.id, {
         invoiceId: invoice._id || invoice.id
       });
@@ -2578,9 +2561,6 @@ async autoCompletePreChecklist(
       throw error;
     }
   }
-
-  // Add this method to LifecycleIntegrationService
-// Update the autoTransitionOnPreChecklistComplete method
 async autoTransitionOnPreChecklistComplete(
   checklistId: string,
   userId?: string
@@ -4010,7 +3990,6 @@ async autoTransitionOnPreChecklistComplete(
     previousDocument?: any
   ): Promise<void> {
     try {
-      // IMPORTANT:
       // We intentionally do NOT auto-create Job Cards or Post-Checklists.
       // Those documents must be created manually in the UI to capture additional details.
       // The only document we auto-create is the Invoice (it is derived from the Opportunity/Sales Order).
@@ -4130,7 +4109,6 @@ async autoTransitionOnPreChecklistComplete(
     message: string;
   }> {
     try {
-      // Update the document first
       let updatedDocument: any;
       switch (documentType) {
         case 'prechecklist':
@@ -4185,8 +4163,6 @@ async autoTransitionOnPreChecklistComplete(
       if (currentIndex === -1) {
         throw new Error(`Invalid stage: ${stage}`);
       }
-
-      // IMPORTANT:
       // - Do NOT auto-create Job Cards or Post-Checklists here. The UI must create them to capture extra details.
       // - We only complete/approve/pay *existing* documents, then transition the lifecycle stage.
       const documents = await this.fetchDocumentsForStages(opportunityId, [stage]);

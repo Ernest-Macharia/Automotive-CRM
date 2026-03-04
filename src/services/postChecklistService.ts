@@ -1083,8 +1083,6 @@ class PostChecklistService {
         requestBody,
         headers
       );
-      
-      // IMPORTANT: The API returns approval details, not the full checklist
       // We need to fetch the updated checklist
       const updatedChecklist = await this.getPostChecklistById(id);
       
@@ -1739,3 +1737,4 @@ class PostChecklistService {
 }
 
 export const postChecklistService = new PostChecklistService();
+

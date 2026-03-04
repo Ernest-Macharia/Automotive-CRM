@@ -80,8 +80,6 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
         payload.completedDate = new Date().toISOString();
         payload.actualHours = jobCard?.actualHours || jobCard?.estimatedHours || 2;
       }
-
-      // Update the job card
       await jobCardService.updateJobCard(jobCardId, payload);
 
       showToast(`Job card marked as ${status.replace('_', ' ')}`, 'success');

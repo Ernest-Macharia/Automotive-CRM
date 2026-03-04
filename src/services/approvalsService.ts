@@ -316,7 +316,6 @@ class ApprovalsService {
   async getRequestHistory(requestId: string): Promise<ApprovalHistory[]> {
     try {
       // Note: This would need a dedicated endpoint
-      // For now, we'll simulate by creating a mock history
       const request = await this.getApprovalRequest(requestId);
       
       const mockHistory: ApprovalHistory[] = [
@@ -374,7 +373,6 @@ class ApprovalsService {
   async getApprovalsByStatus(status: ApprovalStatus): Promise<ApprovalRequest[]> {
     try {
       // Note: This would need a dedicated endpoint or we filter client-side
-      // For now, we'll get all approvals and filter
       const allRequests = await this.getAllApprovals();
       return allRequests.filter(request => request.status === status);
     } catch (error) {
@@ -386,7 +384,6 @@ class ApprovalsService {
   async getAllApprovals(): Promise<ApprovalRequest[]> {
     try {
       // Note: This would need a dedicated endpoint
-      // For now, we'll simulate by getting pending approvals
       const pending = await this.getPendingApprovals();
       
       // In a real scenario, you'd have a separate endpoint for all approvals
@@ -403,7 +400,6 @@ class ApprovalsService {
   ): Promise<ApprovalRequest> {
     try {
       // Note: This would need a dedicated endpoint
-      // For now, we'll simulate cancellation
       const request = await this.getApprovalRequest(requestId);
       
       if (request.status !== 'pending') {
@@ -430,7 +426,6 @@ class ApprovalsService {
   ): Promise<ApprovalRequest> {
     try {
       // Note: This would need a dedicated endpoint
-      // For now, we'll simulate escalation
       const request = await this.getApprovalRequest(requestId);
       
       if (request.status !== 'pending') {
@@ -453,7 +448,6 @@ class ApprovalsService {
   async getApprovalStatistics(): Promise<ApprovalStatistics> {
     try {
       // Note: This would need a dedicated endpoint
-      // For now, we'll calculate client-side
       const allApprovals = await this.getAllApprovals();
       
       const total = allApprovals.length;
@@ -1041,3 +1035,4 @@ class ApprovalsService {
 }
 
 export const approvalsService = new ApprovalsService();
+

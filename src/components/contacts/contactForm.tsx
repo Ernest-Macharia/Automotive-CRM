@@ -1,4 +1,3 @@
-// components/contacts/ContactForm.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -120,8 +119,6 @@ export default function ContactForm({ contactId, mode }: ContactFormProps) {
       setSaving(false);
     }
   };
-
-  // Update the handleChange function to handle all possible fields
   const handleChange = (field: keyof FormDataType, value: any) => {
     setFormData(prev => ({
       ...prev,

@@ -1,4 +1,3 @@
-// components/dashboards/CustomerDashboard.tsx (Enhanced with real data)
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';

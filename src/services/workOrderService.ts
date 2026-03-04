@@ -1,4 +1,3 @@
-// src/services/workOrderService.ts
 import { apiClient } from '@/lib/api/client';
 import { lifecycleIntegrationService } from './lifecycleIntegrationService';
 import { invoiceService } from './invoiceService';
@@ -861,8 +860,6 @@ class WorkOrderService {
       if (workOrders.length === 0) {
         throw new Error(`No work order found for opportunity ${opportunityId}`);
       }
-      
-      // Update the first work order (assuming one work order per opportunity)
       const workOrder = workOrders[0];
       return await this.updateWorkOrder(workOrder._id, data);
     } catch (error) {
@@ -941,8 +938,6 @@ class WorkOrderService {
   }
 
   // Utility methods for UI
-
-    // Add this method to the WorkOrderService class to handle auto-approval status
 async getChecklistStatus(checklistId: string, checklistType: 'prechecklist' | 'postchecklist'): Promise<{
   approved: boolean;
   autoApproved: boolean;
@@ -999,8 +994,6 @@ async getChecklistStatus(checklistId: string, checklistType: 'prechecklist' | 'p
     };
   }
 }
-
-// Update the getStageValidation method to use auto-approval logic
 async getStageValidation(workOrderId: string, stage: string) {
   try {
     const workOrder = await this.getWorkOrderById(workOrderId);
@@ -1226,8 +1219,6 @@ async validateStageCompletionWithAutoApproval(
       };
   }
 }
-
-// Update the autoApproveAndTransition method to mark as auto-approved
 async autoApproveAndTransition(
   workOrderId: string,
   checklistType: 'prechecklist' | 'postchecklist',
@@ -1375,8 +1366,6 @@ async checkIfChecklistNeedsApproval(checklistId: string, checklistType: 'prechec
     return true; // Assume needs approval if error
   }
 }
-
-// Update the getWorkflowProgress method to use auto-approval status
 async getWorkflowProgress(workOrderId: string) {
   try {
     const workOrder = await this.getWorkOrderById(workOrderId);
@@ -1499,8 +1488,6 @@ async refreshChecklistApprovalStatus(
     };
   }
 }
-
-// Update the getStageStatusConfig method to show auto-approved status
 getStageStatusConfig(stage: any) {
   if (!stage) return {
     label: 'Unknown',
@@ -2047,8 +2034,6 @@ async getWorkOrderJobCards(workOrderId: string): Promise<JobCard[]> {
     const index = stages.indexOf(stage);
     return index >= 0 ? Math.round(((index + 1) / stages.length) * 100) : 0;
   }
-
-  // Add this method to workOrderService to fetch opportunity with proper typing
   async getFullOpportunityDetails(opportunityId: string): Promise<Opportunity> {
     try {
       return await this.getCachedOpportunity(opportunityId);

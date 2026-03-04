@@ -1,4 +1,3 @@
-// services/settings/organizationService.ts
 import { apiClient } from '@/lib/api/client';
 
 // ============ INTERFACES ============

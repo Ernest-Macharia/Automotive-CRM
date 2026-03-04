@@ -249,7 +249,6 @@ class AutomationService {
   ): Promise<ConditionTestResult> {
     try {
       // Note: This would call a dedicated API endpoint in a real scenario
-      // For now, we'll simulate the evaluation client-side
       
       const testData = {
         conditions,
@@ -1056,3 +1055,4 @@ const task = {
 }
 
 export const automationService = new AutomationService();
+

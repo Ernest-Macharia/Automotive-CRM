@@ -250,7 +250,6 @@ export default function InvoicesDashboard() {
   const handleExportPDF = async (invoiceId: string) => {
     try {
       // This would need to be implemented in your invoiceService
-      // For now, we'll show a toast message
       showToast('PDF export feature coming soon!', 'info');
       
       // Temporary: Download invoice details as text

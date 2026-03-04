@@ -1,4 +1,3 @@
-// components/orders/WorkflowVisualization.tsx
 'use client';
 
 import { useState, useEffect } from 'react';

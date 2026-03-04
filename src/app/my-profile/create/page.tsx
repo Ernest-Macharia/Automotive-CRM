@@ -1,4 +1,3 @@
-// app/my-profile/create/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -283,7 +282,6 @@ export default function EmployeeCreateProfilePage() {
     setSaving(true);
     
     try {
-        // FIXED: Return undefined instead of empty string
         const formatDate = (date: string) => {
         if (!date) return undefined; // ← CRITICAL: return undefined, NOT empty string
         return new Date(date).toISOString().split('T')[0];

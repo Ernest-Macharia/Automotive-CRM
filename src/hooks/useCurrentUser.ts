@@ -1,4 +1,3 @@
-// hooks/useCurrentUser.ts
 import { useState, useEffect } from 'react';
 import { authService } from '@/services/authService';
 import { userService, User, createUserPermissionChecker } from '@/services/settings/userService';

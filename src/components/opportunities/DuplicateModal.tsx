@@ -1,4 +1,3 @@
-// components/opportunities/DuplicateModal.tsx
 'use client';
 
 import React from 'react';

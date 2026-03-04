@@ -1,4 +1,3 @@
-// src/services/salesOrderService.ts
 import { apiClient } from '@/lib/api/client';
 
 export interface SalesOrder {
@@ -322,8 +321,6 @@ class SalesOrderService {
       if (salesOrders.length === 0) {
         throw new Error(`No sales order found for opportunity ${opportunityId}`);
       }
-      
-      // Update the first (or all) sales orders
       const salesOrder = salesOrders[0];
       return await this.updateSalesOrder(salesOrder._id || salesOrder.id, data);
     } catch (error) {

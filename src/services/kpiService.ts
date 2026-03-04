@@ -1,4 +1,3 @@
-// services/kpiService.ts
 import { apiClient } from '@/lib/api/client';
 import { handleUnauthorizedRedirect } from '@/lib/auth/unauthorized';
 import { format, endOfMonth } from 'date-fns';
@@ -1678,3 +1677,4 @@ export const PERFORMANCE_RATING = {
   POOR: 'poor',
   NEEDS_IMPROVEMENT: 'needs_improvement',
 } as const;
+

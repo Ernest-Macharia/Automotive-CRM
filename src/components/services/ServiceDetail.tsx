@@ -1,4 +1,3 @@
-// components/services/ServiceDetail.tsx
 'use client';
 
 import { useState, useEffect } from 'react';

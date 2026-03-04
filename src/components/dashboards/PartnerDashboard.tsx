@@ -1,4 +1,3 @@
-// components/dashboards/PartnerDashboard.tsx - WITH GRADIENT
 'use client';
 
 import { useState, useEffect } from 'react';

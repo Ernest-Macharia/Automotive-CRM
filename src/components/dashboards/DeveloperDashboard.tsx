@@ -1,4 +1,3 @@
-// components/dashboards/DeveloperDashboard.tsx - UPDATED WITH REAL DATA
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';

@@ -1,4 +1,3 @@
-// services/contactService.ts
 import { apiClient } from '@/lib/api/client';
 
 export interface CallLog {

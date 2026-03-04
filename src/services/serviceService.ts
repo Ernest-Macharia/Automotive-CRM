@@ -1,4 +1,3 @@
-// services/serviceService.ts
 import { apiClient } from '@/lib/api/client';
 
 export interface UserRef {

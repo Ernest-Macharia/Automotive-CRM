@@ -278,7 +278,6 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
       };
       
       // Here you would call your API to update the permission
-      // For now, we'll simulate success
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       showToast('Permission updated successfully', 'success');
@@ -295,7 +294,6 @@ export default function EditPermission({ permissionId, onBack }: EditPermissionP
   const handleDelete = async () => {
     try {
       // Here you would call your API to delete the permission
-      // For now, we'll simulate success
       await new Promise(resolve => setTimeout(resolve, 500));
       
       showToast('Permission deleted successfully', 'success');

@@ -1,4 +1,3 @@
-// app/products/page.tsx
 'use client';
 
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
@@ -11,3 +10,4 @@ export default function ProductsPage() {
     </ProtectedRoute>
   );
 }
+

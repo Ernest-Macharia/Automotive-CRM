@@ -1,4 +1,3 @@
-// components/settings/organizations/EditOrganizationPage.tsx
 'use client';
 
 import { useState, useEffect } from 'react';

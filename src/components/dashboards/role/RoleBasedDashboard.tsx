@@ -1,4 +1,3 @@
-// components/role/RoleBasedDashboard.tsx - UPDATED
 'use client';
 
 import { useState, useEffect } from 'react';

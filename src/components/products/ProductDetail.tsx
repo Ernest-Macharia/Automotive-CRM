@@ -1,4 +1,3 @@
-// components/products/ProductDetail.tsx
 'use client';
 
 import { useState, useEffect } from 'react';

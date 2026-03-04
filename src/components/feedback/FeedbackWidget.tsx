@@ -1,4 +1,3 @@
-// components/feedback/FeedbackWidget.tsx
 'use client';
 
 import { useState } from 'react';

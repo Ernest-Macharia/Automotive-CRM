@@ -1,4 +1,3 @@
-// services/settings/countriesService.ts
 export interface Country {
   name: string;
   code: string;

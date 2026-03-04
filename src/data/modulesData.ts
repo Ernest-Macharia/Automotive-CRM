@@ -111,7 +111,6 @@ export const ALL_MODULES: ModuleData[] = [
       { name: 'po_number', label: 'PO Number', type: 'text', group: 'reference' },
     ]
   },
-  // Add other modules here...
 ];
 
 export const FIELD_GROUPS = {
@@ -168,5 +167,4 @@ export const CRITERIA_TEMPLATES: Record<string, any[]> = {
       ]
     }
   ],
-  // Add templates for other modules
 };

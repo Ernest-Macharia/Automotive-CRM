@@ -1,4 +1,3 @@
-// components/post-checklist/PostChecklistTypeModal.tsx
 'use client';
 
 import { Dialog, Transition } from '@headlessui/react';

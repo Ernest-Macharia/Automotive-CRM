@@ -1,4 +1,3 @@
-// services/navigationService.ts
 import { authService } from './authService';
 
 export interface NavItem {
@@ -122,3 +121,4 @@ export class NavigationService {
     return iconMap[iconName] || require('lucide-react').LayoutDashboard;
   }
 }
+

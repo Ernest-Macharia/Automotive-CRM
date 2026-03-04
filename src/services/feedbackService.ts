@@ -1,4 +1,3 @@
-// services/feedbackService.ts
 import { apiClient } from '@/lib/api/client';
 
 export interface UserRef {
@@ -608,7 +607,6 @@ async createFeedbackWithScreenshot(data: FormData): Promise<Feedback> {
     if (!feedback) return false;
     
     // Admins and support can always edit
-    // For now, we'll assume the API handles permissions
     return true;
   }
 
@@ -619,7 +617,6 @@ async createFeedbackWithScreenshot(data: FormData): Promise<Feedback> {
     if (!feedback) return false;
     
     // Only admins can delete
-    // For now, we'll assume the API handles permissions
     return true;
   }
 

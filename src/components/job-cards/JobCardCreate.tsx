@@ -689,8 +689,6 @@ export default function JobCardCreate(mode = 'create',) {
         console.error('Error updating work order:', updateError);
       }
     }
-    
-        // IMPORTANT:
     // We DO NOT auto-transition to Post-Checklist when a Job Card is created.
     // The user must start and complete the Job Card explicitly, then we transition on completion
     // (handled from JobCardDetail when status is marked as 'completed').

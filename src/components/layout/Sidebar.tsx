@@ -1,4 +1,3 @@
-// components/layout/Sidebar.tsx
 'use client';
 
 import { useCallback, useState, useEffect } from 'react';
@@ -309,3 +308,4 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     </div>
   );
 }
+

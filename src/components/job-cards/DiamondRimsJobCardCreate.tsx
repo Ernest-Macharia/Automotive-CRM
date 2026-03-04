@@ -566,8 +566,6 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
       setLoading(false);
     }
   };
-
-  // Add this effect to auto-populate from opportunity when loaded
   useEffect(() => {
     if (opportunity && !autoPopulated) {
       autoPopulateFromOpportunity();
@@ -735,8 +733,6 @@ const mapPreChecklistServices = (services: string[]) => {
 
   return servicesRequired;
 };
-
-  // Update the autoPopulateFromPreChecklist function to not overwrite opportunity data
   const autoPopulateFromPreChecklist = () => {
     if (!preChecklist || autoPopulated) return;
 

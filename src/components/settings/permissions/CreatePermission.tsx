@@ -157,7 +157,6 @@ export default function CreatePermission() {
       };
       
       // Here you would call your API to create the permission
-      // For now, we'll simulate success
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       showToast('Permission created successfully', 'success');

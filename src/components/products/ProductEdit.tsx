@@ -1,4 +1,3 @@
-// components/products/ProductEdit.tsx
 'use client';
 
 import { useState, useEffect } from 'react';

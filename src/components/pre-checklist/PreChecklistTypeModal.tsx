@@ -1,4 +1,3 @@
-// components/pre-checklist/PreChecklistTypeModal.tsx
 'use client';
 
 import { Dialog, Transition } from '@headlessui/react';
@@ -20,8 +19,6 @@ export default function PreChecklistTypeModal({
   opportunityId 
 }: PreChecklistTypeModalProps) {
   const router = useRouter();
-
-  // Add this helper function to extract the opportunity ID string
   const getOpportunityIdString = (): string => {
     if (!opportunityId) return '';
     if (typeof opportunityId === 'string') return opportunityId;

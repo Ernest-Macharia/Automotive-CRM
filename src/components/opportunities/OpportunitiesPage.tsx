@@ -1023,8 +1023,6 @@ export default function OpportunitiesContent() {
       lost: { page: 1, hasMore: true },
     });
   }, [memoizedFilters, memoizedAdvancedFilters]);
-
-  // Add this function to load more opportunities for a specific stage
   const loadMoreForStage = useCallback(async (stageId: StageId) => {
     if (columnLoading[stageId] || !stagePagination[stageId].hasMore) return;
 
@@ -1212,8 +1210,6 @@ export default function OpportunitiesContent() {
       console.error('Error fetching overview:', err);
     }
   }, []);
-
-  // Add this function to handle organization-specific actions
   const handleOrganizationAction = async (action: () => Promise<any>, errorMessage: string) => {
     try {
       setOrganizationError(null);

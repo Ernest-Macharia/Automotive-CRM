@@ -1,4 +1,3 @@
-// components/dashboards/DefaultDashboard.tsx
 'use client';
 
 import { BarChart3, Users, FileText, Settings } from 'lucide-react';

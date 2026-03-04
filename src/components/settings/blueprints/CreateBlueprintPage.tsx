@@ -1777,8 +1777,6 @@ export default function CreateBlueprintPage() {
         }
         return s;
       });
-      
-      // Update the form data
       setFormData(prev => ({
         ...prev,
         stages: updatedStages,
@@ -1812,8 +1810,6 @@ export default function CreateBlueprintPage() {
     try {
       // Example: const transitions = await transitionsService.getAllTransitions(formData.module);
       // This would populate your transitions from backend
-      
-      // For now, we'll just log
       return [];
     } catch (error) {
       console.error('Error fetching transitions:', error);
@@ -1891,8 +1887,6 @@ export default function CreateBlueprintPage() {
     setIsEntryActionModal(isEntryAction);
     setActionModalOpen(true);
   };
-
-// Add this function to handle modal selection
 const handleActionTypeSelected = (actionType: string) => {
   if (!selectedStageForAction) return;
   

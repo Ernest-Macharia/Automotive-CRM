@@ -1,4 +1,3 @@
-// services/customerService.ts
 import { apiClient } from '@/lib/api/client';
 import { handleUnauthorizedRedirect } from '@/lib/auth/unauthorized';
 
@@ -938,3 +937,4 @@ class CustomerService {
 }
 
 export const customerService = new CustomerService();
+

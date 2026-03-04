@@ -1,4 +1,3 @@
-// components/opportunities/MergeDuplicatesModal.tsx
 'use client';
 
 import React, { useState } from 'react';

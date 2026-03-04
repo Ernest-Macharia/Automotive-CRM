@@ -1,4 +1,3 @@
-// app/quotes/create/page.tsx
 import CreateQuotePage from '@/components/quotes/CreateQuotePage';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { Metadata } from 'next';
