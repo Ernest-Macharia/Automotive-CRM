@@ -35,13 +35,34 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                             (user as any).organization?._id || 
                             (user as any).organization?.id;
       
+      const authUser = authService.getUser() as any;
       const organizationName = (user as any).organizationName || 
-                               (user as any).organization?.name;
+                               (user as any).organization?.name ||
+                               authUser?.organizationName ||
+                               authUser?.organization?.name ||
+                               authUser?.companyName;
+
+      const organizationSlug = (user as any).organization?.slug ||
+                               authUser?.organization?.slug;
+
+      const organizationTier = (user as any).organization?.tier ||
+                               authUser?.organization?.tier;
+
+      const organizationLogo = (user as any).organization?.logo ||
+                               authUser?.organization?.logo;
+
+      if (organizationName) {
+        setOrganization((prev: any) => ({
+          ...(prev || {}),
+          name: organizationName,
+          slug: organizationSlug || prev?.slug,
+          tier: organizationTier || prev?.tier,
+          logo: organizationLogo || prev?.logo,
+        }));
+      }
 
       if (organizationId) {
         fetchOrganization(organizationId);
-      } else if (organizationName) {
-        setOrganization({ name: organizationName });
       }
     }
   }, [user]);
@@ -54,11 +75,18 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     } catch (err) {
       console.error('Failed to fetch organization:', err);
       try {
-        const stored = sessionStorage.getItem('user');
+        const stored = sessionStorage.getItem('user') || localStorage.getItem('user');
         if (stored) {
-          const parsedUser = JSON.parse(stored);
-          if (parsedUser.organizationName) {
-            setOrganization({ name: parsedUser.organizationName });
+          const parsedUser: any = JSON.parse(stored);
+          const fallbackName = parsedUser.organizationName || parsedUser.organization?.name || parsedUser.companyName;
+          if (fallbackName) {
+            setOrganization((prev: any) => ({
+              ...(prev || {}),
+              name: fallbackName,
+              slug: parsedUser.organization?.slug || prev?.slug,
+              tier: parsedUser.organization?.tier || prev?.tier,
+              logo: parsedUser.organization?.logo || prev?.logo,
+            }));
           }
         }
       } catch (fallbackErr) {

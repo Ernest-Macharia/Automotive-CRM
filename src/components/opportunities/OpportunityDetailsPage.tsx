@@ -411,7 +411,8 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   const canViewSLA = isAdmin || isManagement || hasPermission('sla.view');
   const canViewLIS = isAdmin || isManagement || hasPermission('lis.view');
   const canViewLeadScore = isAdmin || isManagement || hasPermission('leadscore.view');
-  const canUpdateStatus = isAdmin || isManagement || hasPermission('opportunities.update.status');
+  // Allow all authenticated users to access stage transitions in opportunity details.
+  const canUpdateStatus = !!user;
 
   const getAssignedToLabel = () => {
     const assignedTo = opportunity?.assignedTo;
