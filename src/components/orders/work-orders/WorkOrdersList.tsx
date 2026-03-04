@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Wrench, Plus, Search, Filter, RefreshCw, MoreVertical,
   Eye, AlertTriangle, Clock, CheckCircle, Loader2,
   Users, DollarSign, ChevronLeft, ChevronRight,
-  LayoutDashboard, TrendingUp, Receipt, ClipboardCheck, ClipboardList
+  LayoutDashboard, TrendingUp, Receipt, ClipboardCheck, ClipboardList, Upload
 } from 'lucide-react';
 import { workOrderService } from '@/services/workOrderService';
 import { useToast } from '@/contexts/ToastContext';
@@ -42,6 +42,8 @@ export default function WorkOrdersList() {
   // UI state
   const [refreshing, setRefreshing] = useState(false);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [importingCsv, setImportingCsv] = useState(false);
+  const csvInputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<number | undefined>(undefined);
 
   // Status options - memoized
@@ -208,6 +210,33 @@ export default function WorkOrdersList() {
       showToast('Failed to refresh', 'error');
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const handleImportCsv = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setImportingCsv(true);
+      const preview = await workOrderService.previewCsvImport(file);
+      const rowCount = preview?.totalRows ?? preview?.rows?.length ?? 0;
+      const proceed = window.confirm(`Preview complete (${rowCount} rows). Continue import?`);
+      if (!proceed) return;
+
+      const result = await workOrderService.executeCsvImport(file);
+      const imported = result?.importedCount ?? result?.created ?? result?.successCount ?? 0;
+      showToast(`Work Orders CSV imported${imported ? `: ${imported} rows` : ''}`, 'success');
+      await handleRefresh();
+    } catch (error) {
+      console.error('Error importing work orders CSV:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to import work orders CSV';
+      showToast(errorMessage, 'error');
+    } finally {
+      setImportingCsv(false);
+      if (event.target) {
+        event.target.value = '';
+      }
     }
   };
 
@@ -444,6 +473,26 @@ export default function WorkOrdersList() {
           </div>
           
           <div className="flex items-center gap-2">
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={handleImportCsv}
+            />
+            <button
+              onClick={() => csvInputRef.current?.click()}
+              disabled={importingCsv || loading}
+              className="p-2 hover:bg-white/20 rounded-xl transition-colors disabled:opacity-50"
+              aria-label="Import CSV"
+              title="Import CSV"
+            >
+              {importingCsv ? (
+                <Loader2 className="h-5 w-5 text-white animate-spin" />
+              ) : (
+                <Upload className="h-5 w-5 text-white" />
+              )}
+            </button>
             <button
               onClick={handleRefresh}
               disabled={refreshing || loading}

@@ -2,7 +2,7 @@
 
 import { opportunityService, Opportunity, FilterParams, FilteredStats } from '@/services/opportunityService';
 import { useToast } from '@/contexts/ToastContext';
-import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo, type ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { authService } from '@/services/authService';
 import { 
@@ -12,7 +12,7 @@ import {
   Users, Target, BarChart3, Globe, Heart, Zap, Sparkles,
   Eye, Receipt, Wallet, ClipboardList, X, ChevronDown, Calendar, Star, Hash,
   Mail, Clock, TrendingUp as TrendingUpIcon, Award, CheckCircle, AlertTriangle,
-  Trophy
+  Trophy, Upload
 } from 'lucide-react';
 import ConfirmationModal from '@/components/opportunities/ConfirmationModal';
 import { useOpportunityStatusUpdate } from '@/hooks/useOpportunityStatusUpdate';
@@ -794,9 +794,11 @@ export default function OpportunitiesContent() {
   const [creating, setCreating] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
+  const [importingCsv, setImportingCsv] = useState(false);
   const [pagination, setPagination] = useState<any>(null);
   const [activeQuickFilter, setActiveQuickFilter] = useState<string | null>(null);
   const [organizationError, setOrganizationError] = useState<string | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
   
   const [filters, setFilters] = useState<FilterParams>({
     status: undefined,
@@ -1333,6 +1335,34 @@ export default function OpportunitiesContent() {
     }
   };
 
+  const handleImportCsv = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setImportingCsv(true);
+      const preview = await opportunityService.previewCsvImport(file);
+      const rowCount = preview?.totalRows ?? preview?.rows?.length ?? 0;
+      const proceed = window.confirm(`Preview complete (${rowCount} rows). Continue import?`);
+      if (!proceed) return;
+
+      const result = await opportunityService.executeCsvImport(file);
+      const imported = result?.importedCount ?? result?.created ?? result?.successCount ?? 0;
+      showToast(`Opportunities CSV imported${imported ? `: ${imported} rows` : ''}`, 'success');
+      cacheRef.current.clear();
+      await Promise.all([fetchOpportunities(), fetchOverview()]);
+    } catch (error) {
+      console.error('Error importing opportunities CSV:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to import opportunities CSV';
+      showToast(errorMessage, 'error');
+    } finally {
+      setImportingCsv(false);
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  };
+
   const handleMultipleStatusToggle = (status: string) => {
     setAdvancedFilters(prev => {
       const newStatuses = prev.multipleStatuses.includes(status)
@@ -1605,15 +1635,35 @@ export default function OpportunitiesContent() {
               </div>
             </div>
           </div>
-          
-          <button 
-            onClick={() => router.push('/opportunities/create')}
-            disabled={loading || creating}
-            className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-medium shadow-sm transition-all disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">New Opportunity</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={handleImportCsv}
+            />
+            <button
+              onClick={() => csvInputRef.current?.click()}
+              disabled={importingCsv || loading || creating}
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all disabled:opacity-50"
+              title="Import CSV"
+            >
+              {importingCsv ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4" />
+              )}
+            </button>
+            <button 
+              onClick={() => router.push('/opportunities/create')}
+              disabled={loading || creating}
+              className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-medium shadow-sm transition-all disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">New Opportunity</span>
+            </button>
+          </div>
         </div>
       </div>
 

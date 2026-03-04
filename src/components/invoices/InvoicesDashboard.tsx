@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, type ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Receipt,
@@ -22,7 +22,8 @@ import {
   Loader2,
   Calendar,
   Building,
-  User
+  User,
+  Upload
 } from 'lucide-react';
 import { invoiceService, Invoice, INVOICE_STATUS, PAYMENT_STATUS } from '@/services/invoiceService';
 import { useToast } from '@/contexts/ToastContext';
@@ -74,6 +75,8 @@ export default function InvoicesDashboard() {
     outstandingAmount: 0
   });
   const [statsLoading, setStatsLoading] = useState(true);
+  const [importingCsv, setImportingCsv] = useState(false);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const statusOptions = [
     { value: 'all', label: 'All Invoices', color: 'text-gray-600' },
@@ -169,6 +172,33 @@ export default function InvoicesDashboard() {
       console.error('Error refreshing:', error);
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const handleImportCsv = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setImportingCsv(true);
+      const preview = await invoiceService.previewCsvImport(file);
+      const rowCount = preview?.totalRows ?? preview?.rows?.length ?? 0;
+      const proceed = window.confirm(`Preview complete (${rowCount} rows). Continue import?`);
+      if (!proceed) return;
+
+      const result = await invoiceService.executeCsvImport(file);
+      const imported = result?.importedCount ?? result?.created ?? result?.successCount ?? 0;
+      showToast(`Invoices CSV imported${imported ? `: ${imported} rows` : ''}`, 'success');
+      await handleRefresh();
+    } catch (error) {
+      console.error('Error importing invoices CSV:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to import invoices CSV';
+      showToast(errorMessage, 'error');
+    } finally {
+      setImportingCsv(false);
+      if (event.target) {
+        event.target.value = '';
+      }
     }
   };
 
@@ -368,6 +398,25 @@ Created: ${formatDate(invoice.createdAt)}
           </div>
           
           <div className="flex items-center gap-2 md:gap-3">
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={handleImportCsv}
+            />
+            <button
+              onClick={() => csvInputRef.current?.click()}
+              disabled={importingCsv || loading}
+              className="p-1.5 md:p-2 hover:bg-white/20 rounded-lg md:rounded-xl transition-colors disabled:opacity-50"
+              title="Import CSV"
+            >
+              {importingCsv ? (
+                <Loader2 className="h-4 w-4 md:h-5 md:w-5 text-white animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4 md:h-5 md:w-5 text-white" />
+              )}
+            </button>
             <button
               onClick={handleRefresh}
               disabled={refreshing || loading}

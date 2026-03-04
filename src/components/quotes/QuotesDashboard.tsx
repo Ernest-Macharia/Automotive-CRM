@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, type ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FileText,
@@ -17,7 +17,9 @@ import {
   TrendingUp,
   DollarSign,
   RefreshCw,
-  MoreVertical
+  MoreVertical,
+  Upload,
+  Loader2
 } from 'lucide-react';
 import { quoteService, Quote } from '@/services/quoteService';
 import { useToast } from '@/contexts/ToastContext';
@@ -91,6 +93,8 @@ export default function QuotesDashboard() {
   const [statsLoading, setStatsLoading] = useState(true);
   // ✅ Add expandedRow state for kebab menu
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [importingCsv, setImportingCsv] = useState(false);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const statusOptions = [
     { value: 'all', label: 'All Quotes' },
@@ -154,6 +158,33 @@ export default function QuotesDashboard() {
       console.error('Error refreshing:', error);
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const handleImportCsv = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setImportingCsv(true);
+      const preview = await quoteService.previewCsvImport(file);
+      const rowCount = preview?.totalRows ?? preview?.rows?.length ?? 0;
+      const proceed = window.confirm(`Preview complete (${rowCount} rows). Continue import?`);
+      if (!proceed) return;
+
+      const result = await quoteService.executeCsvImport(file);
+      const imported = result?.importedCount ?? result?.created ?? result?.successCount ?? 0;
+      showToast(`Quotes CSV imported${imported ? `: ${imported} rows` : ''}`, 'success');
+      await handleRefresh();
+    } catch (error) {
+      console.error('Error importing quotes CSV:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to import quotes CSV';
+      showToast(errorMessage, 'error');
+    } finally {
+      setImportingCsv(false);
+      if (event.target) {
+        event.target.value = '';
+      }
     }
   };
 
@@ -311,6 +342,25 @@ export default function QuotesDashboard() {
             </div>
             
             <div className="flex gap-3">
+              <input
+                ref={csvInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={handleImportCsv}
+              />
+              <button
+                onClick={() => csvInputRef.current?.click()}
+                disabled={importingCsv}
+                className="flex items-center gap-2 px-3 py-2.5 bg-white/20 backdrop-blur-sm text-white rounded-lg hover:bg-white/30 transition-colors disabled:opacity-50"
+              >
+                {importingCsv ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
+                <span className="hidden sm:inline">Import CSV</span>
+              </button>
               <button
                 onClick={handleRefresh}
                 disabled={refreshing}

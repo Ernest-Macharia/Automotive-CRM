@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, type ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   ShoppingBag, Plus, Search, Filter, Download, 
   TrendingUp, DollarSign, Clock, Users, CheckCircle,
   Calendar, FileText, CreditCard, RefreshCw, ChevronRight,
   Eye, Edit, Trash2, Play, MoreVertical, Loader2,
-  PackageCheck, Receipt
+  PackageCheck, Receipt, Upload
 } from 'lucide-react';
 import { salesOrderService } from '@/services/salesOrderService';
 import { useToast } from '@/contexts/ToastContext';
@@ -84,6 +84,8 @@ export default function SalesOrdersList() {
   const [refreshing, setRefreshing] = useState(false);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<number>(Date.now());
+  const [importingCsv, setImportingCsv] = useState(false);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const statusOptions = [
     { value: 'all', label: 'All Status' },
@@ -134,6 +136,33 @@ export default function SalesOrdersList() {
       console.error('Error refreshing:', error);
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const handleImportCsv = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setImportingCsv(true);
+      const preview = await salesOrderService.previewCsvImport(file);
+      const rowCount = preview?.totalRows ?? preview?.rows?.length ?? 0;
+      const proceed = window.confirm(`Preview complete (${rowCount} rows). Continue import?`);
+      if (!proceed) return;
+
+      const result = await salesOrderService.executeCsvImport(file);
+      const imported = result?.importedCount ?? result?.created ?? result?.successCount ?? 0;
+      showToast(`Sales Orders CSV imported${imported ? `: ${imported} rows` : ''}`, 'success');
+      await Promise.all([fetchSalesOrders(), fetchStats()]);
+    } catch (error) {
+      console.error('Error importing sales orders CSV:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to import sales orders CSV';
+      showToast(errorMessage, 'error');
+    } finally {
+      setImportingCsv(false);
+      if (event.target) {
+        event.target.value = '';
+      }
     }
   };
 
@@ -274,6 +303,26 @@ export default function SalesOrdersList() {
           </div>
           
           <div className="flex items-center gap-2">
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={handleImportCsv}
+            />
+            <button
+              onClick={() => csvInputRef.current?.click()}
+              disabled={importingCsv || loading}
+              className="p-2 hover:bg-white/20 rounded-xl transition-colors disabled:opacity-50"
+              aria-label="Import CSV"
+              title="Import CSV"
+            >
+              {importingCsv ? (
+                <Loader2 className="h-5 w-5 text-white animate-spin" />
+              ) : (
+                <Upload className="h-5 w-5 text-white" />
+              )}
+            </button>
             <button
               onClick={handleRefresh}
               disabled={refreshing || loading}

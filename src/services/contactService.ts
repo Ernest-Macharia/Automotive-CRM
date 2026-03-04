@@ -1,4 +1,6 @@
 import { apiClient } from '@/lib/api/client';
+import { API_BASE_URL } from '@/lib/api/config';
+import { handleUnauthorizedRedirect } from '@/lib/auth/unauthorized';
 
 export interface CallLog {
   callSid: string;
@@ -239,7 +241,88 @@ export interface CallInitiationResult {
   message: string;
 }
 
+export interface CsvMappingPayload {
+  name: string;
+  description?: string;
+  fieldMappings: Record<string, string>;
+  options?: Record<string, any>;
+}
+
 class ContactService {
+  private async uploadCsvFile<T>(
+    endpoint: string,
+    file: File,
+    extraFields?: Record<string, string>
+  ): Promise<T> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    if (extraFields) {
+      Object.entries(extraFields).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          formData.append(key, value);
+        }
+      });
+    }
+
+    const token = sessionStorage.getItem('accessToken');
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      body: formData,
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      if (response.status === 401) {
+        handleUnauthorizedRedirect();
+      }
+      throw new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json();
+    }
+    return {} as T;
+  }
+
+  async previewCsvImport(file: File): Promise<any> {
+    return this.uploadCsvFile('/contacts/csv/preview', file);
+  }
+
+  async saveCsvMapping(data: CsvMappingPayload): Promise<any> {
+    return apiClient.post<CsvMappingPayload, any>('/contacts/csv/mappings', data);
+  }
+
+  async listCsvMappings(): Promise<any> {
+    return apiClient.get<any>('/contacts/csv/mappings');
+  }
+
+  async getCsvMapping(id: string): Promise<any> {
+    return apiClient.get<any>(`/contacts/csv/mappings/${id}`);
+  }
+
+  async executeCsvImport(
+    file: File,
+    options?: { mappingId?: string; fieldMappings?: Record<string, string>; dryRun?: boolean }
+  ): Promise<any> {
+    const extraFields: Record<string, string> = {};
+
+    if (options?.mappingId) {
+      extraFields.mappingId = options.mappingId;
+    }
+    if (options?.fieldMappings) {
+      extraFields.fieldMappings = JSON.stringify(options.fieldMappings);
+    }
+    if (typeof options?.dryRun === 'boolean') {
+      extraFields.dryRun = String(options.dryRun);
+    }
+
+    return this.uploadCsvFile('/contacts/csv/execute', file, extraFields);
+  }
+
   // 1. Create a new contact
   async createContact(data: CreateContactDto): Promise<Contact> {
     try {

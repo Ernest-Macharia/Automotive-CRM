@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Users,
@@ -34,7 +34,8 @@ import {
   MoreVertical,
   ExternalLink,
   FileText,
-  Copy
+  Copy,
+  Upload
 } from 'lucide-react';
 import { contactService, Contact, ContactStats } from '@/services/contactService';
 import { opportunityService, Opportunity } from '@/services/opportunityService';
@@ -615,6 +616,8 @@ export default function ContactsDashboard() {
 
   // Action menu state
   const [activeActionMenu, setActiveActionMenu] = useState<string | null>(null);
+  const [importingCsv, setImportingCsv] = useState(false);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const typeOptions = [
     { value: 'all', label: 'All Types', color: 'text-gray-600' },
@@ -984,6 +987,33 @@ export default function ContactsDashboard() {
     }
   };
 
+  const handleImportCsv = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setImportingCsv(true);
+      const preview = await contactService.previewCsvImport(file);
+      const rowCount = preview?.totalRows ?? preview?.rows?.length ?? 0;
+      const proceed = window.confirm(`Preview complete (${rowCount} rows). Continue import?`);
+      if (!proceed) return;
+
+      const result = await contactService.executeCsvImport(file);
+      const imported = result?.importedCount ?? result?.created ?? result?.successCount ?? 0;
+      showToast(`Contacts CSV imported${imported ? `: ${imported} rows` : ''}`, 'success');
+      await handleRefresh();
+    } catch (error) {
+      console.error('Error importing contacts CSV:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to import contacts CSV';
+      showToast(errorMessage, 'error');
+    } finally {
+      setImportingCsv(false);
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  };
+
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'customer': return 'bg-gradient-to-r from-blue-500 to-blue-600';
@@ -1052,6 +1082,26 @@ export default function ContactsDashboard() {
           </div>
           
           <div className="flex items-center gap-3">
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={handleImportCsv}
+            />
+            <button
+              onClick={() => csvInputRef.current?.click()}
+              disabled={importingCsv}
+              className="p-2 text-white hover:bg-white/20 rounded-xl transition-colors flex items-center gap-2 disabled:opacity-50"
+              title="Import Contacts CSV"
+            >
+              {importingCsv ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Upload className="h-5 w-5" />
+              )}
+              <span className="hidden sm:inline">Import</span>
+            </button>
             <button
               onClick={handleExportContacts}
               className="p-2 text-white hover:bg-white/20 rounded-xl transition-colors flex items-center gap-2"
