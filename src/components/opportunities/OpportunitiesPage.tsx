@@ -1,6 +1,6 @@
 'use client';
 
-import { opportunityService, Opportunity, FilterParams } from '@/services/opportunityService';
+import { opportunityService, Opportunity, FilterParams, FilteredStats } from '@/services/opportunityService';
 import { useToast } from '@/contexts/ToastContext';
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { useRouter } from 'next/navigation';
@@ -786,6 +786,7 @@ export default function OpportunitiesContent() {
   const [statsLoading, setStatsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<any>(null);
+  const [filteredStats, setFilteredStats] = useState<FilteredStats | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [scrolling, setScrolling] = useState(false);
   const [showScrollButtons, setShowScrollButtons] = useState(false);
@@ -1123,7 +1124,12 @@ export default function OpportunitiesContent() {
       const cachedData = !forceRefresh ? cacheRef.current.get(cacheKey) : null;
       
       if (cachedData && !isRefresh && !forceRefresh) {
-        const { data, pagination: cachedPagination, stats: cachedStats } = cachedData;
+        const {
+          data,
+          pagination: cachedPagination,
+          stats: cachedStats,
+          filteredStats: cachedFilteredStats,
+        } = cachedData;
         
         // Pre-compute all values for opportunities
         const processedOpportunities = data.map((opp: ExtendedOpportunity) => ({
@@ -1137,6 +1143,7 @@ export default function OpportunitiesContent() {
         setOpportunities(processedOpportunities);
         setPagination(cachedPagination);
         setStats(cachedStats);
+        setFilteredStats(cachedFilteredStats || null);
         
         setLoading(false);
         setRefreshing(false);
@@ -1146,7 +1153,13 @@ export default function OpportunitiesContent() {
       }
       
       // Fetch fresh data
-      const response = await opportunityService.getAllOpportunities(params);
+      const [response, filteredStatsResponse] = await Promise.all([
+        opportunityService.getAllOpportunities(params),
+        opportunityService.getFilteredStats(params).catch((error) => {
+          console.warn('Failed to load filtered stats, falling back to response stats:', error);
+          return null;
+        }),
+      ]);
       
       // Pre-compute all values for opportunities
       const processedOpportunities = response.data.map((opp: ExtendedOpportunity) => ({
@@ -1159,6 +1172,7 @@ export default function OpportunitiesContent() {
       
       setOpportunities(processedOpportunities);
       setPagination(response.pagination);
+      setFilteredStats(filteredStatsResponse);
       
       if (response.stats) {
         setStats(response.stats);
@@ -1169,7 +1183,8 @@ export default function OpportunitiesContent() {
         cacheRef.current.set(cacheKey, {
           data: response.data,
           pagination: response.pagination,
-          stats: response.stats
+          stats: response.stats,
+          filteredStats: filteredStatsResponse,
         });
       }
       
@@ -1184,6 +1199,7 @@ export default function OpportunitiesContent() {
         setError(null); // Clear general error
       } else {
         setError(err.message || 'Failed to fetch opportunities');
+        setFilteredStats(null);
         showToast('Failed to load opportunities', 'error', 3000);
       }
     } finally {
@@ -1246,20 +1262,25 @@ export default function OpportunitiesContent() {
     return grouped;
   }, [opportunities]);
 
-  // Calculate lead score stats
-  const leadScoreStats = useMemo(() => {
-    if (!opportunities.length) return { hot: 0, warm: 0, cold: 0 };
+  // Card metrics should reflect backend aggregates, not only the loaded page.
+  const cardMetrics = useMemo(() => {
+    const total = filteredStats?.total ?? pagination?.total ?? opportunities.length;
+    const byTier = filteredStats?.byTier || {};
+    const byStatus = filteredStats?.byStatus || {};
 
-    const leadScores = opportunities
-      .filter(opp => opp.leadScore?.totalScore)
-      .map(opp => opp.leadScore?.totalScore || 0);
+    const hotLeads = byTier.hot ?? byTier.HOT ?? 0;
+    const wonCount = byStatus.won ?? 0;
+    const lostCount = byStatus.lost ?? 0;
+    const activeDeals = Math.max(total - wonCount - lostCount, 0);
+    const winRate = total > 0 ? Math.round((wonCount / total) * 100) : 0;
 
-    const hot = leadScores.filter(score => score >= 70).length;
-    const warm = leadScores.filter(score => score >= 50 && score < 70).length;
-    const cold = leadScores.filter(score => score < 50).length;
-
-    return { hot, warm, cold };
-  }, [opportunities]);
+    return {
+      total,
+      hotLeads,
+      activeDeals,
+      winRate,
+    };
+  }, [filteredStats, pagination?.total, opportunities.length]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1378,58 +1399,63 @@ export default function OpportunitiesContent() {
     try {
       setBackfilling(true);
 
-      const firstPage = await opportunityService.filterOpportunities({
-        assignedTo: 'null',
-        page: 1,
-        limit: 100,
-        sort: 'createdAt:desc',
-      });
+      let totalProcessed = 0;
+      let totalSuccess = 0;
+      let totalFailed = 0;
+      let safetyCounter = 0;
 
-      const unassigned = [...firstPage.data];
-      const totalPages = Math.min(firstPage.pagination?.totalPages || 1, 5);
+      while (safetyCounter < 50) {
+        safetyCounter += 1;
 
-      for (let page = 2; page <= totalPages; page++) {
-        const pageData = await opportunityService.filterOpportunities({
+        const batch = await opportunityService.filterOpportunities({
           assignedTo: 'null',
-          page,
+          page: 1,
           limit: 100,
-          sort: 'createdAt:desc',
+          sort: 'createdAt:asc',
         });
-        if (!pageData.data.length) {
+
+        if (!batch.data.length) {
           break;
         }
-        unassigned.push(...pageData.data);
+
+        totalProcessed += batch.data.length;
+
+        const results = await Promise.allSettled(
+          batch.data.map((opportunity) =>
+            opportunityService.reassignOpportunity(
+              opportunity._id,
+              currentUser.id,
+              'Backfill assignment for historical unassigned opportunity'
+            )
+          )
+        );
+
+        const successCount = results.filter((result) => result.status === 'fulfilled').length;
+        const failedCount = results.length - successCount;
+        totalSuccess += successCount;
+        totalFailed += failedCount;
+
+        if (successCount === 0) {
+          break;
+        }
       }
 
-      if (!unassigned.length) {
+      if (totalProcessed === 0) {
         showToast('No unassigned opportunities found to backfill', 'info', 3000);
         return;
       }
 
-      const results = await Promise.allSettled(
-        unassigned.map((opportunity) =>
-          opportunityService.reassignOpportunity(
-            opportunity._id,
-            currentUser.id,
-            'Backfill assignment for historical unassigned opportunity'
-          )
-        )
-      );
-
-      const successCount = results.filter((result) => result.status === 'fulfilled').length;
-      const failedCount = results.length - successCount;
-
       cacheRef.current.clear();
       await fetchOpportunities(true, true);
 
-      if (failedCount > 0) {
+      if (totalFailed > 0) {
         showToast(
-          `Backfill completed: ${successCount} assigned, ${failedCount} failed`,
+          `Backfill completed: ${totalSuccess} assigned, ${totalFailed} failed`,
           'warning',
           5000
         );
       } else {
-        showToast(`Backfill completed: ${successCount} opportunity(ies) assigned`, 'success', 4000);
+        showToast(`Backfill completed: ${totalSuccess} opportunity(ies) assigned`, 'success', 4000);
       }
     } catch (error) {
       console.error('Error backfilling unassigned opportunities:', error);
@@ -2029,7 +2055,7 @@ export default function OpportunitiesContent() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Total Opportunities</p>
-                  <p className="text-lg font-bold text-gray-900">{opportunities.length}</p>
+                  <p className="text-lg font-bold text-gray-900">{cardMetrics.total}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-green-50/50 to-green-100/30">
@@ -2038,7 +2064,7 @@ export default function OpportunitiesContent() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Hot Leads</p>
-                  <p className="text-lg font-bold text-gray-900">{leadScoreStats.hot}</p>
+                  <p className="text-lg font-bold text-gray-900">{cardMetrics.hotLeads}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-amber-50/50 to-amber-100/30">
@@ -2047,9 +2073,7 @@ export default function OpportunitiesContent() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Active Deals</p>
-                  <p className="text-lg font-bold text-gray-900">
-                    {opportunities.filter(o => !['lost'].includes(o.status)).length}
-                  </p>
+                  <p className="text-lg font-bold text-gray-900">{cardMetrics.activeDeals}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-purple-50/50 to-purple-100/30">
@@ -2058,12 +2082,7 @@ export default function OpportunitiesContent() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Win Rate</p>
-                  <p className="text-lg font-bold text-gray-900">
-                    {opportunities.length > 0 
-                      ? Math.round((opportunities.filter(o => o.status === 'appointment_scheduled').length / opportunities.length) * 100)
-                      : 0
-                    }%
-                  </p>
+                  <p className="text-lg font-bold text-gray-900">{cardMetrics.winRate}%</p>
                 </div>
               </div>
             </div>
