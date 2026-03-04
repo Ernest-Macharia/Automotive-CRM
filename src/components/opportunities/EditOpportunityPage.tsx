@@ -8,7 +8,7 @@ import {
   Loader2, FileText, DollarSign, Tag, Check, Sparkles,
   Settings as SettingsIcon, Package, Settings
 } from 'lucide-react';
-import { opportunityService, Opportunity as ApiOpportunity } from '@/services/opportunityService';
+import { opportunityService, Opportunity as ApiOpportunity, UpdateOpportunityData } from '@/services/opportunityService';
 import { useToast } from '@/contexts/ToastContext';
 
 // Define interfaces for form data
@@ -590,7 +590,7 @@ export default function EditOpportunityPage() {
         : `${formData.customer.companyName}'s ${formData.opportunityType.toLowerCase()} request`;
 
       // Prepare update data according to UpdateOpportunityData interface
-      const updateData = {
+      const updateData: UpdateOpportunityData = {
         type: formData.type,
         source: formData.source as 'walk_in' | 'web' | 'email' | 'call' | 'referral' | 'partner',
         subject,
