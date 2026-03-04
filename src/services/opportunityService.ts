@@ -1004,7 +1004,7 @@ class OpportunityService {
       formData.append('image', file);
       
       const apiBaseUrl = (apiClient as any).API_BASE_URL || '';
-      const response = await fetch(`${apiBaseUrl}/opportunities/${opportunityId}/vehicles/${vehicleId}/upload-image`, {
+      const response = await fetch(`${apiBaseUrl}/opportunities/${opportunityId}/vehicles/${vehicleId}/image`, {
         method: 'POST',
         body: formData,
         headers: {
@@ -1385,6 +1385,91 @@ class OpportunityService {
     }
   }
 
+  async getOrphanedOpportunities(params?: {
+    page?: number;
+    limit?: number;
+    organizationId?: string;
+    includeOrphanedUsers?: boolean;
+  }): Promise<{
+    data: Opportunity[];
+    pagination: { page: number; limit: number; total: number; pages: number };
+    orphanedUsersCount?: number;
+    orphanedUsers?: any[];
+    missingOwnerReferences?: Array<{ ownerId: string; count: number }>;
+  }> {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', String(params.page));
+    if (params?.limit) queryParams.append('limit', String(params.limit));
+    if (params?.organizationId) queryParams.append('organizationId', params.organizationId);
+    if (typeof params?.includeOrphanedUsers === 'boolean') {
+      queryParams.append('includeOrphanedUsers', String(params.includeOrphanedUsers));
+    }
+    const endpoint = `/opportunities/orphaned-opportunities${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return extendedApiClient.get(endpoint);
+  }
+
+  async listAssignmentRules(organizationId?: string): Promise<any[]> {
+    const endpoint = organizationId
+      ? `/opportunities/assignment-rules?organizationId=${encodeURIComponent(organizationId)}`
+      : '/opportunities/assignment-rules';
+    return extendedApiClient.get<any[]>(endpoint);
+  }
+
+  async createAssignmentRule(data: any, organizationId?: string): Promise<any> {
+    const endpoint = organizationId
+      ? `/opportunities/assignment-rules?organizationId=${encodeURIComponent(organizationId)}`
+      : '/opportunities/assignment-rules';
+    return extendedApiClient.post<any, any>(endpoint, data);
+  }
+
+  async updateAssignmentRule(ruleId: string, data: any, organizationId?: string): Promise<any> {
+    const endpoint = organizationId
+      ? `/opportunities/assignment-rules/${ruleId}?organizationId=${encodeURIComponent(organizationId)}`
+      : `/opportunities/assignment-rules/${ruleId}`;
+    return extendedApiClient.patch<any, any>(endpoint, data);
+  }
+
+  async deleteAssignmentRule(ruleId: string, organizationId?: string): Promise<{ message?: string }> {
+    const endpoint = organizationId
+      ? `/opportunities/assignment-rules/${ruleId}?organizationId=${encodeURIComponent(organizationId)}`
+      : `/opportunities/assignment-rules/${ruleId}`;
+    return extendedApiClient.delete<{ message?: string }>(endpoint);
+  }
+
+  async configureLISRules(rules: any): Promise<{ message: string }> {
+    return extendedApiClient.post<any, { message: string }>('/opportunities/configure/lis', rules);
+  }
+
+  async configureSLA(config: any): Promise<{ message: string }> {
+    return extendedApiClient.post<any, { message: string }>('/opportunities/configure/sla', config);
+  }
+
+  async forceReassignStuckOpportunities(organizationId?: string): Promise<any> {
+    const endpoint = organizationId
+      ? `/opportunities/force-reassign-stuck?organizationId=${encodeURIComponent(organizationId)}`
+      : '/opportunities/force-reassign-stuck';
+    return extendedApiClient.post<any, any>(endpoint, {});
+  }
+
+  async validateOpportunityData(data: CreateOpportunityData): Promise<any> {
+    return extendedApiClient.post<CreateOpportunityData, any>('/opportunities/validate/data', data);
+  }
+
+  async getRecentSLABreaches(days: number = 7, organizationId?: string): Promise<any> {
+    const queryParams = new URLSearchParams();
+    queryParams.append('days', String(days));
+    if (organizationId) queryParams.append('organizationId', organizationId);
+    return extendedApiClient.get(`/opportunities/sla/breaches/recent?${queryParams.toString()}`);
+  }
+
+  async getUpcomingSLADeadlines(hours: number = 24): Promise<any> {
+    return extendedApiClient.get(`/opportunities/sla/upcoming-deadlines?hours=${hours}`);
+  }
+
+  async triggerBulkSLACheck(): Promise<any> {
+    return extendedApiClient.post<any, any>('/opportunities/sla/check-all', {});
+  }
+
     /**
    * Get reassignment candidates for an opportunity
    * GET /api/v1/opportunities/{id}/reassignment/candidates
@@ -1408,11 +1493,18 @@ class OpportunityService {
     opportunityId: string,
     userId: string,
     notes?: string
-  ): Promise<{ message: string; opportunity: Opportunity }> {
+  ): Promise<{ message?: string; opportunity?: Opportunity; success?: boolean; [key: string]: any }> {
     try {
-      return await extendedApiClient.post<any, { message: string; opportunity: Opportunity }>(
+      return await extendedApiClient.post<
+        { reason: string; specificUserId: string; notifyOldAssignee: boolean },
+        { message?: string; opportunity?: Opportunity; success?: boolean; [key: string]: any }
+      >(
         `/opportunities/${opportunityId}/reassign`,
-        { userId, notes }
+        {
+          reason: notes?.trim() || 'Manual reassignment from frontend',
+          specificUserId: userId,
+          notifyOldAssignee: true
+        }
       );
     } catch (error) {
       console.error('Error reassigning opportunity:', error);

@@ -1464,11 +1464,9 @@ export default function OpportunitiesContent() {
       while (safetyCounter < 50) {
         safetyCounter += 1;
 
-        const batch = await opportunityService.filterOpportunities({
-          assignedTo: 'null',
+        const batch = await opportunityService.getOrphanedOpportunities({
           page: 1,
           limit: 100,
-          sort: 'createdAt:asc',
         });
 
         if (!batch.data.length) {
