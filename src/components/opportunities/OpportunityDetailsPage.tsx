@@ -413,6 +413,30 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   const canViewLeadScore = isAdmin || isManagement || hasPermission('leadscore.view');
   const canUpdateStatus = isAdmin || isManagement || hasPermission('opportunities.update.status');
 
+  const getAssignedToLabel = () => {
+    const assignedTo = opportunity?.assignedTo;
+    if (!assignedTo) return 'Unassigned';
+
+    if (typeof assignedTo === 'string') {
+      const matchedRep = availableSalesReps.find((rep: any) => {
+        const repId = rep?._id || rep?.id;
+        return repId === assignedTo;
+      });
+
+      if (matchedRep) {
+        return matchedRep.name || matchedRep.email || 'Assigned';
+      }
+
+      return 'Assigned';
+    }
+
+    if (typeof assignedTo === 'object') {
+      return assignedTo.name || assignedTo.email || 'Assigned';
+    }
+
+    return 'Assigned';
+  };
+
   // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -1239,7 +1263,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
             <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-100 rounded-lg">
               <Users className="h-3 w-3 text-gray-600" />
               <span className="text-xs font-medium text-gray-700 truncate max-w-[150px]">
-                {opportunity.assignedTo?.name || opportunity.assignedTo?.email || 'Unassigned'}
+                {getAssignedToLabel()}
               </span>
             </div>
           </div>
@@ -1271,7 +1295,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
               <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg">
                 <Users className="h-4 w-4 text-gray-600" />
                 <span className="text-sm font-medium text-gray-700">
-                  {opportunity.assignedTo?.name || opportunity.assignedTo?.email || 'Unassigned'}
+                  {getAssignedToLabel()}
                 </span>
               </div>
               

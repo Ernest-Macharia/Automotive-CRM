@@ -16,6 +16,7 @@ import SuccessModal from '@/components/opportunities/SuccessModal';
 import DuplicateModal from '@/components/opportunities/DuplicateModal';
 import { Opportunity } from '@/services/opportunityService';
 import React from 'react';
+import { authService } from '@/services/authService';
 import { userService } from '@/services/settings/userService';
 import { productService, Product } from '@/services/productService';
 import { serviceService, Service } from '@/services/serviceService';
@@ -463,6 +464,10 @@ export default function CreateOpportunityPage() {
   };
 
   const getUserId = (user: User): string => user._id || user.id;
+  const getCurrentUserId = (): string | undefined => {
+    const currentUser = authService.getUser();
+    return currentUser?.id || undefined;
+  };
 
   const savePreferences = (prefs: UserPreferences) => {
     setUserPreferences(prefs);
@@ -851,7 +856,7 @@ export default function CreateOpportunityPage() {
         status: 'new',
         opportunityType: formData.opportunityType,
         packageType: packageType,
-        assignedTo: formData.assignedTo || undefined,
+        assignedTo: formData.assignedTo || getCurrentUserId(),
 
         customer: {
           name: isIndividual
