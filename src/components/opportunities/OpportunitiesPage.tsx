@@ -19,6 +19,11 @@ import { useOpportunityStatusUpdate } from '@/hooks/useOpportunityStatusUpdate';
 import { OrganizationError } from '@/services/settings/organizationService';
 
 type StageId = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost';
+type OpportunityStatusUpdateDetail = {
+  opportunityId: string;
+  newStatus: string;
+  updatedAt?: string;
+};
 
 const stages: { id: StageId; label: string; pastelClass: string; borderColor: string }[] = [
   { 
@@ -913,6 +918,24 @@ export default function OpportunitiesContent() {
     };
   }, []);
 
+  const applyLocalStatusUpdate = useCallback((opportunityId: string, newStatus: string) => {
+    setOpportunities(prev =>
+      prev.map(opp =>
+        opp._id === opportunityId
+          ? {
+              ...opp,
+              status: newStatus as any,
+              updatedAt: new Date().toISOString(),
+              computedStageColor: getStageColor(newStatus as StageId),
+              computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
+              computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
+              computedChildCounts: getChildCounts(opp),
+            }
+          : opp
+      )
+    );
+  }, [getStageColor, getAvatarColor, getLeadScoreTier, getChildCounts]);
+
   const getStatusLabel = useCallback((status: string) => {
     const labels: Record<string, string> = {
       new: 'New',
@@ -931,23 +954,9 @@ export default function OpportunitiesContent() {
       const result = await handleStatusUpdate(opportunity, newStatus, async (success: boolean) => {
         if (success) {
           showToast(`Opportunity moved to ${getStatusLabel(newStatus)}`, 'success', 2000);
-          
-          // IMMEDIATELY update local state - more aggressive update
-          setOpportunities(prev => 
-            prev.map(opp => 
-              opp._id === opportunity._id 
-                ? { 
-                    ...opp, 
-                    status: newStatus as any,
-                    // Also update computed values immediately
-                    computedStageColor: getStageColor(newStatus as StageId),
-                    computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
-                    computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
-                    computedChildCounts: getChildCounts(opp)
-                  } 
-                : opp
-            )
-          );
+
+          // Update local state immediately so card moves without waiting for refetch.
+          applyLocalStatusUpdate(opportunity._id, newStatus);
 
           // Clear dragging state AFTER successful update
           setIsDragging(false);
@@ -955,8 +964,8 @@ export default function OpportunitiesContent() {
           // FORCE clear ALL cache entries related to opportunities
           cacheRef.current.clear();
 
-          // Refresh data immediately - no delay
-          await fetchOpportunities();
+          // Refresh quietly in background (avoid blocking drop UX with full-page loading overlay).
+          void fetchOpportunities(true, true);
         } else {
           // If modal was cancelled, clear dragging state
           setIsDragging(false);
@@ -1250,6 +1259,24 @@ export default function OpportunitiesContent() {
       fetchOpportunities();
     }
   }, [fetchOpportunities, activeQuickFilter]);
+
+  useEffect(() => {
+    const handleOpportunityStatusUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<OpportunityStatusUpdateDetail>;
+      const detail = customEvent.detail;
+
+      if (!detail?.opportunityId || !detail?.newStatus) return;
+
+      applyLocalStatusUpdate(detail.opportunityId, detail.newStatus);
+      cacheRef.current.clear();
+      void fetchOpportunities(true, true);
+    };
+
+    window.addEventListener('opportunity-status-updated', handleOpportunityStatusUpdated as EventListener);
+    return () => {
+      window.removeEventListener('opportunity-status-updated', handleOpportunityStatusUpdated as EventListener);
+    };
+  }, [applyLocalStatusUpdate, fetchOpportunities]);
 
   useEffect(() => {
     fetchOverview();

@@ -56,6 +56,17 @@ export function useOpportunityStatusUpdate() {
     try {
       // Directly update opportunity status (no lead check needed)
       await updateOpportunityStatus(pendingOpportunity._id, targetStatus);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('opportunity-status-updated', {
+            detail: {
+              opportunityId: pendingOpportunity._id,
+              newStatus: targetStatus,
+              updatedAt: new Date().toISOString(),
+            },
+          })
+        );
+      }
       
       // Call the callback with success
       if (callback) callback(true);

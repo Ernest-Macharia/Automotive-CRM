@@ -65,6 +65,17 @@ export function useOpportunityRefresh(opportunityId: string) {
     try {
       setLoading(true);
       await opportunityService.updateOpportunity(opportunityId, { status: newStatus });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('opportunity-status-updated', {
+            detail: {
+              opportunityId,
+              newStatus,
+              updatedAt: new Date().toISOString(),
+            },
+          })
+        );
+      }
       showToast(`Status updated to ${newStatus.replace(/_/g, ' ')}`, 'success');
       return await refreshOpportunity();
     } catch (error: any) {
