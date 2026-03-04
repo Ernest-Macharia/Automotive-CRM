@@ -136,7 +136,12 @@ export default function ReassignModal({
   const filteredUsers = users
     .filter(user => {
       // Exclude current assignee
-      if (currentAssignee && (user.id === currentAssignee._id || user._id === currentAssignee._id)) {
+      if (currentAssignee && (
+        user.id === currentAssignee._id ||
+        user._id === currentAssignee._id ||
+        user.id === currentAssignee.id ||
+        user._id === currentAssignee.id
+      )) {
         return false;
       }
       
@@ -276,7 +281,7 @@ export default function ReassignModal({
                         ) : (
                           filteredUsers.map((user) => {
                             const displayInfo = getUserDisplayInfo(user);
-                            const userId = user.id || user._id;
+                            const userId = user._id || user.id;
                             
                             return (
                               <button

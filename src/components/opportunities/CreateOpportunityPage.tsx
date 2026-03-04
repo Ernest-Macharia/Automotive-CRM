@@ -462,6 +462,8 @@ export default function CreateOpportunityPage() {
     };
   };
 
+  const getUserId = (user: User): string => user._id || user.id;
+
   const savePreferences = (prefs: UserPreferences) => {
     setUserPreferences(prefs);
     if (typeof window !== 'undefined') {
@@ -1630,10 +1632,18 @@ export default function CreateOpportunityPage() {
                         <div className="relative">
                           <input
                             type="text"
-                            value={formData.assignedTo || ''}
+                            value={
+                              formData.assignedTo
+                                ? (users.find(u => getUserId(u) === formData.assignedTo)
+                                  ? getUserDisplayInfo(users.find(u => getUserId(u) === formData.assignedTo)!).name
+                                  : userSearch)
+                                : userSearch
+                            }
                             onChange={(e) => {
-                              handleInputChange('assignedTo', e.target.value);
                               setUserSearch(e.target.value);
+                              if (formData.assignedTo) {
+                                handleInputChange('assignedTo', '');
+                              }
                             }}
                             onFocus={() => setShowUsersDropdown(true)}
                             placeholder="Search for sales representative to assign..."
@@ -1696,10 +1706,10 @@ export default function CreateOpportunityPage() {
                                     
                                     return (
                                       <button
-                                        key={user.id}
+                                        key={getUserId(user)}
                                         type="button"
                                         onClick={() => {
-                                          handleInputChange('assignedTo', user.id);
+                                          handleInputChange('assignedTo', getUserId(user));
                                           setShowUsersDropdown(false);
                                           setUserSearch('');
                                         }}
@@ -1746,15 +1756,18 @@ export default function CreateOpportunityPage() {
                               <Check className="h-4 w-4 text-green-600" />
                               <span className="text-sm text-gray-700">
                                 Assigned to: {
-                                  users.find(u => u.id === formData.assignedTo) 
-                                    ? getUserDisplayInfo(users.find(u => u.id === formData.assignedTo)!).name
+                                  users.find(u => getUserId(u) === formData.assignedTo) 
+                                    ? getUserDisplayInfo(users.find(u => getUserId(u) === formData.assignedTo)!).name
                                     : 'Selected user'
                                 }
                               </span>
                             </div>
                             <button
                               type="button"
-                              onClick={() => handleInputChange('assignedTo', '')}
+                              onClick={() => {
+                                handleInputChange('assignedTo', '');
+                                setUserSearch('');
+                              }}
                               className="text-xs text-red-500 hover:text-red-600"
                             >
                               Clear
@@ -2554,8 +2567,8 @@ export default function CreateOpportunityPage() {
                           </p>
                           <p className="text-sm">
                             <span className="font-medium">Assigned To:</span> {
-                              formData.assignedTo && users.find(u => u.id === formData.assignedTo)
-                                ? getUserDisplayInfo(users.find(u => u.id === formData.assignedTo)!).name
+                              formData.assignedTo && users.find(u => getUserId(u) === formData.assignedTo)
+                                ? getUserDisplayInfo(users.find(u => getUserId(u) === formData.assignedTo)!).name
                                 : 'Not assigned'
                             }
                           </p>
