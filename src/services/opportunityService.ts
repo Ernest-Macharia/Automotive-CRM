@@ -1551,26 +1551,33 @@ class OpportunityService {
       `/opportunities/${opportunityId}/notes`,
       backendData
     );
+
+    const createdNote = response?.note || response?.data || response;
+    const parsedTags = Array.isArray(createdNote?.tags)
+      ? createdNote.tags.filter((t: string) => typeof t === 'string' && t.trim())
+      : typeof createdNote?.tags === 'string'
+        ? createdNote.tags.split(',').filter((t: string) => t.trim())
+        : [];
     
     // Transform backend response back to frontend Note format
     const note: Note = {
-      _id: response._id || response.id,
-      id: response.id || response._id,
+      _id: createdNote?._id || createdNote?.id,
+      id: createdNote?.id || createdNote?._id,
       opportunityId: opportunityId,
-      type: response.type || noteData.type || 'general',
-      content: response.content,
-      author: response.author || {
-        _id: response.createdBy || 'unknown',
-        name: response.createdByName || 'Current User', // You might want to get this from user context
-        email: response.createdByEmail || 'user@example.com'
+      type: createdNote?.type || noteData.type || 'general',
+      content: createdNote?.content || noteData.content,
+      author: createdNote?.author || {
+        _id: createdNote?.createdBy || 'unknown',
+        name: createdNote?.createdByName || 'Current User', // You might want to get this from user context
+        email: createdNote?.createdByEmail || 'user@example.com'
       },
       metadata: {
-        tags: response.tags ? response.tags.split(',').filter((t: string) => t.trim()) : [],
+        tags: parsedTags,
         pinned: false, // Default to false since backend doesn't support
         attachments: []
       },
-      createdAt: response.createdAt || new Date().toISOString(),
-      updatedAt: response.updatedAt || new Date().toISOString()
+      createdAt: createdNote?.createdAt || new Date().toISOString(),
+      updatedAt: createdNote?.updatedAt || new Date().toISOString()
     };
     
     return note;
