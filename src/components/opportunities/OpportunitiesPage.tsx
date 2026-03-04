@@ -4,6 +4,7 @@ import { opportunityService, Opportunity, FilterParams } from '@/services/opport
 import { useToast } from '@/contexts/ToastContext';
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { useRouter } from 'next/navigation';
+import { authService } from '@/services/authService';
 import { 
   Plus, Filter, CalendarDays, Search, MoreVertical, Phone, MessageCircle,
   Loader2, RefreshCw, AlertCircle, TrendingUp, TrendingDown, User, Building,
@@ -791,6 +792,7 @@ export default function OpportunitiesContent() {
   const kanbanRef = useRef<HTMLDivElement>(null);
   const [creating, setCreating] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
   const [pagination, setPagination] = useState<any>(null);
   const [activeQuickFilter, setActiveQuickFilter] = useState<string | null>(null);
   const [organizationError, setOrganizationError] = useState<string | null>(null);
@@ -1366,6 +1368,77 @@ export default function OpportunitiesContent() {
     fetchOpportunities();
   };
 
+  const handleBackfillUnassigned = async () => {
+    const currentUser = authService.getUser();
+    if (!currentUser?.id) {
+      showToast('Unable to identify current user for backfill', 'error', 3000);
+      return;
+    }
+
+    try {
+      setBackfilling(true);
+
+      const firstPage = await opportunityService.filterOpportunities({
+        assignedTo: 'null',
+        page: 1,
+        limit: 100,
+        sort: 'createdAt:desc',
+      });
+
+      const unassigned = [...firstPage.data];
+      const totalPages = Math.min(firstPage.pagination?.totalPages || 1, 5);
+
+      for (let page = 2; page <= totalPages; page++) {
+        const pageData = await opportunityService.filterOpportunities({
+          assignedTo: 'null',
+          page,
+          limit: 100,
+          sort: 'createdAt:desc',
+        });
+        if (!pageData.data.length) {
+          break;
+        }
+        unassigned.push(...pageData.data);
+      }
+
+      if (!unassigned.length) {
+        showToast('No unassigned opportunities found to backfill', 'info', 3000);
+        return;
+      }
+
+      const results = await Promise.allSettled(
+        unassigned.map((opportunity) =>
+          opportunityService.reassignOpportunity(
+            opportunity._id,
+            currentUser.id,
+            'Backfill assignment for historical unassigned opportunity'
+          )
+        )
+      );
+
+      const successCount = results.filter((result) => result.status === 'fulfilled').length;
+      const failedCount = results.length - successCount;
+
+      cacheRef.current.clear();
+      await fetchOpportunities(true, true);
+
+      if (failedCount > 0) {
+        showToast(
+          `Backfill completed: ${successCount} assigned, ${failedCount} failed`,
+          'warning',
+          5000
+        );
+      } else {
+        showToast(`Backfill completed: ${successCount} opportunity(ies) assigned`, 'success', 4000);
+      }
+    } catch (error) {
+      console.error('Error backfilling unassigned opportunities:', error);
+      showToast('Failed to backfill unassigned opportunities', 'error', 4000);
+    } finally {
+      setBackfilling(false);
+    }
+  };
+
   // Check scroll buttons
   useEffect(() => {
     const checkScroll = () => {
@@ -1607,6 +1680,29 @@ export default function OpportunitiesContent() {
               </div>
               
               <div className="flex items-center gap-3">
+                <button
+                  onClick={handleBackfillUnassigned}
+                  disabled={backfilling || refreshing || loading || creating}
+                  className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium transition-colors ${
+                    backfilling || refreshing || loading || creating
+                      ? 'border-gray-200/50 bg-gray-50/50 text-gray-400 cursor-not-allowed'
+                      : 'border-amber-200 bg-amber-50/70 text-amber-700 hover:bg-amber-100/70'
+                  }`}
+                  title="Assign historical unassigned opportunities to me"
+                >
+                  {backfilling ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="hidden sm:inline">Backfilling...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Users className="h-4 w-4" />
+                      <span className="hidden sm:inline">Claim Unassigned</span>
+                    </>
+                  )}
+                </button>
+
                 <button 
                   onClick={() => fetchOpportunities(true)}
                   disabled={refreshing || loading || creating}
