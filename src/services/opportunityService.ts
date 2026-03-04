@@ -166,6 +166,10 @@ export interface UpdateOpportunityData {
     companyTaxId?: string;
     companyPhone?: string;
     companyEmail?: string;
+    contactPersonName?: string;
+    contactPersonEmail?: string;
+    contactPersonPhone?: string;
+    contactPersonTitle?: string;
   };
   vehicles?: Array<{
     vin?: string;

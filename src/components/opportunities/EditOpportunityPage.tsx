@@ -34,7 +34,7 @@ interface ServiceProductForm {
   id?: string;
   title: string;
   description: string;
-  type: 'SERVICE' | 'SALE';
+  type: 'SERVICE' | 'PRODUCT' | 'PART' | 'LABOR';
   quantity: number;
   unitPrice: number;
   discount: number;
@@ -47,20 +47,35 @@ interface CustomerForm {
   email: string;
   phone: string;
   companyName: string;
-  companyAddress: string;
-  companyTaxId: string;
-  companyPhone: string;
-  companyEmail: string;
+  contactPersonName?: string;
+  contactPersonPhone?: string;
+  contactPersonEmail?: string;
+  contactPersonTitle?: string;
 }
 
 interface UserPreferences {
   useDropdowns: boolean;
 }
 
-// FIX 1: Updated getSafeCustomerField function
 const getSafeCustomerField = (customer: any, field: string): string => {
   if (!customer || typeof customer !== 'object') return '';
   return customer[field as keyof typeof customer] || '';
+};
+
+const normalizePhoneForInput = (value: string, phoneCode: string): string => {
+  if (!value) return '';
+
+  const compact = value.replace(/\s+/g, '');
+  if (compact.startsWith(phoneCode)) {
+    return compact.slice(phoneCode.length);
+  }
+
+  const numericCode = phoneCode.replace('+', '');
+  if (compact.startsWith(numericCode)) {
+    return compact.slice(numericCode.length);
+  }
+
+  return compact.startsWith('+') ? compact.replace(/^\+\d{1,4}/, '') : compact;
 };
 
 const vehicleMakes = [
@@ -153,13 +168,27 @@ const sources = [
   { value: 'manual', label: 'Manual' },
   { value: 'phone', label: 'Phone Call' },
   { value: 'email', label: 'Email' },
-  { value: 'social_media', label: 'Social Media' }
+  { value: 'social_media', label: 'Social Media' },
+  { value: 'partner', label: 'Partner' }
 ];
 
 const opportunityTypes = [
   { value: 'SERVICE', label: 'Service', icon: Settings, color: 'bg-blue-100 text-blue-600' },
   { value: 'SALE', label: 'Product', icon: Package, color: 'bg-green-100 text-green-600' }
 ];
+
+const mapOpportunityTypeToServiceProductType = (
+  opportunityType: 'SERVICE' | 'SALE'
+): 'SERVICE' | 'PRODUCT' | 'PART' | 'LABOR' => {
+  switch (opportunityType) {
+    case 'SERVICE':
+      return 'SERVICE';
+    case 'SALE':
+      return 'PRODUCT';
+    default:
+      return 'SERVICE';
+  }
+};
 
 export default function EditOpportunityPage() {
   const router = useRouter();
@@ -184,17 +213,17 @@ export default function EditOpportunityPage() {
   const [formData, setFormData] = useState({
     type: 'individual' as 'individual' | 'organization',
     source: 'walk_in' as 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner',
-    subject: '',
     opportunityType: 'SERVICE' as 'SERVICE' | 'SALE',
+    phoneCode: '+254',
     customer: {
       name: '',
       email: '',
       phone: '',
       companyName: '',
-      companyAddress: '',
-      companyTaxId: '',
-      companyPhone: '',
-      companyEmail: ''
+      contactPersonName: '',
+      contactPersonPhone: '',
+      contactPersonEmail: '',
+      contactPersonTitle: ''
     },
     vehicles: [] as VehicleForm[],
     servicesProducts: [] as ServiceProductForm[],
@@ -297,17 +326,12 @@ export default function EditOpportunityPage() {
         bodyType: v.bodyType || ''
       }));
       
-      // FIX: Prepare services/products data - handle API type mapping
       const servicesProducts: ServiceProductForm[] = (data.servicesProducts || []).map((sp: any) => {
-        // Map API types to form types
-        let formType: 'SERVICE' | 'SALE';
-        if (sp.type === 'PRODUCT' || sp.type === 'SALE') {
-          formType = 'SALE';
-        } else {
-          formType = 'SERVICE'; // Default to SERVICE for 'SERVICE', 'REPAIR', 'MAINTENANCE', 'INSPECTION', etc.
-        }
-        
-        // Calculate totals if they're missing
+        const formType: 'SERVICE' | 'PRODUCT' | 'PART' | 'LABOR' =
+          sp.type === 'PRODUCT' || sp.type === 'PART' || sp.type === 'LABOR'
+            ? sp.type
+            : 'SERVICE';
+
         const subtotal = sp.subtotal || (sp.quantity || 0) * (sp.unitPrice || 0);
         const discountAmount = subtotal * ((sp.discount || 0) / 100);
         const total = sp.total || subtotal - discountAmount;
@@ -335,18 +359,21 @@ export default function EditOpportunityPage() {
       
       setFormData({
         type: data.type || 'individual',
-        source: data.source as any || 'walk_in',
-        subject: data.subject || '',
+        source: (data.source as any) || 'walk_in',
         opportunityType: mappedOpportunityType,
+        phoneCode,
         customer: {
           name: customer.name || '',
           email: customer.email || '',
           phone: phoneNumber,
           companyName: getSafeCustomerField(customer, 'companyName'),
-          companyAddress: getSafeCustomerField(customer, 'companyAddress'),
-          companyTaxId: getSafeCustomerField(customer, 'companyTaxId'),
-          companyPhone: getSafeCustomerField(customer, 'companyPhone'),
-          companyEmail: getSafeCustomerField(customer, 'companyEmail')
+          contactPersonName: getSafeCustomerField(customer, 'contactPersonName'),
+          contactPersonPhone: normalizePhoneForInput(
+            getSafeCustomerField(customer, 'contactPersonPhone'),
+            phoneCode
+          ),
+          contactPersonEmail: getSafeCustomerField(customer, 'contactPersonEmail'),
+          contactPersonTitle: getSafeCustomerField(customer, 'contactPersonTitle')
         },
         vehicles,
         servicesProducts,
@@ -401,7 +428,7 @@ export default function EditOpportunityPage() {
     
     // Handle type field specially
     if (field === 'type') {
-      item[field] = value as 'SERVICE' | 'SALE';
+      item[field] = value as 'SERVICE' | 'PRODUCT' | 'PART' | 'LABOR';
     } else {
       (item as any)[field] = value;
     }
@@ -458,7 +485,7 @@ export default function EditOpportunityPage() {
         id: undefined,
         title: '',
         description: '',
-        type: formData.opportunityType, // Use the current opportunity type
+        type: mapOpportunityTypeToServiceProductType(formData.opportunityType),
         quantity: 1,
         unitPrice: 0,
         discount: 0,
@@ -504,7 +531,6 @@ export default function EditOpportunityPage() {
       if (!formData.customer.companyName?.trim()) newErrors.companyName = 'Company name is required';
     }
     
-    if (!formData.customer.email?.trim()) newErrors.email = 'Email is required';
     if (!formData.customer.phone?.trim()) newErrors.phone = 'Phone is required';
     
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -512,8 +538,18 @@ export default function EditOpportunityPage() {
       newErrors.email = 'Please enter a valid email address';
     }
 
-    // Validate subject
-    if (!formData.subject.trim()) newErrors.subject = 'Subject is required';
+    if (formData.type === 'organization' && !formData.customer.contactPersonName?.trim()) {
+      newErrors.contactPersonName = 'Contact person name is required';
+    }
+
+    if (formData.servicesProducts.length === 0) {
+      newErrors.servicesProducts = 'At least one service or product is required';
+    } else {
+      const hasInvalidItem = formData.servicesProducts.some(item => !item.title.trim() || !item.type);
+      if (hasInvalidItem) {
+        newErrors.servicesProducts = 'Each service/product must have a title and valid type';
+      }
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -538,40 +574,40 @@ export default function EditOpportunityPage() {
         customerName = formData.customer.companyName || '';
       }
 
-      // FIX: Map form types to API types
-      const mappedServicesProducts = formData.servicesProducts.map(item => {
-        // Map form types to API types
-        const mappedType: 'SERVICE' | 'PRODUCT' | 'PART' | 'LABOR' = 
-          item.type === 'SALE' ? 'PRODUCT' : 'SERVICE';
-        
-        return {
-          title: item.title,
-          description: item.description,
-          type: mappedType,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          discount: item.discount,
-          subtotal: item.subtotal,
-          total: item.total
-        };
-      });
+      const mappedServicesProducts = formData.servicesProducts.map(item => ({
+        title: item.title,
+        description: item.description,
+        type: item.type,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        discount: item.discount,
+        subtotal: item.subtotal,
+        total: item.total
+      }));
+
+      const subject = formData.type === 'individual'
+        ? `${firstName} ${lastName}'s ${formData.opportunityType.toLowerCase()} request`
+        : `${formData.customer.companyName}'s ${formData.opportunityType.toLowerCase()} request`;
 
       // Prepare update data according to UpdateOpportunityData interface
       const updateData = {
         type: formData.type,
         source: formData.source as 'walk_in' | 'web' | 'email' | 'call' | 'referral' | 'partner',
-        subject: formData.subject,
+        subject,
         opportunityType: formData.opportunityType,
+        packageType: formData.opportunityType === 'SERVICE' ? 'work_order' : 'sales_order',
         customer: {
           name: customerName,
-          email: formData.customer.email,
-          phone: `+254${formData.customer.phone}`,
+          email: formData.customer.email || undefined,
+          phone: formData.customer.phone ? `${formData.phoneCode}${formData.customer.phone}` : undefined,
           ...(formData.type === 'organization' && {
             companyName: formData.customer.companyName,
-            companyAddress: formData.customer.companyAddress,
-            companyTaxId: formData.customer.companyTaxId,
-            companyPhone: formData.customer.companyPhone,
-            companyEmail: formData.customer.companyEmail
+            contactPersonName: formData.customer.contactPersonName || undefined,
+            contactPersonEmail: formData.customer.contactPersonEmail || undefined,
+            contactPersonPhone: formData.customer.contactPersonPhone
+              ? `${formData.phoneCode}${formData.customer.contactPersonPhone}`
+              : undefined,
+            contactPersonTitle: formData.customer.contactPersonTitle || undefined
           })
         },
         vehicles: formData.vehicles.map(vehicle => ({
@@ -589,7 +625,7 @@ export default function EditOpportunityPage() {
           chassisNumber: vehicle.chassisNumber,
           bodyType: vehicle.bodyType
         })),
-        servicesProducts: mappedServicesProducts,
+        servicesProducts: mappedServicesProducts.length ? mappedServicesProducts : undefined,
         notes: formData.notes,
         subtotal: calculateSubtotal(formData.servicesProducts),
         totalDiscount: calculateTotalDiscount(formData.servicesProducts),
@@ -964,29 +1000,6 @@ export default function EditOpportunityPage() {
                 </div>
               </div>
 
-              {/* Subject */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Opportunity Subject *
-                </label>
-                <input
-                  type="text"
-                  value={formData.subject}
-                  onChange={(e) => handleInputChange('subject', e.target.value)}
-                  className={`w-full px-4 py-3 rounded-xl border ${
-                    errors.subject ? 'border-red-300' : 'border-gray-200'
-                  } bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
-                  placeholder="e.g., Car Service Request - Honda Civic"
-                  required
-                />
-                {errors.subject && (
-                  <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    {errors.subject}
-                  </p>
-                )}
-              </div>
-
               {/* Customer Information */}
               <div className="space-y-4">
                 {formData.type === 'individual' ? (
@@ -1053,27 +1066,35 @@ export default function EditOpportunityPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Company Address
+                          Contact Person Name *
                         </label>
                         <input
                           type="text"
-                          value={formData.customer.companyAddress}
-                          onChange={(e) => handleCustomerChange('companyAddress', e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                          placeholder="e.g., 123 Business Street, Nairobi"
+                          value={formData.customer.contactPersonName}
+                          onChange={(e) => handleCustomerChange('contactPersonName', e.target.value)}
+                          className={`w-full px-4 py-3 rounded-xl border ${
+                            errors.contactPersonName ? 'border-red-300' : 'border-gray-200'
+                          } bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                          placeholder="e.g., Jane Doe"
                         />
+                        {errors.contactPersonName && (
+                          <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            {errors.contactPersonName}
+                          </p>
+                        )}
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Tax ID/VAT Number
+                          Contact Person Title
                         </label>
                         <input
                           type="text"
-                          value={formData.customer.companyTaxId}
-                          onChange={(e) => handleCustomerChange('companyTaxId', e.target.value)}
+                          value={formData.customer.contactPersonTitle}
+                          onChange={(e) => handleCustomerChange('contactPersonTitle', e.target.value)}
                           className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                          placeholder="e.g., P12345678X"
+                          placeholder="e.g., Procurement Manager"
                         />
                       </div>
                     </div>
@@ -1081,28 +1102,33 @@ export default function EditOpportunityPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Company Phone
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.customer.companyPhone}
-                          onChange={(e) => handleCustomerChange('companyPhone', e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                          placeholder="e.g., 712345678"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Company Email
+                          Contact Person Email
                         </label>
                         <input
                           type="email"
-                          value={formData.customer.companyEmail}
-                          onChange={(e) => handleCustomerChange('companyEmail', e.target.value)}
+                          value={formData.customer.contactPersonEmail}
+                          onChange={(e) => handleCustomerChange('contactPersonEmail', e.target.value)}
                           className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                          placeholder="e.g., info@company.com"
+                          placeholder="e.g., jane.doe@company.com"
                         />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Contact Person Phone
+                        </label>
+                        <div className="flex gap-2">
+                          <div className="w-24 px-3 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm text-gray-700 flex items-center">
+                            {formData.phoneCode}
+                          </div>
+                          <input
+                            type="tel"
+                            value={formData.customer.contactPersonPhone}
+                            onChange={(e) => handleCustomerChange('contactPersonPhone', e.target.value)}
+                            className="flex-1 px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                            placeholder="700123456"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1110,10 +1136,10 @@ export default function EditOpportunityPage() {
 
                 {/* Email and Phone (common to both account types) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email *
-                    </label>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Email
+                      </label>
                     <input
                       type="email"
                       value={formData.customer.email}
@@ -1122,7 +1148,6 @@ export default function EditOpportunityPage() {
                         errors.email ? 'border-red-300' : 'border-gray-200'
                       } bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
                       placeholder="e.g., john.doe@example.com"
-                      required
                     />
                     {errors.email && (
                       <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
@@ -1141,7 +1166,7 @@ export default function EditOpportunityPage() {
                         <div className="flex items-center justify-between w-full px-3 py-3 rounded-xl border border-gray-200 bg-white/50">
                           <div className="flex items-center gap-2">
                             <span className="text-lg">🇰🇪</span>
-                            <span>+254</span>
+                            <span>{formData.phoneCode}</span>
                           </div>
                         </div>
                       </div>
@@ -1164,7 +1189,7 @@ export default function EditOpportunityPage() {
                       </p>
                     )}
                     <p className="text-xs text-gray-500 mt-1">
-                      Phone: +254{formData.customer.phone || '_______'}
+                      Phone: {formData.phoneCode}{formData.customer.phone || '_______'}
                     </p>
                   </div>
                 </div>
@@ -1494,7 +1519,7 @@ export default function EditOpportunityPage() {
                             // Update all items to match the selected type
                             const updatedItems = formData.servicesProducts.map(item => ({
                               ...item,
-                              type: type.value as 'SERVICE' | 'SALE'
+                              type: mapOpportunityTypeToServiceProductType(type.value as 'SERVICE' | 'SALE')
                             }));
                             setFormData(prev => ({ ...prev, servicesProducts: updatedItems }));
                           }}
@@ -1749,6 +1774,12 @@ export default function EditOpportunityPage() {
                   </p>
                 </div>
               )}
+              {errors.servicesProducts && (
+                <p className="mt-3 text-sm text-red-600 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {errors.servicesProducts}
+                </p>
+              )}
 
               {/* Overall Totals */}
               {formData.servicesProducts.length > 0 && (
@@ -1788,7 +1819,7 @@ export default function EditOpportunityPage() {
                     <div className="text-xs text-gray-500 mt-2">
                       {formData.servicesProducts.length} item{formData.servicesProducts.length !== 1 ? 's' : ''} | 
                       {formData.servicesProducts.filter(item => item.type === 'SERVICE').length} service{formData.servicesProducts.filter(item => item.type === 'SERVICE').length !== 1 ? 's' : ''} | 
-                      {formData.servicesProducts.filter(item => item.type === 'SALE').length} product{formData.servicesProducts.filter(item => item.type === 'SALE').length !== 1 ? 's' : ''}
+                      {formData.servicesProducts.filter(item => item.type === 'PRODUCT').length} product{formData.servicesProducts.filter(item => item.type === 'PRODUCT').length !== 1 ? 's' : ''}
                     </div>
                   </div>
                 </div>
@@ -1837,9 +1868,10 @@ export default function EditOpportunityPage() {
                         <p className="text-sm">
                           <span className="font-medium">Company:</span> {formData.customer.companyName}
                         </p>
-                        {formData.customer.companyAddress && (
+                        {formData.customer.contactPersonName && (
                           <p className="text-sm">
-                            <span className="font-medium">Address:</span> {formData.customer.companyAddress}
+                            <span className="font-medium">Contact Person:</span> {formData.customer.contactPersonName}
+                            {formData.customer.contactPersonTitle ? ` (${formData.customer.contactPersonTitle})` : ''}
                           </p>
                         )}
                       </>
@@ -1848,7 +1880,7 @@ export default function EditOpportunityPage() {
                       <span className="font-medium">Email:</span> {formData.customer.email}
                     </p>
                     <p className="text-sm">
-                      <span className="font-medium">Phone:</span> +254{formData.customer.phone}
+                      <span className="font-medium">Phone:</span> {formData.phoneCode}{formData.customer.phone}
                     </p>
                   </div>
                 </div>
