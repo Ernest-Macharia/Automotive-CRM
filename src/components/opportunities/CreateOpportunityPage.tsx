@@ -20,6 +20,7 @@ import { authService } from '@/services/authService';
 import { userService } from '@/services/settings/userService';
 import { productService, Product } from '@/services/productService';
 import { serviceService, Service } from '@/services/serviceService';
+import { cardataService } from '@/services/carDataService';
 
 interface Vehicle {
   id: string;
@@ -117,7 +118,7 @@ interface UserPreferences {
   useDropdowns: boolean;
 }
 
-const vehicleMakes = [
+const fallbackVehicleMakes = [
   'Toyota', 'Honda', 'Ford', 'Mercedes-Benz', 'BMW', 'Volkswagen',
   'Nissan', 'Mazda', 'Subaru', 'Mitsubishi', 'Hyundai', 'Kia',
   'Chevrolet', 'Audi', 'Lexus', 'Jeep', 'Land Rover', 'Porsche',
@@ -125,7 +126,7 @@ const vehicleMakes = [
   'Peugeot', 'Renault', 'Other'
 ];
 
-const vehicleModels: Record<string, string[]> = {
+const fallbackVehicleModels: Record<string, string[]> = {
   'Toyota': ['Land Cruiser', 'Hilux', 'Corolla', 'Camry', 'RAV4', 'Prado', 'Fortuner', 'Hiace', 'Other'],
   'Honda': ['Civic', 'Accord', 'CR-V', 'Fit', 'HR-V', 'Pilot', 'Odyssey', 'Other'],
   'Ford': ['Ranger', 'Everest', 'F-150', 'Explorer', 'Focus', 'Fiesta', 'Mustang', 'Other'],
@@ -239,6 +240,9 @@ export default function CreateOpportunityPage() {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [showUsersDropdown, setShowUsersDropdown] = useState(false);
   const [userSearch, setUserSearch] = useState('');
+  const [vehicleMakes, setVehicleMakes] = useState<string[]>(fallbackVehicleMakes);
+  const [vehicleModelsByMake, setVehicleModelsByMake] = useState<Record<string, string[]>>(fallbackVehicleModels);
+  const [loadingVehicleData, setLoadingVehicleData] = useState(false);
    
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [duplicateOpportunities, setDuplicateOpportunities] = useState<Opportunity[]>([]);
@@ -443,6 +447,42 @@ export default function CreateOpportunityPage() {
     fetchUsers();
   }, [showToast]);
 
+  useEffect(() => {
+    const fetchVehicleData = async () => {
+      try {
+        setLoadingVehicleData(true);
+        const makeModels = await cardataService.getMakeModels();
+
+        if (Array.isArray(makeModels) && makeModels.length > 0) {
+          const normalizedMakes = makeModels
+            .map(item => item.make)
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b));
+
+          const normalizedModels: Record<string, string[]> = {};
+          makeModels.forEach(item => {
+            if (!item.make) return;
+            normalizedModels[item.make] = (item.models || []).filter(Boolean);
+          });
+
+          setVehicleMakes(normalizedMakes);
+          setVehicleModelsByMake(normalizedModels);
+        } else {
+          setVehicleMakes(fallbackVehicleMakes);
+          setVehicleModelsByMake(fallbackVehicleModels);
+        }
+      } catch (error) {
+        console.error('Error loading vehicle make/model data:', error);
+        setVehicleMakes(fallbackVehicleMakes);
+        setVehicleModelsByMake(fallbackVehicleModels);
+      } finally {
+        setLoadingVehicleData(false);
+      }
+    };
+
+    fetchVehicleData();
+  }, []);
+
   const getUserRoleName = (user: User): string => {
     if (typeof user.role === 'string') {
       return user.role;
@@ -642,7 +682,7 @@ export default function CreateOpportunityPage() {
   );
 
   const filteredModels = (make: string) => {
-    const models = vehicleModels[make] || [];
+    const models = vehicleModelsByMake[make] || [];
     return models.filter(model =>
       model.toLowerCase().includes(modelSearch.toLowerCase())
     );
@@ -1789,6 +1829,9 @@ export default function CreateOpportunityPage() {
                 <div className="space-y-6">
                   <h2 className="text-xl font-bold text-gray-800 mb-6">Vehicle Details</h2>
                   <p className="text-gray-500 text-sm mb-6">Add comprehensive vehicle information</p>
+                  {loadingVehicleData && (
+                    <p className="text-xs text-blue-600">Loading make and model data...</p>
+                  )}
 
                   {errors.vehicles && (
                     <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200">
@@ -1908,20 +1951,26 @@ export default function CreateOpportunityPage() {
                                     </div>
                                   </div>
                                   <div className="max-h-48 overflow-y-auto">
-                                    {filteredModels(vehicle.make).map((model) => (
-                                      <button
-                                        key={model}
-                                        type="button"
-                                        onClick={() => {
-                                          handleVehicleChange(index, 'model', model);
-                                          setShowModelDropdown(null);
-                                          setModelSearch('');
-                                        }}
-                                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
-                                      >
-                                        <span>{model}</span>
-                                      </button>
-                                    ))}
+                                    {filteredModels(vehicle.make).length > 0 ? (
+                                      filteredModels(vehicle.make).map((model) => (
+                                        <button
+                                          key={model}
+                                          type="button"
+                                          onClick={() => {
+                                            handleVehicleChange(index, 'model', model);
+                                            setShowModelDropdown(null);
+                                            setModelSearch('');
+                                          }}
+                                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
+                                        >
+                                          <span>{model}</span>
+                                        </button>
+                                      ))
+                                    ) : (
+                                      <div className="px-3 py-2 text-xs text-gray-500">
+                                        No models found for {vehicle.make}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               )}

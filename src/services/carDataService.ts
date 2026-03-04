@@ -41,6 +41,16 @@ export interface ImportResult {
   imported: number;
 }
 
+export interface MakeModelPair {
+  make: string;
+  models: string[];
+}
+
+export interface AddMakeModelDto {
+  make: string;
+  model: string;
+}
+
 // Extended ApiClient for cardata service
 class ExtendedApiClient {
   private getApiBaseUrl(): string {
@@ -200,6 +210,47 @@ class CardataService {
     }
   }
 
+  // 5. Get all makes and models for logged-in organization
+  async getMakeModels(): Promise<MakeModelPair[]> {
+    try {
+      return await extendedApiClient.get<MakeModelPair[]>('/cardata/make-models');
+    } catch (error) {
+      console.error('Error getting make-model pairs:', error);
+      throw error;
+    }
+  }
+
+  // 6. Add one make-model pair for logged-in organization
+  async addMakeModel(data: AddMakeModelDto): Promise<MakeModelPair> {
+    try {
+      if (!data.make || !data.model) {
+        throw new Error('Make and model are required');
+      }
+
+      return await extendedApiClient.post<AddMakeModelDto, MakeModelPair>('/cardata/make-model', data);
+    } catch (error) {
+      console.error('Error adding make-model pair:', error);
+      throw error;
+    }
+  }
+
+  // 7. Bulk add make-model pairs for logged-in organization
+  async bulkAddMakeModels(data: AddMakeModelDto[]): Promise<{ added: number; skipped?: number }> {
+    try {
+      if (!Array.isArray(data) || data.length === 0) {
+        throw new Error('At least one make-model pair is required');
+      }
+
+      return await extendedApiClient.post<AddMakeModelDto[], { added: number; skipped?: number }>(
+        '/cardata/make-model/bulk',
+        data
+      );
+    } catch (error) {
+      console.error('Error bulk adding make-model pairs:', error);
+      throw error;
+    }
+  }
+
   // 5. Add a manual trim override
   async addManualTrim(data: ManualTrimDto): Promise<CardataItem> {
     try {
@@ -214,7 +265,7 @@ class CardataService {
     }
   }
 
-  // 6. Import master cardata JSON into DB
+  // 8. Import master cardata JSON into DB
   async importMasterData(): Promise<ImportResult> {
     try {
       return await extendedApiClient.post<any, ImportResult>('/cardata/import-master', {});
