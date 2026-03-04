@@ -51,10 +51,10 @@ export class NavigationService {
       return ALL_NAV_ITEMS.filter(item => item.href === '/dashboard');
     }
     
-    const userRole = user.role?.name || user.role;
-    const userPermissions = user.permissions || [];
+    const rawRole = user.role?.name || user.role || '';
+    const normalizedRole = String(rawRole).toLowerCase().replace(/[\s_]+/g, '');
     
-    if (userRole === 'admin') {
+    if (normalizedRole === 'admin' || normalizedRole === 'superadmin' || normalizedRole === 'superadministrator') {
       return ALL_NAV_ITEMS;
     }
     

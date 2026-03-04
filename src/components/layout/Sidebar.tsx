@@ -180,39 +180,6 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         </button>
       </div>
 
-      {/* Organization Stats Bar (optional) */}
-      {organization && !isLoadingOrg && (
-        <div className="px-4 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100">
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <Icons.Users className="w-3.5 h-3.5 text-blue-600" />
-              <span className="text-blue-700">
-                {organization.currentUsers || 0}/{organization.maxUsers || 25} users
-              </span>
-            </div>
-            {organization.status && (
-              <div className="flex items-center gap-2">
-                <span className={`w-1.5 h-1.5 rounded-full ${
-                  organization.status === 'active' ? 'bg-green-500' : 
-                  organization.status === 'suspended' ? 'bg-red-500' : 'bg-gray-500'
-                }`} />
-                <span className="text-blue-700 capitalize">{organization.status}</span>
-              </div>
-            )}
-          </div>
-          {organization.maxUsers && (
-            <div className="mt-1.5 h-1 w-full bg-blue-100 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-blue-600 rounded-full"
-                style={{ 
-                  width: `${organizationService.getOrganizationUsagePercentage(organization)}%` 
-                }}
-              />
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Navigation Items - takes all available space */}
       <div className="flex-1 overflow-y-auto py-4 px-2">
         <div className="mb-4 px-3">
