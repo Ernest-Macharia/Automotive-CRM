@@ -5,15 +5,12 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Loader2, Send, Ticket } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { ticketService } from '@/services/ticketService';
-import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 export default function TicketCreatePage() {
   const router = useRouter();
   const { showToast } = useToast();
-  const { user } = useCurrentUser();
 
   const [saving, setSaving] = useState(false);
-  const [isPublic, setIsPublic] = useState(false);
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('medium');
@@ -29,28 +26,21 @@ export default function TicketCreatePage() {
       return;
     }
 
-    if (isPublic && (!requesterName.trim() || !requesterEmail.trim())) {
-      showToast('Requester name and email are required for public ticket', 'error');
+    if (!requesterName.trim() || !requesterEmail.trim()) {
+      showToast('Requester name and email are required', 'error');
       return;
     }
 
     try {
       setSaving(true);
-      const ticket = isPublic
-        ? await ticketService.createPublicTicket({
-            subject: subject.trim(),
-            description: description.trim(),
-            priority,
-            category,
-            requesterName: requesterName.trim(),
-            requesterEmail: requesterEmail.trim(),
-          })
-        : await ticketService.createTicket({
-            subject: subject.trim(),
-            description: description.trim(),
-            priority,
-            category,
-          });
+      const ticket = await ticketService.createPublicTicket({
+        subject: subject.trim(),
+        description: description.trim(),
+        priority,
+        category,
+        requesterName: requesterName.trim(),
+        requesterEmail: requesterEmail.trim(),
+      });
 
       const id = ticket.id || ticket._id;
       showToast('Ticket created successfully', 'success');
@@ -84,9 +74,7 @@ export default function TicketCreatePage() {
             </div>
             <div>
               <h1 className="text-xl font-semibold text-white">Create Ticket</h1>
-              <p className="text-blue-100 text-sm">
-                {user ? 'Submit a new support request' : 'Create a public support ticket'}
-              </p>
+              <p className="text-blue-100 text-sm">Submit a new support request</p>
             </div>
           </div>
         </div>
@@ -138,41 +126,27 @@ export default function TicketCreatePage() {
             </div>
           </div>
 
-          <div className="pt-2">
-            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Requester Name</label>
               <input
-                type="checkbox"
-                checked={isPublic}
-                onChange={e => setIsPublic(e.target.checked)}
-                className="rounded border-gray-300"
+                value={requesterName}
+                onChange={e => setRequesterName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                placeholder="Full name"
               />
-              Create as public ticket
-            </label>
-          </div>
-
-          {isPublic && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Requester Name</label>
-                <input
-                  value={requesterName}
-                  onChange={e => setRequesterName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  placeholder="Full name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Requester Email</label>
-                <input
-                  value={requesterEmail}
-                  onChange={e => setRequesterEmail(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  placeholder="email@example.com"
-                  type="email"
-                />
-              </div>
             </div>
-          )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Requester Email</label>
+              <input
+                value={requesterEmail}
+                onChange={e => setRequesterEmail(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                placeholder="email@example.com"
+                type="email"
+              />
+            </div>
+          </div>
 
           <div className="flex justify-end pt-2">
             <button
