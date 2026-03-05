@@ -1781,7 +1781,7 @@ export default function OpportunitiesContent() {
               </div>
               
               <div className="flex items-center gap-3">
-                <button
+                {/* <button
                   onClick={handleBackfillUnassigned}
                   disabled={backfilling || refreshing || loading || creating}
                   className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium transition-colors ${
@@ -1802,7 +1802,7 @@ export default function OpportunitiesContent() {
                       <span className="hidden sm:inline">Claim Unassigned</span>
                     </>
                   )}
-                </button>
+                </button> */}
 
                 <button 
                   onClick={() => fetchOpportunities(true)}
