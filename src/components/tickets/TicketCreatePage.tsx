@@ -15,8 +15,6 @@ export default function TicketCreatePage() {
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('medium');
   const [category, setCategory] = useState('general');
-  const [requesterName, setRequesterName] = useState('');
-  const [requesterEmail, setRequesterEmail] = useState('');
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -26,20 +24,13 @@ export default function TicketCreatePage() {
       return;
     }
 
-    if (!requesterName.trim() || !requesterEmail.trim()) {
-      showToast('Requester name and email are required', 'error');
-      return;
-    }
-
     try {
       setSaving(true);
-      const ticket = await ticketService.createPublicTicket({
+      const ticket = await ticketService.createTicket({
         subject: subject.trim(),
         description: description.trim(),
         priority,
         category,
-        requesterName: requesterName.trim(),
-        requesterEmail: requesterEmail.trim(),
       });
 
       const id = ticket.id || ticket._id;
@@ -122,28 +113,6 @@ export default function TicketCreatePage() {
                 onChange={e => setCategory(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 placeholder="general"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Requester Name</label>
-              <input
-                value={requesterName}
-                onChange={e => setRequesterName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                placeholder="Full name"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Requester Email</label>
-              <input
-                value={requesterEmail}
-                onChange={e => setRequesterEmail(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                placeholder="email@example.com"
-                type="email"
               />
             </div>
           </div>
