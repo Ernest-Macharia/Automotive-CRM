@@ -16,6 +16,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/orders/sales-orders', label: 'Sales Orders', icon: 'ShoppingBag', permission: 'orders.read' },
   { href: '/orders/work-orders', label: 'Work Orders', icon: 'Wrench', permission: 'jobs.read' },
   { href: '/manychat', label: 'ManyChat', icon: 'MessageSquare', permission: 'manychat.access' },
+  { href: '/tickets', label: 'Tickets', icon: 'Ticket' },
   { href: '/contacts', label: 'Contacts', icon: 'Users', permission: 'contacts.read' },
   { href: '/services', label: 'Services', icon: 'Settings', permission: 'services.read' },
   { href: '/products', label: 'Products', icon: 'Package', permission: 'products.read' },
@@ -59,6 +60,7 @@ export class NavigationService {
     
     return ALL_NAV_ITEMS.filter(item => {
       if (item.href === '/dashboard') return true;
+      if (item.href === '/tickets' || item.href === '/contacts' || item.href === '/feedback') return true;
       // if (item.href === '/my-profile') return true;
       
       if (item.permission) {
@@ -114,6 +116,7 @@ export class NavigationService {
       Receipt: require('lucide-react').Receipt,
       Truck: require('lucide-react').Truck,
       ClipboardList: require('lucide-react').ClipboardList,
+      Ticket: require('lucide-react').Ticket,
       Settings: require('lucide-react').Settings,
       BarChart3: require('lucide-react').BarChart3,
     };
