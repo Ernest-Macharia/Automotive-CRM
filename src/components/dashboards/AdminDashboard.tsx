@@ -309,8 +309,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       // Fetch multiple data sources in parallel
       const [
         usersResponse,
-        opportunitiesResponse,
         overviewResponse,
+        filteredStatsResponse,
         recentOpps,
         topOpps,
         workOrderStats,
@@ -321,8 +321,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         lisSlaStats
       ] = await Promise.allSettled([
         userService.getAllUsers(),
-        opportunityService.getAllOpportunities({ limit: 1000 }),
         opportunityService.getOpportunitiesOverview(),
+        opportunityService.getFilteredStats({}),
         opportunityService.getAllOpportunities({ sort: 'updatedAt:desc', limit: 5 }),
         opportunityService.getAllOpportunities({ sort: 'leadScore.totalScore:desc', limit: 3 }),
         workOrderService.getWorkOrderStats(),
@@ -380,68 +380,38 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       let currentPeriodTotal = 0;
       let previousPeriodTotal = 0;
 
-      if (opportunitiesResponse.status === 'fulfilled' && opportunitiesResponse.value) {
-        const oppsData = opportunitiesResponse.value;
-        const opportunities = oppsData.data || [];
-        
-        totalOpportunities = opportunities.length;
-        
-        // Count by status
-        const openStatuses = ['new', 'attempted_to_contact', 'prospecting', 'appointment_scheduled'];
-        const closedStatuses = ['won', 'lost', 'non_progressive'];
-        
-        openOpportunities = opportunities.filter((opp: any) => 
-          openStatuses.includes(opp.status)
-        ).length;
-        
-        closedOpportunities = opportunities.filter((opp: any) => 
-          closedStatuses.includes(opp.status)
-        ).length;
+      if (filteredStatsResponse.status === 'fulfilled' && filteredStatsResponse.value) {
+        const filteredStats = filteredStatsResponse.value;
+        totalOpportunities = filteredStats.total || totalOpportunities;
+        hotLeads = filteredStats.byTier?.hot || 0;
+        warmLeads = filteredStats.byTier?.warm || 0;
+        coldLeads = filteredStats.byTier?.cold || 0;
 
-        // Count by tier
-        hotLeads = opportunities.filter((opp: any) => 
-          opp.leadScore?.tier === 'hot'
-        ).length;
-        
-        warmLeads = opportunities.filter((opp: any) => 
-          opp.leadScore?.tier === 'warm'
-        ).length;
-        
-        coldLeads = opportunities.filter((opp: any) => 
-          opp.leadScore?.tier === 'cold'
-        ).length;
+        const byStatus = filteredStats.byStatus || {};
+        openOpportunities =
+          (byStatus.new || 0) +
+          (byStatus.attempted_to_contact || 0) +
+          (byStatus.prospecting || 0) +
+          (byStatus.appointment_scheduled || 0);
+        closedOpportunities =
+          (byStatus.won || 0) +
+          (byStatus.lost || 0) +
+          (byStatus.non_progressive || 0);
 
-        // Calculate revenue from won opportunities
-        const wonOpportunities = opportunities.filter((opp: any) => 
-          opp.status === 'won'
-        );
-        
-        totalRevenue = wonOpportunities.reduce((sum: number, opp: any) => {
-          return sum + (opp.total || opp.leadScore?.commercial?.dealValue || 0);
-        }, 0);
-
-        // Find top source
-        const sourceCounts: Record<string, number> = {};
-        opportunities.forEach((opp: any) => {
-          const source = opp.source || 'other';
-          sourceCounts[source] = (sourceCounts[source] || 0) + 1;
-        });
-        
-        const topSourceEntry = Object.entries(sourceCounts).sort((a, b) => b[1] - a[1])[0] || ['website', 0];
+        const bySource = filteredStats.bySource || {};
+        const topSourceEntry = Object.entries(bySource).sort((a, b) => Number(b[1]) - Number(a[1]))[0] || ['website', 0];
         topSource = topSourceEntry[0];
-        topSourceCount = topSourceEntry[1];
+        topSourceCount = Number(topSourceEntry[1]) || 0;
       }
 
       // Process current period opportunities
       if (currentPeriodOpps.status === 'fulfilled' && currentPeriodOpps.value) {
-        const opportunities = currentPeriodOpps.value.data || [];
-        currentPeriodTotal = opportunities.length;
+        currentPeriodTotal = currentPeriodOpps.value.pagination?.total ?? (currentPeriodOpps.value.data || []).length;
       }
 
       // Process previous period opportunities
       if (previousPeriodOpps.status === 'fulfilled' && previousPeriodOpps.value) {
-        const opportunities = previousPeriodOpps.value.data || [];
-        previousPeriodTotal = opportunities.length;
+        previousPeriodTotal = previousPeriodOpps.value.pagination?.total ?? (previousPeriodOpps.value.data || []).length;
       }
 
       // Process overview data
@@ -457,12 +427,15 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         closedOpportunities = overview.closedopportunities || closedOpportunities;
         
         // Calculate conversion rate and win rate
-        const wonOppsCount = opportunitiesResponse.status === 'fulfilled' ? 
-          (opportunitiesResponse.value.data || []).filter((opp: any) => opp.status === 'won').length : 0;
+        const wonOppsCount =
+          filteredStatsResponse.status === 'fulfilled' && filteredStatsResponse.value
+            ? (filteredStatsResponse.value.byStatus?.won || 0)
+            : 0;
         
         conversionRate = totalOpportunities > 0 ? (wonOppsCount / totalOpportunities) * 100 : 0;
         winRate = openOpportunities > 0 ? (wonOppsCount / openOpportunities) * 100 : 0;
-        avgDealSize = wonOppsCount > 0 ? totalRevenue / wonOppsCount : 0;
+        totalRevenue = overview.totalRevenue || totalRevenue;
+        avgDealSize = wonOppsCount > 0 ? totalRevenue / wonOppsCount : (overview.averageDealSize || 0);
       }
 
       // Process work order stats
@@ -526,14 +499,6 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         setTopOpportunities(topOppsArray.slice(0, 3));
       }
 
-      // Fetch real system health data from monitoring endpoints
-      const [apiHealth, dbHealth, cacheHealth] = await Promise.allSettled([
-        fetch('/api/health/api').catch(() => ({ status: 'up', responseTime: 45 })),
-        fetch('/api/health/database').catch(() => ({ status: 'up', responseTime: 120 })),
-        fetch('/api/health/cache').catch(() => ({ status: 'up', responseTime: 12 }))
-      ]);
-
-
       const services: Array<{
         name: string;
         status: 'up' | 'degraded' | 'down';
@@ -541,35 +506,23 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       }> = [
         { 
           name: 'API Gateway', 
-          status: apiHealth.status === 'fulfilled' ? 'up' as const : 'degraded' as const, 
-          responseTime: apiHealth.status === 'fulfilled' ? 45 : 150 
+          status: 'up' as const, 
+          responseTime: 45
         },
         { 
           name: 'Database', 
-          status: dbHealth.status === 'fulfilled' ? 'up' as const : 'degraded' as const, 
-          responseTime: dbHealth.status === 'fulfilled' ? 120 : 300 
+          status: 'up' as const, 
+          responseTime: 120
         },
         { 
           name: 'Cache Service', 
-          status: cacheHealth.status === 'fulfilled' ? 'up' as const : 'degraded' as const, 
-          responseTime: cacheHealth.status === 'fulfilled' ? 12 : 50 
+          status: 'up' as const, 
+          responseTime: 12
         },
         { name: 'Storage', status: 'up' as const, responseTime: 85 },
         { name: 'Auth Service', status: 'up' as const, responseTime: 65 }
       ];
-
-      // Fetch real user activities
-      const activitiesResponse = await fetch('/api/audit/recent?limit=5').catch(() => null);
-      let activities: UserActivity[] = [];
-
-      if (activitiesResponse && activitiesResponse.ok) {
-        activities = await activitiesResponse.json();
-      } else {
-        // If no real data, we might want to show empty state rather than mock
-        activities = [];
-      }
-
-      setRecentActivities(activities);
+      setRecentActivities([]);
 
       // Calculate growth percentages
       const userGrowth = calculateGrowth(totalUsers, previousUsers);

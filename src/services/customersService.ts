@@ -231,22 +231,47 @@ class CustomerService {
   // Get all customers aggregated from opportunities
   async getAllCustomers(params?: FilterParams): Promise<Customer[]> {
     try {
-      // First, fetch opportunities to extract customers
-      const opportunitiesResponse = await this.fetchWithFallback<ApiResponse>('/opportunities', {
+      // Backend enforces limit <= 100, so fetch paginated results and aggregate.
+      const pageSize = Math.min(params?.limit || 100, 100);
+      const firstPageResponse = await this.fetchWithFallback<ApiResponse>('/opportunities', {
         ...params,
-        limit: 1000,
+        page: params?.page || 1,
+        limit: pageSize,
       });
-      
-      // Handle different response formats - ensure we have an array
+
       let opportunities: any[] = [];
-      
-      if (Array.isArray(opportunitiesResponse)) {
-        opportunities = opportunitiesResponse;
-      } else if (opportunitiesResponse && typeof opportunitiesResponse === 'object' && 'data' in opportunitiesResponse) {
-        opportunities = Array.isArray(opportunitiesResponse.data) ? opportunitiesResponse.data : [];
-      } else if (opportunitiesResponse && typeof opportunitiesResponse === 'object') {
-        // If it's a single object, wrap it in an array
-        opportunities = [opportunitiesResponse];
+
+      if (Array.isArray(firstPageResponse)) {
+        opportunities = firstPageResponse;
+      } else if (firstPageResponse && typeof firstPageResponse === 'object' && 'data' in firstPageResponse) {
+        opportunities = Array.isArray(firstPageResponse.data) ? firstPageResponse.data : [];
+      } else if (firstPageResponse && typeof firstPageResponse === 'object') {
+        opportunities = [firstPageResponse];
+      }
+
+      const totalPages =
+        !params?.page && !params?.limit && firstPageResponse?.pagination?.totalPages
+          ? Math.min(firstPageResponse.pagination.totalPages, 50)
+          : 1;
+
+      if (totalPages > 1) {
+        const pageRequests: Promise<ApiResponse>[] = [];
+        for (let page = 2; page <= totalPages; page++) {
+          pageRequests.push(
+            this.fetchWithFallback<ApiResponse>('/opportunities', {
+              ...params,
+              page,
+              limit: pageSize,
+            })
+          );
+        }
+
+        const pageResponses = await Promise.all(pageRequests);
+        pageResponses.forEach(response => {
+          if (response && Array.isArray(response.data)) {
+            opportunities = opportunities.concat(response.data);
+          }
+        });
       }
       
       // Now opportunities is guaranteed to be an array

@@ -205,9 +205,6 @@ export default function SalesDashboard({ user }: SalesDashboardProps) {
       const [
         overview,
         recentOpps,
-        hotLeadsResponse,
-        warmLeadsResponse,
-        coldLeadsResponse,
         closedWon,
         scheduledAppointments,
         highValueOpps,
@@ -225,9 +222,6 @@ export default function SalesDashboard({ user }: SalesDashboardProps) {
           fromDate: dateRange.start,
           toDate: dateRange.end
         }),
-        opportunityService.getOpportunitiesByTier('hot'),
-        opportunityService.getOpportunitiesByTier('warm'),
-        opportunityService.getOpportunitiesByTier('cold'),
         opportunityService.filterOpportunities({ 
           status: 'won',
           fromDate: dateRange.start,
@@ -272,18 +266,6 @@ export default function SalesDashboard({ user }: SalesDashboardProps) {
       }
 
       // Process tier counts
-      if (hotLeadsResponse.status === 'fulfilled' && hotLeadsResponse.value) {
-        hotLeads = hotLeadsResponse.value.length || 0;
-      }
-      
-      if (warmLeadsResponse.status === 'fulfilled' && warmLeadsResponse.value) {
-        warmLeads = warmLeadsResponse.value.length || 0;
-      }
-      
-      if (coldLeadsResponse.status === 'fulfilled' && coldLeadsResponse.value) {
-        coldLeads = coldLeadsResponse.value.length || 0;
-      }
-
       totalLeads = totalOpportunities;
 
       // Process closed won
@@ -322,6 +304,10 @@ export default function SalesDashboard({ user }: SalesDashboardProps) {
       
       if (pipelineData.status === 'fulfilled' && pipelineData.value) {
         const byStatus = pipelineData.value.byStatus || {};
+        const byTier = pipelineData.value.byTier || {};
+        hotLeads = byTier.hot || hotLeads;
+        warmLeads = byTier.warm || warmLeads;
+        coldLeads = byTier.cold || coldLeads;
         
         // Map API status to pipeline stages
         const stageMap: Record<string, string> = {

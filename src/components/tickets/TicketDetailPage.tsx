@@ -23,7 +23,7 @@ export default function TicketDetailPage({ id }: TicketDetailPageProps) {
   const [selectedStatus, setSelectedStatus] = useState('open');
 
   const roleName = useMemo(() => {
-    const role = (user as Record<string, unknown> | null)?.role;
+    const role = (user as unknown as { role?: unknown } | null)?.role;
     if (typeof role === 'string') return role.toLowerCase();
     if (role && typeof role === 'object') {
       const name = (role as Record<string, unknown>).name;

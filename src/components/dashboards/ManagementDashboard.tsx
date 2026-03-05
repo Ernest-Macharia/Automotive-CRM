@@ -99,9 +99,9 @@ export default function ManagementDashboard({ user }: ManagementDashboardProps) 
       }
 
       // Fetch all relevant data
-      const [overviewResponse, opportunitiesResponse, revenueStatsResponse, topOppsResponse] = await Promise.allSettled([
+      const [overviewResponse, filteredStatsResponse, revenueStatsResponse, topOppsResponse] = await Promise.allSettled([
         opportunityService.getOpportunitiesOverview(),
-        opportunityService.getAllOpportunities({ limit: 1000 }),
+        opportunityService.getFilteredStats({}),
         opportunityService.getRevenueStats(),
         opportunityService.getTopOpportunities(5)
       ]);
@@ -114,50 +114,40 @@ export default function ManagementDashboard({ user }: ManagementDashboardProps) 
       let openOpportunities = 0;
       const opportunityTypes: Record<string, { count: number; revenue: number }> = {};
 
-      if (opportunitiesResponse.status === 'fulfilled' && opportunitiesResponse.value) {
-        const opportunities = opportunitiesResponse.value.data || [];
-        
-        totalOpportunities = opportunities.length;
-        
-        // Count won opportunities and calculate revenue
-        const wonOpps = opportunities.filter(opp => opp.status === 'won');
-        wonOpportunities = wonOpps.length;
-        
-        totalRevenue = wonOpps.reduce((sum, opp) => sum + (opp.total || 50000), 0);
-        
-        // Count active opportunities
-        const openStatuses = ['new', 'attempted_to_contact', 'prospecting', 'appointment_scheduled'];
-        activeOpportunities = opportunities.filter(opp => openStatuses.includes(opp.status)).length;
-        
-        // Calculate open opportunities for win rate
-        openOpportunities = opportunities.filter(opp => opp.status !== 'won' && opp.status !== 'lost').length;
-        
-        // Analyze opportunity types
-        opportunities.forEach(opp => {
-          const type = opp.opportunityType || 'SERVICE';
-          if (!opportunityTypes[type]) {
-            opportunityTypes[type] = { count: 0, revenue: 0 };
-          }
-          opportunityTypes[type].count++;
-          if (opp.status === 'won' && opp.total) {
-            opportunityTypes[type].revenue += opp.total;
-          }
-        });
+      if (filteredStatsResponse.status === 'fulfilled' && filteredStatsResponse.value) {
+        const filteredStats = filteredStatsResponse.value;
+        totalOpportunities = filteredStats.total || 0;
+        wonOpportunities = filteredStats.byStatus?.won || 0;
+        activeOpportunities =
+          (filteredStats.byStatus?.new || 0) +
+          (filteredStats.byStatus?.attempted_to_contact || 0) +
+          (filteredStats.byStatus?.prospecting || 0) +
+          (filteredStats.byStatus?.appointment_scheduled || 0);
+        openOpportunities = activeOpportunities;
       }
 
       // Process overview data
       if (overviewResponse.status === 'fulfilled' && overviewResponse.value) {
         const overview = overviewResponse.value;
         totalOpportunities = overview.totalopportunities || totalOpportunities;
+        activeOpportunities = overview.openopportunities || activeOpportunities;
         
         // Update with overview data if available
         if (overview.byOpportunityType) {
           overview.byOpportunityType.forEach((type: any) => {
-            if (type._id && !opportunityTypes[type._id]) {
-              opportunityTypes[type._id] = { count: type.count || 0, revenue: 0 };
+            if (type._id) {
+              const count = type.count || 0;
+              const estimatedRevenue =
+                totalOpportunities > 0 ? (count / totalOpportunities) * totalRevenue : 0;
+              opportunityTypes[type._id] = { count, revenue: estimatedRevenue };
             }
           });
         }
+      }
+
+      if (revenueStatsResponse.status === 'fulfilled' && revenueStatsResponse.value) {
+        const revenueStats = revenueStatsResponse.value;
+        totalRevenue = revenueStats.totalRevenue || totalRevenue;
       }
 
       // Calculate metrics
@@ -183,15 +173,7 @@ export default function ManagementDashboard({ user }: ManagementDashboardProps) 
       if (topOppsResponse.status === 'fulfilled' && topOppsResponse.value) {
         setTopOpportunities(topOppsResponse.value.slice(0, 5));
       } else {
-        // Fallback: get top opportunities by total value
-        if (opportunitiesResponse.status === 'fulfilled' && opportunitiesResponse.value) {
-          const opps = opportunitiesResponse.value.data || [];
-          const sortedByRevenue = opps
-            .filter(opp => opp.total)
-            .sort((a, b) => (b.total || 0) - (a.total || 0))
-            .slice(0, 5);
-          setTopOpportunities(sortedByRevenue);
-        }
+        setTopOpportunities([]);
       }
 
       // Generate performance trends (simulated based on data)

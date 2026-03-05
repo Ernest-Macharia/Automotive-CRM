@@ -168,8 +168,8 @@ export default function DeveloperDashboard({ user }: DeveloperDashboardProps) {
       }
 
       // Fetch multiple data sources in parallel
-      const [opportunitiesResponse, usersResponse, overviewResponse] = await Promise.allSettled([
-        opportunityService.getAllOpportunities({ limit: 1000 }),
+      const [filteredStatsResponse, usersResponse, overviewResponse] = await Promise.allSettled([
+        opportunityService.getFilteredStats({}),
         userService.getAllUsers(),
         opportunityService.getOpportunitiesOverview()
       ]);
@@ -179,9 +179,8 @@ export default function DeveloperDashboard({ user }: DeveloperDashboardProps) {
       let activeUsers = 0;
 
       // Process opportunities data
-      if (opportunitiesResponse.status === 'fulfilled' && opportunitiesResponse.value) {
-        const oppsData = opportunitiesResponse.value;
-        totalOpportunities = oppsData.data?.length || 0;
+      if (filteredStatsResponse.status === 'fulfilled' && filteredStatsResponse.value) {
+        totalOpportunities = filteredStatsResponse.value.total || 0;
       }
 
       // Process users data
