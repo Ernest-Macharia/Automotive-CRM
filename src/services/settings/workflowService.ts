@@ -288,6 +288,118 @@ class WorkflowService {
     }
   }
 
+  async createQuickWorkflow(
+    data: {
+      name: string;
+      module: CreateWorkflowDto['module'];
+      triggerEvent: CreateWorkflowDto['triggerEvent'];
+      actionType: string;
+      actionParams?: Record<string, any>;
+      active?: boolean;
+    },
+    userId?: string
+  ): Promise<Workflow> {
+    try {
+      const headers: Record<string, string> = {};
+      if (userId) headers['X-User-Id'] = userId;
+      return await extendedApiClient.post<typeof data, Workflow>('/workflows/quick', data, headers);
+    } catch (error) {
+      console.error('Error creating quick workflow:', error);
+      throw error;
+    }
+  }
+
+  async importWorkflow(config: any, userId?: string): Promise<Workflow> {
+    try {
+      const headers: Record<string, string> = {};
+      if (userId) headers['X-User-Id'] = userId;
+      return await extendedApiClient.post<any, Workflow>('/workflows/import', config, headers);
+    } catch (error) {
+      console.error('Error importing workflow:', error);
+      throw error;
+    }
+  }
+
+  async createWorkflowFromTemplate(
+    templateId: string,
+    variables?: Record<string, any>,
+    userId?: string
+  ): Promise<Workflow> {
+    try {
+      const headers: Record<string, string> = {};
+      if (userId) headers['X-User-Id'] = userId;
+      return await extendedApiClient.post<Record<string, any>, Workflow>(
+        `/workflows/from-template/${templateId}`,
+        variables || {},
+        headers
+      );
+    } catch (error) {
+      console.error(`Error creating workflow from template ${templateId}:`, error);
+      throw error;
+    }
+  }
+
+  async executeByTrigger(data: {
+    module: string;
+    triggerEvent: string;
+    payload: any;
+  }): Promise<any> {
+    try {
+      return await extendedApiClient.post<typeof data, any>('/workflows/execute/trigger', data);
+    } catch (error) {
+      console.error('Error executing workflow by trigger:', error);
+      throw error;
+    }
+  }
+
+  async executeByName(name: string, payload: Record<string, any>): Promise<any> {
+    try {
+      return await extendedApiClient.post<Record<string, any>, any>(
+        `/workflows/execute/name/${encodeURIComponent(name)}`,
+        payload
+      );
+    } catch (error) {
+      console.error(`Error executing workflow by name ${name}:`, error);
+      throw error;
+    }
+  }
+
+  async createQuickEmailWorkflow(config: Record<string, any>, userId?: string): Promise<Workflow> {
+    try {
+      const headers: Record<string, string> = {};
+      if (userId) headers['X-User-Id'] = userId;
+      return await extendedApiClient.post<Record<string, any>, Workflow>(
+        '/workflows/email/quick',
+        config,
+        headers
+      );
+    } catch (error) {
+      console.error('Error creating quick email workflow:', error);
+      throw error;
+    }
+  }
+
+  async triggerDirectEmail(data: Record<string, any>): Promise<any> {
+    try {
+      return await extendedApiClient.post<Record<string, any>, any>('/workflows/email/trigger', data);
+    } catch (error) {
+      console.error('Error triggering direct email:', error);
+      throw error;
+    }
+  }
+
+  async testEmailConfiguration(data: Record<string, any>): Promise<{ success: boolean; message: string }> {
+    try {
+      return await extendedApiClient.post<Record<string, any>, { success: boolean; message: string }>(
+        '/workflows/email/test',
+        data
+      );
+    } catch (error) {
+      console.error('Error testing email configuration:', error);
+      throw error;
+    }
+  }
+
   // 3. Get all workflows
   async getAllWorkflows(params?: FilterWorkflowsParams): Promise<PaginatedWorkflows> {
     try {
@@ -468,6 +580,33 @@ class WorkflowService {
       return await extendedApiClient.get<Workflow[]>(`/workflows/trigger/${triggerEvent}`);
     } catch (error) {
       console.error(`Error getting workflows for trigger event ${triggerEvent}:`, error);
+      throw error;
+    }
+  }
+
+  async getWorkflowTemplates(): Promise<any[]> {
+    try {
+      return await extendedApiClient.get<any[]>('/workflows/templates');
+    } catch (error) {
+      console.error('Error fetching workflow templates:', error);
+      throw error;
+    }
+  }
+
+  async getAvailableModulesAndEvents(): Promise<any> {
+    try {
+      return await extendedApiClient.get<any>('/workflows/modules/available');
+    } catch (error) {
+      console.error('Error fetching available workflow modules/events:', error);
+      throw error;
+    }
+  }
+
+  async getAvailableActions(): Promise<any[]> {
+    try {
+      return await extendedApiClient.get<any[]>('/workflows/actions/available');
+    } catch (error) {
+      console.error('Error fetching available workflow actions:', error);
       throw error;
     }
   }

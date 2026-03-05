@@ -9,7 +9,18 @@ import {
   ChevronRight, ChevronDown, MoreVertical, Share2, Loader2,
   Building, User, Globe, Smartphone, Mail
 } from 'lucide-react';
-import { reportService, type ReportSummary, type SalesPerformance, type RevenueTimelinePoint, type TopCustomer, type DateRangeDto } from '@/services/reportService';
+import {
+  reportService,
+  type ReportSummary,
+  type SalesPerformance,
+  type RevenueTimelinePoint,
+  type TopCustomer,
+  type DateRangeDto,
+  type SlaComplianceReport,
+  type LisCompletenessReport,
+  type WeeklyReportSettings
+} from '@/services/reportService';
+import { emailScheduleService, type EmailSchedule } from '@/services/emailScheduleService';
 import { useToast } from '@/contexts/ToastContext';
 
 // Skeleton Loading Components
@@ -69,6 +80,11 @@ export default function ReportsDashboard() {
   const [salesPerformance, setSalesPerformance] = useState<SalesPerformance | null>(null);
   const [revenueTimeline, setRevenueTimeline] = useState<RevenueTimelinePoint[]>([]);
   const [topCustomers, setTopCustomers] = useState<TopCustomer[]>([]);
+  const [slaCompliance, setSlaCompliance] = useState<SlaComplianceReport | null>(null);
+  const [lisCompleteness, setLisCompleteness] = useState<LisCompletenessReport | null>(null);
+  const [weeklySettings, setWeeklySettings] = useState<WeeklyReportSettings | null>(null);
+  const [emailSchedule, setEmailSchedule] = useState<EmailSchedule | null>(null);
+  const [nextScheduled, setNextScheduled] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -170,7 +186,17 @@ export default function ReportsDashboard() {
         setError(null);
         const dateRange = getDateRange();
 
-        const [summaryData, performanceData, timelineData, customersData] = await Promise.all([
+        const [
+          summaryData,
+          performanceData,
+          timelineData,
+          customersData,
+          slaData,
+          lisData,
+          weeklySettingsData,
+          myScheduleData,
+          nextScheduledData
+        ] = await Promise.all([
         reportService.getSummary(dateRange).catch(err => {
             console.error('Error in getSummary:', err);
             throw err;
@@ -186,13 +212,23 @@ export default function ReportsDashboard() {
         reportService.getTopCustomers(dateRange, 5).catch(err => {
             console.error('Error in getTopCustomers:', err);
             throw err;
-        })
+        }),
+        reportService.getSLACompliance(dateRange).catch(() => null),
+        reportService.getLISCompleteness(dateRange).catch(() => null),
+        reportService.getWeeklyReportSettings().catch(() => null),
+        emailScheduleService.getMySchedule().catch(() => null),
+        emailScheduleService.getNextScheduled().catch(() => null)
         ]);
 
         setSummary(summaryData);
         setSalesPerformance(performanceData);
         setRevenueTimeline(timelineData);
         setTopCustomers(customersData);
+        setSlaCompliance(slaData);
+        setLisCompleteness(lisData);
+        setWeeklySettings(weeklySettingsData);
+        setEmailSchedule(myScheduleData);
+        setNextScheduled(nextScheduledData?.nextScheduled || null);
     } catch (error: any) {
         console.error('❌ Error fetching report data:', error);
         
@@ -241,6 +277,16 @@ export default function ReportsDashboard() {
     } catch (error) {
       console.error('Error exporting report:', error);
       showToast('Failed to export report', 'error');
+    }
+  };
+
+  const handleSendTestWeeklyReport = async () => {
+    try {
+      const result = await reportService.sendTestWeeklyReport();
+      showToast(result?.message || 'Test weekly report request sent', 'success');
+    } catch (error) {
+      console.error('Error sending test weekly report:', error);
+      showToast('Failed to send test weekly report', 'error');
     }
   };
 
@@ -382,6 +428,13 @@ export default function ReportsDashboard() {
               >
                 <Activity className="h-4 w-4" />
                 Test API
+              </button>
+              <button
+                onClick={handleSendTestWeeklyReport}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl backdrop-blur-sm transition-colors flex items-center gap-2"
+              >
+                <Mail className="h-4 w-4" />
+                Test Weekly
               </button>
               <button
                 onClick={handleRefresh}
@@ -722,6 +775,39 @@ export default function ReportsDashboard() {
                         </div>
                       </div>
                     )}
+                  </div>
+                </div>
+
+                {/* SLA & Email Schedule */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-blue-100/50 p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">SLA Compliance</h3>
+                    <p className="text-3xl font-bold text-gray-900">
+                      {slaCompliance?.complianceRate?.toFixed?.(1) || '0.0'}%
+                    </p>
+                    <p className="text-sm text-gray-600 mt-2">
+                      Breaches: {slaCompliance?.breached || 0} / {slaCompliance?.totalOpportunities || 0}
+                    </p>
+                  </div>
+
+                  <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-blue-100/50 p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">LIS Completeness</h3>
+                    <p className="text-3xl font-bold text-gray-900">
+                      {lisCompleteness?.completenessRate?.toFixed?.(1) || '0.0'}%
+                    </p>
+                    <p className="text-sm text-gray-600 mt-2">
+                      Green/Amber/Red: {lisCompleteness?.green || 0}/{lisCompleteness?.amber || 0}/{lisCompleteness?.red || 0}
+                    </p>
+                  </div>
+
+                  <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-blue-100/50 p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">Email Schedule</h3>
+                    <p className="text-sm text-gray-700">
+                      {emailSchedule?.enabled ? `Enabled (${emailSchedule.frequency || 'weekly'})` : 'Disabled'}
+                    </p>
+                    <p className="text-sm text-gray-600 mt-2">
+                      Next run: {nextScheduled ? new Date(nextScheduled).toLocaleString() : (weeklySettings?.nextRun ? new Date(weeklySettings.nextRun).toLocaleString() : 'Not scheduled')}
+                    </p>
                   </div>
                 </div>
               </div>

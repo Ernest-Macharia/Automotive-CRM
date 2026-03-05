@@ -977,6 +977,19 @@ class WorkOrderService {
     }
   }
 
+  // POST /api/v1/workorder/{id}/test-start-notification
+  async testStartNotification(workOrderId: string): Promise<{ success?: boolean; message: string }> {
+    try {
+      return await apiClient.post<any, { success?: boolean; message: string }>(
+        `${this.basePath}/${workOrderId}/test-start-notification`,
+        {}
+      );
+    } catch (error) {
+      console.error(`Error triggering test start notification for work order ${workOrderId}:`, error);
+      throw error;
+    }
+  }
+
   // GET /api/v1/workorder/stats/summary
   async getWorkOrderStats(): Promise<WorkOrderStats> {
     try {

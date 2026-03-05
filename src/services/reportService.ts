@@ -84,6 +84,45 @@ export interface DashboardSummary {
   topCustomers: TopCustomer[];
 }
 
+export interface SlaComplianceReport {
+  totalOpportunities: number;
+  compliant: number;
+  breached: number;
+  complianceRate: number;
+  byBreachType?: Record<string, number>;
+  byLISStatus?: Record<string, number>;
+  averageTimeToBreach?: number;
+  reassignments?: number;
+}
+
+export interface LisCompletenessReport {
+  total: number;
+  green: number;
+  amber: number;
+  red: number;
+  completenessRate: number;
+  averageScore?: number;
+  commonMissingFields?: Array<{ field: string; count: number }>;
+  byType?: Record<string, { green: number; amber: number; red: number }>;
+}
+
+export interface SlaTrendReport {
+  byDay?: Array<{ date: string; total: number; breached: number; complianceRate: number }>;
+  summary?: {
+    period: string;
+    averageCompliance: number;
+    improvementTrend?: string;
+    peakBreachDay?: { date: string; breaches: number };
+  };
+}
+
+export interface WeeklyReportSettings {
+  adminEmails: string[];
+  schedule: string;
+  timezone: string;
+  nextRun: string;
+}
+
 export interface DateRangeDto {
   from?: string;
   to?: string;
@@ -199,6 +238,103 @@ class ReportService {
       return await apiClient.get<DashboardSummary>('/reports/dashboard', queryParams);
     } catch (error) {
       console.error('Error getting dashboard summary:', error);
+      throw error;
+    }
+  }
+
+  // 10. Get enhanced dashboard with SLA/LIS metrics
+  async getDashboardWithSLA(params?: DateRangeDto): Promise<any> {
+    try {
+      const queryParams = this.buildQueryParams(params);
+      return await apiClient.get<any>('/reports/dashboard/with-sla', queryParams);
+    } catch (error) {
+      console.error('Error getting dashboard with SLA:', error);
+      throw error;
+    }
+  }
+
+  // 11. Get SLA compliance report
+  async getSLACompliance(params?: DateRangeDto): Promise<SlaComplianceReport> {
+    try {
+      const queryParams = this.buildQueryParams(params);
+      return await apiClient.get<SlaComplianceReport>('/reports/sla/compliance', queryParams);
+    } catch (error) {
+      console.error('Error getting SLA compliance report:', error);
+      throw error;
+    }
+  }
+
+  // 12. Get SLA reassignment report
+  async getSLAReassignments(params?: DateRangeDto): Promise<any> {
+    try {
+      const queryParams = this.buildQueryParams(params);
+      return await apiClient.get<any>('/reports/sla/reassignments', queryParams);
+    } catch (error) {
+      console.error('Error getting SLA reassignment report:', error);
+      throw error;
+    }
+  }
+
+  // 13. Get LIS completeness report
+  async getLISCompleteness(params?: DateRangeDto): Promise<LisCompletenessReport> {
+    try {
+      const queryParams = this.buildQueryParams(params);
+      return await apiClient.get<LisCompletenessReport>('/reports/lis/completeness', queryParams);
+    } catch (error) {
+      console.error('Error getting LIS completeness report:', error);
+      throw error;
+    }
+  }
+
+  // 14. Get SLA trend
+  async getSLATrend(params?: DateRangeDto): Promise<SlaTrendReport> {
+    try {
+      const queryParams = this.buildQueryParams(params);
+      return await apiClient.get<SlaTrendReport>('/reports/sla/trend', queryParams);
+    } catch (error) {
+      console.error('Error getting SLA trend:', error);
+      throw error;
+    }
+  }
+
+  // 15. Send test weekly report email
+  async sendTestWeeklyReport(email?: string): Promise<{ success?: boolean; message: string }> {
+    try {
+      const queryParams: Record<string, string> = {};
+      if (email) queryParams.email = email;
+      return await apiClient.get<{ success?: boolean; message: string }>(
+        '/reports/weekly-report/test',
+        queryParams
+      );
+    } catch (error) {
+      console.error('Error sending test weekly report:', error);
+      throw error;
+    }
+  }
+
+  // 16. Send weekly report for custom period
+  async sendCustomWeeklyReport(payload: {
+    emails: string[];
+    from: string;
+    to: string;
+  }): Promise<{ success?: boolean; message: string }> {
+    try {
+      return await apiClient.post<typeof payload, { success?: boolean; message: string }>(
+        '/reports/weekly-report/send',
+        payload
+      );
+    } catch (error) {
+      console.error('Error sending custom weekly report:', error);
+      throw error;
+    }
+  }
+
+  // 17. Get weekly report settings
+  async getWeeklyReportSettings(): Promise<WeeklyReportSettings> {
+    try {
+      return await apiClient.get<WeeklyReportSettings>('/reports/weekly-report/settings');
+    } catch (error) {
+      console.error('Error getting weekly report settings:', error);
       throw error;
     }
   }

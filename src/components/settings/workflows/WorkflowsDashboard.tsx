@@ -374,6 +374,9 @@ export default function WorkflowsDashboard() {
   const [selectedWorkflows, setSelectedWorkflows] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<any>(null);
+  const [templatesCount, setTemplatesCount] = useState(0);
+  const [availableActionsCount, setAvailableActionsCount] = useState(0);
+  const [availableModulesCount, setAvailableModulesCount] = useState(0);
   
   // ✅ Independent state management for each workflow
   const [expandedWorkflows, setExpandedWorkflows] = useState<Record<string, boolean>>({});
@@ -382,6 +385,7 @@ export default function WorkflowsDashboard() {
   useEffect(() => {
     loadWorkflows();
     loadStats();
+    loadWorkflowMetadata();
   }, []);
 
   const loadWorkflows = async () => {
@@ -422,9 +426,36 @@ export default function WorkflowsDashboard() {
     }
   };
 
+  const loadWorkflowMetadata = async () => {
+    try {
+      const [templates, actions, modulesMeta] = await Promise.all([
+        workflowService.getWorkflowTemplates().catch(() => []),
+        workflowService.getAvailableActions().catch(() => []),
+        workflowService.getAvailableModulesAndEvents().catch(() => ({})),
+      ]);
+
+      setTemplatesCount(Array.isArray(templates) ? templates.length : 0);
+      setAvailableActionsCount(Array.isArray(actions) ? actions.length : 0);
+
+      const modulesList = Array.isArray(modulesMeta)
+        ? modulesMeta
+        : Array.isArray(modulesMeta?.modules)
+          ? modulesMeta.modules
+          : modulesMeta && typeof modulesMeta === 'object'
+            ? Object.keys(modulesMeta)
+            : [];
+      setAvailableModulesCount(modulesList.length);
+    } catch (error) {
+      console.error('Error loading workflow metadata:', error);
+      setTemplatesCount(0);
+      setAvailableActionsCount(0);
+      setAvailableModulesCount(0);
+    }
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadWorkflows(), loadStats()]);
+    await Promise.all([loadWorkflows(), loadStats(), loadWorkflowMetadata()]);
     setRefreshing(false);
     showToast('Workflows refreshed successfully', 'success');
   };
@@ -594,6 +625,32 @@ export default function WorkflowsDashboard() {
               <Plus className="h-5 w-5" />
               New Workflow
             </button>
+            <button
+              onClick={async () => {
+                try {
+                  const templates = await workflowService.getWorkflowTemplates();
+                  if (!templates.length) {
+                    showToast('No workflow templates available', 'info');
+                    return;
+                  }
+                  const firstTemplate = templates[0];
+                  const created = await workflowService.createWorkflowFromTemplate(
+                    firstTemplate.id || firstTemplate._id || String(firstTemplate.name || 'default'),
+                    {},
+                  );
+                  showToast('Workflow created from template', 'success');
+                  await loadWorkflows();
+                  router.push(`/settings/workflows/${created.id || created._id}`);
+                } catch (error) {
+                  console.error('Error creating workflow from template:', error);
+                  showToast('Failed to create workflow from template', 'error');
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors shadow-sm"
+            >
+              <Layers className="h-5 w-5" />
+              Use Template
+            </button>
           </div>
         </div>
 
@@ -630,6 +687,21 @@ export default function WorkflowsDashboard() {
             ))}
           </div>
         )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+            <p className="text-sm text-gray-600">Templates</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{templatesCount}</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+            <p className="text-sm text-gray-600">Available Actions</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{availableActionsCount}</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+            <p className="text-sm text-gray-600">Available Modules</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{availableModulesCount}</p>
+          </div>
+        </div>
       </div>
 
       {/* Bulk Actions */}

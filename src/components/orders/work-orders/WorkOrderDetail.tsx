@@ -19,7 +19,7 @@ import DelayTab from './tabs/DelayTab';
 import LoadingState from './LoadingState';
 import ErrorState from './ErrorState';
 import { workOrderService } from '@/services/workOrderService';
-import { Menu, X, ChevronDown, MoreVertical, RefreshCw, ArrowLeft, Wrench, Printer, Edit } from 'lucide-react';
+import { Menu, X, ChevronDown, MoreVertical, RefreshCw, ArrowLeft, Wrench, Printer, Edit, Bell } from 'lucide-react';
 
 interface WorkOrderDetailProps {
   orderId: string;
@@ -104,6 +104,18 @@ export default function WorkOrderDetail({ orderId }: WorkOrderDetailProps) {
     setActiveTab(tabId);
     setShowMobileTabs(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleTestStartNotification = async () => {
+    try {
+      const result = await workOrderService.testStartNotification(workOrder._id);
+      showToast(result?.message || 'Test notification sent', 'success');
+    } catch (error) {
+      console.error('Error triggering test start notification:', error);
+      showToast('Failed to trigger test start notification', 'error');
+    } finally {
+      setMobileMenuOpen(false);
+    }
   };
 
   if (loading) {
@@ -225,6 +237,13 @@ export default function WorkOrderDetail({ orderId }: WorkOrderDetailProps) {
             >
               <span className="text-lg">💰</span>
               Generate Invoice
+            </button>
+            <button
+              onClick={handleTestStartNotification}
+              className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3"
+            >
+              <Bell className="h-4 w-4 text-gray-600" />
+              Test Start Notification
             </button>
           </div>
         )}
