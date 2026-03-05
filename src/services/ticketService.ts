@@ -74,6 +74,55 @@ export interface AddTicketReplyData {
 class TicketService {
   private basePath = '/tickets';
 
+  private asRecord(value: unknown): Record<string, unknown> {
+    return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  }
+
+  private unwrapTicketPayload(payload: unknown): Record<string, unknown> {
+    const root = this.asRecord(payload);
+    const candidate =
+      root.ticket ??
+      root.data ??
+      root.result ??
+      root.item ??
+      root;
+
+    return this.asRecord(candidate);
+  }
+
+  private unwrapTicketArrayPayload(payload: unknown): Array<Record<string, unknown>> {
+    if (Array.isArray(payload)) {
+      return payload.map(item => this.asRecord(item));
+    }
+
+    const root = this.asRecord(payload);
+    const candidates = [
+      root.data,
+      root.tickets,
+      root.items,
+      root.results,
+    ];
+
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) {
+        return candidate.map(item => this.asRecord(item));
+      }
+    }
+
+    return [];
+  }
+
+  private unwrapReplyPayload(payload: unknown): Record<string, unknown> {
+    const root = this.asRecord(payload);
+    const candidate =
+      root.reply ??
+      root.data ??
+      root.result ??
+      root;
+
+    return this.asRecord(candidate);
+  }
+
   private normalizeTicket(data: Record<string, unknown>): Ticket {
     return {
       _id: (data._id as string) || undefined,
@@ -107,11 +156,11 @@ class TicketService {
 
   async createPublicTicket(data: CreatePublicTicketData): Promise<Ticket> {
     try {
-      const response = await apiClient.post<CreatePublicTicketData, Record<string, unknown>>(
+      const response = await apiClient.post<CreatePublicTicketData, unknown>(
         `${this.basePath}/public`,
         data
       );
-      return this.normalizeTicket(response);
+      return this.normalizeTicket(this.unwrapTicketPayload(response));
     } catch (error) {
       console.error('Error creating public ticket:', error);
       throw error;
@@ -120,8 +169,8 @@ class TicketService {
 
   async createTicket(data: CreateTicketData): Promise<Ticket> {
     try {
-      const response = await apiClient.post<CreateTicketData, Record<string, unknown>>(this.basePath, data);
-      return this.normalizeTicket(response);
+      const response = await apiClient.post<CreateTicketData, unknown>(this.basePath, data);
+      return this.normalizeTicket(this.unwrapTicketPayload(response));
     } catch (error) {
       console.error('Error creating ticket:', error);
       throw error;
@@ -137,8 +186,9 @@ class TicketService {
       if (params?.page !== undefined) query.page = String(params.page);
       if (params?.limit !== undefined) query.limit = String(params.limit);
 
-      const response = await apiClient.get<Array<Record<string, unknown>>>(this.basePath, query);
-      return Array.isArray(response) ? response.map(ticket => this.normalizeTicket(ticket)) : [];
+      const response = await apiClient.get<unknown>(this.basePath, query);
+      const items = this.unwrapTicketArrayPayload(response);
+      return items.map(ticket => this.normalizeTicket(ticket));
     } catch (error) {
       console.error('Error listing tickets:', error);
       throw error;
@@ -147,8 +197,8 @@ class TicketService {
 
   async getTicketById(id: string): Promise<Ticket> {
     try {
-      const response = await apiClient.get<Record<string, unknown>>(`${this.basePath}/${id}`);
-      return this.normalizeTicket(response);
+      const response = await apiClient.get<unknown>(`${this.basePath}/${id}`);
+      return this.normalizeTicket(this.unwrapTicketPayload(response));
     } catch (error) {
       console.error(`Error fetching ticket ${id}:`, error);
       throw error;
@@ -157,11 +207,11 @@ class TicketService {
 
   async queueTicket(id: string, data: UpdateTicketQueueData = {}): Promise<Ticket> {
     try {
-      const response = await apiClient.patch<UpdateTicketQueueData, Record<string, unknown>>(
+      const response = await apiClient.patch<UpdateTicketQueueData, unknown>(
         `${this.basePath}/${id}/queue`,
         data
       );
-      return this.normalizeTicket(response);
+      return this.normalizeTicket(this.unwrapTicketPayload(response));
     } catch (error) {
       console.error(`Error queueing ticket ${id}:`, error);
       throw error;
@@ -170,11 +220,11 @@ class TicketService {
 
   async updateTicketStatus(id: string, data: UpdateTicketStatusData): Promise<Ticket> {
     try {
-      const response = await apiClient.patch<UpdateTicketStatusData, Record<string, unknown>>(
+      const response = await apiClient.patch<UpdateTicketStatusData, unknown>(
         `${this.basePath}/${id}/status`,
         data
       );
-      return this.normalizeTicket(response);
+      return this.normalizeTicket(this.unwrapTicketPayload(response));
     } catch (error) {
       console.error(`Error updating ticket ${id} status:`, error);
       throw error;
@@ -183,20 +233,21 @@ class TicketService {
 
   async addReply(id: string, data: AddTicketReplyData): Promise<TicketReply> {
     try {
-      const response = await apiClient.post<AddTicketReplyData, Record<string, unknown>>(
+      const response = await apiClient.post<AddTicketReplyData, unknown>(
         `${this.basePath}/${id}/replies`,
         data
       );
+      const reply = this.unwrapReplyPayload(response);
 
       return {
-        _id: (response._id as string) || undefined,
-        id: (response.id as string) || (response._id as string) || undefined,
-        message: (response.message as string) || '',
-        authorId: (response.authorId as string) || undefined,
-        authorName: (response.authorName as string) || undefined,
-        isInternal: Boolean(response.isInternal),
-        createdAt: (response.createdAt as string) || undefined,
-        updatedAt: (response.updatedAt as string) || undefined,
+        _id: (reply._id as string) || undefined,
+        id: (reply.id as string) || (reply._id as string) || undefined,
+        message: (reply.message as string) || '',
+        authorId: (reply.authorId as string) || undefined,
+        authorName: (reply.authorName as string) || undefined,
+        isInternal: Boolean(reply.isInternal),
+        createdAt: (reply.createdAt as string) || undefined,
+        updatedAt: (reply.updatedAt as string) || undefined,
       };
     } catch (error) {
       console.error(`Error adding reply to ticket ${id}:`, error);

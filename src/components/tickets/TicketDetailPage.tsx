@@ -19,6 +19,7 @@ export default function TicketDetailPage({ id }: TicketDetailPageProps) {
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [reply, setReply] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('open');
 
@@ -34,20 +35,40 @@ export default function TicketDetailPage({ id }: TicketDetailPageProps) {
 
   const canManage = roleName === 'admin' || roleName === 'superadmin' || roleName === 'super_administrator';
 
+  const getErrorStatus = (error: unknown): number | undefined => {
+    if (!error || typeof error !== 'object') return undefined;
+    const maybeStatus = (error as { status?: unknown }).status;
+    return typeof maybeStatus === 'number' ? maybeStatus : undefined;
+  };
+
   const loadTicket = useCallback(async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       const data = await ticketService.getTicketById(id);
       setTicket(data);
       setSelectedStatus(data.status || 'open');
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error loading ticket:', error);
-      showToast('Failed to load ticket', 'error');
-      router.push('/tickets');
+      const status = getErrorStatus(error);
+
+      if (status === 403) {
+        const message = 'You cannot view this ticket because it belongs to a different organization.';
+        setLoadError(message);
+        showToast(message, 'error');
+      } else if (status === 404) {
+        const message = 'Ticket not found.';
+        setLoadError(message);
+        showToast(message, 'error');
+      } else {
+        const message = 'Failed to load ticket. Please try again.';
+        setLoadError(message);
+        showToast(message, 'error');
+      }
     } finally {
       setLoading(false);
     }
-  }, [id, router, showToast]);
+  }, [id, showToast]);
 
   useEffect(() => {
     loadTicket();
@@ -106,7 +127,11 @@ export default function TicketDetailPage({ id }: TicketDetailPageProps) {
   }
 
   if (!ticket) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-500">Ticket not found.</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-500 px-4 text-center">
+        {loadError || 'Ticket not found.'}
+      </div>
+    );
   }
 
   const replies: TicketReply[] = ticket.replies || [];
