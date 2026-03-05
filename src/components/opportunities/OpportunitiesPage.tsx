@@ -294,6 +294,7 @@ function KanbanColumn({
   columnLoading,
   loadMore,
 }: KanbanColumnProps) {
+  const CARD_HEIGHT = 228;
   const router = useRouter();
   const [dropping, setDropping] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -386,7 +387,7 @@ function KanbanColumn({
         const container = containerRef.current;
         const scrollTop = container.scrollTop;
         const containerHeight = container.clientHeight;
-        const itemHeight = 280;
+        const itemHeight = CARD_HEIGHT;
         
         const start = Math.max(0, Math.floor(scrollTop / itemHeight) - 2);
         const end = Math.min(
@@ -421,7 +422,7 @@ function KanbanColumn({
         ref={containerRef}
         className="h-full overflow-y-auto pr-1 scrollbar-thin"
       >
-        <div style={{ height: `${opps.length * 280}px`, position: 'relative' }}>
+        <div style={{ height: `${opps.length * CARD_HEIGHT}px`, position: 'relative' }}>
           {opps.slice(visibleRange.start, visibleRange.end).map((opportunity, index) => {
             const actualIndex = visibleRange.start + index;
             return (
@@ -429,11 +430,10 @@ function KanbanColumn({
                 key={opportunity._id}
                 style={{
                   position: 'absolute',
-                  top: `${actualIndex * 220}px`,
+                  top: `${actualIndex * CARD_HEIGHT}px`,
                   width: '100%',
-                  height: '220px'
+                  height: `${CARD_HEIGHT}px`
                 }}
-                className="mb-2"
               >
                 <OpportunityCard
                   opportunity={opportunity}
@@ -454,7 +454,7 @@ function KanbanColumn({
             <div 
               style={{
                 position: 'absolute',
-                top: `${opps.length * 220}px`,
+                top: `${opps.length * CARD_HEIGHT}px`,
                 width: '100%',
               }}
               className="py-4 flex justify-center"
@@ -1061,23 +1061,23 @@ export default function OpportunitiesContent() {
   });
 
   const [stagePagination, setStagePagination] = useState<Record<StageId, { page: number; hasMore: boolean }>>({
-    new: { page: 1, hasMore: true },
-    attempted_to_contact: { page: 1, hasMore: true },
-    prospecting: { page: 1, hasMore: true },
-    appointment_scheduled: { page: 1, hasMore: true },
-    non_progressive: { page: 1, hasMore: true },
-    lost: { page: 1, hasMore: true },
+    new: { page: 0, hasMore: true },
+    attempted_to_contact: { page: 0, hasMore: true },
+    prospecting: { page: 0, hasMore: true },
+    appointment_scheduled: { page: 0, hasMore: true },
+    non_progressive: { page: 0, hasMore: true },
+    lost: { page: 0, hasMore: true },
   });
 
   useEffect(() => {
-  // Reset all stage pagination to page 1
+  // Reset all stage pagination to page 0 so first column-scroll fetch starts from page 1.
     setStagePagination({
-      new: { page: 1, hasMore: true },
-      attempted_to_contact: { page: 1, hasMore: true },
-      prospecting: { page: 1, hasMore: true },
-      appointment_scheduled: { page: 1, hasMore: true },
-      non_progressive: { page: 1, hasMore: true },
-      lost: { page: 1, hasMore: true },
+      new: { page: 0, hasMore: true },
+      attempted_to_contact: { page: 0, hasMore: true },
+      prospecting: { page: 0, hasMore: true },
+      appointment_scheduled: { page: 0, hasMore: true },
+      non_progressive: { page: 0, hasMore: true },
+      lost: { page: 0, hasMore: true },
     });
   }, [memoizedFilters, memoizedAdvancedFilters]);
   const loadMoreForStage = useCallback(async (stageId: StageId) => {
@@ -1107,15 +1107,24 @@ export default function OpportunitiesContent() {
           computedChildCounts: getChildCounts(opp)
         }));
 
-        // Append to existing opportunities
-        setOpportunities(prev => [...prev, ...processedOpportunities]);
+        // Append to existing opportunities without duplicates
+        setOpportunities(prev => {
+          const existingIds = new Set(prev.map(opp => opp._id));
+          const uniqueIncoming = processedOpportunities.filter(opp => !existingIds.has(opp._id));
+          return uniqueIncoming.length > 0 ? [...prev, ...uniqueIncoming] : prev;
+        });
         
         // Update pagination
+        const totalPages = response.pagination?.totalPages;
+        const hasMore = typeof totalPages === 'number'
+          ? nextPage < totalPages
+          : response.data.length >= 20;
+
         setStagePagination(prev => ({
           ...prev,
           [stageId]: {
             page: nextPage,
-            hasMore: response.data.length >= 20 // Assuming limit is 20
+            hasMore
           }
         }));
       } else {
