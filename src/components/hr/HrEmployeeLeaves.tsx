@@ -442,7 +442,7 @@ export default function HREmployeeLeaves({ profileId }: HREmployeeLeavesProps) {
                   </td>
                   <td className="px-6 py-4">
                     <button
-                      onClick={() => router.push(`/hr/leaves/${leave.profileId}`)}
+                      onClick={() => router.push(`/hr-portal/leaves/${leave.profileId}`)}
                       className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                     >
                       Manage

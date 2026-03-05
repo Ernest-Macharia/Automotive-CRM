@@ -471,7 +471,7 @@ export default function HREmployeeContracts({ contractId }: HREmployeeContractsP
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => router.push(`/hr/contracts/${contract.id}`)}
+                        onClick={() => router.push(`/hr-portal/contracts/${contract.id}`)}
                         className="p-1 text-blue-600 hover:text-blue-800"
                         title="View Details"
                       >
@@ -485,7 +485,7 @@ export default function HREmployeeContracts({ contractId }: HREmployeeContractsP
                         <Download className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => router.push(`/hr/contracts/${contract.id}/edit`)}
+                        onClick={() => router.push(`/hr-portal/contracts/${contract.id}/edit`)}
                         className="p-1 text-green-600 hover:text-green-800"
                         title="Edit Contract"
                       >

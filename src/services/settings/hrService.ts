@@ -337,6 +337,59 @@ export interface EmployeeHrDetails {
   };
 }
 
+export interface EmployeeAsset {
+  id: string;
+  _id?: string;
+  employeeId?: string;
+  profileId?: string;
+  employeeName?: string;
+  assetName: string;
+  assetTag?: string;
+  assetType?: string;
+  serialNumber?: string;
+  assignedDate?: string;
+  expectedReturnDate?: string;
+  actualReturnDate?: string;
+  condition?: string;
+  status: 'assigned' | 'returned' | 'maintenance' | string;
+  notes?: string;
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AssignEmployeeAssetData {
+  employeeUserId?: string;
+  employeeId?: string;
+  profileId?: string;
+  assetName: string;
+  assetTag?: string;
+  assetType?: string;
+  serialNumber?: string;
+  dateTaken?: string;
+  assignedDate?: string;
+  expectedReturnDate?: string;
+  condition?: string;
+  notes?: string;
+}
+
+export interface UpdateEmployeeAssetData {
+  assetName?: string;
+  assetTag?: string;
+  assetType?: string;
+  serialNumber?: string;
+  expectedReturnDate?: string;
+  condition?: string;
+  notes?: string;
+  status?: 'assigned' | 'returned' | 'maintenance' | string;
+}
+
+export interface ReturnEmployeeAssetData {
+  actualReturnDate?: string;
+  condition?: string;
+  notes?: string;
+}
+
 export interface LeaveRequest {
   _id?: string;
   requestId?: string;
@@ -395,9 +448,14 @@ class HrService {
 
   async submitLeaveRequest(leaveDto: CreateLeaveRequestDto): Promise<{ message: string; requestId: string; days: number; status: string }> {
     try {
+      const payload = {
+        ...leaveDto,
+        startDate: new Date(leaveDto.startDate).toISOString(),
+        endDate: new Date(leaveDto.endDate).toISOString(),
+      };
       const response = await apiClient.post<CreateLeaveRequestDto, any>(
         `${this.basePath}/leaves/submit`, 
-        leaveDto
+        payload as CreateLeaveRequestDto
       );
       return response;
     } catch (error) {
@@ -406,7 +464,7 @@ class HrService {
     }
   }
 
-  async getEmployeeLeaveRequests(userId: string, status?: string): Promise<LeaveRequest[]> {
+  async getEmployeeLeaveRequests(status?: string): Promise<LeaveRequest[]> {
     try {
       const params = new URLSearchParams();
       if (status) params.append('status', status);
@@ -415,6 +473,10 @@ class HrService {
       const response = await apiClient.get<any[]>(url);
       return response.map(item => this.normalizeLeaveRequest(item));
     } catch (error) {
+      const maybeStatus = (error as any)?.status;
+      if (maybeStatus === 404) {
+        return [];
+      }
       console.error('Error fetching employee leave requests:', error);
       throw error;
     }
@@ -466,9 +528,14 @@ class HrService {
 
   async createPerformancePlan(employeeId: string, data: CreatePerformancePlanData): Promise<{ message: string; plan: PerformancePlan }> {
     try {
+      const payload = {
+        ...data,
+        startDate: new Date(data.startDate).toISOString(),
+        endDate: new Date(data.endDate).toISOString(),
+      };
       const response = await apiClient.post<CreatePerformancePlanData, any>(
         `${this.basePath}/performance-plans/${employeeId}`, 
-        data
+        payload as CreatePerformancePlanData
       );
       return {
         message: response.message,
@@ -496,9 +563,13 @@ class HrService {
 
   async createIncidentReport(data: CreateIncidentReportData): Promise<{ message: string; report: IncidentReport }> {
     try {
+      const payload = {
+        ...data,
+        incidentDate: new Date(data.incidentDate).toISOString(),
+      };
       const response = await apiClient.post<CreateIncidentReportData, any>(
         `${this.basePath}/incidents`, 
-        data
+        payload as CreateIncidentReportData
       );
       return {
         message: response.message,
@@ -527,9 +598,13 @@ class HrService {
 
   async createPolicy(data: CreatePolicyData): Promise<{ message: string; policy: CompanyPolicy }> {
     try {
+      const payload = {
+        ...data,
+        effectiveDate: new Date(data.effectiveDate).toISOString(),
+      };
       const response = await apiClient.post<CreatePolicyData, any>(
         `${this.basePath}/policies`, 
-        data
+        payload as CreatePolicyData
       );
       return {
         message: response.message,
@@ -558,9 +633,15 @@ class HrService {
 
   async createWelfareProgram(data: CreateWelfareProgramData): Promise<{ message: string; program: WelfareProgram }> {
     try {
+      const payload = {
+        ...data,
+        startDate: new Date(data.startDate).toISOString(),
+        endDate: data.endDate ? new Date(data.endDate).toISOString() : undefined,
+        registrationDeadline: data.registrationDeadline ? new Date(data.registrationDeadline).toISOString() : undefined,
+      };
       const response = await apiClient.post<CreateWelfareProgramData, any>(
         `${this.basePath}/welfare`, 
-        data
+        payload as CreateWelfareProgramData
       );
       return {
         message: response.message,
@@ -638,6 +719,98 @@ class HrService {
       return response.map(balance => this.normalizeLeaveBalance(balance));
     } catch (error) {
       console.error('Error fetching leave balances:', error);
+      throw error;
+    }
+  }
+
+  async assignAsset(data: AssignEmployeeAssetData): Promise<{ message: string; asset: EmployeeAsset }> {
+    try {
+      const payload = {
+        ...data,
+        employeeUserId: data.employeeUserId || data.employeeId,
+        dateTaken: data.dateTaken || data.assignedDate || new Date().toISOString(),
+      };
+      const response = await apiClient.post<AssignEmployeeAssetData, any>(
+        `${this.basePath}/assets`,
+        payload
+      );
+      return {
+        message: response?.message || 'Asset assigned successfully',
+        asset: this.normalizeEmployeeAsset(response?.asset || response?.data || response),
+      };
+    } catch (error) {
+      console.error('Error assigning asset:', error);
+      throw error;
+    }
+  }
+
+  async getAssets(status?: string, employeeId?: string): Promise<EmployeeAsset[]> {
+    try {
+      const params = new URLSearchParams();
+      if (status) params.append('status', status);
+      if (employeeId) params.append('employeeId', employeeId);
+
+      const url = `${this.basePath}/assets${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await apiClient.get<any>(url);
+      const items = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.data)
+          ? response.data
+          : Array.isArray(response?.assets)
+            ? response.assets
+            : [];
+      return items.map((asset: any) => this.normalizeEmployeeAsset(asset));
+    } catch (error) {
+      console.error('Error fetching assets:', error);
+      throw error;
+    }
+  }
+
+  async getEmployeeAssets(employeeId: string): Promise<EmployeeAsset[]> {
+    try {
+      const response = await apiClient.get<any>(`${this.basePath}/employees/${employeeId}/assets`);
+      const items = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.data)
+          ? response.data
+          : Array.isArray(response?.assets)
+            ? response.assets
+            : [];
+      return items.map((asset: any) => this.normalizeEmployeeAsset(asset));
+    } catch (error) {
+      console.error(`Error fetching assets for employee ${employeeId}:`, error);
+      throw error;
+    }
+  }
+
+  async updateAsset(assetId: string, data: UpdateEmployeeAssetData): Promise<{ message: string; asset: EmployeeAsset }> {
+    try {
+      const response = await apiClient.put<UpdateEmployeeAssetData, any>(
+        `${this.basePath}/assets/${assetId}`,
+        data
+      );
+      return {
+        message: response?.message || 'Asset updated successfully',
+        asset: this.normalizeEmployeeAsset(response?.asset || response?.data || response),
+      };
+    } catch (error) {
+      console.error(`Error updating asset ${assetId}:`, error);
+      throw error;
+    }
+  }
+
+  async returnAsset(assetId: string, data: ReturnEmployeeAssetData = {}): Promise<{ message: string; asset: EmployeeAsset }> {
+    try {
+      const response = await apiClient.patch<ReturnEmployeeAssetData, any>(
+        `${this.basePath}/assets/${assetId}/return`,
+        data
+      );
+      return {
+        message: response?.message || 'Asset returned successfully',
+        asset: this.normalizeEmployeeAsset(response?.asset || response?.data || response),
+      };
+    } catch (error) {
+      console.error(`Error returning asset ${assetId}:`, error);
       throw error;
     }
   }
@@ -1097,6 +1270,29 @@ class HrService {
       message: data.message,
       priority: data.priority,
       action: data.action,
+    };
+  }
+
+  private normalizeEmployeeAsset(data: any): EmployeeAsset {
+    return {
+      id: data?._id || data?.id,
+      _id: data?._id,
+      employeeId: data?.employeeId,
+      profileId: data?.profileId,
+      employeeName: data?.employeeName || data?.employee?.name,
+      assetName: data?.assetName || data?.name || 'Unknown Asset',
+      assetTag: data?.assetTag,
+      assetType: data?.assetType || data?.type,
+      serialNumber: data?.serialNumber,
+      assignedDate: data?.assignedDate,
+      expectedReturnDate: data?.expectedReturnDate,
+      actualReturnDate: data?.actualReturnDate,
+      condition: data?.condition,
+      status: data?.status || 'assigned',
+      notes: data?.notes,
+      active: data?.active !== undefined ? data.active : true,
+      createdAt: data?.createdAt,
+      updatedAt: data?.updatedAt,
     };
   }
 

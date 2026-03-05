@@ -6,6 +6,8 @@ import {
   Eye, Download, Edit, User, Building, Briefcase, Target, 
   Heart, UserCheck, UserPlus, TrendingUp, TrendingDown 
 } from 'lucide-react';
+import HrAssets from './HrAssets';
+import HrAttendanceSummary from './HrAttendanceSummary';
 
 interface HRTabContentProps {
   activeTab: string;
@@ -100,7 +102,7 @@ export default function HRTabContent({
                     <p className="text-sm text-gray-600">{leave.department}</p>
                   </div>
                   <button
-                    onClick={() => router.push(`/hr/leaves/${leave.profileId}`)}
+                    onClick={() => router.push(`/hr-portal/leaves/${leave.profileId}`)}
                     className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg"
                   >
                     Review
@@ -185,7 +187,7 @@ export default function HRTabContent({
                       </td>
                       <td className="py-3">
                         <button
-                          onClick={() => router.push(`/hr/performance/${plan._id}`)}
+                          onClick={() => router.push(`/hr-portal/performance/${plan._id}`)}
                           className="text-blue-600 hover:text-blue-800 text-sm"
                         >
                           View
@@ -258,7 +260,7 @@ export default function HRTabContent({
                 </td>
                 <td className="px-4 py-4">
                   <button
-                    onClick={() => router.push(`/hr/leaves/${leave.profileId}`)}
+                    onClick={() => router.push(`/hr-portal/leaves/${leave.profileId}`)}
                     className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg"
                   >
                     Manage
@@ -333,7 +335,7 @@ export default function HRTabContent({
                   </td>
                   <td className="px-4 py-4">
                     <button
-                      onClick={() => router.push(`/hr/contracts/${contract._id}`)}
+                      onClick={() => router.push(`/hr-portal/contracts/${contract._id}`)}
                       className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg"
                     >
                       View
@@ -399,7 +401,7 @@ export default function HRTabContent({
                 </td>
                 <td className="px-4 py-4">
                   <button
-                    onClick={() => router.push(`/hr/incidents/${incident._id}`)}
+                    onClick={() => router.push(`/hr-portal/incidents/${incident._id}`)}
                     className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg"
                   >
                     View
@@ -479,7 +481,7 @@ export default function HRTabContent({
                   </td>
                   <td className="px-4 py-4">
                     <button
-                      onClick={() => router.push(`/hr/performance/${plan._id}`)}
+                      onClick={() => router.push(`/hr-portal/performance/${plan._id}`)}
                       className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg"
                     >
                       View
@@ -546,7 +548,7 @@ export default function HRTabContent({
                 </td>
                 <td className="px-4 py-4">
                   <button
-                    onClick={() => router.push(`/hr/recruitment/${candidate._id}`)}
+                    onClick={() => router.push(`/hr-portal/recruitment/${candidate._id}`)}
                     className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg"
                   >
                     View
@@ -617,7 +619,7 @@ export default function HRTabContent({
               </div>
               
               <button
-                onClick={() => router.push(`/hr/welfare/${program._id}`)}
+                onClick={() => router.push(`/hr-portal/welfare/${program._id}`)}
                 className="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 View Details
@@ -674,7 +676,7 @@ export default function HRTabContent({
                 </td>
                 <td className="px-4 py-4">
                   <button
-                    onClick={() => router.push(`/hr/policies/${policy._id}`)}
+                    onClick={() => router.push(`/hr-portal/policies/${policy._id}`)}
                     className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg"
                   >
                     View
@@ -693,6 +695,14 @@ export default function HRTabContent({
         </table>
       </div>
     );
+  }
+
+  if (activeTab === 'assets') {
+    return <HrAssets searchTerm={searchTerm} />;
+  }
+
+  if (activeTab === 'attendance') {
+    return <HrAttendanceSummary searchTerm={searchTerm} />;
   }
 
   return null;

@@ -34,7 +34,7 @@ export default function EmployeeLeaveRequests() {
   const loadMyLeaveRequests = async () => {
     try {
       setLoading(true);
-      const data = await hrService.getEmployeeLeaveRequests('user-id', filterStatus !== 'all' ? filterStatus : undefined);
+      const data = await hrService.getEmployeeLeaveRequests(filterStatus !== 'all' ? filterStatus : undefined);
       setLeaveRequests(data);
     } catch (error) {
       console.error('Error loading leave requests:', error);

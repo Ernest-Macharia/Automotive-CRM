@@ -1,8 +1,8 @@
 'use client';
 
 interface HRTabNavigationProps {
-  activeTab: 'overview' | 'leaves' | 'contracts' | 'performance' | 'incidents' | 'recruitment' | 'welfare' | 'policies';
-  setActiveTab: (tab: 'overview' | 'leaves' | 'contracts' | 'performance' | 'incidents' | 'recruitment' | 'welfare' | 'policies') => void;
+  activeTab: 'overview' | 'leaves' | 'contracts' | 'performance' | 'incidents' | 'recruitment' | 'welfare' | 'policies' | 'assets' | 'attendance';
+  setActiveTab: (tab: 'overview' | 'leaves' | 'contracts' | 'performance' | 'incidents' | 'recruitment' | 'welfare' | 'policies' | 'assets' | 'attendance') => void;
 }
 
 export default function HRTabNavigation({ activeTab, setActiveTab }: HRTabNavigationProps) {
@@ -14,7 +14,9 @@ export default function HRTabNavigation({ activeTab, setActiveTab }: HRTabNaviga
     'incidents',
     'recruitment',
     'welfare',
-    'policies'
+    'policies',
+    'assets',
+    'attendance'
   ] as const;
 
   return (

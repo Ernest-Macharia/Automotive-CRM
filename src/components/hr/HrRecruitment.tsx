@@ -713,7 +713,7 @@ export default function HrRecruitment({ candidateId }: HrRecruitmentProps) {
             </select>
             
             <button
-              onClick={() => router.push('/hr/recruitment/create')}
+              onClick={() => router.push('/hr-portal/recruitment/create')}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
             >
               <Plus className="h-4 w-4" />
@@ -792,14 +792,14 @@ export default function HrRecruitment({ candidateId }: HrRecruitmentProps) {
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => router.push(`/hr/recruitment/${candidate._id || candidate.id}`)}
+                      onClick={() => router.push(`/hr-portal/recruitment/${candidate._id || candidate.id}`)}
                       className="p-1 text-blue-600 hover:text-blue-800"
                       title="View Details"
                     >
                       <Eye className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => router.push(`/hr/recruitment/${candidate._id || candidate.id}/edit`)}
+                      onClick={() => router.push(`/hr-portal/recruitment/${candidate._id || candidate.id}/edit`)}
                       className="p-1 text-green-600 hover:text-green-800"
                       title="Edit Candidate"
                     >
@@ -832,7 +832,7 @@ export default function HrRecruitment({ candidateId }: HrRecruitmentProps) {
             {searchTerm ? 'Try a different search term' : 'No recruitment candidates available'}
           </p>
           <button
-            onClick={() => router.push('/hr/recruitment/create')}
+            onClick={() => router.push('/hr-portal/recruitment/create')}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Add First Candidate

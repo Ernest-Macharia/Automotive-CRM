@@ -597,7 +597,7 @@ export default function HRPerformancePlans({ planId }: HRPerformancePlansProps) 
             </select>
             
             <button
-              onClick={() => router.push('/hr/performance/create')}
+              onClick={() => router.push('/hr-portal/performance/create')}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
             >
               <Plus className="h-4 w-4" />
@@ -681,21 +681,21 @@ export default function HRPerformancePlans({ planId }: HRPerformancePlansProps) 
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => router.push(`/hr/performance/${plan.id}`)}
+                        onClick={() => router.push(`/hr-portal/performance/${plan.id}`)}
                         className="p-1 text-blue-600 hover:text-blue-800"
                         title="View Details"
                       >
                         <Eye className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => router.push(`/hr/performance/${plan.id}/edit`)}
+                        onClick={() => router.push(`/hr-portal/performance/${plan.id}/edit`)}
                         className="p-1 text-green-600 hover:text-green-800"
                         title="Edit Plan"
                       >
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => router.push(`/hr/performance/${plan.id}/reviews`)}
+                        onClick={() => router.push(`/hr-portal/performance/${plan.id}/reviews`)}
                         className="p-1 text-purple-600 hover:text-purple-800"
                         title="View Reviews"
                       >
@@ -718,7 +718,7 @@ export default function HRPerformancePlans({ planId }: HRPerformancePlansProps) 
             {searchTerm ? 'Try a different search term' : 'No performance plans available'}
           </p>
           <button
-            onClick={() => router.push('/hr/performance/create')}
+            onClick={() => router.push('/hr-portal/performance/create')}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Create First Plan

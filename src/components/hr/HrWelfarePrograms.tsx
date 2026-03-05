@@ -405,7 +405,7 @@ export default function HrWelfarePrograms({ programId }: HrWelfareProgramsProps)
                   {selectedProgram.active ? 'Deactivate Program' : 'Activate Program'}
                 </button>
                 <button
-                  onClick={() => router.push(`/hr/welfare/${selectedProgram._id || selectedProgram.id}/edit`)}
+                  onClick={() => router.push(`/hr-portal/welfare/${selectedProgram._id || selectedProgram.id}/edit`)}
                   className="w-full px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
                 >
                   Edit Program
@@ -537,7 +537,7 @@ export default function HrWelfarePrograms({ programId }: HrWelfareProgramsProps)
             </select>
             
             <button
-              onClick={() => router.push('/hr/welfare/create')}
+              onClick={() => router.push('/hr-portal/welfare/create')}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
             >
               <Plus className="h-4 w-4" />
@@ -596,13 +596,13 @@ export default function HrWelfarePrograms({ programId }: HrWelfareProgramsProps)
               
               <div className="flex gap-2 mt-4">
                 <button
-                  onClick={() => router.push(`/hr/welfare/${program._id || program.id}`)}
+                  onClick={() => router.push(`/hr-portal/welfare/${program._id || program.id}`)}
                   className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
                 >
                   View Details
                 </button>
                 <button
-                  onClick={() => router.push(`/hr/welfare/${program._id || program.id}/edit`)}
+                  onClick={() => router.push(`/hr-portal/welfare/${program._id || program.id}/edit`)}
                   className="px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
                 >
                   Edit
@@ -620,7 +620,7 @@ export default function HrWelfarePrograms({ programId }: HrWelfareProgramsProps)
               {searchTerm ? 'Try a different search term' : 'No welfare programs available'}
             </p>
             <button
-              onClick={() => router.push('/hr/welfare/create')}
+              onClick={() => router.push('/hr-portal/welfare/create')}
               className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               Create First Program

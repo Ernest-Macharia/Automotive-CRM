@@ -573,7 +573,7 @@ export default function HrIncidents({ incidentId }: HrIncidentsProps) {
             </div>
             
             <button
-              onClick={() => router.push('/hr/incidents/create')}
+              onClick={() => router.push('/hr-portal/incidents/create')}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
             >
               <Plus className="h-4 w-4" />
@@ -641,14 +641,14 @@ export default function HrIncidents({ incidentId }: HrIncidentsProps) {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => router.push(`/hr/incidents/${incident._id || incident.id}`)}
+                        onClick={() => router.push(`/hr-portal/incidents/${incident._id || incident.id}`)}
                         className="p-1 text-blue-600 hover:text-blue-800"
                         title="View Details"
                       >
                         <Eye className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => router.push(`/hr/incidents/${incident._id || incident.id}/edit`)}
+                        onClick={() => router.push(`/hr-portal/incidents/${incident._id || incident.id}/edit`)}
                         className="p-1 text-green-600 hover:text-green-800"
                         title="Edit Incident"
                       >
@@ -683,7 +683,7 @@ export default function HrIncidents({ incidentId }: HrIncidentsProps) {
             {searchTerm ? 'Try a different search term' : 'No incident reports available'}
           </p>
           <button
-            onClick={() => router.push('/hr/incidents/create')}
+            onClick={() => router.push('/hr-portal/incidents/create')}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Report First Incident

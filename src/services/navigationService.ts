@@ -17,6 +17,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/orders/work-orders', label: 'Work Orders', icon: 'Wrench', permission: 'jobs.read' },
   { href: '/manychat', label: 'ManyChat', icon: 'MessageSquare', permission: 'manychat.access' },
   { href: '/tickets', label: 'Tickets', icon: 'Ticket' },
+  { href: '/employee', label: 'Employee Portal', icon: 'Briefcase' },
   { href: '/contacts', label: 'Contacts', icon: 'Users', permission: 'contacts.read' },
   { href: '/services', label: 'Services', icon: 'Settings', permission: 'services.read' },
   { href: '/products', label: 'Products', icon: 'Package', permission: 'products.read' },
@@ -117,6 +118,7 @@ export class NavigationService {
       Truck: require('lucide-react').Truck,
       ClipboardList: require('lucide-react').ClipboardList,
       Ticket: require('lucide-react').Ticket,
+      Briefcase: require('lucide-react').Briefcase,
       Settings: require('lucide-react').Settings,
       BarChart3: require('lucide-react').BarChart3,
     };

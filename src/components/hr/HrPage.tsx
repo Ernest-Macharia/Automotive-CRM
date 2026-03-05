@@ -74,8 +74,9 @@ export default function HRDashboardPage() {
 
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<HrDashboard | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'leaves' | 'contracts' | 'performance' | 'incidents' | 'recruitment' | 'welfare' | 'policies'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'leaves' | 'contracts' | 'performance' | 'incidents' | 'recruitment' | 'welfare' | 'policies' | 'assets' | 'attendance'>('overview');
   const [showAlertModal, setShowAlertModal] = useState<HrAlert | null>(null);
+  const [alerts, setAlerts] = useState<HrAlert[]>([]);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -109,13 +110,17 @@ export default function HRDashboardPage() {
     } else if (activeTab === 'policies') {
       loadPolicies();
     }
-  }, [activeTab]);
+  }, [activeTab, statusFilter, departmentFilter]);
 
   const loadDashboard = async () => {
     try {
       setLoading(true);
-      const data = await hrService.getDashboard();
+      const [data, alertData] = await Promise.all([
+        hrService.getDashboard(),
+        hrService.getHrAlerts().catch(() => []),
+      ]);
       setDashboardData(data);
+      setAlerts(alertData.length > 0 ? alertData : data.alerts || []);
     } catch (error) {
       console.error('Error loading HR dashboard:', error);
       showToast('Failed to load HR dashboard', 'error');
@@ -265,7 +270,7 @@ export default function HRDashboardPage() {
       value: dashboardData.statistics.totalEmployees,
       icon: Users,
       color: 'text-blue-600 bg-blue-100',
-      link: '/hr/employees'
+      link: '/hr-portal'
     },
     {
       label: 'Active Performance Plans',
@@ -279,42 +284,42 @@ export default function HRDashboardPage() {
       value: dashboardData.statistics.openIncidents,
       icon: AlertTriangle,
       color: 'text-red-600 bg-red-100',
-      link: '/hr/incidents'
+      link: '/hr-portal/incidents/create'
     },
     {
       label: 'Active Policies',
       value: dashboardData.statistics.activePolicies,
       icon: FileCheck,
       color: 'text-green-600 bg-green-100',
-      link: '/hr/policies'
+      link: '/hr-portal/policies/create'
     },
     {
       label: 'Welfare Programs',
       value: dashboardData.statistics.activeWelfarePrograms,
       icon: Heart,
       color: 'text-pink-600 bg-pink-100',
-      link: '/hr/welfare'
+      link: '/hr-portal/welfare/create'
     },
     {
       label: 'Active Candidates',
       value: dashboardData.statistics.activeCandidates,
       icon: UserCheck,
       color: 'text-orange-600 bg-orange-100',
-      link: '/hr/recruitment'
+      link: '/hr-portal/recruitment/create'
     },
     {
       label: 'Expiring Contracts',
       value: dashboardData.statistics.expiringContracts,
       icon: Clock,
       color: 'text-yellow-600 bg-yellow-100',
-      link: '/hr/contracts'
+      link: '/hr-portal'
     },
     {
       label: 'Low Leave Balance',
       value: dashboardData.statistics.lowLeaveBalance,
       icon: Calendar,
       color: 'text-cyan-600 bg-cyan-100',
-      link: '/hr/leaves'
+      link: '/hr-portal/leaves/create'
     }
   ] : [];
 
@@ -400,7 +405,7 @@ export default function HRDashboardPage() {
               <span className="hidden sm:inline">Refresh</span>
             </button>
             <button
-              onClick={() => router.push('/hr/reports')}
+              onClick={() => router.push('/reports')}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
             >
               <BarChart3 className="h-5 w-5" />
@@ -497,13 +502,21 @@ export default function HRDashboardPage() {
                 
                 <button
                   onClick={() => {
-                    if (activeTab === 'overview') router.push('/hr/reports');
+                    if (activeTab === 'overview') router.push('/reports');
+                    else if (activeTab === 'assets' || activeTab === 'attendance') return;
                     else router.push(`/hr-portal/${activeTab}/create`);
                   }}
+                  disabled={activeTab === 'assets' || activeTab === 'attendance'}
                   className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
                 >
                   <Plus className="h-4 w-4" />
-                  {activeTab === 'overview' ? 'Generate Report' : `Add ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}`}
+                  {activeTab === 'overview'
+                    ? 'Generate Report'
+                    : activeTab === 'assets'
+                      ? 'Use Assets Tab Actions'
+                      : activeTab === 'attendance'
+                        ? 'Attendance Sync'
+                        : `Add ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}`}
                 </button>
               </div>
             </div>
@@ -532,6 +545,14 @@ export default function HRDashboardPage() {
               />
             </div>
           </div>
+        </div>
+
+        <div className="xl:w-80">
+          <HRAlertsPanel
+            alerts={alerts}
+            onAlertClick={handleAlertAction}
+            getAlertPriorityColor={getAlertPriorityColor}
+          />
         </div>
       </div>
 

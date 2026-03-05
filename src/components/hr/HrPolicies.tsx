@@ -336,7 +336,7 @@ export default function HrPolicies({ policyId }: HrPoliciesProps) {
                   </button>
                 )}
                 <button
-                  onClick={() => router.push(`/hr/policies/${selectedPolicy._id || selectedPolicy.id}/edit`)}
+                  onClick={() => router.push(`/hr-portal/policies/${selectedPolicy._id || selectedPolicy.id}/edit`)}
                   className="w-full px-3 py-2 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700"
                 >
                   Edit Policy
@@ -464,7 +464,7 @@ export default function HrPolicies({ policyId }: HrPoliciesProps) {
             </div>
             
             <button
-              onClick={() => router.push('/hr/policies/create')}
+              onClick={() => router.push('/hr-portal/policies/create')}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
             >
               <Plus className="h-4 w-4" />
@@ -526,7 +526,7 @@ export default function HrPolicies({ policyId }: HrPoliciesProps) {
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => router.push(`/hr/policies/${policy._id || policy.id}`)}
+                      onClick={() => router.push(`/hr-portal/policies/${policy._id || policy.id}`)}
                       className="p-1 text-blue-600 hover:text-blue-800"
                       title="View Details"
                     >
@@ -546,7 +546,7 @@ export default function HrPolicies({ policyId }: HrPoliciesProps) {
                       <Download className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => router.push(`/hr/policies/${policy._id || policy.id}/edit`)}
+                      onClick={() => router.push(`/hr-portal/policies/${policy._id || policy.id}/edit`)}
                       className="p-1 text-green-600 hover:text-green-800"
                       title="Edit Policy"
                     >
@@ -568,7 +568,7 @@ export default function HrPolicies({ policyId }: HrPoliciesProps) {
             {searchTerm ? 'Try a different search term' : 'No company policies available'}
           </p>
           <button
-            onClick={() => router.push('/hr/policies/create')}
+            onClick={() => router.push('/hr-portal/policies/create')}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Create First Policy
