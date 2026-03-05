@@ -858,6 +858,49 @@ export default function OpportunitiesContent() {
     advancedFilters.hasJobCards, advancedFilters.isNurturing
   ]);
 
+  const hasActiveFilters = useMemo(() => {
+    const hasBasicFilters = Boolean(
+      memoizedFilters.status ||
+      memoizedFilters.source ||
+      memoizedFilters.type ||
+      memoizedFilters.tier ||
+      memoizedFilters.opportunityType ||
+      memoizedFilters.search ||
+      memoizedFilters.minScore !== undefined ||
+      memoizedFilters.maxScore !== undefined ||
+      memoizedFilters.fromDate ||
+      memoizedFilters.toDate ||
+      memoizedFilters.minTotal !== undefined ||
+      memoizedFilters.maxTotal !== undefined ||
+      memoizedFilters.hasServicesProducts !== undefined ||
+      memoizedFilters.hasVehicles !== undefined ||
+      memoizedFilters.hasQuotes !== undefined ||
+      memoizedFilters.hasJobCards !== undefined ||
+      memoizedFilters.isNurturing !== undefined ||
+      memoizedFilters.vehicleMake ||
+      memoizedFilters.vehicleModel ||
+      memoizedFilters.customerName ||
+      memoizedFilters.customerEmail ||
+      memoizedFilters.customerPhone ||
+      memoizedFilters.subject ||
+      memoizedFilters.priority !== undefined ||
+      (memoizedFilters.assignedTo !== undefined &&
+        memoizedFilters.assignedTo !== null &&
+        memoizedFilters.assignedTo !== '')
+    );
+
+    const hasAdvancedFilters = Boolean(
+      memoizedAdvancedFilters.multipleStatuses.length > 0 ||
+      memoizedAdvancedFilters.multipleSources.length > 0 ||
+      memoizedAdvancedFilters.hasVehicles !== undefined ||
+      memoizedAdvancedFilters.hasQuotes !== undefined ||
+      memoizedAdvancedFilters.hasJobCards !== undefined ||
+      memoizedAdvancedFilters.isNurturing !== undefined
+    );
+
+    return hasBasicFilters || hasAdvancedFilters;
+  }, [memoizedFilters, memoizedAdvancedFilters]);
+
   // Memoize helper functions
   const getAvatarColor = useCallback((type: string, score?: number) => {
     if (type === 'organization') return 'bg-purple-100 text-purple-600';
@@ -1163,13 +1206,19 @@ export default function OpportunitiesContent() {
         return;
       }
       
+      const statsParams: FilterParams = { ...params };
+      delete statsParams.page;
+      delete statsParams.limit;
+
       // Fetch fresh data
       const [response, filteredStatsResponse] = await Promise.all([
         opportunityService.getAllOpportunities(params),
-        opportunityService.getFilteredStats(params).catch((error) => {
-          console.warn('Failed to load filtered stats, falling back to response stats:', error);
-          return null;
-        }),
+        hasActiveFilters
+          ? opportunityService.getFilteredStats(statsParams).catch((error) => {
+              console.warn('Failed to load filtered stats, falling back to response stats:', error);
+              return null;
+            })
+          : Promise.resolve(null),
       ]);
       
       // Pre-compute all values for opportunities
@@ -1219,7 +1268,7 @@ export default function OpportunitiesContent() {
       setStatsLoading(false);
       setSearchLoading(false);
     }
-  }, [memoizedFilters, memoizedAdvancedFilters, showToast, getAvatarColor, getLeadScoreTier, getStageColor, getChildCounts]);
+  }, [memoizedFilters, memoizedAdvancedFilters, hasActiveFilters, showToast, getAvatarColor, getLeadScoreTier, getStageColor, getChildCounts]);
 
   // Fetch overview stats
   const fetchOverview = useCallback(async () => {
@@ -1293,14 +1342,39 @@ export default function OpportunitiesContent() {
 
   // Card metrics should reflect backend aggregates, not only the loaded page.
   const cardMetrics = useMemo(() => {
-    const total = filteredStats?.total ?? pagination?.total ?? opportunities.length;
-    const byTier = filteredStats?.byTier || {};
-    const byStatus = filteredStats?.byStatus || {};
+    const useFilteredStats = hasActiveFilters && !!filteredStats;
+    const byTier = (useFilteredStats ? filteredStats?.byTier : undefined) || {};
+    const byStatus = (useFilteredStats ? filteredStats?.byStatus : undefined) || {};
 
-    const hotLeads = byTier.hot ?? byTier.HOT ?? 0;
+    const totalFromStats =
+      typeof stats?.totalopportunities === 'number'
+        ? stats.totalopportunities
+        : typeof stats?.total === 'number'
+          ? stats.total
+          : undefined;
+    const openFromStats =
+      typeof stats?.openopportunities === 'number'
+        ? stats.openopportunities
+        : typeof stats?.open === 'number'
+          ? stats.open
+          : undefined;
+    const hotFromStats =
+      typeof stats?.hot === 'number'
+        ? stats.hot
+        : undefined;
+
+    const total = useFilteredStats
+      ? (filteredStats?.total ?? pagination?.total ?? opportunities.length)
+      : (totalFromStats ?? pagination?.total ?? opportunities.length);
+
+    const hotLeads = useFilteredStats
+      ? (byTier.hot ?? byTier.HOT ?? 0)
+      : (hotFromStats ?? 0);
     const wonCount = byStatus.won ?? 0;
     const lostCount = byStatus.lost ?? 0;
-    const activeDeals = Math.max(total - wonCount - lostCount, 0);
+    const activeDeals = useFilteredStats
+      ? Math.max(total - wonCount - lostCount, 0)
+      : (openFromStats ?? Math.max(total - wonCount - lostCount, 0));
     const winRate = total > 0 ? Math.round((wonCount / total) * 100) : 0;
 
     return {
@@ -1309,7 +1383,7 @@ export default function OpportunitiesContent() {
       activeDeals,
       winRate,
     };
-  }, [filteredStats, pagination?.total, opportunities.length]);
+  }, [hasActiveFilters, filteredStats, stats, pagination?.total, opportunities.length]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1576,13 +1650,6 @@ export default function OpportunitiesContent() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [scrolling, loading, creating]);
-
-  const hasActiveFilters = filters.status || filters.tier || filters.source || filters.type || 
-    filters.minScore || filters.maxScore || filters.fromDate || filters.toDate || 
-    filters.assignedTo || advancedFilters.multipleStatuses.length > 0 ||
-    advancedFilters.multipleSources.length > 0 || advancedFilters.hasVehicles !== undefined ||
-    advancedFilters.hasQuotes !== undefined || advancedFilters.hasJobCards !== undefined ||
-    advancedFilters.isNurturing !== undefined;
 
   const showSearchHelp = useMemo(() => {
     const trimmedSearch = searchQuery.trim();
