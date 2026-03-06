@@ -9,6 +9,7 @@ interface DuplicateModalProps {
   isOpen: boolean;
   onClose: () => void;
   onContinueAnyway: () => void;
+  allowCreateAnyway?: boolean;
   existingOpportunities: Opportunity[];
   newOpportunityData: any;
 }
@@ -17,6 +18,7 @@ export default function DuplicateModal({
   isOpen,
   onClose,
   onContinueAnyway,
+  allowCreateAnyway = true,
   existingOpportunities,
   newOpportunityData
 }: DuplicateModalProps) {
@@ -58,6 +60,14 @@ export default function DuplicateModal({
       case 'non_progressive': return 'Non Progressive';
       default: return status;
     }
+  };
+
+  const getAssignedToLabel = (assignedTo: Opportunity['assignedTo']) => {
+    if (!assignedTo) return 'Unassigned';
+    if (typeof assignedTo === 'string') return assignedTo;
+
+    const assignee = assignedTo as any;
+    return assignee.name || assignee.fullName || assignee.email || assignee.id || assignee._id || 'Assigned';
   };
 
   return (
@@ -147,7 +157,7 @@ export default function DuplicateModal({
                         </span>
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
                         <div>
                           <span className="text-gray-500">Customer:</span>
                           <p className="font-medium">{opportunity.customer.name}</p>
@@ -155,6 +165,10 @@ export default function DuplicateModal({
                         <div>
                           <span className="text-gray-500">Email:</span>
                           <p className="font-medium">{opportunity.customer.email || 'No email'}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Assigned To:</span>
+                          <p className="font-medium">{getAssignedToLabel(opportunity.assignedTo)}</p>
                         </div>
                         <div>
                           <span className="text-gray-500">Created:</span>
@@ -209,7 +223,9 @@ export default function DuplicateModal({
         <div className="border-t border-gray-200 p-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-sm text-gray-500">
-              Found {existingOpportunities.length} potential duplicate{existingOpportunities.length !== 1 ? 's' : ''}
+              {allowCreateAnyway
+                ? `Found ${existingOpportunities.length} potential duplicate${existingOpportunities.length !== 1 ? 's' : ''}`
+                : 'Duplicate creation is disabled for this flow. Use an existing opportunity.'}
             </div>
             
             <div className="flex items-center gap-3">
@@ -219,25 +235,25 @@ export default function DuplicateModal({
               >
                 Cancel
               </button>
-              
-              <button
-                onClick={() => {
-                  existingOpportunities.forEach(opp => {
-                  });
-                  onContinueAnyway();
-                }}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 font-medium shadow-sm transition-all flex items-center gap-2"
-              >
-                View Duplicates Details & Continue
-              </button>
-              
-              <button
-                onClick={onContinueAnyway}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-500 to-orange-600 text-white hover:from-red-600 hover:to-orange-700 font-medium shadow-sm transition-all flex items-center gap-2"
-              >
-                <AlertTriangle className="h-4 w-4" />
-                Create Anyway
-              </button>
+
+              {allowCreateAnyway && (
+                <>
+                  <button
+                    onClick={onContinueAnyway}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 font-medium shadow-sm transition-all flex items-center gap-2"
+                  >
+                    View Duplicates Details & Continue
+                  </button>
+
+                  <button
+                    onClick={onContinueAnyway}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-500 to-orange-600 text-white hover:from-red-600 hover:to-orange-700 font-medium shadow-sm transition-all flex items-center gap-2"
+                  >
+                    <AlertTriangle className="h-4 w-4" />
+                    Create Anyway
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

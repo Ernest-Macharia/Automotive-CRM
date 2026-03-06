@@ -797,28 +797,21 @@ export default function CreateOpportunityPage() {
     setIsSubmitting(true);
 
     try {
-      // Validate with duplicates
-      try {
-      // Use a simpler duplicate check that doesn't require the broken endpoint
       const similarOpportunities = await findSimilarOpportunities();
-      
-      if (similarOpportunities && similarOpportunities.length > 0) {
+
+      if (similarOpportunities.length > 0) {
         setDuplicateOpportunities(similarOpportunities);
         setShowDuplicateModal(true);
         setIsSubmitting(false);
         submitInFlightRef.current = false;
+        showToast('Duplicate opportunity detected. Creation is blocked.', 'warning', 4000);
         return;
       }
-    } catch (duplicateError) {
-      console.warn('Duplicate check failed, proceeding anyway:', duplicateError);
-      // Continue with creation even if duplicate check fails
-    }
 
-      // If no duplicates found, proceed with creation
       await createOpportunity();
     } catch (error: any) {
       console.error('Validation error:', error);
-      let errorMessage = 'Failed to validate opportunity.';
+      let errorMessage = 'Failed to validate duplicates. Opportunity was not created.';
       
       if (error?.response?.data?.validationErrors) {
         errorMessage = Array.isArray(error.response.data.validationErrors)
@@ -935,6 +928,14 @@ export default function CreateOpportunityPage() {
       showToast('Opportunity created successfully!', 'success', 3000);
 
     } catch (error: any) {
+      const duplicateFromApi = extractDuplicatesFromApiError(error);
+      if (duplicateFromApi.length > 0) {
+        setDuplicateOpportunities(duplicateFromApi);
+        setShowDuplicateModal(true);
+        showToast('Duplicate opportunity detected. Creation is blocked.', 'warning', 4000);
+        return;
+      }
+
       handleCreateOpportunityError(error);
     } finally {
       setIsSubmitting(false);
@@ -942,59 +943,43 @@ export default function CreateOpportunityPage() {
     }
   };
   const handleContinueAnyway = () => {
-    if (submitInFlightRef.current || isSubmitting) {
-      return;
-    }
-    setShowDuplicateModal(false);
-    submitInFlightRef.current = true;
-    setIsSubmitting(true);
-    createOpportunity();
+    showToast('Creating duplicates is disabled. Use an existing opportunity instead.', 'error', 4000);
   };
   const findSimilarOpportunities = async () => {
-    try {
-      const params: SimilarOpportunitiesRequest = {};
-      let hasParams = false;
-      
-      if (formData.email && formData.email.trim().length > 0) {
-        params.customerEmail = formData.email;
-        hasParams = true;
-      }
-      
-      if (formData.phone && formData.phone.trim().length > 0) {
-        params.customerPhone = `${formData.phoneCode}${formData.phone}`;
-        hasParams = true;
-      }
-      
-      if (formData.accountType === 'individual') {
-        if (formData.firstName && formData.firstName.trim().length > 0 && formData.lastName && formData.lastName.trim().length > 0) {
-          params.customerName = `${formData.firstName} ${formData.lastName}`.trim();
-          hasParams = true;
-        }
-      } else if (formData.accountType === 'organization' && formData.companyName && formData.companyName.trim().length > 0) {
-        params.customerName = formData.companyName;
-        hasParams = true;
-      }
-      
-      // Only call API if we have at least one valid parameter
-      if (hasParams) {
-        const similarOpportunities = await opportunityService.findSimilarOpportunities(params);
-        
-        if (similarOpportunities.length > 0) {
-          // You could show these in a modal or as suggestions
-          // Optional: Show a notification or suggestions
-          if (similarOpportunities.length > 0) {
-            showToast(`Found ${similarOpportunities.length} similar opportunity(s)`, 'info', 2000);
-          }
-        }
-        
-        return similarOpportunities;
-      }
-      
-      return [];
-    } catch (error) {
-      console.error('Error finding similar opportunities:', error);
-      return [];
+    const params: SimilarOpportunitiesRequest = {};
+    let hasParams = false;
+    
+    if (formData.email && formData.email.trim().length > 0) {
+      params.customerEmail = formData.email;
+      hasParams = true;
     }
+    
+    if (formData.phone && formData.phone.trim().length > 0) {
+      params.customerPhone = `${formData.phoneCode}${formData.phone}`;
+      hasParams = true;
+    }
+    
+    if (formData.accountType === 'individual') {
+      if (formData.firstName && formData.firstName.trim().length > 0 && formData.lastName && formData.lastName.trim().length > 0) {
+        params.customerName = `${formData.firstName} ${formData.lastName}`.trim();
+        hasParams = true;
+      }
+    } else if (formData.accountType === 'organization' && formData.companyName && formData.companyName.trim().length > 0) {
+      params.customerName = formData.companyName;
+      hasParams = true;
+    }
+    
+    // Require enough data for duplicate verification; fail closed.
+    if (!hasParams) {
+      throw new Error('Provide customer email, phone, or name to verify duplicates.');
+    }
+
+    const similarOpportunities = await opportunityService.findSimilarOpportunities(params);
+    if (similarOpportunities.length > 0) {
+      showToast(`Found ${similarOpportunities.length} similar opportunity(s)`, 'info', 2000);
+    }
+
+    return similarOpportunities;
   };
   const mapOpportunityTypeToServiceProductType = (
     opportunityType: 'SERVICE' | 'SALE' | 'REPAIR' | 'MAINTENANCE' | 'INSPECTION'
@@ -1029,10 +1014,87 @@ export default function CreateOpportunityPage() {
     bodyType: v.bodyType || undefined,
   });
 
+  const normalizeDuplicateOpportunity = (raw: any): Opportunity => {
+    const customer = raw?.customer || {};
+    const id = raw?._id || raw?.id || '';
+
+    return {
+      _id: String(id),
+      id: String(id),
+      type: (raw?.type || formData.accountType || 'individual') as Opportunity['type'],
+      subject: String(raw?.subject || 'Potential duplicate'),
+      status: (raw?.status || 'new') as Opportunity['status'],
+      source: raw?.source || undefined,
+      customer: {
+        name: String(customer?.name || ''),
+        email: customer?.email || undefined,
+        phone: customer?.phone || undefined,
+        companyName: customer?.companyName || undefined,
+        _id: String(customer?._id || customer?.id || ''),
+        id: String(customer?.id || customer?._id || ''),
+      },
+      vehicles: Array.isArray(raw?.vehicles) ? raw.vehicles : [],
+      jobCards: [],
+      waivers: [],
+      quotes: [],
+      assignedTo: raw?.assignedTo || null,
+      createdAt: raw?.createdAt || new Date().toISOString(),
+      updatedAt: raw?.updatedAt || new Date().toISOString(),
+      isNurturing: Boolean(raw?.isNurturing),
+      leadScore: raw?.leadScore
+        ? {
+            totalScore: Number(raw.leadScore.totalScore || 0),
+            tier: (raw.leadScore.tier || 'cold') as 'hot' | 'warm' | 'cold',
+            priority: Number(raw.leadScore.priority || 0),
+            lastCalculated: raw.leadScore.lastCalculated || new Date().toISOString(),
+          }
+        : undefined,
+    };
+  };
+
+  const extractDuplicatesFromApiError = (error: any): Opportunity[] => {
+    const parsePayload = (value: unknown): any | null => {
+      if (!value) return null;
+      if (typeof value === 'object') return value;
+      if (typeof value !== 'string') return null;
+
+      const marker = '): ';
+      const payload = value.includes(marker) ? value.split(marker).slice(1).join(marker) : value;
+      try {
+        return JSON.parse(payload);
+      } catch {
+        return null;
+      }
+    };
+
+    const parsed =
+      parsePayload(error?.response?.data) ||
+      parsePayload(error?.data) ||
+      parsePayload(error?.message);
+
+    const code = parsed?.code || parsed?.errorCode;
+    const isDuplicateCode = String(code || '').toUpperCase() === 'DUPLICATE_OPPORTUNITY';
+    const duplicateList = Array.isArray(parsed?.duplicates) ? parsed.duplicates : [];
+
+    if (!isDuplicateCode || duplicateList.length === 0) {
+      return [];
+    }
+
+    return duplicateList.map((item: any) => normalizeDuplicateOpportunity(item));
+  };
+
   const handleCreateOpportunityError = (error: any) => {
     console.error('Create opportunity error:', error);
 
     let errorMessage = 'Failed to create opportunity.';
+
+    const duplicateFromApi = extractDuplicatesFromApiError(error);
+    if (duplicateFromApi.length > 0) {
+      setDuplicateOpportunities(duplicateFromApi);
+      setShowDuplicateModal(true);
+      showToast('Duplicate opportunity detected. Review existing records first.', 'warning', 4000);
+      return;
+    }
     
     if (error?.response?.data) {
       // Handle different error response formats
@@ -2746,6 +2808,7 @@ export default function CreateOpportunityPage() {
         isOpen={showDuplicateModal}
         onClose={() => setShowDuplicateModal(false)}
         onContinueAnyway={handleContinueAnyway}
+        allowCreateAnyway={false}
         existingOpportunities={duplicateOpportunities}
         newOpportunityData={formData}
       />

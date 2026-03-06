@@ -147,6 +147,7 @@ export interface CreateOpportunityData {
   totalDiscount?: number;
   total?: number;
   assignedTo?: string;
+  forceCreate?: boolean;
 }
 
 export interface UpdateOpportunityData {
@@ -521,6 +522,38 @@ export interface CsvMappingPayload {
   options?: Record<string, any>;
 }
 
+interface ApiEnvelope<T> {
+  success?: boolean;
+  data?: T;
+  error?: any;
+  message?: string;
+}
+
+interface BackendDuplicateCheckData {
+  isDuplicate: boolean;
+  duplicate?: any;
+  potentialDuplicates?: any[];
+  message?: string;
+}
+
+interface BackendValidateWithDuplicatesData {
+  validation: {
+    isValid: boolean;
+    lisResult?: {
+      canProgress?: boolean;
+      status?: 'green' | 'amber' | 'red';
+      missingFields?: string[];
+    };
+    errors: string[];
+  };
+  duplicates: {
+    found: boolean;
+    count: number;
+    items: any[];
+    highSimilarity: number;
+  };
+}
+
 // Extended ApiClient with headers support
 class ExtendedApiClient {
   private getApiBaseUrl(): string {
@@ -816,6 +849,44 @@ class OpportunityService {
     }
   }
 
+  private mapDuplicateCandidateToOpportunity(raw: any): Opportunity {
+    const customer = raw?.customer || {};
+    const id = raw?._id || raw?.id || '';
+
+    return {
+      _id: String(id),
+      id: String(id),
+      type: (raw?.type || 'individual') as Opportunity['type'],
+      subject: String(raw?.subject || 'Potential duplicate'),
+      status: (raw?.status || 'new') as Opportunity['status'],
+      source: raw?.source || undefined,
+      customer: {
+        name: String(customer?.name || ''),
+        email: customer?.email || undefined,
+        companyName: customer?.companyName || undefined,
+        phone: customer?.phone || undefined,
+        _id: String(customer?._id || customer?.id || ''),
+        id: String(customer?.id || customer?._id || ''),
+      },
+      vehicles: Array.isArray(raw?.vehicles) ? raw.vehicles : [],
+      jobCards: [],
+      waivers: [],
+      quotes: [],
+      assignedTo: raw?.assignedTo || null,
+      createdAt: raw?.createdAt || new Date().toISOString(),
+      updatedAt: raw?.updatedAt || new Date().toISOString(),
+      isNurturing: Boolean(raw?.isNurturing),
+      leadScore: raw?.leadScore
+        ? {
+            totalScore: Number(raw.leadScore.totalScore || 0),
+            tier: (raw.leadScore.tier || 'cold') as 'hot' | 'warm' | 'cold',
+            priority: Number(raw.leadScore.priority || 0),
+            lastCalculated: raw.leadScore.lastCalculated || new Date().toISOString(),
+          }
+        : undefined,
+    };
+  }
+
   // Create opportunity
   async createOpportunity(data: CreateOpportunityData, userId?: string): Promise<Opportunity> {
     try {
@@ -824,8 +895,29 @@ class OpportunityService {
       if (userId) {
         headers['X-User-Id'] = userId;
       }
-      
-      return await extendedApiClient.post<CreateOpportunityData, Opportunity>('/opportunities', data, headers);
+
+      const response = await extendedApiClient.post<CreateOpportunityData, ApiEnvelope<Opportunity> | Opportunity>(
+        '/opportunities',
+        data,
+        headers
+      );
+
+      if (response && typeof response === 'object' && 'success' in (response as any)) {
+        const wrapped = response as ApiEnvelope<Opportunity>;
+        if (wrapped.success === false) {
+          // Backend duplicate responses are returned with HTTP 200 and success=false.
+          const errorPayload = wrapped.error || { message: wrapped.message || 'Failed to create opportunity' };
+          if (typeof errorPayload === 'string') {
+            throw new Error(errorPayload);
+          }
+          throw new Error(JSON.stringify(errorPayload));
+        }
+        if (wrapped.data) {
+          return wrapped.data;
+        }
+      }
+
+      return response as Opportunity;
     } catch (error) {
       console.error('Error creating opportunity:', error);
       throw error;
@@ -2011,10 +2103,36 @@ async updateNote(opportunityId: string, noteId: string, noteData: UpdateNoteData
 
   async checkForDuplicates(data: DuplicateCheckRequest): Promise<DuplicateCheckResponse> {
     try {
-      return await extendedApiClient.post<DuplicateCheckRequest, DuplicateCheckResponse>(
+      const response = await extendedApiClient.post<
+        DuplicateCheckRequest,
+        ApiEnvelope<BackendDuplicateCheckData> | BackendDuplicateCheckData
+      >(
         '/opportunities/check-duplicate',
         data
       );
+
+      const payload: BackendDuplicateCheckData =
+        response && typeof response === 'object' && 'data' in (response as any)
+          ? ((response as ApiEnvelope<BackendDuplicateCheckData>).data as BackendDuplicateCheckData)
+          : (response as BackendDuplicateCheckData);
+
+      const duplicateItems = [
+        ...(payload?.duplicate ? [payload.duplicate] : []),
+        ...(Array.isArray(payload?.potentialDuplicates) ? payload.potentialDuplicates : []),
+      ];
+
+      const existingOpportunities = duplicateItems.map(item => this.mapDuplicateCandidateToOpportunity(item));
+      const confidenceScore = duplicateItems.reduce((max, item: any) => {
+        const similarity = Number(item?.similarity || 0);
+        return similarity > max ? similarity : max;
+      }, 0);
+
+      return {
+        isDuplicate: Boolean(payload?.isDuplicate),
+        existingOpportunities,
+        confidenceScore,
+        duplicateReasons: payload?.message ? [payload.message] : [],
+      };
     } catch (error) {
       console.error('Error checking for duplicates:', error);
       throw error;
@@ -2033,10 +2151,37 @@ async updateNote(opportunityId: string, noteId: string, noteData: UpdateNoteData
       const queryParams = new URLSearchParams();
       queryParams.append('checkDuplicates', checkDuplicates.toString());
       
-      return await extendedApiClient.post<ValidateWithDuplicatesRequest, ValidateWithDuplicatesResponse>(
+      const response = await extendedApiClient.post<
+        ValidateWithDuplicatesRequest,
+        ApiEnvelope<BackendValidateWithDuplicatesData> | BackendValidateWithDuplicatesData
+      >(
         `/opportunities/validate-with-duplicates?${queryParams.toString()}`,
         data
       );
+
+      const payload: BackendValidateWithDuplicatesData =
+        response && typeof response === 'object' && 'data' in (response as any)
+          ? ((response as ApiEnvelope<BackendValidateWithDuplicatesData>).data as BackendValidateWithDuplicatesData)
+          : (response as BackendValidateWithDuplicatesData);
+
+      return {
+        isValid: Boolean(payload?.validation?.isValid),
+        validationErrors: Array.isArray(payload?.validation?.errors) ? payload.validation.errors : [],
+        lisStatus: {
+          canProgress: payload?.validation?.lisResult?.canProgress ?? Boolean(payload?.validation?.isValid),
+          status: payload?.validation?.lisResult?.status || 'green',
+          missingFields: Array.isArray(payload?.validation?.lisResult?.missingFields)
+            ? payload.validation.lisResult.missingFields
+            : [],
+        },
+        duplicates: {
+          isDuplicate: Boolean(payload?.duplicates?.found),
+          existingOpportunities: Array.isArray(payload?.duplicates?.items)
+            ? payload.duplicates.items.map(item => this.mapDuplicateCandidateToOpportunity(item))
+            : [],
+          confidenceScore: Number(payload?.duplicates?.highSimilarity || 0),
+        },
+      };
     } catch (error) {
       console.error('Error validating with duplicates:', error);
       throw error;
@@ -2058,7 +2203,18 @@ async updateNote(opportunityId: string, noteId: string, noteData: UpdateNoteData
       if (params.limit) queryParams.append('limit', params.limit.toString());
       
       const endpoint = `/opportunities/find-similar${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      return await extendedApiClient.get<Opportunity[]>(endpoint);
+      const response = await extendedApiClient.get<any>(endpoint);
+
+      const results = response?.data?.results;
+      if (Array.isArray(results)) {
+        return results.map((item: any) => this.mapDuplicateCandidateToOpportunity(item));
+      }
+
+      if (Array.isArray(response)) {
+        return response.map((item: any) => this.mapDuplicateCandidateToOpportunity(item));
+      }
+
+      return [];
     } catch (error) {
       console.error('Error finding similar opportunities:', error);
       throw error;
@@ -2134,16 +2290,7 @@ async updateNote(opportunityId: string, noteId: string, noteData: UpdateNoteData
       }
       
       // Step 2: Create opportunity
-      const headers: Record<string, string> = {};
-      if (userId) {
-        headers['X-User-Id'] = userId;
-      }
-      
-      const opportunity = await extendedApiClient.post<CreateOpportunityData, Opportunity>(
-        '/opportunities',
-        data,
-        headers
-      );
+      const opportunity = await this.createOpportunity(data, userId);
       
       return {
         opportunity,
