@@ -80,39 +80,58 @@ export default function ReassignModal({
 
   const fetchSalesUsers = async () => {
     try {
-        setLoadingUsers(true);
-        const usersData = await userService.getAllUsers();
-        
-        // Safely extract users array from different response formats
-        let usersArray: User[] = [];
-        
-        if (!usersData) {
+      setLoadingUsers(true);
+
+      // Primary source: backend-scoped endpoint for available sales reps
+      const repsData = await opportunityService.getAvailableSalesReps();
+      const repsArray = Array.isArray(repsData) ? repsData : [];
+      const normalizedReps: User[] = repsArray
+        .map((rep: any) => ({
+          id: rep?.id || rep?._id || rep?.userId || '',
+          _id: rep?._id || rep?.id || rep?.userId || '',
+          name: rep?.name || rep?.fullName || rep?.displayName || rep?.email || 'Unknown User',
+          email: rep?.email || '',
+          role: rep?.role || rep?.displayName || 'sales_representative',
+          department: rep?.department,
+        }))
+        .filter((rep: User) => Boolean(rep.id || rep._id));
+
+      if (normalizedReps.length > 0) {
+        setUsers(normalizedReps);
+        return;
+      }
+
+      // Fallback source: all users then local sales-role filtering
+      const usersData = await userService.getAllUsers();
+
+      let usersArray: User[] = [];
+      if (!usersData) {
         usersArray = [];
-        } else if (Array.isArray(usersData)) {
+      } else if (Array.isArray(usersData)) {
         usersArray = usersData;
-        } else if (typeof usersData === 'object') {
-        if ('data' in usersData && Array.isArray(usersData.data)) {
-            usersArray = usersData.data;
-        } else if ('users' in usersData && Array.isArray(usersData.users)) {
-            usersArray = usersData.users;
-        } else if ('items' in usersData && Array.isArray(usersData.items)) {
-            usersArray = usersData.items;
+      } else if (typeof usersData === 'object') {
+        if ('data' in usersData && Array.isArray((usersData as any).data)) {
+          usersArray = (usersData as any).data;
+        } else if ('users' in usersData && Array.isArray((usersData as any).users)) {
+          usersArray = (usersData as any).users;
+        } else if ('items' in usersData && Array.isArray((usersData as any).items)) {
+          usersArray = (usersData as any).items;
         }
-        }
-        
-        const salesPeople = usersArray.filter(user => isSalesPerson(user));
-        setUsers(salesPeople || []);
-        
-        if (salesPeople.length === 0) {
+      }
+
+      const salesPeople = usersArray.filter((user) => isSalesPerson(user));
+      setUsers(salesPeople || []);
+
+      if (salesPeople.length === 0) {
         console.warn('No sales representatives found');
-        }
+      }
     } catch (error) {
-        console.error('Error fetching users:', error);
-        showToast('Failed to load sales representatives', 'error');
+      console.error('Error fetching users:', error);
+      showToast('Failed to load sales representatives', 'error');
     } finally {
-        setLoadingUsers(false);
+      setLoadingUsers(false);
     }
-};
+  };
 
   const getUserDisplayInfo = (user: User) => {
     return {
