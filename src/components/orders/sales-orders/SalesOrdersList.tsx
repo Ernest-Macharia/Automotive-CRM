@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { 
   ShoppingBag, Plus, Search, Filter, Download, 
   TrendingUp, DollarSign, Clock, Users, CheckCircle,
-  Calendar, FileText, CreditCard, RefreshCw, ChevronRight,
+  Calendar, FileText, CreditCard, RefreshCw, ChevronLeft, ChevronRight,
   Eye, Edit, Trash2, Play, MoreVertical, Loader2,
   PackageCheck, Receipt, Upload
 } from 'lucide-react';
@@ -85,6 +85,12 @@ export default function SalesOrdersList() {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<number>(Date.now());
   const [importingCsv, setImportingCsv] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   const statusOptions = [
@@ -98,21 +104,71 @@ export default function SalesOrdersList() {
   ];
 
   // ✅ Keep all your existing logic functions unchanged
-  const fetchSalesOrders = useCallback(async () => {
+  const fetchSalesOrders = useCallback(async (page = pagination.page) => {
     try {
       setLoading(true);
       const params: any = {};
       if (searchTerm) params.search = searchTerm;
       if (statusFilter !== 'all') params.status = statusFilter;
+      params.page = page;
+      params.limit = pagination.limit;
       const response = await salesOrderService.getAllSalesOrders(params);
-      setSalesOrders(response);
+
+      if (Array.isArray(response)) {
+        const total = response.length;
+        const totalPages = Math.ceil(total / pagination.limit);
+        const start = (page - 1) * pagination.limit;
+        const end = start + pagination.limit;
+
+        setSalesOrders(response.slice(start, end));
+        setPagination((prev) => ({
+          ...prev,
+          page,
+          total,
+          totalPages,
+        }));
+        return;
+      }
+
+      if (response && typeof response === 'object' && 'data' in response) {
+        const paginatedResponse = response as {
+          data?: unknown;
+          pagination?: {
+            page?: number;
+            limit?: number;
+            total?: number;
+            totalPages?: number;
+          };
+        };
+        const responseData = Array.isArray(paginatedResponse.data) ? paginatedResponse.data : [];
+
+        setSalesOrders(responseData);
+        setPagination((prev) => ({
+          ...prev,
+          page: paginatedResponse.pagination?.page || page,
+          limit: paginatedResponse.pagination?.limit || prev.limit,
+          total: paginatedResponse.pagination?.total || responseData.length,
+          totalPages:
+            paginatedResponse.pagination?.totalPages ||
+            Math.ceil((paginatedResponse.pagination?.total || responseData.length) / (paginatedResponse.pagination?.limit || prev.limit)),
+        }));
+        return;
+      }
+
+      setSalesOrders([]);
+      setPagination((prev) => ({
+        ...prev,
+        page: 1,
+        total: 0,
+        totalPages: 0,
+      }));
     } catch (error) {
       console.error('Error fetching sales orders:', error);
       showToast('Failed to load sales orders', 'error');
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, statusFilter, showToast]);
+  }, [searchTerm, statusFilter, showToast, pagination.page, pagination.limit]);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -129,7 +185,7 @@ export default function SalesOrdersList() {
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
-      await Promise.all([fetchSalesOrders(), fetchStats()]);
+      await Promise.all([fetchSalesOrders(pagination.page), fetchStats()]);
       setLastRefresh(Date.now());
       showToast('Sales orders refreshed', 'success');
     } catch (error) {
@@ -153,7 +209,7 @@ export default function SalesOrdersList() {
       const result = await salesOrderService.executeCsvImport(file);
       const imported = result?.importedCount ?? result?.created ?? result?.successCount ?? 0;
       showToast(`Sales Orders CSV imported${imported ? `: ${imported} rows` : ''}`, 'success');
-      await Promise.all([fetchSalesOrders(), fetchStats()]);
+      await Promise.all([fetchSalesOrders(1), fetchStats()]);
     } catch (error) {
       console.error('Error importing sales orders CSV:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to import sales orders CSV';
@@ -169,17 +225,17 @@ export default function SalesOrdersList() {
   // Check for updates periodically
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchSalesOrders();
+      fetchSalesOrders(pagination.page);
       fetchStats();
     }, 30000); // Refresh every 30 seconds
     
     return () => clearInterval(interval);
-  }, [fetchSalesOrders, fetchStats]);
+  }, [fetchSalesOrders, fetchStats, pagination.page]);
 
   useEffect(() => {
-    fetchSalesOrders();
+    fetchSalesOrders(pagination.page);
     fetchStats();
-  }, [fetchSalesOrders, fetchStats]);
+  }, [fetchSalesOrders, fetchStats, pagination.page]);
 
   // Listen for refresh events from other pages
   useEffect(() => {
@@ -206,6 +262,24 @@ export default function SalesOrdersList() {
       showToast('Failed to start workflow', 'error');
       setProcessingOrder(null);
     }
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > pagination.totalPages || newPage === pagination.page) {
+      return;
+    }
+    setPagination((prev) => ({ ...prev, page: newPage }));
+    setExpandedRow(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleLimitChange = (newLimit: number) => {
+    setPagination((prev) => ({
+      ...prev,
+      page: 1,
+      limit: newLimit,
+    }));
+    setExpandedRow(null);
   };
 
   const formatCurrency = (amount: number) => {
@@ -384,7 +458,10 @@ export default function SalesOrdersList() {
                 <input
                   type="text"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setPagination((prev) => ({ ...prev, page: 1 }));
+                  }}
                   placeholder="Search by order number, customer..."
                   className="w-full pl-11 pr-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -393,7 +470,10 @@ export default function SalesOrdersList() {
               <div className="relative min-w-[180px]">
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value);
+                    setPagination((prev) => ({ ...prev, page: 1 }));
+                  }}
                   className="w-full appearance-none pl-4 pr-10 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                 >
                   {statusOptions.map((option) => (
@@ -602,6 +682,61 @@ export default function SalesOrdersList() {
               </table>
             )}
           </div>
+
+          {!loading && salesOrders.length > 0 && (
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <p className="text-sm text-gray-700">
+                  Showing{' '}
+                  <span className="font-medium">
+                    {((pagination.page - 1) * pagination.limit) + 1}
+                  </span>{' '}
+                  -{' '}
+                  <span className="font-medium">
+                    {Math.min(pagination.page * pagination.limit, pagination.total)}
+                  </span>{' '}
+                  of <span className="font-medium">{pagination.total}</span> results
+                </p>
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={pagination.limit}
+                    onChange={(e) => handleLimitChange(Number(e.target.value))}
+                    className="px-2 py-1.5 rounded-md border border-gray-300 bg-white text-sm"
+                    aria-label="Rows per page"
+                  >
+                    {[10, 20, 50].map((size) => (
+                      <option key={size} value={size}>
+                        {size}/page
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    onClick={() => handlePageChange(pagination.page - 1)}
+                    disabled={pagination.page <= 1}
+                    className="p-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+
+                  <span className="text-sm text-gray-700 min-w-[90px] text-center">
+                    Page {pagination.page} of {Math.max(pagination.totalPages, 1)}
+                  </span>
+
+                  <button
+                    onClick={() => handlePageChange(pagination.page + 1)}
+                    disabled={pagination.page >= pagination.totalPages}
+                    className="p-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Next page"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Status Summary */}
