@@ -407,7 +407,8 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   const canManageOpportunity = isAdmin || isManagement || hasPermission('opportunities.manage');
   const canReassign = isAdmin || isManagement || hasPermission('opportunities.reassign');
   const canEdit = isAdmin || isManagement || hasPermission('opportunities.update');
-  const canDelete = isAdmin || isManagement || hasPermission('opportunities.delete');
+  // Delete visibility must be strictly admin-level (superadmin/admin/management).
+  const canDelete = isAdmin || isManagement;
   const canViewSLA = isAdmin || isManagement || hasPermission('sla.view');
   const canViewLIS = isAdmin || isManagement || hasPermission('lis.view');
   const canViewLeadScore = isAdmin || isManagement || hasPermission('leadscore.view');
