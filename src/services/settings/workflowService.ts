@@ -245,6 +245,15 @@ class ExtendedApiClient {
 
 const extendedApiClient = new ExtendedApiClient();
 
+function normalizeWorkflowData(data: any): Workflow {
+  const workflowData = data?.workflow || data?.data || data;
+  if (!workflowData) return data;
+  if (!workflowData.id && workflowData._id) {
+    workflowData.id = workflowData._id;
+  }
+  return workflowData as Workflow;
+}
+
 class WorkflowService {
   // 1. Test automation engine
   async testAutomationEngine(): Promise<any> {
@@ -302,7 +311,8 @@ class WorkflowService {
     try {
       const headers: Record<string, string> = {};
       if (userId) headers['X-User-Id'] = userId;
-      return await extendedApiClient.post<typeof data, Workflow>('/workflows/quick', data, headers);
+      const response = await extendedApiClient.post<typeof data, any>('/workflows/quick', data, headers);
+      return normalizeWorkflowData(response);
     } catch (error) {
       console.error('Error creating quick workflow:', error);
       throw error;
@@ -313,7 +323,8 @@ class WorkflowService {
     try {
       const headers: Record<string, string> = {};
       if (userId) headers['X-User-Id'] = userId;
-      return await extendedApiClient.post<any, Workflow>('/workflows/import', config, headers);
+      const response = await extendedApiClient.post<any, any>('/workflows/import', config, headers);
+      return normalizeWorkflowData(response);
     } catch (error) {
       console.error('Error importing workflow:', error);
       throw error;
@@ -328,11 +339,12 @@ class WorkflowService {
     try {
       const headers: Record<string, string> = {};
       if (userId) headers['X-User-Id'] = userId;
-      return await extendedApiClient.post<Record<string, any>, Workflow>(
+      const response = await extendedApiClient.post<Record<string, any>, any>(
         `/workflows/from-template/${templateId}`,
         variables || {},
         headers
       );
+      return normalizeWorkflowData(response);
     } catch (error) {
       console.error(`Error creating workflow from template ${templateId}:`, error);
       throw error;
@@ -425,15 +437,15 @@ class WorkflowService {
       
       if (Array.isArray(result)) {
         // Response is an array of workflows
-        workflows = result;
+        workflows = result.map(normalizeWorkflowData);
         pagination.total = result.length;
       } else if (result && result.data && Array.isArray(result.data)) {
         // Response has the expected PaginatedWorkflows structure
-        workflows = result.data;
+        workflows = result.data.map(normalizeWorkflowData);
         pagination = result.pagination || pagination;
       } else if (result && Array.isArray(result.items)) {
         // Alternative structure: { items: [], total: number }
-        workflows = result.items;
+        workflows = result.items.map(normalizeWorkflowData);
         pagination.total = result.total || result.items.length;
       } else {
         console.warn('Unexpected API response format:', result);
@@ -469,21 +481,7 @@ class WorkflowService {
         // Make the API call
         const response = await extendedApiClient.get<any>(`/workflows/${id}`);
         
-        let workflowData;
-        if (response.data) {
-            workflowData = response.data; // Pattern A
-        } else if (response.workflow) {
-            workflowData = response.workflow; // Pattern B
-        } else if (response._id || response.id) {
-            workflowData = response; // Pattern C
-        } else {
-            // If no workflow data found in expected structures
-            console.error('No workflow data found in response:', response);
-            throw new Error('Workflow not found in response');
-        }
-        if (!workflowData.id && workflowData._id) {
-            workflowData.id = workflowData._id;
-        }
+        const workflowData = normalizeWorkflowData(response);
         
         // 4. VALIDATE THE WORKFLOW OBJECT
         if (!workflowData.id) {
@@ -501,7 +499,8 @@ class WorkflowService {
   // 5. Update a workflow
   async updateWorkflow(id: string, data: UpdateWorkflowDto): Promise<Workflow> {
     try {
-      return await extendedApiClient.patch<UpdateWorkflowDto, Workflow>(`/workflows/${id}`, data);
+      const response = await extendedApiClient.patch<UpdateWorkflowDto, any>(`/workflows/${id}`, data);
+      return normalizeWorkflowData(response);
     } catch (error) {
       console.error(`Error updating workflow ${id}:`, error);
       throw error;
@@ -547,7 +546,10 @@ class WorkflowService {
         queryParams.limit = limit.toString();
       }
       
-      return await extendedApiClient.get<WorkflowExecutionHistory[]>(`/workflows/${id}/history`, queryParams);
+      const response = await extendedApiClient.get<any>(`/workflows/${id}/history`, queryParams);
+      if (Array.isArray(response)) return response;
+      if (Array.isArray(response?.history)) return response.history;
+      return [];
     } catch (error) {
       console.error(`Error getting history for workflow ${id}:`, error);
       throw error;
@@ -557,7 +559,8 @@ class WorkflowService {
   // 10. Toggle workflow active status
   async toggleWorkflowStatus(id: string): Promise<Workflow> {
     try {
-      return await extendedApiClient.post<any, Workflow>(`/workflows/${id}/toggle`, {});
+      const response = await extendedApiClient.post<any, any>(`/workflows/${id}/toggle`, {});
+      return normalizeWorkflowData(response);
     } catch (error) {
       console.error(`Error toggling workflow ${id}:`, error);
       throw error;
@@ -567,7 +570,10 @@ class WorkflowService {
   // 11. Get workflows by module
   async getWorkflowsByModule(module: string): Promise<Workflow[]> {
     try {
-      return await extendedApiClient.get<Workflow[]>(`/workflows/module/${module}`);
+      const response = await extendedApiClient.get<any>(`/workflows/module/${module}`);
+      if (Array.isArray(response)) return response.map(normalizeWorkflowData);
+      if (Array.isArray(response?.data)) return response.data.map(normalizeWorkflowData);
+      return [];
     } catch (error) {
       console.error(`Error getting workflows for module ${module}:`, error);
       throw error;
@@ -577,7 +583,10 @@ class WorkflowService {
   // 12. Get workflows by trigger event
   async getWorkflowsByTriggerEvent(triggerEvent: string): Promise<Workflow[]> {
     try {
-      return await extendedApiClient.get<Workflow[]>(`/workflows/trigger/${triggerEvent}`);
+      const response = await extendedApiClient.get<any>(`/workflows/trigger/${triggerEvent}`);
+      if (Array.isArray(response)) return response.map(normalizeWorkflowData);
+      if (Array.isArray(response?.data)) return response.data.map(normalizeWorkflowData);
+      return [];
     } catch (error) {
       console.error(`Error getting workflows for trigger event ${triggerEvent}:`, error);
       throw error;
@@ -586,7 +595,11 @@ class WorkflowService {
 
   async getWorkflowTemplates(): Promise<any[]> {
     try {
-      return await extendedApiClient.get<any[]>('/workflows/templates');
+      const response = await extendedApiClient.get<any>('/workflows/templates');
+      if (Array.isArray(response)) return response;
+      if (Array.isArray(response?.data)) return response.data;
+      if (Array.isArray(response?.templates)) return response.templates;
+      return [];
     } catch (error) {
       console.error('Error fetching workflow templates:', error);
       throw error;

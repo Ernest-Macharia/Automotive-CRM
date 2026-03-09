@@ -343,9 +343,8 @@ export default function BlueprintsManagementPage() {
               <option value="all">All Modules</option>
               <option value="opportunities">Opportunities</option>
               <option value="quotes">Quotes</option>
-              <option value="customers">Customers</option>
-              <option value="jobs">Jobs</option>
-              <option value="inventory">Inventory</option>
+              <option value="invoices">Invoices</option>
+              <option value="payments">Payments</option>
             </select>
           </div>
           

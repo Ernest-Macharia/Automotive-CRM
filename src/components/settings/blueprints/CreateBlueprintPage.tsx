@@ -26,6 +26,8 @@ import { blueprintsService } from '@/services/settings/blueprintsService';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { ALL_MODULES, CRITERIA_TEMPLATES, FIELD_GROUPS } from '@/data/modulesData';
 
+const BACKEND_BLUEPRINT_MODULES = new Set(['opportunities', 'quotes', 'invoices', 'payments']);
+
 // Enhanced Types combining both components
 interface FieldCondition {
   id: string;
@@ -419,7 +421,9 @@ export default function CreateBlueprintPage() {
   ];
 
   // Module options
-  const moduleOptions = ALL_MODULES.map(module => {
+  const moduleOptions = ALL_MODULES
+    .filter(module => BACKEND_BLUEPRINT_MODULES.has(module.id))
+    .map(module => {
     const getIcon = () => {
       switch (module.icon) {
         case 'TrendingUp': return TrendingUp;
@@ -558,7 +562,7 @@ export default function CreateBlueprintPage() {
 
   const loadInitialData = async () => {
     try {
-      setAvailableModules(ALL_MODULES);
+      setAvailableModules(ALL_MODULES.filter(module => BACKEND_BLUEPRINT_MODULES.has(module.id)));
       setAvailableRoles(roleOptions.map(r => r.id));
       if (formData.module) {
         await loadModuleFields(formData.module);
@@ -978,11 +982,28 @@ export default function CreateBlueprintPage() {
         });
       }
       
+      const stageById = new Map(formData.stages.map(stage => [stage.id, stage]));
+      const allowedTransitions = formData.transitions
+        .map(transition => {
+          const sourceStage = stageById.get(transition.sourceId);
+          const targetStage = stageById.get(transition.targetId);
+          if (!sourceStage || !targetStage) return null;
+
+          return {
+            fromStage: sourceStage.name,
+            toStage: targetStage.name,
+            allowedRoles: transition.config?.allowedRoles || [],
+            conditions: (transition.config?.conditions as Record<string, any>) || {},
+          };
+        })
+        .filter(Boolean);
+
       const blueprintData = {
         name: formData.name,
         module: formData.module,
         description: formData.description,
         stages: blueprintStages,
+        allowedTransitions,
         isActive: asDraft ? false : true
       };
       

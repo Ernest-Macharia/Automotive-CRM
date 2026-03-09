@@ -16,11 +16,20 @@ export interface BlueprintAction {
   id?: string;
 }
 
+export interface BlueprintTransition {
+  fromStage: string;
+  toStage: string;
+  allowedRoles?: string[];
+  conditions?: Record<string, any>;
+  mandatoryFields?: string[];
+}
+
 export interface Blueprint {
   id: string;
   name: string;
   module: string;
   stages: BlueprintStage[];
+  allowedTransitions?: BlueprintTransition[];
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -36,6 +45,7 @@ export interface CreateBlueprintData {
   name: string;
   module: string;
   stages: Omit<BlueprintStage, 'id'>[];
+  allowedTransitions?: BlueprintTransition[];
   description?: string;
   isActive?: boolean;
 }
@@ -66,6 +76,7 @@ function normalizeBlueprint(data: any): Blueprint {
     name: data.name,
     module: data.module,
     stages: data.stages || [],
+    allowedTransitions: data.allowedTransitions || [],
     isActive: data.active !== undefined ? data.active : data.isActive,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
@@ -110,8 +121,6 @@ class BlueprintsService {
   // Update your createBlueprint method with better debugging
   async createBlueprint(data: CreateBlueprintData): Promise<Blueprint> {
     try {
-      // Transform to match EXACTLY what backend CreateBlueprintDto expects
-      // Based on your DTO: only name, module, stages
       const backendData = {
         name: data.name,
         module: data.module,
@@ -132,11 +141,18 @@ class BlueprintsService {
               params: action.params || {}
             }))
           })
-        }))
-        // DO NOT include description, active, isActive if not in DTO
+        })),
+        allowedTransitions: (data.allowedTransitions || []).map(transition => ({
+          fromStage: transition.fromStage,
+          toStage: transition.toStage,
+          allowedRoles: transition.allowedRoles || [],
+          conditions: transition.conditions || {},
+          mandatoryFields: transition.mandatoryFields || []
+        })),
+        description: data.description || undefined,
+        active: data.isActive ?? true
       };
-      
-      // Make sure the endpoint is correct
+
       const response = await apiClient.post<typeof backendData, any>(
         '/blueprints',
         backendData
@@ -178,6 +194,15 @@ class BlueprintsService {
       if (data.module !== undefined) backendData.module = data.module;
       if (data.description !== undefined) backendData.description = data.description;
       if (data.isActive !== undefined) backendData.active = data.isActive;
+      if (data.allowedTransitions !== undefined) {
+        backendData.allowedTransitions = (data.allowedTransitions || []).map(transition => ({
+          fromStage: transition.fromStage,
+          toStage: transition.toStage,
+          allowedRoles: transition.allowedRoles || [],
+          conditions: transition.conditions || {},
+          mandatoryFields: transition.mandatoryFields || []
+        }));
+      }
       
       if (data.stages !== undefined) {
         backendData.stages = data.stages.map(stage => ({
@@ -247,11 +272,9 @@ class BlueprintsService {
    */
   async getBlueprintByModule(module: string): Promise<Blueprint | null> {
     try {
-      const blueprints = await this.getBlueprints();
-      const blueprint = blueprints.find(bp => 
-        bp.module === module && bp.isActive === true
-      );
-      return blueprint || null;
+      const response = await apiClient.get<any>(`/blueprints/module/${module}`);
+      if (!response) return null;
+      return normalizeBlueprint(response);
     } catch (error) {
       console.error('Error fetching blueprint by module:', error);
       throw error;
@@ -305,7 +328,7 @@ class BlueprintsService {
    * Get available modules (hardcoded as per your service)
    */
   async getAvailableModules(): Promise<string[]> {
-    return ['opportunities', 'quotes', 'customers', 'jobs', 'inventory', 'projects', 'tasks'];
+    return ['opportunities', 'quotes', 'invoices', 'payments'];
   }
 
   /**
