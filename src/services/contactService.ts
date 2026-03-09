@@ -954,6 +954,29 @@ class ContactService {
       }
     };
   }
+
+  /**
+   * Asterisk webhook testing helpers
+   * POST /api/v1/webhooks/asterisk/call-status
+   * POST /api/v1/webhooks/asterisk/cdr
+   */
+  async postAsteriskCallStatus(data: Record<string, any>): Promise<any> {
+    try {
+      return await apiClient.post<Record<string, any>, any>('/webhooks/asterisk/call-status', data);
+    } catch (error) {
+      console.error('Error posting Asterisk call-status webhook payload:', error);
+      throw error;
+    }
+  }
+
+  async postAsteriskCdr(data: Record<string, any>): Promise<any> {
+    try {
+      return await apiClient.post<Record<string, any>, any>('/webhooks/asterisk/cdr', data);
+    } catch (error) {
+      console.error('Error posting Asterisk CDR webhook payload:', error);
+      throw error;
+    }
+  }
 }
 
 export const contactService = new ContactService();

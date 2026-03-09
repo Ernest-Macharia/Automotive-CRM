@@ -1014,6 +1014,32 @@ export default function ContactsDashboard() {
     }
   };
 
+  const handleTestAsteriskWebhook = async () => {
+    const kind = prompt('Webhook type: enter "call" or "cdr"', 'call');
+    if (!kind) return;
+    try {
+      if (kind.toLowerCase() === 'cdr') {
+        await contactService.postAsteriskCdr({
+          source: 'frontend-test',
+          timestamp: new Date().toISOString(),
+          callId: `cdr-${Date.now()}`
+        });
+        showToast('Asterisk CDR webhook test sent', 'success');
+        return;
+      }
+      await contactService.postAsteriskCallStatus({
+        source: 'frontend-test',
+        timestamp: new Date().toISOString(),
+        callId: `call-${Date.now()}`,
+        status: 'ringing'
+      });
+      showToast('Asterisk call-status webhook test sent', 'success');
+    } catch (error) {
+      console.error('Error testing Asterisk webhook:', error);
+      showToast('Failed to test Asterisk webhook', 'error');
+    }
+  };
+
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'customer': return 'bg-gradient-to-r from-blue-500 to-blue-600';
@@ -1102,15 +1128,23 @@ export default function ContactsDashboard() {
               )}
               <span className="hidden sm:inline">Import</span>
             </button>
-            <button
-              onClick={handleExportContacts}
-              className="p-2 text-white hover:bg-white/20 rounded-xl transition-colors flex items-center gap-2"
-              title="Export Contacts"
+	            <button
+	              onClick={handleExportContacts}
+	              className="p-2 text-white hover:bg-white/20 rounded-xl transition-colors flex items-center gap-2"
+	              title="Export Contacts"
             >
               <Download className="h-5 w-5" />
-              <span className="hidden sm:inline">Export</span>
-            </button>
-            {/* <button
+	              <span className="hidden sm:inline">Export</span>
+	            </button>
+	            <button
+	              onClick={handleTestAsteriskWebhook}
+	              className="p-2 text-white hover:bg-white/20 rounded-xl transition-colors flex items-center gap-2"
+	              title="Test Asterisk Webhook"
+	            >
+	              <PhoneCall className="h-5 w-5" />
+	              <span className="hidden sm:inline">Webhook Test</span>
+	            </button>
+	            {/* <button
               onClick={handleRefresh}
               disabled={refreshing}
               className="p-2 hover:bg-white/20 rounded-xl transition-colors disabled:opacity-50"

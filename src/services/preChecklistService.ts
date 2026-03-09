@@ -1207,6 +1207,54 @@ class PreChecklistService {
       throw error;
     }
   }
+
+  /**
+   * Check or uncheck a specific checklist item
+   * PATCH /api/v1/prechecklists/{id}/check-item/{itemIndex}
+   */
+  async checkItem(
+    id: string,
+    itemIndex: number,
+    data: { checked?: boolean; remarks?: string } = {}
+  ): Promise<PreChecklist> {
+    try {
+      return await extendedApiClient.patch<typeof data, PreChecklist>(
+        `/prechecklists/${id}/check-item/${itemIndex}`,
+        data
+      );
+    } catch (error: any) {
+      console.error(`Error checking item ${itemIndex} for pre-checklist ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * View generated checklist PDF inline
+   * GET /api/v1/prechecklists/{id}/view-pdf
+   */
+  async viewPDF(id: string): Promise<Blob> {
+    try {
+      const token = sessionStorage.getItem('accessToken');
+      const headers: HeadersInit = {
+        'Authorization': token ? `Bearer ${token}` : '',
+      };
+
+      const response = await fetch(`${this.getApiBaseUrl()}/prechecklists/${id}/view-pdf`, {
+        method: 'GET',
+        headers,
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to view PDF: ${response.statusText}`);
+      }
+
+      return await response.blob();
+    } catch (error: any) {
+      console.error(`Error viewing PDF for pre-checklist ${id}:`, error);
+      throw error;
+    }
+  }
 }
 
 export const preChecklistService = new PreChecklistService();

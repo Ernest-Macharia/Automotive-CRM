@@ -394,6 +394,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRecalculatingScore, setIsRecalculatingScore] = useState(false);
   const [isCheckingSLA, setIsCheckingSLA] = useState(false);
+  const [isTestingSLA, setIsTestingSLA] = useState(false);
   const [isRefreshingLIS, setIsRefreshingLIS] = useState(false);
   const [availableSalesReps, setAvailableSalesReps] = useState<any[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -610,6 +611,25 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
       showToast(err.message || 'Failed to check SLA status', 'error');
     } finally {
       setIsCheckingSLA(false);
+    }
+  };
+
+  const handleTestSLANotification = async () => {
+    if (!canViewSLA) {
+      showToast('You do not have permission to test SLA notifications', 'error', 3000);
+      return;
+    }
+    if (!opportunity) return;
+
+    try {
+      setIsTestingSLA(true);
+      await opportunityService.testSlaNotification({ opportunityId: opportunity._id });
+      showToast('SLA test notification sent', 'success');
+    } catch (err: any) {
+      console.error('Error sending SLA test notification:', err);
+      showToast(err.message || 'Failed to send SLA test notification', 'error');
+    } finally {
+      setIsTestingSLA(false);
     }
   };
 
@@ -1941,6 +1961,13 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                   className="w-full mt-4 px-3 py-2 text-sm text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50"
                 >
                   View Details
+                </button>
+                <button
+                  onClick={handleTestSLANotification}
+                  disabled={isTestingSLA}
+                  className="w-full mt-2 px-3 py-2 text-sm text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {isTestingSLA ? 'Sending Test...' : 'Send SLA Test Notification'}
                 </button>
               </div>
             )}

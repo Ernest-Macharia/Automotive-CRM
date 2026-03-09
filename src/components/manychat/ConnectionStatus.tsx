@@ -19,6 +19,7 @@ export default function ConnectionStatus({ onReconnect, onConfigure }: Connectio
   const [status, setStatus] = useState<ManyChatConnectionStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<any>(null);
+  const [pingStatus, setPingStatus] = useState<string | null>(null);
 
   useEffect(() => {
     checkStatus();
@@ -61,6 +62,35 @@ export default function ConnectionStatus({ onReconnect, onConfigure }: Connectio
   const handleConfigure = () => {
     if (onConfigure) {
       onConfigure();
+    }
+  };
+
+  const handlePing = async () => {
+    try {
+      setLoading(true);
+      const result = await manychatService.ping();
+      const message = result?.message || result?.status || 'ManyChat ping successful';
+      setPingStatus(message);
+      showToast(message, 'success');
+    } catch (error) {
+      console.error('Error pinging ManyChat service:', error);
+      setPingStatus('Ping failed');
+      showToast('Failed to ping ManyChat service', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRunFullTest = async () => {
+    try {
+      setLoading(true);
+      await manychatService.getTestFull();
+      showToast('ManyChat full test completed', 'success');
+    } catch (error) {
+      console.error('Error running ManyChat full test:', error);
+      showToast('Failed to run ManyChat full test', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -108,16 +138,32 @@ export default function ConnectionStatus({ onReconnect, onConfigure }: Connectio
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''} text-gray-600`} />
             </button>
-            <button
-              onClick={handleConfigure}
-              className="p-2 hover:bg-white rounded-lg transition-colors"
-              title="Configure"
-            >
-              <Settings className="h-4 w-4 text-gray-600" />
-            </button>
-          </div>
-        </div>
-      </div>
+	            <button
+	              onClick={handleConfigure}
+	              className="p-2 hover:bg-white rounded-lg transition-colors"
+	              title="Configure"
+	            >
+	              <Settings className="h-4 w-4 text-gray-600" />
+	            </button>
+	            <button
+	              onClick={handlePing}
+	              disabled={loading}
+	              className="px-2.5 py-1.5 text-xs font-medium border border-gray-300 hover:bg-white rounded-lg transition-colors disabled:opacity-50"
+	              title="Ping API"
+	            >
+	              Ping
+	            </button>
+	            <button
+	              onClick={handleRunFullTest}
+	              disabled={loading}
+	              className="px-2.5 py-1.5 text-xs font-medium border border-gray-300 hover:bg-white rounded-lg transition-colors disabled:opacity-50"
+	              title="Run Full Test"
+	            >
+	              Full Test
+	            </button>
+	          </div>
+	        </div>
+	      </div>
 
       {/* Status Details */}
       <div className="p-4">
@@ -155,13 +201,14 @@ export default function ConnectionStatus({ onReconnect, onConfigure }: Connectio
               </div>
             )}
 
-            {/* Last Sync */}
-            <div className="pt-3 border-t border-gray-100">
-              <p className="text-xs text-gray-500 mb-1">Last Synced</p>
-              <p className="text-sm font-medium text-gray-900">{lastSynced}</p>
-            </div>
-          </div>
-        ) : (
+	            {/* Last Sync */}
+	            <div className="pt-3 border-t border-gray-100">
+	              <p className="text-xs text-gray-500 mb-1">Last Synced</p>
+	              <p className="text-sm font-medium text-gray-900">{lastSynced}</p>
+	              {pingStatus && <p className="text-xs text-gray-500 mt-1">Ping: {pingStatus}</p>}
+	            </div>
+	          </div>
+	        ) : (
           <div className="space-y-4">
             {/* Error Message */}
             <div className="flex items-start gap-2 p-3 bg-red-50 rounded-lg">

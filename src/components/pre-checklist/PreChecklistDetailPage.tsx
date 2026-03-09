@@ -223,6 +223,64 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     }
   };
 
+  const handleViewPdf = async () => {
+    if (!checklist) return;
+    try {
+      setUpdating(true);
+      const blob = await preChecklistService.viewPDF(checklist._id);
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      showToast('PDF opened successfully', 'success');
+    } catch (error) {
+      console.error('Error opening pre-checklist PDF:', error);
+      showToast('Failed to open pre-checklist PDF', 'error');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handlePrint = async () => {
+    if (!checklist) return;
+    try {
+      setUpdating(true);
+      const blob = await preChecklistService.viewPDF(checklist._id);
+      const url = window.URL.createObjectURL(blob);
+      const win = window.open(url, '_blank');
+      if (win) {
+        win.onload = () => win.print();
+      }
+      showToast('Print view opened', 'success');
+    } catch (error) {
+      console.error('Error printing pre-checklist PDF:', error);
+      showToast('Failed to print pre-checklist', 'error');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleUpdateItemStatus = async (itemIndex: number, status: 'ok' | 'fault' | 'n/a') => {
+    if (!checklist) return;
+    try {
+      setUpdating(true);
+      await preChecklistService.checkItem(checklist._id, itemIndex, {
+        checked: status === 'ok',
+        remarks: status === 'fault' ? 'Marked as fault from detail view' : undefined,
+      });
+
+      const updatedChecklist = await preChecklistService.getPreChecklistById(checklist._id);
+      const mappedItems = updatedChecklist.inspectionItems.map((item, idx) =>
+        idx === itemIndex ? { ...item, status } : item
+      );
+      setChecklist({ ...updatedChecklist, inspectionItems: mappedItems });
+      showToast('Inspection item updated', 'success');
+    } catch (error) {
+      console.error('Error updating inspection item:', error);
+      showToast('Failed to update inspection item', 'error');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   // const handleExportPDF = async () => {
   //   if (!checklist) return;
   //   try {
@@ -347,11 +405,11 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
                   Inspection Information
                 </h2>
                 <div className="flex gap-2 mt-3 sm:mt-0">
-                  <button 
-                    // onClick={handleExportPDF} 
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-                    disabled={updating}
-                  >
+	                  <button 
+	                    onClick={handlePrint}
+	                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+	                    disabled={updating}
+	                  >
                     {updating ? (
                       <RefreshCw className="h-4 w-4 animate-spin" />
                     ) : (
@@ -480,27 +538,27 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
                     
                     {!checklist.approved && (
                       <div className="flex items-center gap-1 ml-2">
-                        <button
-                          // onClick={() => handleUpdateItemStatus(item._id || index.toString(), 'ok')}
-                          className={`p-1.5 rounded ${item.status === 'ok' ? 'bg-green-100 text-green-700' : 'text-gray-400 hover:text-green-700 hover:bg-green-50'}`}
-                          title="Mark as OK"
-                          disabled={updating}
+	                        <button
+	                          onClick={() => handleUpdateItemStatus(index, 'ok')}
+	                          className={`p-1.5 rounded ${item.status === 'ok' ? 'bg-green-100 text-green-700' : 'text-gray-400 hover:text-green-700 hover:bg-green-50'}`}
+	                          title="Mark as OK"
+	                          disabled={updating}
                         >
                           <CheckCircle className="h-3.5 w-3.5" />
                         </button>
-                        <button
-                          // onClick={() => handleUpdateItemStatus(item._id!, 'fault')}
-                          className={`p-1.5 rounded ${item.status === 'fault' ? 'bg-red-100 text-red-700' : 'text-gray-400 hover:text-red-700 hover:bg-red-50'}`}
-                          title="Mark as Fault"
-                          disabled={updating}
+	                        <button
+	                          onClick={() => handleUpdateItemStatus(index, 'fault')}
+	                          className={`p-1.5 rounded ${item.status === 'fault' ? 'bg-red-100 text-red-700' : 'text-gray-400 hover:text-red-700 hover:bg-red-50'}`}
+	                          title="Mark as Fault"
+	                          disabled={updating}
                         >
                           <AlertCircle className="h-3.5 w-3.5" />
                         </button>
-                        <button
-                          // onClick={() => handleUpdateItemStatus(item._id!, 'n/a')}
-                          className={`p-1.5 rounded ${item.status === 'n/a' ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50'}`}
-                          title="Mark as N/A"
-                          disabled={updating}
+	                        <button
+	                          onClick={() => handleUpdateItemStatus(index, 'n/a')}
+	                          className={`p-1.5 rounded ${item.status === 'n/a' ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50'}`}
+	                          title="Mark as N/A"
+	                          disabled={updating}
                         >
                           <FileText className="h-3.5 w-3.5" />
                         </button>
@@ -519,20 +577,28 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
               <h2 className="text-base font-semibold text-gray-800 mb-4">Actions</h2>
 
               <div className="space-y-3">
-                {!checklist.approved && (
-                  <button 
-                    // onClick={handleApproveWithLifecycle} 
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60"
-                    disabled={updating}
+	                {!checklist.approved && (
+	                  <button 
+	                    onClick={handleApprove}
+	                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60"
+	                    disabled={updating}
                   >
                     {updating ? (
                       <RefreshCw className="h-4 w-4 animate-spin" />
                     ) : (
                       <CheckCircle className="h-4 w-4" />
                     )}
-                    Approve Checklist
-                  </button>
-                )}
+	                    Approve Checklist
+	                  </button>
+	                )}
+	                <button 
+	                  onClick={handleViewPdf}
+	                  className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 disabled:opacity-60"
+	                  disabled={updating}
+	                >
+	                  <Eye className="h-4 w-4" />
+	                  View PDF
+	                </button>
 
                 <button 
                   onClick={handleDelete} 

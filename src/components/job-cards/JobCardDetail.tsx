@@ -109,6 +109,35 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
     }
   };
 
+  const handleVehicleDebug = async () => {
+    if (!jobCard?.vehicleId) {
+      showToast('No vehicle linked to this job card', 'error');
+      return;
+    }
+
+    const vehicleId =
+      typeof jobCard.vehicleId === 'string'
+        ? jobCard.vehicleId
+        : jobCard.vehicleId._id || jobCard.vehicleId.id || '';
+
+    if (!vehicleId) {
+      showToast('Vehicle ID is missing', 'error');
+      return;
+    }
+
+    try {
+      setUpdating(true);
+      const debugResult = await jobCardService.getVehicleDebugInfo(vehicleId);
+      const summary = debugResult?.message || debugResult?.status || 'Vehicle debug loaded';
+      showToast(summary, 'success');
+    } catch (error) {
+      console.error('Error loading vehicle debug info:', error);
+      showToast('Failed to load vehicle debug info', 'error');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Not set';
     try {
@@ -214,13 +243,21 @@ export default function JobCardDetail({ jobCardId }: JobCardDetailProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={fetchJobCard}
-              className="p-2 hover:bg-white/20 rounded-xl transition-colors"
-              title="Refresh"
+	            <button
+	              onClick={fetchJobCard}
+	              className="p-2 hover:bg-white/20 rounded-xl transition-colors"
+	              title="Refresh"
             >
-              <RefreshCw className="h-5 w-5 text-white" />
-            </button>
+	              <RefreshCw className="h-5 w-5 text-white" />
+	            </button>
+	            <button
+	              onClick={handleVehicleDebug}
+	              disabled={updating}
+	              className="p-2 hover:bg-white/20 rounded-xl transition-colors disabled:opacity-50"
+	              title="Vehicle Debug"
+	            >
+	              <AlertCircle className="h-5 w-5 text-white" />
+	            </button>
 
             <Link
               href={`/job-cards/${jobCard._id}/edit`}

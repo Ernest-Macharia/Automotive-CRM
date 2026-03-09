@@ -282,6 +282,44 @@ class PaymentService {
     }
   }
 
+  /**
+   * GET /api/v1/payments/pesapal/callback
+   * Mainly used for integration debugging from frontend.
+   */
+  async getPesapalCallback(params?: Record<string, string | number | boolean>): Promise<any> {
+    try {
+      return await apiClient.get<any>('/payments/pesapal/callback', params as Record<string, any> | undefined);
+    } catch (error) {
+      console.error('Error fetching Pesapal callback response:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * GET /api/v1/payments/pesapal/ipn
+   * Mainly used for integration debugging from frontend.
+   */
+  async getPesapalIpn(params?: Record<string, string | number | boolean>): Promise<any> {
+    try {
+      return await apiClient.get<any>('/payments/pesapal/ipn', params as Record<string, any> | undefined);
+    } catch (error) {
+      console.error('Error fetching Pesapal IPN response:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * POST /api/v1/payments/pesapal/ipn
+   */
+  async postPesapalIpn(data: Record<string, any>): Promise<any> {
+    try {
+      return await apiClient.post<Record<string, any>, any>('/payments/pesapal/ipn', data);
+    } catch (error) {
+      console.error('Error posting Pesapal IPN payload:', error);
+      throw error;
+    }
+  }
+
   async generateReceiptNumber(): Promise<string> {
     try {
       const response = await apiClient.get<{ nextNumber: string }>('/payments/generate-receipt');

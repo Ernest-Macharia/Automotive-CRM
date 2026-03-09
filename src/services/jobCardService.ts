@@ -604,6 +604,19 @@ private filterJobCards(jobCards: any[], params: JobCardFilterParams): any[] {
   }
 
   /**
+   * Debug helper endpoint
+   * GET /api/v1/jobcards/debug/vehicle/{id}
+   */
+  async getVehicleDebugInfo(vehicleId: string): Promise<any> {
+    try {
+      return await apiClient.get<any>(`/jobcards/debug/vehicle/${vehicleId}`);
+    } catch (error) {
+      console.error(`Error fetching debug info for vehicle ${vehicleId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Get job card status color for UI
    */
   getStatusColor(status: string): string {

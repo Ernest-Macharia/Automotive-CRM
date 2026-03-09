@@ -370,7 +370,7 @@ export default function EditBlueprintPage({ blueprintId }: EditBlueprintPageProp
       // Find module info
       const moduleInfo = ALL_MODULES.find(m => m.id === data.module);
       
-      const mappedStages = data.stages.map((stage, index) => ({
+      const mappedStages: StageForm[] = data.stages.map((stage, index) => ({
         id: stage.id || stage._id || generateId(),
         name: stage.name,
         description: '',
@@ -388,7 +388,7 @@ export default function EditBlueprintPage({ blueprintId }: EditBlueprintPageProp
         canSkip: false,
         requiresApproval: false,
         approvalRoles: [],
-        approvalType: 'any',
+        approvalType: 'any' as StageForm['approvalType'],
         permissions: [],
         states: [],
       }));

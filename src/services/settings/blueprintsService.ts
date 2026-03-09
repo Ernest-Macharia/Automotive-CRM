@@ -282,6 +282,64 @@ class BlueprintsService {
   }
 
   /**
+   * Get allowed transitions for a blueprint
+   * GET /api/v1/blueprints/{id}/allowed-transitions
+   */
+  async getAllowedTransitions(id: string): Promise<BlueprintTransition[]> {
+    try {
+      const response = await apiClient.get<any>(`/blueprints/${id}/allowed-transitions`);
+      if (Array.isArray(response)) return response;
+      if (Array.isArray(response?.allowedTransitions)) return response.allowedTransitions;
+      return [];
+    } catch (error) {
+      console.error('Error fetching blueprint allowed transitions:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Test blueprint email integration
+   * GET /api/v1/blueprints/email/test
+   */
+  async testBlueprintEmail(): Promise<any> {
+    try {
+      return await apiClient.get<any>('/blueprints/email/test');
+    } catch (error) {
+      console.error('Error testing blueprint email integration:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get blueprint email status
+   * GET /api/v1/blueprints/email/status
+   */
+  async getBlueprintEmailStatus(): Promise<any> {
+    try {
+      return await apiClient.get<any>('/blueprints/email/status');
+    } catch (error) {
+      console.error('Error fetching blueprint email status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send a test blueprint notification email
+   * POST /api/v1/blueprints/email/test-blueprint-notification
+   */
+  async sendTestBlueprintNotification(data: Record<string, any>): Promise<any> {
+    try {
+      return await apiClient.post<Record<string, any>, any>(
+        '/blueprints/email/test-blueprint-notification',
+        data
+      );
+    } catch (error) {
+      console.error('Error sending test blueprint notification:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Validate transition directly (matching backend service method)
    */
   async validateTransitionDirect(

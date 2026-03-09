@@ -958,6 +958,103 @@ class KpiService {
     }
   }
 
+  // Complete KPI
+  async completeKpi(
+    kpiId: string,
+    data?: { completedBy?: string; notes?: string; completedAt?: string }
+  ): Promise<Kpi> {
+    try {
+      const payload = {
+        completedAt: data?.completedAt || new Date().toISOString(),
+        ...(data?.completedBy ? { completedBy: data.completedBy } : {}),
+        ...(data?.notes ? { notes: data.notes } : {}),
+      };
+      const response = await extendedApiClient.put<typeof payload, Kpi>(`/kpi/${kpiId}/complete`, payload);
+      return this.normalizeKpi(response);
+    } catch (error: any) {
+      console.error(`Error completing KPI ${kpiId}:`, error);
+      throw error;
+    }
+  }
+
+  // Generate monthly KPIs
+  async generateMonthlyKpis(data?: Record<string, any>): Promise<any> {
+    try {
+      return await extendedApiClient.post<Record<string, any>, any>('/kpi/generate/monthly', data || {});
+    } catch (error: any) {
+      console.error('Error generating monthly KPIs:', error);
+      throw error;
+    }
+  }
+
+  // Run KPI test endpoint
+  async testKpi(data?: Record<string, any>): Promise<any> {
+    try {
+      return await extendedApiClient.post<Record<string, any>, any>('/kpi/test', data || {});
+    } catch (error: any) {
+      console.error('Error testing KPI endpoint:', error);
+      throw error;
+    }
+  }
+
+  // Department KPI report
+  async getDepartmentReport(department: string, params?: Record<string, string | number | boolean>): Promise<any> {
+    try {
+      const query = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            query.append(key, String(value));
+          }
+        });
+      }
+      const endpoint = `/kpi/reports/department/${encodeURIComponent(department)}${query.toString() ? `?${query.toString()}` : ''}`;
+      return await extendedApiClient.get<any>(endpoint);
+    } catch (error: any) {
+      console.error(`Error fetching KPI department report for ${department}:`, error);
+      throw error;
+    }
+  }
+
+  // Individual KPI report
+  async getIndividualReport(userId?: string, params?: Record<string, string | number | boolean>): Promise<any> {
+    try {
+      const query = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            query.append(key, String(value));
+          }
+        });
+      }
+      const base = userId ? `/kpi/reports/individual/${encodeURIComponent(userId)}` : '/kpi/reports/individual';
+      const endpoint = `${base}${query.toString() ? `?${query.toString()}` : ''}`;
+      return await extendedApiClient.get<any>(endpoint);
+    } catch (error: any) {
+      console.error('Error fetching KPI individual report:', error);
+      throw error;
+    }
+  }
+
+  // Role KPI report
+  async getRoleReport(roleId: string, params?: Record<string, string | number | boolean>): Promise<any> {
+    try {
+      const query = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            query.append(key, String(value));
+          }
+        });
+      }
+      const endpoint = `/kpi/reports/role/${encodeURIComponent(roleId)}${query.toString() ? `?${query.toString()}` : ''}`;
+      return await extendedApiClient.get<any>(endpoint);
+    } catch (error: any) {
+      console.error(`Error fetching KPI role report for ${roleId}:`, error);
+      throw error;
+    }
+  }
+
   // Approve KPI
   async approveKpi(kpiId: string, approvedBy: string, comments?: string): Promise<Kpi> {
     try {

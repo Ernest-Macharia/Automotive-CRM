@@ -1702,6 +1702,22 @@ class OpportunityService {
   }
 
   /**
+   * Trigger SLA notification test endpoint
+   * POST /api/v1/opportunities/test/sla-notification
+   */
+  async testSlaNotification(data: Record<string, any> = {}): Promise<any> {
+    try {
+      return await extendedApiClient.post<Record<string, any>, any>(
+        '/opportunities/test/sla-notification',
+        data
+      );
+    } catch (error) {
+      console.error('Error testing opportunity SLA notification:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Check both LIS and SLA for opportunity
    * POST /api/v1/opportunities/{id}/lis/sla/check
    */
