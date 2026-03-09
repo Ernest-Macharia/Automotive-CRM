@@ -652,6 +652,44 @@ class ExtendedApiClient {
 
 const extendedApiClient = new ExtendedApiClient();
 
+function normalizeNoteAuthor(rawNote: any): { _id: string; name: string; email: string } {
+  const createdByValue = rawNote?.createdBy;
+  const createdByObj =
+    createdByValue && typeof createdByValue === 'object'
+      ? createdByValue
+      : rawNote?.author && typeof rawNote.author === 'object'
+        ? rawNote.author
+        : null;
+
+  const id =
+    createdByObj?._id ||
+    createdByObj?.id ||
+    (typeof createdByValue === 'string' ? createdByValue : null) ||
+    rawNote?.author?._id ||
+    'unknown';
+
+  const email =
+    createdByObj?.email ||
+    rawNote?.createdByEmail ||
+    rawNote?.author?.email ||
+    'unknown@example.com';
+
+  const composedName = `${createdByObj?.firstName || ''} ${createdByObj?.lastName || ''}`.trim();
+  const name =
+    createdByObj?.name ||
+    composedName ||
+    rawNote?.createdByName ||
+    rawNote?.author?.name ||
+    (typeof email === 'string' && email.includes('@') ? email.split('@')[0] : '') ||
+    'Unknown User';
+
+  return {
+    _id: String(id),
+    name: String(name),
+    email: String(email),
+  };
+}
+
 class OpportunityService {
   private async uploadCsvFile<T>(
     endpoint: string,
@@ -1750,11 +1788,7 @@ class OpportunityService {
       opportunityId: opportunityId,
       type: createdNote?.type || noteData.type || 'general',
       content: createdNote?.content || noteData.content,
-      author: createdNote?.author || {
-        _id: createdNote?.createdBy || 'unknown',
-        name: createdNote?.createdByName || 'Current User', // You might want to get this from user context
-        email: createdNote?.createdByEmail || 'user@example.com'
-      },
+      author: normalizeNoteAuthor(createdNote),
       metadata: {
         tags: parsedTags,
         pinned: false, // Default to false since backend doesn't support
@@ -1812,11 +1846,7 @@ async getNotes(opportunityId: string): Promise<Note[]> {
       opportunityId: opportunityId,
       type: note.type || 'general',
       content: note.content,
-      author: note.author || {
-        _id: note.createdBy || 'unknown',
-        name: note.createdByName || note.author?.name || 'Unknown User',
-        email: note.createdByEmail || note.author?.email || 'unknown@example.com'
-      },
+      author: normalizeNoteAuthor(note),
       metadata: {
         tags: note.tags ? 
           (Array.isArray(note.tags) ? note.tags : note.tags.split(',').filter((t: string) => t.trim())) 
@@ -1867,11 +1897,7 @@ async updateNote(opportunityId: string, noteId: string, noteData: UpdateNoteData
       opportunityId: opportunityId,
       type: response.type || noteData.type || 'general',
       content: response.content || noteData.content || '',
-      author: response.author || {
-        _id: 'unknown',
-        name: 'Unknown User',
-        email: 'unknown@example.com'
-      },
+      author: normalizeNoteAuthor(response),
       metadata: {
         tags: response.tags ? 
           (Array.isArray(response.tags) ? response.tags : response.tags.split(',').filter((t: string) => t.trim())) 
@@ -2331,5 +2357,4 @@ async updateNote(opportunityId: string, noteId: string, noteData: UpdateNoteData
 }
 
 export const opportunityService = new OpportunityService();
-
 
