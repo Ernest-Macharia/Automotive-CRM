@@ -66,6 +66,16 @@ export interface PaymentsResponse {
   };
 }
 
+export interface PesapalInitiatePaymentData {
+  amount: number;
+  currency?: string;
+  description?: string;
+  callbackUrl?: string;
+  cancellationUrl?: string;
+  notificationId?: string;
+  [key: string]: any;
+}
+
 class PaymentService {
   async createPayment(data: CreatePaymentData): Promise<Payment> {
     try {
@@ -238,6 +248,36 @@ class PaymentService {
       return await apiClient.get('/payments/stats');
     } catch (error) {
       console.error('Error fetching payment stats:', error);
+      throw error;
+    }
+  }
+
+  async initiatePesapalPayment(data: PesapalInitiatePaymentData): Promise<any> {
+    try {
+      return await apiClient.post<PesapalInitiatePaymentData, any>('/payments/pesapal/initiate', data);
+    } catch (error) {
+      console.error('Error initiating Pesapal payment:', error);
+      throw error;
+    }
+  }
+
+  async initiatePesapalMpesaQuotePayment(quoteId: string, data: Record<string, any> = {}): Promise<any> {
+    try {
+      return await apiClient.post<Record<string, any>, any>(
+        `/payments/pesapal/mpesa/quote/${quoteId}`,
+        data
+      );
+    } catch (error) {
+      console.error(`Error initiating Pesapal M-Pesa payment for quote ${quoteId}:`, error);
+      throw error;
+    }
+  }
+
+  async getPesapalPaymentStatus(orderTrackingId: string): Promise<any> {
+    try {
+      return await apiClient.get<any>(`/payments/pesapal/status/${orderTrackingId}`);
+    } catch (error) {
+      console.error(`Error fetching Pesapal payment status ${orderTrackingId}:`, error);
       throw error;
     }
   }

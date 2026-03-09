@@ -268,6 +268,43 @@ class LeadService {
     }
   }
 
+  async getFilteredLeads(params?: LeadFilterParams): Promise<LeadsResponse> {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            queryParams.append(key, value.toString());
+          }
+        });
+      }
+
+      const endpoint = `/leads/filtered${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const response = await apiClient.get<any>(endpoint);
+
+      if (Array.isArray(response)) {
+        return {
+          data: response,
+          pagination: {
+            total: response.length,
+            page: 1,
+            limit: response.length,
+            totalPages: 1
+          }
+        };
+      }
+
+      return {
+        data: response.data || response,
+        pagination: response.pagination,
+        stats: response.stats
+      };
+    } catch (error) {
+      console.error('Error fetching filtered leads:', error);
+      throw error;
+    }
+  }
+
   async getLeadsByPage(page: number, limit: number = 10, filters?: Omit<LeadFilterParams, 'page' | 'limit'>): Promise<LeadsResponse> {
     try {
       const params: LeadFilterParams = {
