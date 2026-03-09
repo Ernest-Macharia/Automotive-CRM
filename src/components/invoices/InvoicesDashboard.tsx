@@ -26,6 +26,7 @@ import {
   Upload
 } from 'lucide-react';
 import { invoiceService, Invoice, INVOICE_STATUS, PAYMENT_STATUS } from '@/services/invoiceService';
+import { paymentService } from '@/services/paymentService';
 import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
 
@@ -199,6 +200,22 @@ export default function InvoicesDashboard() {
       if (event.target) {
         event.target.value = '';
       }
+    }
+  };
+
+  const handleTestPesapalIntegration = async () => {
+    try {
+      await paymentService.postPesapalIpn({
+        source: 'frontend-test',
+        test: true,
+        timestamp: new Date().toISOString(),
+      });
+      await paymentService.getPesapalIpn({ test: true });
+      await paymentService.getPesapalCallback({ test: true });
+      showToast('Pesapal IPN test request sent', 'success');
+    } catch (error) {
+      console.error('Error testing Pesapal IPN:', error);
+      showToast('Failed to test Pesapal IPN endpoint', 'error');
     }
   };
 
@@ -417,20 +434,27 @@ Created: ${formatDate(invoice.createdAt)}
                 <Upload className="h-4 w-4 md:h-5 md:w-5 text-white" />
               )}
             </button>
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing || loading}
+	            <button
+	              onClick={handleRefresh}
+	              disabled={refreshing || loading}
               className="p-1.5 md:p-2 hover:bg-white/20 rounded-lg md:rounded-xl transition-colors disabled:opacity-50"
               title="Refresh"
             >
               {refreshing ? (
                 <Loader2 className="h-4 w-4 md:h-5 md:w-5 text-white animate-spin" />
               ) : (
-                <RefreshCw className="h-4 w-4 md:h-5 md:w-5 text-white" />
-              )}
-            </button>
-            <Link
-              href="/invoices/create"
+	                <RefreshCw className="h-4 w-4 md:h-5 md:w-5 text-white" />
+	              )}
+	            </button>
+	            <button
+	              onClick={handleTestPesapalIntegration}
+	              className="p-1.5 md:p-2 hover:bg-white/20 rounded-lg md:rounded-xl transition-colors"
+	              title="Test Pesapal IPN"
+	            >
+	              <CreditCard className="h-4 w-4 md:h-5 md:w-5 text-white" />
+	            </button>
+	            <Link
+	              href="/invoices/create"
               className="px-3 py-1.5 md:px-4 md:py-2 bg-white text-blue-600 font-medium rounded-lg md:rounded-xl hover:bg-white/90 flex items-center gap-1.5 md:gap-2"
             >
               <Plus className="h-4 w-4 md:h-5 md:w-5" />

@@ -66,6 +66,16 @@ export interface PaymentsResponse {
   };
 }
 
+export interface PesapalInitiatePaymentData {
+  amount: number;
+  currency?: string;
+  description?: string;
+  callbackUrl?: string;
+  cancellationUrl?: string;
+  notificationId?: string;
+  [key: string]: any;
+}
+
 class PaymentService {
   async createPayment(data: CreatePaymentData): Promise<Payment> {
     try {
@@ -238,6 +248,74 @@ class PaymentService {
       return await apiClient.get('/payments/stats');
     } catch (error) {
       console.error('Error fetching payment stats:', error);
+      throw error;
+    }
+  }
+
+  async initiatePesapalPayment(data: PesapalInitiatePaymentData): Promise<any> {
+    try {
+      return await apiClient.post<PesapalInitiatePaymentData, any>('/payments/pesapal/initiate', data);
+    } catch (error) {
+      console.error('Error initiating Pesapal payment:', error);
+      throw error;
+    }
+  }
+
+  async initiatePesapalMpesaQuotePayment(quoteId: string, data: Record<string, any> = {}): Promise<any> {
+    try {
+      return await apiClient.post<Record<string, any>, any>(
+        `/payments/pesapal/mpesa/quote/${quoteId}`,
+        data
+      );
+    } catch (error) {
+      console.error(`Error initiating Pesapal M-Pesa payment for quote ${quoteId}:`, error);
+      throw error;
+    }
+  }
+
+  async getPesapalPaymentStatus(orderTrackingId: string): Promise<any> {
+    try {
+      return await apiClient.get<any>(`/payments/pesapal/status/${orderTrackingId}`);
+    } catch (error) {
+      console.error(`Error fetching Pesapal payment status ${orderTrackingId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * GET /api/v1/payments/pesapal/callback
+   * Mainly used for integration debugging from frontend.
+   */
+  async getPesapalCallback(params?: Record<string, string | number | boolean>): Promise<any> {
+    try {
+      return await apiClient.get<any>('/payments/pesapal/callback', params as Record<string, any> | undefined);
+    } catch (error) {
+      console.error('Error fetching Pesapal callback response:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * GET /api/v1/payments/pesapal/ipn
+   * Mainly used for integration debugging from frontend.
+   */
+  async getPesapalIpn(params?: Record<string, string | number | boolean>): Promise<any> {
+    try {
+      return await apiClient.get<any>('/payments/pesapal/ipn', params as Record<string, any> | undefined);
+    } catch (error) {
+      console.error('Error fetching Pesapal IPN response:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * POST /api/v1/payments/pesapal/ipn
+   */
+  async postPesapalIpn(data: Record<string, any>): Promise<any> {
+    try {
+      return await apiClient.post<Record<string, any>, any>('/payments/pesapal/ipn', data);
+    } catch (error) {
+      console.error('Error posting Pesapal IPN payload:', error);
       throw error;
     }
   }

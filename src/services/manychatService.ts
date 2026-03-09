@@ -90,6 +90,7 @@ export interface ManyChatFilterParams {
 
 class ManyChatService {
   private baseUrl = '/manychat';
+  private testBaseUrl = '/manychat-test';
   private token: string | null = null;
 
   /**
@@ -164,6 +165,113 @@ class ManyChatService {
       console.error('Error checking ManyChat health:', error);
       throw error;
     }
+  }
+
+  /**
+   * Basic ping endpoint
+   * GET /api/v1/manychat/ping
+   */
+  async ping(): Promise<{ message?: string; status?: string }> {
+    try {
+      return await apiClient.get<{ message?: string; status?: string }>(`${this.baseUrl}/ping`);
+    } catch (error) {
+      console.error('Error pinging ManyChat service:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * ManyChat test module endpoints
+   */
+  async getTestConnection(token?: string): Promise<any> {
+    const params = this.addTokenToParams(token ? { token } : undefined);
+    return apiClient.get<any>(`${this.testBaseUrl}/connection`, params);
+  }
+
+  async getTestConfig(token?: string): Promise<any> {
+    const params = this.addTokenToParams(token ? { token } : undefined);
+    return apiClient.get<any>(`${this.testBaseUrl}/config`, params);
+  }
+
+  async getTestPing(token?: string): Promise<any> {
+    const params = this.addTokenToParams(token ? { token } : undefined);
+    return apiClient.get<any>(`${this.testBaseUrl}/ping`, params);
+  }
+
+  async getTestDebugConnection(token?: string): Promise<any> {
+    const params = this.addTokenToParams(token ? { token } : undefined);
+    return apiClient.get<any>(`${this.testBaseUrl}/debug-connection`, params);
+  }
+
+  async getTestFull(token?: string): Promise<any> {
+    const params = this.addTokenToParams(token ? { token } : undefined);
+    return apiClient.get<any>(`${this.testBaseUrl}/full-test`, params);
+  }
+
+  async getTestCustomFields(token?: string): Promise<any> {
+    const params = this.addTokenToParams(token ? { token } : undefined);
+    return apiClient.get<any>(`${this.testBaseUrl}/custom-fields`, params);
+  }
+
+  async getTestTags(token?: string): Promise<any> {
+    const params = this.addTokenToParams(token ? { token } : undefined);
+    return apiClient.get<any>(`${this.testBaseUrl}/tags`, params);
+  }
+
+  async getTestFlows(token?: string): Promise<any> {
+    const params = this.addTokenToParams(token ? { token } : undefined);
+    return apiClient.get<any>(`${this.testBaseUrl}/flows`, params);
+  }
+
+  async getTestWidgets(token?: string): Promise<any> {
+    const params = this.addTokenToParams(token ? { token } : undefined);
+    return apiClient.get<any>(`${this.testBaseUrl}/widgets`, params);
+  }
+
+  async getTestSubscriber(id: string, token?: string): Promise<any> {
+    const params = this.addTokenToParams(token ? { token } : undefined);
+    return apiClient.get<any>(`${this.testBaseUrl}/subscriber/${id}`, params);
+  }
+
+  async findTestSubscriber(params?: { phone?: string; email?: string; token?: string }): Promise<any> {
+    const finalParams = this.addTokenToParams(params);
+    return apiClient.get<any>(`${this.testBaseUrl}/find-subscriber`, finalParams);
+  }
+
+  async createTestSubscriber(data: Record<string, any>, token?: string): Promise<any> {
+    const dataWithToken = this.addTokenToData(data);
+    const finalData = token ? { ...dataWithToken, token } : dataWithToken;
+    return apiClient.post<typeof finalData, any>(`${this.testBaseUrl}/create-subscriber`, finalData);
+  }
+
+  async sendTestMessage(data: Record<string, any>, token?: string): Promise<any> {
+    const dataWithToken = this.addTokenToData(data);
+    const finalData = token ? { ...dataWithToken, token } : dataWithToken;
+    return apiClient.post<typeof finalData, any>(`${this.testBaseUrl}/send-message`, finalData);
+  }
+
+  async sendTestFlow(data: Record<string, any>, token?: string): Promise<any> {
+    const dataWithToken = this.addTokenToData(data);
+    const finalData = token ? { ...dataWithToken, token } : dataWithToken;
+    return apiClient.post<typeof finalData, any>(`${this.testBaseUrl}/send-flow`, finalData);
+  }
+
+  async addTestTag(data: Record<string, any>, token?: string): Promise<any> {
+    const dataWithToken = this.addTokenToData(data);
+    const finalData = token ? { ...dataWithToken, token } : dataWithToken;
+    return apiClient.post<typeof finalData, any>(`${this.testBaseUrl}/add-tag`, finalData);
+  }
+
+  async createTestTag(data: Record<string, any>, token?: string): Promise<any> {
+    const dataWithToken = this.addTokenToData(data);
+    const finalData = token ? { ...dataWithToken, token } : dataWithToken;
+    return apiClient.post<typeof finalData, any>(`${this.testBaseUrl}/tags/create`, finalData);
+  }
+
+  async setTestField(data: Record<string, any>, token?: string): Promise<any> {
+    const dataWithToken = this.addTokenToData(data);
+    const finalData = token ? { ...dataWithToken, token } : dataWithToken;
+    return apiClient.post<typeof finalData, any>(`${this.testBaseUrl}/set-field`, finalData);
   }
 
   /**

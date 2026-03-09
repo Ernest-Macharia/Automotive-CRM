@@ -46,6 +46,24 @@ export default function WorkOrdersList() {
   const csvInputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<number | undefined>(undefined);
 
+  const normalizePagination = useCallback(
+    (
+      incoming: { page?: number; limit?: number; total?: number; totalPages?: number } | undefined,
+      fallbackPage: number,
+      fallbackLimit: number,
+      dataLength: number
+    ) => {
+      const page = incoming?.page || fallbackPage;
+      const limit = incoming?.limit || fallbackLimit;
+      const total = incoming?.total || dataLength;
+      const apiTotalPages = incoming?.totalPages || 0;
+      const totalPages = apiTotalPages > 0 ? apiTotalPages : Math.max(1, Math.ceil(total / limit));
+
+      return { page, limit, total, totalPages };
+    },
+    []
+  );
+
   // Status options - memoized
   const statusOptions = useMemo(() => [
     { value: 'all', label: 'All Status' },
@@ -117,12 +135,14 @@ export default function WorkOrdersList() {
             });
           } else if (workOrdersResponse && 'data' in workOrdersResponse) {
             setWorkOrders(workOrdersResponse.data || []);
-            setPagination({
-              page: workOrdersResponse.pagination?.page || 1,
-              limit: workOrdersResponse.pagination?.limit || 10,
-              total: workOrdersResponse.pagination?.total || 0,
-              totalPages: workOrdersResponse.pagination?.totalPages || 0
-            });
+            setPagination(
+              normalizePagination(
+                workOrdersResponse.pagination,
+                1,
+                10,
+                workOrdersResponse.data?.length || 0
+              )
+            );
           }
           
           setStats(summaryStats);
@@ -144,7 +164,7 @@ export default function WorkOrdersList() {
     loadInitialData();
     
     return () => { mounted = false; };
-  }, [showToast]);
+  }, [showToast, normalizePagination]);
 
   // Fetch work orders with pagination and filters
   const fetchWorkOrders = useCallback(async (page: number) => {
@@ -176,12 +196,14 @@ export default function WorkOrdersList() {
         }));
       } else if (response && 'data' in response) {
         setWorkOrders(response.data || []);
-        setPagination({
-          page: response.pagination?.page || page,
-          limit: response.pagination?.limit || 10,
-          total: response.pagination?.total || 0,
-          totalPages: response.pagination?.totalPages || 0
-        });
+        setPagination(
+          normalizePagination(
+            response.pagination,
+            page,
+            pagination.limit,
+            response.data?.length || 0
+          )
+        );
       }
       
     } catch (error) {
@@ -190,7 +212,7 @@ export default function WorkOrdersList() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, statusFilter, stageFilter, pagination.limit, showToast, initialLoad]);
+  }, [debouncedSearch, statusFilter, stageFilter, pagination.limit, showToast, initialLoad, normalizePagination]);
 
   // Trigger fetch when deps change
   useEffect(() => {
@@ -241,11 +263,18 @@ export default function WorkOrdersList() {
   };
 
   const handlePageChange = (newPage: number) => {
-    if (newPage === pagination.page || newPage < 1 || newPage > pagination.totalPages) return;
+    const maxPages = pagination.totalPages > 0
+      ? pagination.totalPages
+      : Math.max(1, Math.ceil((pagination.total || 0) / (pagination.limit || 10)));
+    if (newPage === pagination.page || newPage < 1 || newPage > maxPages) return;
     setPagination(prev => ({ ...prev, page: newPage }));
     // Scroll to top of table
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const effectiveTotalPages = pagination.totalPages > 0
+    ? pagination.totalPages
+    : Math.max(1, Math.ceil((pagination.total || 0) / (pagination.limit || 10)));
 
   // Memoized getters
   const getCustomerName = useCallback((workOrder: any) => {
@@ -907,7 +936,7 @@ export default function WorkOrdersList() {
           </div>
 
           {/* Pagination */}
-          {!loading && workOrders.length > 0 && pagination.totalPages > 1 && (
+          {!loading && workOrders.length > 0 && effectiveTotalPages > 1 && (
             <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-gray-700">
@@ -934,12 +963,12 @@ export default function WorkOrdersList() {
                   </button>
                   
                   <span className="text-sm text-gray-700">
-                    Page {pagination.page} of {pagination.totalPages}
+                    Page {pagination.page} of {effectiveTotalPages}
                   </span>
                   
                   <button
                     onClick={() => handlePageChange(pagination.page + 1)}
-                    disabled={pagination.page === pagination.totalPages}
+                    disabled={pagination.page === effectiveTotalPages}
                     className="p-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ChevronRight className="h-5 w-5" />

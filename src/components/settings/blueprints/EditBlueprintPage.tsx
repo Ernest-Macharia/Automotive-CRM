@@ -36,6 +36,8 @@ import { blueprintsService, Blueprint } from '@/services/settings/blueprintsServ
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { ALL_MODULES, CRITERIA_TEMPLATES, FIELD_GROUPS } from '@/data/modulesData';
 
+const BACKEND_BLUEPRINT_MODULES = new Set(['opportunities', 'quotes', 'invoices', 'payments']);
+
 // Enhanced Types matching create page
 interface FieldCondition {
   id: string;
@@ -193,7 +195,9 @@ export default function EditBlueprintPage({ blueprintId }: EditBlueprintPageProp
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
-  const [availableModules, setAvailableModules] = useState(ALL_MODULES);
+  const [availableModules, setAvailableModules] = useState(
+    ALL_MODULES.filter(module => BACKEND_BLUEPRINT_MODULES.has(module.id))
+  );
   const [selectedStage, setSelectedStage] = useState<number | null>(null);
   const [expandedStage, setExpandedStage] = useState<string | null>(null);
   const [dragMode, setDragMode] = useState<'stages' | 'transitions'>('stages');
@@ -366,6 +370,42 @@ export default function EditBlueprintPage({ blueprintId }: EditBlueprintPageProp
       // Find module info
       const moduleInfo = ALL_MODULES.find(m => m.id === data.module);
       
+      const mappedStages: StageForm[] = data.stages.map((stage, index) => ({
+        id: stage.id || stage._id || generateId(),
+        name: stage.name,
+        description: '',
+        order: stage.order,
+        color: stageColors[index % stageColors.length].id,
+        icon: stageIcons[index % stageIcons.length].value,
+        allowedRoles: stage.allowedRoles,
+        requiredFields: [],
+        entryActions: stage.entryActions || [],
+        exitActions: stage.exitActions || [],
+        timeoutActions: [],
+        escalationRules: [],
+        isDefault: index === 0,
+        canRevert: true,
+        canSkip: false,
+        requiresApproval: false,
+        approvalRoles: [],
+        approvalType: 'any' as StageForm['approvalType'],
+        permissions: [],
+        states: [],
+      }));
+
+      const stageNameToId = new Map(mappedStages.map(stage => [stage.name, stage.id || '']));
+      const mappedTransitions: StageTransition[] = (data.allowedTransitions || []).map((transition: any) => ({
+        id: generateId(),
+        name: `${transition.fromStage} → ${transition.toStage}`,
+        fromStage: stageNameToId.get(transition.fromStage) || transition.fromStage,
+        toStage: stageNameToId.get(transition.toStage) || transition.toStage,
+        type: 'manual',
+        conditions: transition.conditions,
+        allowedRoles: transition.allowedRoles || [],
+        actions: [],
+        description: '',
+      }));
+
       // Transform backend data to match form structure
       const formData: BlueprintFormData = {
         name: data.name,
@@ -377,29 +417,8 @@ export default function EditBlueprintPage({ blueprintId }: EditBlueprintPageProp
         isDefault: false,
         version: '1.0',
         criteria: undefined,
-        stages: data.stages.map((stage, index) => ({
-          id: stage.id,
-          name: stage.name,
-          description: '',
-          order: stage.order,
-          color: stageColors[index % stageColors.length].id,
-          icon: stageIcons[index % stageIcons.length].value,
-          allowedRoles: stage.allowedRoles,
-          requiredFields: [],
-          entryActions: stage.entryActions || [],
-          exitActions: stage.exitActions || [],
-          timeoutActions: [],
-          escalationRules: [],
-          isDefault: index === 0,
-          canRevert: true,
-          canSkip: false,
-          requiresApproval: false,
-          approvalRoles: [],
-          approvalType: 'any',
-          permissions: [],
-          states: [],
-        })),
-        transitions: [],
+        stages: mappedStages,
+        transitions: mappedTransitions,
         availableFields: [],
         globalEscalationRules: [],
         globalPermissions: [],
@@ -650,6 +669,14 @@ export default function EditBlueprintPage({ blueprintId }: EditBlueprintPageProp
     
     try {
       // Transform form data to match backend DTO
+      const stageIdToName = new Map(formData.stages.map(stage => [stage.id || '', stage.name]));
+      const allowedTransitions = formData.transitions.map(transition => ({
+        fromStage: stageIdToName.get(transition.fromStage) || transition.fromStage,
+        toStage: stageIdToName.get(transition.toStage) || transition.toStage,
+        allowedRoles: transition.allowedRoles || [],
+        conditions: (transition.conditions as Record<string, any>) || {},
+      }));
+
       const blueprintData = {
         name: formData.name,
         module: formData.module,
@@ -668,6 +695,7 @@ export default function EditBlueprintPage({ blueprintId }: EditBlueprintPageProp
             params: action.params
           })),
         })),
+        allowedTransitions,
       };
       
       await blueprintsService.updateBlueprint(blueprintId, blueprintData);
@@ -703,6 +731,7 @@ export default function EditBlueprintPage({ blueprintId }: EditBlueprintPageProp
             params: { ...action.params }
           })),
         })),
+        allowedTransitions: blueprint.allowedTransitions || [],
       };
       
       const newBlueprint = await blueprintsService.createBlueprint(duplicateData);

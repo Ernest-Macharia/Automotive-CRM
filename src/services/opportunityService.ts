@@ -1642,6 +1642,15 @@ class OpportunityService {
     }
   }
 
+  async requestAssignment(opportunityId: string, data: Record<string, any> = {}): Promise<any> {
+    try {
+      return await extendedApiClient.post(`/opportunities/${opportunityId}/request-assignment`, data);
+    } catch (error) {
+      console.error('Error requesting opportunity assignment:', error);
+      throw error;
+    }
+  }
+
   /**
    * Refresh LIS validation for opportunity
    * POST /api/v1/opportunities/{id}/lis/refresh
@@ -1658,6 +1667,24 @@ class OpportunityService {
     }
   }
 
+  async validateOpportunityLIS(opportunityId: string): Promise<any> {
+    try {
+      return await extendedApiClient.get(`/opportunities/${opportunityId}/lis/validate`);
+    } catch (error) {
+      console.error('Error validating opportunity LIS:', error);
+      throw error;
+    }
+  }
+
+  async checkOpportunitySLAStatus(opportunityId: string): Promise<any> {
+    try {
+      return await extendedApiClient.get(`/opportunities/${opportunityId}/sla/check`);
+    } catch (error) {
+      console.error('Error checking opportunity SLA status:', error);
+      throw error;
+    }
+  }
+
   /**
    * Check SLA for specific opportunity
    * POST /api/v1/opportunities/{id}/check-sla
@@ -1670,6 +1697,22 @@ class OpportunityService {
       );
     } catch (error) {
       console.error('Error checking opportunity SLA:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Trigger SLA notification test endpoint
+   * POST /api/v1/opportunities/test/sla-notification
+   */
+  async testSlaNotification(data: Record<string, any> = {}): Promise<any> {
+    try {
+      return await extendedApiClient.post<Record<string, any>, any>(
+        '/opportunities/test/sla-notification',
+        data
+      );
+    } catch (error) {
+      console.error('Error testing opportunity SLA notification:', error);
       throw error;
     }
   }
@@ -2357,4 +2400,3 @@ async updateNote(opportunityId: string, noteId: string, noteData: UpdateNoteData
 }
 
 export const opportunityService = new OpportunityService();
-

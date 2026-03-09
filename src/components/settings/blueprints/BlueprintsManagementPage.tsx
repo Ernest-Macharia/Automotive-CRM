@@ -83,6 +83,7 @@ export default function BlueprintsManagementPage() {
   const [refreshing, setRefreshing] = useState(false);
   // Add expandedRow state for kebab menu
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [integrationLoading, setIntegrationLoading] = useState(false);
 
   useEffect(() => {
     loadBlueprints();
@@ -180,6 +181,75 @@ export default function BlueprintsManagementPage() {
     }
   };
 
+  const handleCheckEmailStatus = async () => {
+    try {
+      setIntegrationLoading(true);
+      const result = await blueprintsService.getBlueprintEmailStatus();
+      const statusText =
+        result?.status ||
+        result?.message ||
+        (result?.configured ? 'Configured' : 'Not configured');
+      showToast(`Blueprint email status: ${statusText}`, 'success');
+    } catch (error) {
+      console.error('Error checking blueprint email status:', error);
+      showToast('Failed to check blueprint email status', 'error');
+    } finally {
+      setIntegrationLoading(false);
+    }
+  };
+
+  const handleTestEmail = async () => {
+    try {
+      setIntegrationLoading(true);
+      await blueprintsService.testBlueprintEmail();
+      showToast('Blueprint email test completed', 'success');
+    } catch (error) {
+      console.error('Error testing blueprint email:', error);
+      showToast('Failed to test blueprint email', 'error');
+    } finally {
+      setIntegrationLoading(false);
+    }
+  };
+
+  const handleSendTestNotification = async (blueprint: Blueprint) => {
+    const recipient = prompt('Enter test recipient email');
+    if (!recipient) return;
+
+    try {
+      setIntegrationLoading(true);
+      await blueprintsService.sendTestBlueprintNotification({
+        blueprintId: blueprint.id,
+        module: blueprint.module,
+        recipient,
+        message: `Test notification for blueprint: ${blueprint.name}`,
+      });
+      showToast('Test blueprint notification sent', 'success');
+      setExpandedRow(null);
+    } catch (error) {
+      console.error('Error sending test blueprint notification:', error);
+      showToast('Failed to send test blueprint notification', 'error');
+    } finally {
+      setIntegrationLoading(false);
+    }
+  };
+
+  const handleViewAllowedTransitions = async (blueprint: Blueprint) => {
+    try {
+      setIntegrationLoading(true);
+      const transitions = await blueprintsService.getAllowedTransitions(blueprint.id);
+      showToast(
+        `Allowed transitions: ${Array.isArray(transitions) ? transitions.length : 0}`,
+        'success'
+      );
+      setExpandedRow(null);
+    } catch (error) {
+      console.error('Error loading allowed transitions:', error);
+      showToast('Failed to load allowed transitions', 'error');
+    } finally {
+      setIntegrationLoading(false);
+    }
+  };
+
   const handleSelectAll = () => {
     if (selectedBlueprints.length === blueprints.length) {
       setSelectedBlueprints([]);
@@ -235,10 +305,28 @@ export default function BlueprintsManagementPage() {
             </p>
           </div>
           
-          <div className="flex gap-3">
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
+	          <div className="flex gap-3">
+	            <button
+	              onClick={handleCheckEmailStatus}
+	              disabled={integrationLoading}
+	              className="flex items-center gap-2 px-3 py-2.5 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+	              aria-label="Check blueprint email status"
+	            >
+	              <Mail className="h-4 w-4" />
+	              <span className="hidden sm:inline">Email Status</span>
+	            </button>
+	            <button
+	              onClick={handleTestEmail}
+	              disabled={integrationLoading}
+	              className="flex items-center gap-2 px-3 py-2.5 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+	              aria-label="Test blueprint email"
+	            >
+	              <Mail className="h-4 w-4" />
+	              <span className="hidden sm:inline">Test Email</span>
+	            </button>
+	            <button
+	              onClick={handleRefresh}
+	              disabled={refreshing}
               className="flex items-center gap-2 px-3 py-2.5 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
               aria-label="Refresh blueprints"
             >
@@ -343,9 +431,8 @@ export default function BlueprintsManagementPage() {
               <option value="all">All Modules</option>
               <option value="opportunities">Opportunities</option>
               <option value="quotes">Quotes</option>
-              <option value="customers">Customers</option>
-              <option value="jobs">Jobs</option>
-              <option value="inventory">Inventory</option>
+              <option value="invoices">Invoices</option>
+              <option value="payments">Payments</option>
             </select>
           </div>
           
@@ -508,6 +595,26 @@ export default function BlueprintsManagementPage() {
                                 >
                                   <Play className="h-4 w-4" />
                                   Test Automation
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    handleViewAllowedTransitions(blueprint);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                  <ArrowRight className="h-4 w-4" />
+                                  Allowed Transitions
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    handleSendTestNotification(blueprint);
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                  <Mail className="h-4 w-4" />
+                                  Send Test Email
                                 </button>
                                 <button
                                   onClick={(e) => {

@@ -240,6 +240,33 @@ export interface CreateProfileData {
 }
 
 class SettingsService {
+  async getSettingsSummary(): Promise<any> {
+    try {
+      return await apiClient.get<any>('/settings/summary');
+    } catch (error) {
+      console.error('Error fetching settings summary:', error);
+      throw error;
+    }
+  }
+
+  async getValidationRules(module: string): Promise<any> {
+    try {
+      return await apiClient.get<any>(`/settings/validation-rules/${module}`);
+    } catch (error) {
+      console.error(`Error fetching validation rules for module ${module}:`, error);
+      throw error;
+    }
+  }
+
+  async updateValidationRules(module: string, data: Record<string, any>): Promise<any> {
+    try {
+      return await apiClient.patch<Record<string, any>, any>(`/settings/validation-rules/${module}`, data);
+    } catch (error) {
+      console.error(`Error updating validation rules for module ${module}:`, error);
+      throw error;
+    }
+  }
+
   // User Management Methods
   async getUsers(): Promise<User[]> {
     try {

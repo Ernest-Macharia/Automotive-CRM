@@ -439,6 +439,8 @@ export default function WorkflowsDashboard() {
 
       const modulesList = Array.isArray(modulesMeta)
         ? modulesMeta
+        : Array.isArray(modulesMeta?.supportedModules)
+          ? modulesMeta.supportedModules
         : Array.isArray(modulesMeta?.modules)
           ? modulesMeta.modules
           : modulesMeta && typeof modulesMeta === 'object'

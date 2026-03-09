@@ -74,6 +74,7 @@ export default function KPIDashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [showMobileTabs, setShowMobileTabs] = useState(false);
+  const [integrationBusy, setIntegrationBusy] = useState(false);
   
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -235,6 +236,103 @@ export default function KPIDashboard() {
     }
   };
 
+  const handleGenerateMonthly = async () => {
+    try {
+      setIntegrationBusy(true);
+      await kpiService.generateMonthlyKpis();
+      showToast('Monthly KPI generation triggered', 'success');
+      await fetchDashboardData();
+    } catch (error: any) {
+      console.error('Error generating monthly KPIs:', error);
+      showToast(error.message || 'Failed to generate monthly KPIs', 'error');
+    } finally {
+      setIntegrationBusy(false);
+    }
+  };
+
+  const handleRunKpiTest = async () => {
+    try {
+      setIntegrationBusy(true);
+      await kpiService.testKpi();
+      showToast('KPI test endpoint executed', 'success');
+    } catch (error: any) {
+      console.error('Error running KPI test endpoint:', error);
+      showToast(error.message || 'Failed to run KPI test endpoint', 'error');
+    } finally {
+      setIntegrationBusy(false);
+    }
+  };
+
+  const handleDepartmentReport = async () => {
+    const department = prompt('Enter department name (e.g. sales)');
+    if (!department) return;
+    try {
+      setIntegrationBusy(true);
+      const report = await kpiService.getDepartmentReport(department);
+      const count =
+        report?.total ??
+        report?.count ??
+        (Array.isArray(report?.data) ? report.data.length : Array.isArray(report) ? report.length : 0);
+      showToast(`Department report loaded (${count} records)`, 'success');
+    } catch (error: any) {
+      console.error('Error loading department KPI report:', error);
+      showToast(error.message || 'Failed to load department report', 'error');
+    } finally {
+      setIntegrationBusy(false);
+    }
+  };
+
+  const handleIndividualReport = async () => {
+    const userId = prompt('Enter user ID (optional). Leave blank for current user context.');
+    try {
+      setIntegrationBusy(true);
+      const report = await kpiService.getIndividualReport(userId || undefined);
+      const count =
+        report?.total ??
+        report?.count ??
+        (Array.isArray(report?.data) ? report.data.length : Array.isArray(report) ? report.length : 0);
+      showToast(`Individual report loaded (${count} records)`, 'success');
+    } catch (error: any) {
+      console.error('Error loading individual KPI report:', error);
+      showToast(error.message || 'Failed to load individual report', 'error');
+    } finally {
+      setIntegrationBusy(false);
+    }
+  };
+
+  const handleRoleReport = async () => {
+    const roleId = prompt('Enter role ID');
+    if (!roleId) return;
+    try {
+      setIntegrationBusy(true);
+      const report = await kpiService.getRoleReport(roleId);
+      const count =
+        report?.total ??
+        report?.count ??
+        (Array.isArray(report?.data) ? report.data.length : Array.isArray(report) ? report.length : 0);
+      showToast(`Role report loaded (${count} records)`, 'success');
+    } catch (error: any) {
+      console.error('Error loading role KPI report:', error);
+      showToast(error.message || 'Failed to load role report', 'error');
+    } finally {
+      setIntegrationBusy(false);
+    }
+  };
+
+  const handleCompleteKpi = async (kpiId: string) => {
+    try {
+      setIntegrationBusy(true);
+      await kpiService.completeKpi(kpiId);
+      showToast('KPI marked as complete', 'success');
+      await fetchDashboardData();
+    } catch (error: any) {
+      console.error('Error completing KPI:', error);
+      showToast(error.message || 'Failed to complete KPI', 'error');
+    } finally {
+      setIntegrationBusy(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     try {
       return new Date(dateString).toLocaleDateString('en-US', {
@@ -378,6 +476,28 @@ export default function KPIDashboard() {
                 title="Refresh"
               >
                 <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
+              </button>
+
+              <button
+                onClick={handleGenerateMonthly}
+                disabled={integrationBusy}
+                className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 disabled:opacity-50 text-sm"
+              >
+                Generate Monthly
+              </button>
+              <button
+                onClick={handleRunKpiTest}
+                disabled={integrationBusy}
+                className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 disabled:opacity-50 text-sm"
+              >
+                Run KPI Test
+              </button>
+              <button
+                onClick={handleDepartmentReport}
+                disabled={integrationBusy}
+                className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 disabled:opacity-50 text-sm"
+              >
+                Dept Report
               </button>
               
               <button
@@ -535,19 +655,59 @@ export default function KPIDashboard() {
               <Plus className="h-4 w-4 text-blue-600" />
               New KPI
             </button>
-            <button
-              onClick={() => {
-                // Add export functionality
-                setMobileMenuOpen(false);
-              }}
+	            <button
+	              onClick={() => {
+	                // Add export functionality
+	                setMobileMenuOpen(false);
+	              }}
               className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3"
             >
-              <Download className="h-4 w-4 text-gray-600" />
-              Export Data
-            </button>
-            <Link
-              href="/kpi/list"
-              className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3"
+	              <Download className="h-4 w-4 text-gray-600" />
+	              Export Data
+	            </button>
+	            <button
+	              onClick={() => {
+	                handleGenerateMonthly();
+	                setMobileMenuOpen(false);
+	              }}
+	              className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3"
+	            >
+	              <Calendar className="h-4 w-4 text-gray-600" />
+	              Generate Monthly
+	            </button>
+	            <button
+	              onClick={() => {
+	                handleDepartmentReport();
+	                setMobileMenuOpen(false);
+	              }}
+	              className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3"
+	            >
+	              <BarChart3 className="h-4 w-4 text-gray-600" />
+	              Dept Report
+	            </button>
+	            <button
+	              onClick={() => {
+	                handleIndividualReport();
+	                setMobileMenuOpen(false);
+	              }}
+	              className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3"
+	            >
+	              <Users className="h-4 w-4 text-gray-600" />
+	              Individual Report
+	            </button>
+	            <button
+	              onClick={() => {
+	                handleRoleReport();
+	                setMobileMenuOpen(false);
+	              }}
+	              className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3"
+	            >
+	              <Award className="h-4 w-4 text-gray-600" />
+	              Role Report
+	            </button>
+	            <Link
+	              href="/kpi/list"
+	              className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3"
               onClick={() => setMobileMenuOpen(false)}
             >
               <FileText className="h-4 w-4 text-gray-600" />
@@ -788,13 +948,22 @@ export default function KPIDashboard() {
                             </div>
                           </div>
                           
-                          <div className="flex items-center justify-between sm:justify-end gap-3">
-                            <span className="text-xs lg:text-sm text-gray-500">
-                              {kpiService.getFrequencyLabel(kpi.frequency)}
-                            </span>
-                            <Link
-                              href={`/kpi/${kpi._id}`}
-                              className="text-blue-600 hover:text-blue-700 font-medium text-xs lg:text-sm flex items-center gap-1"
+	                          <div className="flex items-center justify-between sm:justify-end gap-3">
+	                            <span className="text-xs lg:text-sm text-gray-500">
+	                              {kpiService.getFrequencyLabel(kpi.frequency)}
+	                            </span>
+	                            {kpi.status !== KPI_STATUS.COMPLETED && kpi.status !== KPI_STATUS.APPROVED && (
+	                              <button
+	                                onClick={() => handleCompleteKpi(kpi._id)}
+	                                disabled={integrationBusy}
+	                                className="px-2 py-1 text-xs rounded-md border border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-50"
+	                              >
+	                                Complete
+	                              </button>
+	                            )}
+	                            <Link
+	                              href={`/kpi/${kpi._id}`}
+	                              className="text-blue-600 hover:text-blue-700 font-medium text-xs lg:text-sm flex items-center gap-1"
                             >
                               View
                               <ChevronRight className="h-3 w-3 lg:h-4 lg:w-4" />

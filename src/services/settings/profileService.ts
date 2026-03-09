@@ -156,6 +156,14 @@ export interface SearchProfilesParams {
   limit?: number;
 }
 
+export interface AddMyDocumentData {
+  type: 'id_card' | 'passport' | 'driving_license' | 'kra_pin' | 'nssf' | 'nhif';
+  number: string;
+  expiryDate?: string;
+  documentUrl?: string;
+  active?: boolean;
+}
+
 class ProfileService {
   /**
    * Create a new profile (Admin/Management only)
@@ -338,6 +346,25 @@ class ProfileService {
       return this.normalizeProfile(response);
     } catch (error) {
       console.error('Error adding government document:', error);
+      throw error;
+    }
+  }
+
+  async addMyDocument(data: AddMyDocumentData): Promise<Profile> {
+    try {
+      const response = await apiClient.post<AddMyDocumentData, any>('/profiles/me/documents', data);
+      return this.normalizeProfile(response);
+    } catch (error) {
+      console.error('Error adding my document:', error);
+      throw error;
+    }
+  }
+
+  async checkMyProfileExists(): Promise<{ exists: boolean; profileId?: string }> {
+    try {
+      return await apiClient.get<{ exists: boolean; profileId?: string }>('/profiles/me/exists');
+    } catch (error) {
+      console.error('Error checking if my profile exists:', error);
       throw error;
     }
   }
