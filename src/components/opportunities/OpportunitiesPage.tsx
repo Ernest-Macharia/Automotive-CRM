@@ -1,6 +1,6 @@
 'use client';
 
-import { opportunityService, Opportunity, FilterParams, FilteredStats } from '@/services/opportunityService';
+import { opportunityService, Opportunity, FilterParams, FilteredStats, ZohoOpportunityRecord } from '@/services/opportunityService';
 import { useToast } from '@/contexts/ToastContext';
 import { useState, useEffect, useRef, useCallback, useMemo, memo, type ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
@@ -803,6 +803,12 @@ export default function OpportunitiesContent() {
   const [pagination, setPagination] = useState<any>(null);
   const [activeQuickFilter, setActiveQuickFilter] = useState<string | null>(null);
   const [organizationError, setOrganizationError] = useState<string | null>(null);
+  const [showZohoModal, setShowZohoModal] = useState(false);
+  const [zohoSearch, setZohoSearch] = useState('');
+  const [zohoStatus, setZohoStatus] = useState('');
+  const [zohoData, setZohoData] = useState<ZohoOpportunityRecord[]>([]);
+  const [zohoLoading, setZohoLoading] = useState(false);
+  const [zohoError, setZohoError] = useState<string | null>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   
   const [filters, setFilters] = useState<FilterParams>({
@@ -1603,6 +1609,32 @@ export default function OpportunitiesContent() {
     }
   };
 
+  const fetchZohoData = useCallback(async () => {
+    try {
+      setZohoLoading(true);
+      setZohoError(null);
+      const response = await opportunityService.fetchZohoOpportunityData({
+        search: zohoSearch.trim() || undefined,
+        status: zohoStatus || undefined,
+        page: 1,
+        limit: 50,
+      });
+      setZohoData(response.data || []);
+    } catch (error: any) {
+      console.error('Error loading Zoho data:', error);
+      setZohoError(error?.message || 'Failed to load Zoho data');
+      setZohoData([]);
+    } finally {
+      setZohoLoading(false);
+    }
+  }, [zohoSearch, zohoStatus]);
+
+  useEffect(() => {
+    if (showZohoModal) {
+      void fetchZohoData();
+    }
+  }, [showZohoModal, fetchZohoData]);
+
   // Check scroll buttons
   useEffect(() => {
     const checkScroll = () => {
@@ -1763,6 +1795,14 @@ export default function OpportunitiesContent() {
             >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">New Opportunity</span>
+            </button>
+            <button
+              onClick={() => setShowZohoModal(true)}
+              disabled={loading || creating}
+              className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-medium shadow-sm transition-all disabled:opacity-50"
+            >
+              <FileText className="h-4 w-4" />
+              <span className="hidden sm:inline">Zoho Data</span>
             </button>
           </div>
         </div>
@@ -2413,6 +2453,99 @@ export default function OpportunitiesContent() {
           </div>
         </div>
       </div>
+
+      {showZohoModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-4">
+          <div className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Zoho Data</h2>
+                <p className="text-sm text-gray-500">Browse Zoho records and search at the top.</p>
+              </div>
+              <button
+                onClick={() => setShowZohoModal(false)}
+                className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-5">
+              <div className="space-y-4">
+                <div className="flex flex-col md:flex-row gap-3">
+                  <input
+                    type="text"
+                    value={zohoSearch}
+                    onChange={(e) => setZohoSearch(e.target.value)}
+                    placeholder="Search customer, phone, email, subject..."
+                    className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                  />
+                  <select
+                    value={zohoStatus}
+                    onChange={(e) => setZohoStatus(e.target.value)}
+                    className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="new">New</option>
+                    <option value="attempted_to_contact">Attempted To Contact</option>
+                    <option value="prospecting">Prospecting</option>
+                    <option value="appointment_scheduled">Appointment Scheduled</option>
+                    <option value="non_progressive">Non Progressive</option>
+                    <option value="lost">Lost</option>
+                  </select>
+                  <button
+                    onClick={() => void fetchZohoData()}
+                    className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    disabled={zohoLoading}
+                  >
+                    {zohoLoading ? 'Loading...' : 'Search'}
+                  </button>
+                </div>
+
+                {zohoError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {zohoError}
+                  </div>
+                )}
+
+                <div className="max-h-[420px] overflow-auto rounded-xl border border-gray-100">
+                  <table className="min-w-full text-sm">
+                    <thead className="sticky top-0 bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-medium">Subject</th>
+                        <th className="text-left px-3 py-2 font-medium">Customer</th>
+                        <th className="text-left px-3 py-2 font-medium">Phone</th>
+                        <th className="text-left px-3 py-2 font-medium">Email</th>
+                        <th className="text-left px-3 py-2 font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {zohoData.length === 0 && !zohoLoading ? (
+                        <tr>
+                          <td colSpan={5} className="px-3 py-8 text-center text-gray-500">
+                            No Zoho records found.
+                          </td>
+                        </tr>
+                      ) : (
+                        zohoData.map((row, idx) => (
+                          <tr key={row.id || row._id || idx} className="border-t border-gray-100">
+                            <td className="px-3 py-2 text-gray-800">{row.subject || '-'}</td>
+                            <td className="px-3 py-2 text-gray-700">{row.customerName || row.name || '-'}</td>
+                            <td className="px-3 py-2 text-gray-700">{row.phone || row.customerPhone || '-'}</td>
+                            <td className="px-3 py-2 text-gray-700">{row.email || row.customerEmail || '-'}</td>
+                            <td className="px-3 py-2 text-gray-700">{row.status || '-'}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirmation Modal */}
       <ConfirmationModal
