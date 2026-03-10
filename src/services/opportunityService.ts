@@ -424,6 +424,26 @@ export interface PaginatedResponse<T> {
   };
 }
 
+export interface ZohoOpportunityRecord {
+  id?: string;
+  _id?: string;
+  subject?: string;
+  customerName?: string;
+  email?: string;
+  phone?: string;
+  source?: string;
+  status?: string;
+  createdAt?: string;
+  [key: string]: any;
+}
+
+export interface ZohoOpportunitySearchResponse {
+  data: ZohoOpportunityRecord[];
+  total?: number;
+  page?: number;
+  totalPages?: number;
+}
+
 export interface StageHistory {
   stage: string;
   date: Date;
@@ -885,6 +905,60 @@ class OpportunityService {
       console.error('Error getting all opportunities:', error);
       throw error;
     }
+  }
+
+  async fetchZohoOpportunityData(params?: {
+    search?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<ZohoOpportunitySearchResponse> {
+    const queryParams = new URLSearchParams();
+    if (params?.search) queryParams.append('search', params.search);
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.page) queryParams.append('page', String(params.page));
+    if (params?.limit) queryParams.append('limit', String(params.limit));
+
+    const suffix = queryParams.toString() ? `?${queryParams.toString()}` : '';
+    const candidateEndpoints = [
+      `/zoho-data/search${suffix}`,
+      `/zoho-data${suffix}`,
+      `/zoho-data/opportunities${suffix}`,
+      `/opportunities/zoho-data/search${suffix}`,
+    ];
+
+    for (const endpoint of candidateEndpoints) {
+      try {
+        const response = await extendedApiClient.get<any>(endpoint);
+        if (Array.isArray(response)) {
+          return { data: response, total: response.length, page: params?.page || 1, totalPages: 1 };
+        }
+        return {
+          data: response?.data || [],
+          total: response?.total || response?.pagination?.total,
+          page: response?.page || response?.pagination?.page,
+          totalPages: response?.totalPages || response?.pagination?.totalPages,
+        };
+      } catch {
+        // Try next endpoint
+      }
+    }
+
+    // Final fallback to standard opportunities filter when dedicated Zoho endpoint is unavailable.
+    const fallback = await this.filterOpportunities({
+      source: 'zoho',
+      search: params?.search,
+      status: params?.status,
+      page: params?.page,
+      limit: params?.limit,
+    });
+
+    return {
+      data: fallback.data || [],
+      total: fallback.pagination?.total || fallback.data?.length || 0,
+      page: fallback.pagination?.page || 1,
+      totalPages: fallback.pagination?.totalPages || 1,
+    };
   }
 
   private mapDuplicateCandidateToOpportunity(raw: any): Opportunity {
