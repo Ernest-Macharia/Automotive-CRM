@@ -12,6 +12,19 @@ interface DuplicateModalProps {
   allowCreateAnyway?: boolean;
   existingOpportunities: Opportunity[];
   newOpportunityData: any;
+  duplicateContext?: {
+    code: string;
+    message: string;
+    suggestions: string[];
+    availableActions?: {
+      canMerge?: boolean;
+      canReassign?: boolean;
+      escalatedToAdmin?: boolean;
+    };
+    autoReassigned?: boolean;
+  } | null;
+  onReassign?: () => void;
+  onMerge?: () => void;
 }
 
 export default function DuplicateModal({
@@ -20,7 +33,10 @@ export default function DuplicateModal({
   onContinueAnyway,
   allowCreateAnyway = true,
   existingOpportunities,
-  newOpportunityData
+  newOpportunityData,
+  duplicateContext,
+  onReassign,
+  onMerge
 }: DuplicateModalProps) {
   const router = useRouter();
 
@@ -70,6 +86,11 @@ export default function DuplicateModal({
     return assignee.name || assignee.fullName || assignee.email || assignee.id || assignee._id || 'Assigned';
   };
 
+  const canReassign = Boolean(duplicateContext?.availableActions?.canReassign && onReassign);
+  const canMerge = Boolean(
+    duplicateContext?.availableActions?.canMerge && onMerge && existingOpportunities.length > 1
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col">
@@ -85,6 +106,9 @@ export default function DuplicateModal({
                 <p className="text-gray-500 text-sm">
                   We found {existingOpportunities.length} existing opportunity with similar details
                 </p>
+                {duplicateContext?.code && (
+                  <p className="text-xs text-gray-400 mt-1">Code: {duplicateContext.code}</p>
+                )}
               </div>
             </div>
             <button
@@ -104,12 +128,23 @@ export default function DuplicateModal({
               <div>
                 <h3 className="font-semibold text-red-800 mb-1">Check before proceeding</h3>
                 <p className="text-red-600 text-sm">
-                  This customer already has {existingOpportunities.length} existing opportunity.
+                  {duplicateContext?.message || `This customer already has ${existingOpportunities.length} existing opportunity.`}
                   Consider using the existing opportunity instead of creating a new one.
                 </p>
               </div>
             </div>
           </div>
+
+          {Array.isArray(duplicateContext?.suggestions) && duplicateContext!.suggestions.length > 0 && (
+            <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100">
+              <h3 className="font-semibold text-blue-800 mb-2">Recommended Next Steps</h3>
+              <ul className="space-y-1 text-sm text-blue-700 list-disc pl-5">
+                {duplicateContext!.suggestions.map((suggestion, index) => (
+                  <li key={`${suggestion}-${index}`}>{suggestion}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* New Opportunity Summary */}
           <div className="mb-6 p-4 rounded-xl border border-gray-200">
@@ -169,6 +204,12 @@ export default function DuplicateModal({
                         <div>
                           <span className="text-gray-500">Assigned To:</span>
                           <p className="font-medium">{getAssignedToLabel(opportunity.assignedTo)}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Owner:</span>
+                          <p className="font-medium">
+                            {(opportunity as any)?.owner?.name || getAssignedToLabel(opportunity.assignedTo)}
+                          </p>
                         </div>
                         <div>
                           <span className="text-gray-500">Created:</span>
@@ -235,6 +276,24 @@ export default function DuplicateModal({
               >
                 Cancel
               </button>
+
+              {canReassign && (
+                <button
+                  onClick={onReassign}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700 font-medium shadow-sm transition-all"
+                >
+                  Reassign To Me
+                </button>
+              )}
+
+              {canMerge && (
+                <button
+                  onClick={onMerge}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700 font-medium shadow-sm transition-all"
+                >
+                  Merge Duplicates
+                </button>
+              )}
 
               {allowCreateAnyway && (
                 <>

@@ -118,6 +118,22 @@ interface UserPreferences {
   useDropdowns: boolean;
 }
 
+interface DuplicateActionFlags {
+  canMerge?: boolean;
+  canReassign?: boolean;
+  escalatedToAdmin?: boolean;
+  mergeEndpoint?: string;
+  reassignEndpoint?: string;
+}
+
+interface DuplicateApiContext {
+  code: string;
+  message: string;
+  suggestions: string[];
+  availableActions?: DuplicateActionFlags;
+  autoReassigned?: boolean;
+}
+
 const fallbackVehicleMakes = [
   'Toyota', 'Honda', 'Ford', 'Mercedes-Benz', 'BMW', 'Volkswagen',
   'Nissan', 'Mazda', 'Subaru', 'Mitsubishi', 'Hyundai', 'Kia',
@@ -246,6 +262,7 @@ export default function CreateOpportunityPage() {
    
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [duplicateOpportunities, setDuplicateOpportunities] = useState<Opportunity[]>([]);
+  const [duplicateApiContext, setDuplicateApiContext] = useState<DuplicateApiContext | null>(null);
   const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
   
   // New state for services and products from APIs
@@ -801,10 +818,14 @@ export default function CreateOpportunityPage() {
 
       if (similarOpportunities.length > 0) {
         setDuplicateOpportunities(similarOpportunities);
+        setDuplicateApiContext({
+          code: 'DUPLICATE_SIMILARITY_MATCH',
+          message: 'Potential duplicate opportunities found.',
+          suggestions: ['Open an existing opportunity instead of creating another one.'],
+        });
         setShowDuplicateModal(true);
         setIsSubmitting(false);
         submitInFlightRef.current = false;
-        showToast('Duplicate opportunity detected. Creation is blocked.', 'warning', 4000);
         return;
       }
 
@@ -929,10 +950,10 @@ export default function CreateOpportunityPage() {
 
     } catch (error: any) {
       const duplicateFromApi = extractDuplicatesFromApiError(error);
-      if (duplicateFromApi.length > 0) {
-        setDuplicateOpportunities(duplicateFromApi);
+      if (duplicateFromApi.opportunities.length > 0) {
+        setDuplicateOpportunities(duplicateFromApi.opportunities);
+        setDuplicateApiContext(duplicateFromApi.context);
         setShowDuplicateModal(true);
-        showToast('Duplicate opportunity detected. Creation is blocked.', 'warning', 4000);
         return;
       }
 
@@ -944,6 +965,64 @@ export default function CreateOpportunityPage() {
   };
   const handleContinueAnyway = () => {
     showToast('Creating duplicates is disabled. Use an existing opportunity instead.', 'error', 4000);
+  };
+
+  const handleDuplicateModalClose = () => {
+    setShowDuplicateModal(false);
+    setDuplicateApiContext(null);
+  };
+
+  const handleDuplicateReassign = async () => {
+    try {
+      const duplicate = duplicateOpportunities[0];
+      const currentUserId = getCurrentUserId();
+      if (!duplicate?._id || !currentUserId) {
+        showToast('Unable to reassign duplicate right now.', 'error', 4000);
+        return;
+      }
+
+      await opportunityService.reassignOpportunity(
+        duplicate._id,
+        currentUserId,
+        'Duplicate capture reassignment by admin'
+      );
+
+      showToast('Duplicate opportunity reassigned successfully.', 'success', 3000);
+      setShowDuplicateModal(false);
+      router.push(`/opportunities/${duplicate._id}`);
+    } catch (error: any) {
+      console.error('Error reassigning duplicate opportunity:', error);
+      showToast(error?.message || 'Failed to reassign duplicate opportunity', 'error', 4000);
+    }
+  };
+
+  const handleDuplicateMerge = async () => {
+    try {
+      if (duplicateOpportunities.length < 2) {
+        showToast('Need at least two duplicates to merge.', 'warning', 3000);
+        return;
+      }
+
+      const [source, ...duplicates] = duplicateOpportunities;
+      const result = await opportunityService.mergeDuplicates({
+        sourceOpportunityId: source._id,
+        duplicateOpportunityIds: duplicates.map(item => item._id),
+        mergeNotes: true,
+        mergeVehicles: true,
+        keepSourceStatus: true,
+      });
+
+      if (!result?.success) {
+        throw new Error('Merge failed');
+      }
+
+      showToast('Duplicate opportunities merged successfully.', 'success', 3000);
+      setShowDuplicateModal(false);
+      router.push(`/opportunities/${source._id}`);
+    } catch (error: any) {
+      console.error('Error merging duplicate opportunities:', error);
+      showToast(error?.message || 'Failed to merge duplicate opportunities', 'error', 4000);
+    }
   };
   const findSimilarOpportunities = async () => {
     const params: SimilarOpportunitiesRequest = {};
@@ -1052,7 +1131,9 @@ export default function CreateOpportunityPage() {
     };
   };
 
-  const extractDuplicatesFromApiError = (error: any): Opportunity[] => {
+  const extractDuplicatesFromApiError = (
+    error: any
+  ): { opportunities: Opportunity[]; context: DuplicateApiContext | null } => {
     const parsePayload = (value: unknown): any | null => {
       if (!value) return null;
       if (typeof value === 'object') return value;
@@ -1072,15 +1153,29 @@ export default function CreateOpportunityPage() {
       parsePayload(error?.data) ||
       parsePayload(error?.message);
 
-    const code = parsed?.code || parsed?.errorCode;
-    const isDuplicateCode = String(code || '').toUpperCase() === 'DUPLICATE_OPPORTUNITY';
+    const code = String(parsed?.code || parsed?.errorCode || '').toUpperCase();
+    const isDuplicateCode =
+      code === 'DUPLICATE_OPPORTUNITY' || code === 'DUPLICATE_OPPORTUNITY_AUTO_REASSIGNED';
     const duplicateList = Array.isArray(parsed?.duplicates) ? parsed.duplicates : [];
 
     if (!isDuplicateCode || duplicateList.length === 0) {
-      return [];
+      return { opportunities: [], context: null };
     }
 
-    return duplicateList.map((item: any) => normalizeDuplicateOpportunity(item));
+    const opportunities = duplicateList.map((item: any) => normalizeDuplicateOpportunity(item));
+    const context: DuplicateApiContext = {
+      code,
+      message:
+        parsed?.message ||
+        (code === 'DUPLICATE_OPPORTUNITY_AUTO_REASSIGNED'
+          ? 'Duplicate found and auto-reassigned because prior owner is missing/inactive.'
+          : 'Duplicate opportunity exists and is assigned to an active owner.'),
+      suggestions: Array.isArray(parsed?.suggestions) ? parsed.suggestions : [],
+      availableActions: parsed?.availableActions,
+      autoReassigned: Boolean(parsed?.duplicateHandling?.autoReassigned),
+    };
+
+    return { opportunities, context };
   };
 
   const handleCreateOpportunityError = (error: any) => {
@@ -1089,10 +1184,10 @@ export default function CreateOpportunityPage() {
     let errorMessage = 'Failed to create opportunity.';
 
     const duplicateFromApi = extractDuplicatesFromApiError(error);
-    if (duplicateFromApi.length > 0) {
-      setDuplicateOpportunities(duplicateFromApi);
+    if (duplicateFromApi.opportunities.length > 0) {
+      setDuplicateOpportunities(duplicateFromApi.opportunities);
+      setDuplicateApiContext(duplicateFromApi.context);
       setShowDuplicateModal(true);
-      showToast('Duplicate opportunity detected. Review existing records first.', 'warning', 4000);
       return;
     }
     
@@ -2806,13 +2901,15 @@ export default function CreateOpportunityPage() {
 
       <DuplicateModal
         isOpen={showDuplicateModal}
-        onClose={() => setShowDuplicateModal(false)}
+        onClose={handleDuplicateModalClose}
         onContinueAnyway={handleContinueAnyway}
         allowCreateAnyway={false}
         existingOpportunities={duplicateOpportunities}
         newOpportunityData={formData}
+        duplicateContext={duplicateApiContext}
+        onReassign={handleDuplicateReassign}
+        onMerge={handleDuplicateMerge}
       />
     </>
   );
 }
-
