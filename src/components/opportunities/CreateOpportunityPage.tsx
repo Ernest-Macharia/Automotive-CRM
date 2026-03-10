@@ -989,7 +989,7 @@ export default function CreateOpportunityPage() {
 
       showToast('Duplicate opportunity reassigned successfully.', 'success', 3000);
       setShowDuplicateModal(false);
-      router.push(`/opportunities/${duplicate._id}`);
+      router.push(`/opportunities/details?id=${duplicate._id}`);
     } catch (error: any) {
       console.error('Error reassigning duplicate opportunity:', error);
       showToast(error?.message || 'Failed to reassign duplicate opportunity', 'error', 4000);
@@ -1018,7 +1018,7 @@ export default function CreateOpportunityPage() {
 
       showToast('Duplicate opportunities merged successfully.', 'success', 3000);
       setShowDuplicateModal(false);
-      router.push(`/opportunities/${source._id}`);
+      router.push(`/opportunities/details?id=${source._id}`);
     } catch (error: any) {
       console.error('Error merging duplicate opportunities:', error);
       showToast(error?.message || 'Failed to merge duplicate opportunities', 'error', 4000);
@@ -1215,7 +1215,7 @@ export default function CreateOpportunityPage() {
     if (createdOpportunity) {
       showToast(`Redirecting to opportunity ${createdOpportunity.subject}`, 'info', 2000);
       setShowSuccessModal(false);
-      router.push(`/opportunities/${createdOpportunity._id}`);
+      router.push(`/opportunities/details?id=${createdOpportunity._id}`);
     }
   };
 

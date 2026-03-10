@@ -43,7 +43,7 @@ export default function DuplicateModal({
   if (!isOpen) return null;
 
   const handleViewExisting = (opportunityId: string) => {
-    router.push(`/opportunities/${opportunityId}`);
+    router.push(`/opportunities/details?id=${opportunityId}`);
     onClose();
   };
 
