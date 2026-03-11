@@ -18,7 +18,7 @@ import ConfirmationModal from '@/components/opportunities/ConfirmationModal';
 import { useOpportunityStatusUpdate } from '@/hooks/useOpportunityStatusUpdate';
 import { OrganizationError } from '@/services/settings/organizationService';
 
-type StageId = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost';
+type StageId = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost' | 'won';
 type OpportunityStatusUpdateDetail = {
   opportunityId: string;
   newStatus: string;
@@ -61,6 +61,12 @@ const stages: { id: StageId; label: string; pastelClass: string; borderColor: st
     label: 'Lost', 
     pastelClass: 'bg-rose-50/80 backdrop-blur-sm', 
     borderColor: 'border-rose-100' 
+  },
+  {
+    id: 'won',
+    label: 'Won',
+    pastelClass: 'bg-emerald-50/80 backdrop-blur-sm',
+    borderColor: 'border-emerald-100'
   },
 ];
 
@@ -780,6 +786,7 @@ const OpportunityCard = memo(function OpportunityCard({
 OpportunityCard.displayName = 'OpportunityCard';
 
 export default function OpportunitiesContent() {
+  const ZOHO_PAGE_SIZE = 50;
   const { showToast } = useToast();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
@@ -809,6 +816,9 @@ export default function OpportunitiesContent() {
   const [zohoData, setZohoData] = useState<ZohoOpportunityRecord[]>([]);
   const [zohoLoading, setZohoLoading] = useState(false);
   const [zohoError, setZohoError] = useState<string | null>(null);
+  const [zohoPage, setZohoPage] = useState(1);
+  const [zohoTotalPages, setZohoTotalPages] = useState(1);
+  const [zohoTotal, setZohoTotal] = useState(0);
   const csvInputRef = useRef<HTMLInputElement>(null);
   
   const [filters, setFilters] = useState<FilterParams>({
@@ -932,6 +942,7 @@ export default function OpportunitiesContent() {
       case 'appointment_scheduled': return 'bg-gradient-to-r from-orange-400 to-orange-500';
       case 'non_progressive': return 'bg-gradient-to-r from-gray-400 to-gray-500';
       case 'lost': return 'bg-gradient-to-r from-rose-400 to-rose-500';
+      case 'won': return 'bg-gradient-to-r from-emerald-400 to-emerald-500';
     }
   }, []);
 
@@ -1064,6 +1075,7 @@ export default function OpportunitiesContent() {
     appointment_scheduled: false,
     non_progressive: false,
     lost: false,
+    won: false,
   });
 
   const [stagePagination, setStagePagination] = useState<Record<StageId, { page: number; hasMore: boolean }>>({
@@ -1073,6 +1085,7 @@ export default function OpportunitiesContent() {
     appointment_scheduled: { page: 0, hasMore: true },
     non_progressive: { page: 0, hasMore: true },
     lost: { page: 0, hasMore: true },
+    won: { page: 0, hasMore: true },
   });
 
   useEffect(() => {
@@ -1084,6 +1097,7 @@ export default function OpportunitiesContent() {
       appointment_scheduled: { page: 0, hasMore: true },
       non_progressive: { page: 0, hasMore: true },
       lost: { page: 0, hasMore: true },
+      won: { page: 0, hasMore: true },
     });
   }, [memoizedFilters, memoizedAdvancedFilters]);
   const loadMoreForStage = useCallback(async (stageId: StageId) => {
@@ -1609,29 +1623,39 @@ export default function OpportunitiesContent() {
     }
   };
 
-  const fetchZohoData = useCallback(async () => {
+  const fetchZohoData = useCallback(async (page = 1) => {
     try {
       setZohoLoading(true);
       setZohoError(null);
       const response = await opportunityService.fetchZohoOpportunityData({
         search: zohoSearch.trim() || undefined,
         status: zohoStatus || undefined,
-        page: 1,
-        limit: 50,
+        page,
+        limit: ZOHO_PAGE_SIZE,
       });
-      setZohoData(response.data || []);
+      const data = response.data || [];
+      const currentPage = response.page || page;
+      const total = typeof response.total === 'number' ? response.total : data.length;
+      const totalPages = response.totalPages || Math.max(1, Math.ceil(total / ZOHO_PAGE_SIZE));
+
+      setZohoData(data);
+      setZohoPage(currentPage);
+      setZohoTotal(total);
+      setZohoTotalPages(totalPages);
     } catch (error: any) {
       console.error('Error loading Zoho data:', error);
       setZohoError(error?.message || 'Failed to load Zoho data');
       setZohoData([]);
+      setZohoTotal(0);
+      setZohoTotalPages(1);
     } finally {
       setZohoLoading(false);
     }
-  }, [zohoSearch, zohoStatus]);
+  }, [zohoSearch, zohoStatus, ZOHO_PAGE_SIZE]);
 
   useEffect(() => {
     if (showZohoModal) {
-      void fetchZohoData();
+      void fetchZohoData(1);
     }
   }, [showZohoModal, fetchZohoData]);
 
@@ -2461,6 +2485,7 @@ export default function OpportunitiesContent() {
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">Zoho Data</h2>
                 <p className="text-sm text-gray-500">Browse Zoho records and search at the top.</p>
+                <p className="text-xs text-gray-500 mt-1">Total records: {zohoTotal}</p>
               </div>
               <button
                 onClick={() => setShowZohoModal(false)}
@@ -2495,7 +2520,7 @@ export default function OpportunitiesContent() {
                     <option value="lost">Lost</option>
                   </select>
                   <button
-                    onClick={() => void fetchZohoData()}
+                    onClick={() => void fetchZohoData(1)}
                     className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
                     disabled={zohoLoading}
                   >
@@ -2540,6 +2565,28 @@ export default function OpportunitiesContent() {
                       )}
                     </tbody>
                   </table>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-gray-500">
+                    Page {zohoPage} of {zohoTotalPages}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => void fetchZohoData(Math.max(1, zohoPage - 1))}
+                      disabled={zohoLoading || zohoPage <= 1}
+                      className="px-3 py-1.5 rounded-lg border border-gray-200/50 bg-white/50 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => void fetchZohoData(Math.min(zohoTotalPages, zohoPage + 1))}
+                      disabled={zohoLoading || zohoPage >= zohoTotalPages}
+                      className="px-3 py-1.5 rounded-lg border border-gray-200/50 bg-white/50 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors"
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

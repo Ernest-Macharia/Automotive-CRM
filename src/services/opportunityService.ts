@@ -441,6 +441,7 @@ export interface ZohoOpportunitySearchResponse {
   data: ZohoOpportunityRecord[];
   total?: number;
   page?: number;
+  limit?: number;
   totalPages?: number;
 }
 
@@ -935,9 +936,14 @@ class OpportunityService {
         }
         return {
           data: response?.data || [],
-          total: response?.total || response?.pagination?.total,
-          page: response?.page || response?.pagination?.page,
-          totalPages: response?.totalPages || response?.pagination?.totalPages,
+          total: response?.total ?? response?.count ?? response?.pagination?.total,
+          page: response?.page ?? response?.pagination?.page ?? params?.page ?? 1,
+          limit: response?.limit ?? response?.pagination?.limit ?? params?.limit,
+          totalPages:
+            response?.totalPages ??
+            response?.pages ??
+            response?.pagination?.totalPages ??
+            response?.pagination?.pages,
         };
       } catch {
         // Try next endpoint
