@@ -1014,6 +1014,7 @@ export default function OpportunitiesContent() {
         opp._id === opportunityId
           ? {
               ...opp,
+              status: newStatus as any,
               updatedAt: new Date().toISOString(),
               status: normalizeOpportunityStatus(newStatus),
               computedStageColor: getStageColor(normalizeOpportunityStatus(newStatus)),
