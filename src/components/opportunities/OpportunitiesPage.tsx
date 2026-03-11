@@ -1005,9 +1005,6 @@ export default function OpportunitiesContent() {
 
   const formatDate = useCallback((dateString: string) => {
     const date = new Date(dateString);
-    if (Number.isNaN(date.getTime())) {
-      return 'Unknown date';
-    }
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));

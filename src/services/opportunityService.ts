@@ -287,20 +287,6 @@ export interface OpportunitiesResponse {
   };
 }
 
-const toIsoDateOrFallback = (value: any, fallback?: string): string => {
-  const candidate = value ? new Date(value) : null;
-  if (candidate && !Number.isNaN(candidate.getTime())) {
-    return candidate.toISOString();
-  }
-  if (fallback) {
-    const fallbackDate = new Date(fallback);
-    if (!Number.isNaN(fallbackDate.getTime())) {
-      return fallbackDate.toISOString();
-    }
-  }
-  return new Date().toISOString();
-};
-
 export interface OpportunityStats {
   totalopportunities: number;
   openopportunities: number;
@@ -915,13 +901,7 @@ class OpportunityService {
       }
       
       const endpoint = `/opportunities${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      const response = await extendedApiClient.get<OpportunitiesResponse>(endpoint);
-      return {
-        ...response,
-        data: Array.isArray(response?.data)
-          ? response.data.map((item: any) => this.mapApiOpportunity(item))
-          : [],
-      };
+      return extendedApiClient.get<OpportunitiesResponse>(endpoint);
     } catch (error) {
       console.error('Error getting all opportunities:', error);
       throw error;
@@ -991,9 +971,9 @@ class OpportunityService {
     const customer = raw?.customer || {};
     const id = raw?._id || raw?.id || '';
 
-      return {
-        _id: String(id),
-        id: String(id),
+    return {
+      _id: String(id),
+      id: String(id),
       type: (raw?.type || 'individual') as Opportunity['type'],
       subject: String(raw?.subject || 'Potential duplicate'),
       status: (raw?.status || 'new') as Opportunity['status'],
@@ -1022,77 +1002,6 @@ class OpportunityService {
             lastCalculated: raw.leadScore.lastCalculated || new Date().toISOString(),
           }
         : undefined,
-      };
-  }
-
-  private mapApiOpportunity(raw: any): Opportunity {
-    const customer = raw?.customer || {};
-    const id = raw?._id || raw?.id || '';
-    const createdAt = toIsoDateOrFallback(raw?.createdAt, raw?.updatedAt);
-    const updatedAt = toIsoDateOrFallback(raw?.updatedAt, raw?.createdAt);
-    const subject = String(raw?.subject || customer?.name || raw?.customerName || 'Untitled Opportunity');
-
-    return {
-      _id: String(id),
-      id: String(id),
-      type: (raw?.type || 'individual') as Opportunity['type'],
-      subject,
-      status: (raw?.status || 'new') as Opportunity['status'],
-      source: raw?.source || raw?.dataSource || undefined,
-      customer: {
-        name: String(customer?.name || raw?.customerName || subject || 'Unknown Customer'),
-        email: customer?.email || raw?.customerEmail || undefined,
-        companyName: customer?.companyName || undefined,
-        phone: customer?.phone || raw?.customerPhone || undefined,
-        _id: String(customer?._id || customer?.id || ''),
-        id: String(customer?.id || customer?._id || ''),
-        companyAddress: customer?.companyAddress || undefined,
-        companyTaxId: customer?.companyTaxId || undefined,
-        companyPhone: customer?.companyPhone || undefined,
-        companyEmail: customer?.companyEmail || undefined,
-      },
-      vehicles: Array.isArray(raw?.vehicles) ? raw.vehicles : [],
-      jobCards: Array.isArray(raw?.jobCards) ? raw.jobCards : [],
-      waivers: Array.isArray(raw?.waivers) ? raw.waivers : [],
-      quotes: Array.isArray(raw?.quotes) ? raw.quotes : [],
-      assignedTo: raw?.assignedTo || null,
-      createdAt,
-      updatedAt,
-      isNurturing: Boolean(raw?.isNurturing),
-      notes: raw?.notes || undefined,
-      leadScore: raw?.leadScore
-        ? {
-            totalScore: Number(raw.leadScore.totalScore || 0),
-            tier: (raw.leadScore.tier || 'cold') as 'hot' | 'warm' | 'cold',
-            priority: Number(raw.leadScore.priority || 0),
-            lastCalculated: toIsoDateOrFallback(raw.leadScore.lastCalculated, updatedAt),
-            scoreChange:
-              raw.leadScore.scoreChange !== undefined ? Number(raw.leadScore.scoreChange || 0) : undefined,
-            autoAssigned: raw.leadScore.autoAssigned,
-          }
-        : undefined,
-      scoreHistory: Array.isArray(raw?.scoreHistory) ? raw.scoreHistory : undefined,
-      opportunityType: raw?.opportunityType,
-      packageType: raw?.packageType,
-      servicesProducts: Array.isArray(raw?.servicesProducts) ? raw.servicesProducts : undefined,
-      subtotal: raw?.subtotal,
-      totalDiscount: raw?.totalDiscount,
-      total: raw?.total,
-      companyAddress: raw?.companyAddress,
-      companyTaxId: raw?.companyTaxId,
-      companyPhone: raw?.companyPhone,
-      companyEmail: raw?.companyEmail,
-      hasLead: raw?.hasLead,
-      currentStage: raw?.currentStage,
-      currentQuote: raw?.currentQuote,
-      currentWaiver: raw?.currentWaiver,
-      currentJobCard: raw?.currentJobCard,
-      currentPreChecklist: raw?.currentPreChecklist,
-      currentPostChecklist: raw?.currentPostChecklist,
-      currentInvoice: raw?.currentInvoice,
-      workOrder: raw?.workOrder,
-      salesOrder: raw?.salesOrder,
-      stageHistory: Array.isArray(raw?.stageHistory) ? raw.stageHistory : undefined,
     };
   }
 
