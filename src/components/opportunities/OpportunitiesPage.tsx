@@ -100,6 +100,31 @@ const normalizeOpportunityStatus = (value?: string): StageId => {
   return statusMap[compact] || 'new';
 };
 
+const normalizeOpportunityRecord = (opportunity: ExtendedOpportunity): ExtendedOpportunity => {
+  const customer = opportunity?.customer || ({} as ExtendedOpportunity['customer']);
+  const leadScore = opportunity?.leadScore
+    ? {
+        ...opportunity.leadScore,
+        totalScore: Number(opportunity.leadScore.totalScore || 0),
+        priority: Number(opportunity.leadScore.priority || 0),
+      }
+    : undefined;
+
+  return {
+    ...opportunity,
+    status: normalizeOpportunityStatus(opportunity?.status),
+    customer: {
+      name: String(customer?.name || opportunity?.subject || 'Unknown Customer'),
+      email: customer?.email || undefined,
+      companyName: customer?.companyName || undefined,
+      phone: customer?.phone || undefined,
+      _id: String(customer?._id || customer?.id || ''),
+      id: String(customer?.id || customer?._id || ''),
+    },
+    leadScore,
+  };
+};
+
 const leadTiers = [
   { id: 'hot', label: 'Hot', color: 'bg-red-100 text-red-600' },
   { id: 'warm', label: 'Warm', color: 'bg-amber-100 text-amber-600' },
@@ -577,6 +602,8 @@ const OpportunityCard = memo(function OpportunityCard({
 }: OpportunityCardProps) {
   const router = useRouter();
   const [isRecalculating, setIsRecalculating] = useState(false);
+  const customerName = opportunity.customer?.name || opportunity.subject || 'Unknown Customer';
+  const customerCompany = opportunity.customer?.companyName || '';
   
   // Memoize expensive computations
   const childCounts = useMemo(() => getChildCounts(opportunity), [opportunity, getChildCounts]);
@@ -655,9 +682,9 @@ const OpportunityCard = memo(function OpportunityCard({
             <h4 className="font-semibold text-gray-800 text-sm truncate" title={opportunity.subject}>
               {opportunity.subject}
             </h4>
-            <p className="text-gray-600 text-xs truncate mt-0.5" title={`${opportunity.customer.name}${opportunity.customer.companyName ? ` · ${opportunity.customer.companyName}` : ''}`}>
-              {opportunity.customer.name}
-              {opportunity.customer.companyName && ` · ${opportunity.customer.companyName}`}
+            <p className="text-gray-600 text-xs truncate mt-0.5" title={`${customerName}${customerCompany ? ` · ${customerCompany}` : ''}`}>
+              {customerName}
+              {customerCompany && ` · ${customerCompany}`}
             </p>
           </div>
         </div>
@@ -1149,14 +1176,16 @@ export default function OpportunitiesContent() {
       
       if (response.data.length > 0) {
         // Process new opportunities
-        const processedOpportunities = response.data.map((opp: ExtendedOpportunity) => ({
-          ...opp,
-          status: normalizeOpportunityStatus(opp.status),
-          computedStageColor: getStageColor(normalizeOpportunityStatus(opp.status)),
-          computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
-          computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
-          computedChildCounts: getChildCounts(opp)
-        }));
+        const processedOpportunities = response.data.map((opp: ExtendedOpportunity) => {
+          const normalizedOpp = normalizeOpportunityRecord(opp);
+          return {
+            ...normalizedOpp,
+            computedStageColor: getStageColor(normalizedOpp.status),
+            computedAvatarColor: getAvatarColor(normalizedOpp.type, normalizedOpp.leadScore?.totalScore),
+            computedTier: getLeadScoreTier(normalizedOpp.leadScore?.totalScore),
+            computedChildCounts: getChildCounts(normalizedOpp)
+          };
+        });
 
         // Append to existing opportunities without duplicates
         setOpportunities(prev => {
@@ -1246,14 +1275,16 @@ export default function OpportunitiesContent() {
         } = cachedData;
         
         // Pre-compute all values for opportunities
-        const processedOpportunities = data.map((opp: ExtendedOpportunity) => ({
-          ...opp,
-          status: normalizeOpportunityStatus(opp.status),
-          computedStageColor: getStageColor(normalizeOpportunityStatus(opp.status)),
-          computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
-          computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
-          computedChildCounts: getChildCounts(opp)
-        }));
+        const processedOpportunities = data.map((opp: ExtendedOpportunity) => {
+          const normalizedOpp = normalizeOpportunityRecord(opp);
+          return {
+            ...normalizedOpp,
+            computedStageColor: getStageColor(normalizedOpp.status),
+            computedAvatarColor: getAvatarColor(normalizedOpp.type, normalizedOpp.leadScore?.totalScore),
+            computedTier: getLeadScoreTier(normalizedOpp.leadScore?.totalScore),
+            computedChildCounts: getChildCounts(normalizedOpp)
+          };
+        });
         
         setOpportunities(processedOpportunities);
         setPagination(cachedPagination);
@@ -1281,14 +1312,16 @@ export default function OpportunitiesContent() {
       ]);
       
       // Pre-compute all values for opportunities
-      const processedOpportunities = response.data.map((opp: ExtendedOpportunity) => ({
-        ...opp,
-        status: normalizeOpportunityStatus(opp.status),
-        computedStageColor: getStageColor(normalizeOpportunityStatus(opp.status)),
-        computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
-        computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
-        computedChildCounts: getChildCounts(opp)
-      }));
+      const processedOpportunities = response.data.map((opp: ExtendedOpportunity) => {
+        const normalizedOpp = normalizeOpportunityRecord(opp);
+        return {
+          ...normalizedOpp,
+          computedStageColor: getStageColor(normalizedOpp.status),
+          computedAvatarColor: getAvatarColor(normalizedOpp.type, normalizedOpp.leadScore?.totalScore),
+          computedTier: getLeadScoreTier(normalizedOpp.leadScore?.totalScore),
+          computedChildCounts: getChildCounts(normalizedOpp)
+        };
+      });
       
       setOpportunities(processedOpportunities);
       setPagination(response.pagination);
