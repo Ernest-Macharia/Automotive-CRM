@@ -70,36 +70,6 @@ const stages: { id: StageId; label: string; pastelClass: string; borderColor: st
   },
 ];
 
-const normalizeOpportunityStatus = (value?: string): StageId => {
-  const normalized = String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ');
-
-  const compact = normalized.replace(/\s+/g, '');
-  const statusMap: Record<string, StageId> = {
-    new: 'new',
-    open: 'new',
-    attemptedtocontact: 'attempted_to_contact',
-    attemptedcontact: 'attempted_to_contact',
-    contacted: 'attempted_to_contact',
-    prospecting: 'prospecting',
-    appointmentscheduled: 'appointment_scheduled',
-    scheduled: 'appointment_scheduled',
-    nonprogressive: 'non_progressive',
-    dormant: 'non_progressive',
-    stalled: 'non_progressive',
-    lost: 'lost',
-    closedlost: 'lost',
-    won: 'won',
-    closedwon: 'won',
-    closed: 'won',
-  };
-
-  return statusMap[compact] || 'new';
-};
-
 const leadTiers = [
   { id: 'hot', label: 'Hot', color: 'bg-red-100 text-red-600' },
   { id: 'warm', label: 'Warm', color: 'bg-amber-100 text-amber-600' },
@@ -584,7 +554,7 @@ const OpportunityCard = memo(function OpportunityCard({
     [opportunity.type, opportunity.leadScore?.totalScore, getAvatarColor]);
   const tier = useMemo(() => getLeadScoreTier(opportunity.leadScore?.totalScore), 
     [opportunity.leadScore?.totalScore, getLeadScoreTier]);
-  const stageColor = useMemo(() => getStageColor(normalizeOpportunityStatus(opportunity.status)), 
+  const stageColor = useMemo(() => getStageColor(opportunity.status as StageId), 
     [opportunity.status, getStageColor]);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -1016,8 +986,7 @@ export default function OpportunitiesContent() {
               ...opp,
               status: newStatus as any,
               updatedAt: new Date().toISOString(),
-              status: normalizeOpportunityStatus(newStatus),
-              computedStageColor: getStageColor(normalizeOpportunityStatus(newStatus)),
+              computedStageColor: getStageColor(newStatus as StageId),
               computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
               computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
               computedChildCounts: getChildCounts(opp),
@@ -1152,8 +1121,7 @@ export default function OpportunitiesContent() {
         // Process new opportunities
         const processedOpportunities = response.data.map((opp: ExtendedOpportunity) => ({
           ...opp,
-          status: normalizeOpportunityStatus(opp.status),
-          computedStageColor: getStageColor(normalizeOpportunityStatus(opp.status)),
+          computedStageColor: getStageColor(opp.status as StageId),
           computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
           computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
           computedChildCounts: getChildCounts(opp)
@@ -1249,8 +1217,7 @@ export default function OpportunitiesContent() {
         // Pre-compute all values for opportunities
         const processedOpportunities = data.map((opp: ExtendedOpportunity) => ({
           ...opp,
-          status: normalizeOpportunityStatus(opp.status),
-          computedStageColor: getStageColor(normalizeOpportunityStatus(opp.status)),
+          computedStageColor: getStageColor(opp.status as StageId),
           computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
           computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
           computedChildCounts: getChildCounts(opp)
@@ -1275,17 +1242,18 @@ export default function OpportunitiesContent() {
       // Fetch fresh data
       const [response, filteredStatsResponse] = await Promise.all([
         opportunityService.getAllOpportunities(params),
-        opportunityService.getFilteredStats(statsParams).catch((error) => {
-          console.warn('Failed to load filtered stats, falling back to response stats:', error);
-          return null;
-        }),
+        hasActiveFilters
+          ? opportunityService.getFilteredStats(statsParams).catch((error) => {
+              console.warn('Failed to load filtered stats, falling back to response stats:', error);
+              return null;
+            })
+          : Promise.resolve(null),
       ]);
       
       // Pre-compute all values for opportunities
       const processedOpportunities = response.data.map((opp: ExtendedOpportunity) => ({
         ...opp,
-        status: normalizeOpportunityStatus(opp.status),
-        computedStageColor: getStageColor(normalizeOpportunityStatus(opp.status)),
+        computedStageColor: getStageColor(opp.status as StageId),
         computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
         computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
         computedChildCounts: getChildCounts(opp)
@@ -1403,7 +1371,7 @@ export default function OpportunitiesContent() {
 
   // Card metrics should reflect backend aggregates, not only the loaded page.
   const cardMetrics = useMemo(() => {
-    const useFilteredStats = !!filteredStats;
+    const useFilteredStats = hasActiveFilters && !!filteredStats;
     const byTier = (useFilteredStats ? filteredStats?.byTier : undefined) || {};
     const byStatus = (useFilteredStats ? filteredStats?.byStatus : undefined) || {};
 
@@ -1812,7 +1780,7 @@ export default function OpportunitiesContent() {
                     </span>
                   ) : stats ? (
                     <>
-                      {filteredStats?.total ?? stats.totalopportunities} total opportunities
+                      {stats.totalopportunities} total opportunities
                     </>
                   ) : (
                     'Track and manage your leads & deals'
@@ -2515,8 +2483,8 @@ export default function OpportunitiesContent() {
           <div className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Zoho Opportunities</h2>
-                <p className="text-sm text-gray-500">Browse `magcrm.opportunities` records where the source is Zoho.</p>
+                <h2 className="text-lg font-semibold text-gray-900">Zoho Data</h2>
+                <p className="text-sm text-gray-500">Browse Zoho records and search at the top.</p>
                 <p className="text-xs text-gray-500 mt-1">Total records: {zohoTotal}</p>
               </div>
               <button
@@ -2550,7 +2518,6 @@ export default function OpportunitiesContent() {
                     <option value="appointment_scheduled">Appointment Scheduled</option>
                     <option value="non_progressive">Non Progressive</option>
                     <option value="lost">Lost</option>
-                    <option value="won">Won</option>
                   </select>
                   <button
                     onClick={() => void fetchZohoData(1)}
@@ -2582,7 +2549,7 @@ export default function OpportunitiesContent() {
                       {zohoData.length === 0 && !zohoLoading ? (
                         <tr>
                           <td colSpan={5} className="px-3 py-8 text-center text-gray-500">
-                            No opportunity records found.
+                            No Zoho records found.
                           </td>
                         </tr>
                       ) : (
