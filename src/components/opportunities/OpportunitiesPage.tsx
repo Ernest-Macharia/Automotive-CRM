@@ -18,7 +18,7 @@ import ConfirmationModal from '@/components/opportunities/ConfirmationModal';
 import { useOpportunityStatusUpdate } from '@/hooks/useOpportunityStatusUpdate';
 import { OrganizationError } from '@/services/settings/organizationService';
 
-type StageId = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost';
+type StageId = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost' | 'won';
 type OpportunityStatusUpdateDetail = {
   opportunityId: string;
   newStatus: string;
@@ -61,6 +61,12 @@ const stages: { id: StageId; label: string; pastelClass: string; borderColor: st
     label: 'Lost', 
     pastelClass: 'bg-rose-50/80 backdrop-blur-sm', 
     borderColor: 'border-rose-100' 
+  },
+  {
+    id: 'won',
+    label: 'Won',
+    pastelClass: 'bg-emerald-50/80 backdrop-blur-sm',
+    borderColor: 'border-emerald-100'
   },
 ];
 
@@ -936,6 +942,7 @@ export default function OpportunitiesContent() {
       case 'appointment_scheduled': return 'bg-gradient-to-r from-orange-400 to-orange-500';
       case 'non_progressive': return 'bg-gradient-to-r from-gray-400 to-gray-500';
       case 'lost': return 'bg-gradient-to-r from-rose-400 to-rose-500';
+      case 'won': return 'bg-gradient-to-r from-emerald-400 to-emerald-500';
     }
   }, []);
 
@@ -1068,6 +1075,7 @@ export default function OpportunitiesContent() {
     appointment_scheduled: false,
     non_progressive: false,
     lost: false,
+    won: false,
   });
 
   const [stagePagination, setStagePagination] = useState<Record<StageId, { page: number; hasMore: boolean }>>({
@@ -1077,6 +1085,7 @@ export default function OpportunitiesContent() {
     appointment_scheduled: { page: 0, hasMore: true },
     non_progressive: { page: 0, hasMore: true },
     lost: { page: 0, hasMore: true },
+    won: { page: 0, hasMore: true },
   });
 
   useEffect(() => {
@@ -1088,6 +1097,7 @@ export default function OpportunitiesContent() {
       appointment_scheduled: { page: 0, hasMore: true },
       non_progressive: { page: 0, hasMore: true },
       lost: { page: 0, hasMore: true },
+      won: { page: 0, hasMore: true },
     });
   }, [memoizedFilters, memoizedAdvancedFilters]);
   const loadMoreForStage = useCallback(async (stageId: StageId) => {
