@@ -32,10 +32,10 @@ export default function ConfirmationModal({
     switch (type) {
       case 'warning':
         return {
-          bg: 'bg-amber-50',
-          icon: 'text-amber-600',
-          button: 'bg-amber-600 hover:bg-amber-700 text-white',
-          border: 'border-amber-200'
+          bg: 'bg-violet-50',
+          icon: 'text-violet-600',
+          button: 'bg-violet-600 hover:bg-violet-700 text-white',
+          border: 'border-violet-200'
         };
       case 'danger':
         return {
@@ -100,7 +100,7 @@ export default function ConfirmationModal({
               <button
                 onClick={onClose}
                 disabled={isLoading}
-                className="p-2 hover:bg-white rounded-lg transition-colors"
+                className="p-2 hover:bg-white/80 rounded-lg transition-colors"
               >
                 <X className="h-5 w-5 text-gray-500" />
               </button>

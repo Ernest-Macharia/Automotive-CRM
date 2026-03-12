@@ -330,7 +330,6 @@ function KanbanColumn({
 }: KanbanColumnProps) {
   const CARD_HEIGHT = 228;
   const router = useRouter();
-  const [dropping, setDropping] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { loading: scrollLoading } = useColumnInfiniteScroll(
@@ -344,25 +343,16 @@ function KanbanColumn({
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    if (!dropping) {
-      setDropping(true);
-    }
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    const relatedTarget = e.relatedTarget as HTMLElement;
-    // Only set dropping to false if we're actually leaving the column
-    if (!e.currentTarget.contains(relatedTarget)) {
-      setDropping(false);
-    }
   };
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-
-    setDropping(false);
+    setIsDragging(false);
     
     const opportunityId = e.dataTransfer.getData('opportunityId');
     
@@ -396,19 +386,8 @@ function KanbanColumn({
 
   // This is the key fix: Don't clear dragging state in handleDragEnd
   const handleDragEnd = useCallback(() => {
-    // Only clear dropping state, not dragging state
-    // Dragging state will be cleared after modal completes
-    setDropping(false);
+    // Dragging state is cleared on drop/cancel/confirm paths.
   }, []);
-
-  // Effect to clean up if component unmounts during drag
-  useEffect(() => {
-    return () => {
-      if (dropping) {
-        setDropping(false);
-      }
-    };
-  }, [dropping]);
 
   // Virtualized list for opportunities
   const VirtualizedOpportunityList = memo(({ opportunities: opps }: { opportunities: ExtendedOpportunity[] }) => {
@@ -508,11 +487,7 @@ function KanbanColumn({
 
   return (
     <div 
-      className={`flex flex-col rounded-2xl transition-all duration-300 ${
-        dropping 
-          ? `${stage.pastelClass} border-2 ${stage.borderColor} scale-[1.02] shadow-lg` 
-          : `${stage.pastelClass} border ${stage.borderColor}`
-      } p-4 h-[500px]`}
+      className={`flex flex-col rounded-2xl transition-all duration-300 ${stage.pastelClass} border ${stage.borderColor} p-4 h-[500px]`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -2340,19 +2315,6 @@ export default function OpportunitiesContent() {
                 <div className="text-center">
                   <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-3" />
                   <p className="text-gray-600">Updating opportunities...</p>
-                </div>
-              </div>
-            )}
-
-            {isDragging && (
-              <div 
-                className="absolute inset-0 border-4 border-dashed border-blue-400 bg-blue-50/20 z-10 rounded-2xl flex items-center justify-center pointer-events-none"
-              >
-                <div className="bg-white/80 backdrop-blur-sm px-6 py-4 rounded-xl shadow-lg border border-blue-200/50">
-                  <div className="flex items-center gap-3">
-                    <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
-                    <span className="font-medium text-blue-600">Drop opportunity here</span>
-                  </div>
                 </div>
               </div>
             )}
