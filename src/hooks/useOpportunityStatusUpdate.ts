@@ -9,6 +9,7 @@ export function useOpportunityStatusUpdate() {
   const [pendingOpportunity, setPendingOpportunity] = useState<any>(null);
   const [targetStatus, setTargetStatus] = useState<string>('');
   const [callback, setCallback] = useState<((success: boolean) => void) | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   // Helper: get readable status label
   const getStatusLabel = (status: string) => {
@@ -21,6 +22,23 @@ export function useOpportunityStatusUpdate() {
       lost: 'Lost'
     };
     return labels[status] || status;
+  };
+
+  const getErrorMessage = (error: any) => {
+    const rawMessage = String(error?.message || '').trim();
+    if (!rawMessage) return 'Failed to update opportunity stage';
+
+    const jsonCandidate = rawMessage.replace(/^API Error \(\d+\):\s*/, '');
+    try {
+      const parsed = JSON.parse(jsonCandidate);
+      if (typeof parsed?.message === 'string' && parsed.message.trim()) {
+        return parsed.message.trim();
+      }
+    } catch {
+      // Fall back to the raw message when the payload is not JSON.
+    }
+
+    return rawMessage;
   };
 
   // STEP 1: Request status change → show generic confirmation
@@ -52,6 +70,7 @@ export function useOpportunityStatusUpdate() {
 
     setUpdatingStatus(true);
     setShowGenericConfirm(false);
+    setLastError(null);
 
     try {
       // Directly update opportunity status (no lead check needed)
@@ -74,11 +93,11 @@ export function useOpportunityStatusUpdate() {
       setUpdatingStatus(false);
       resetState();
     } catch (error: any) {
+      setLastError(getErrorMessage(error));
       setUpdatingStatus(false);
       if (callback) callback(false);
       resetState();
       console.error('Failed to update status:', error);
-      throw error;
     }
   };
 
@@ -112,6 +131,8 @@ export function useOpportunityStatusUpdate() {
     // For special-case handling (if needed)
     pendingOpportunity,
     targetStatus,
-    handleStatusUpdate
+    handleStatusUpdate,
+    lastError,
+    clearLastError: () => setLastError(null)
   };
 }

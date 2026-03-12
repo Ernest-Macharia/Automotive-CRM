@@ -653,9 +653,9 @@ const OpportunityCard = memo(function OpportunityCard({
             <h4 className="font-semibold text-gray-800 text-sm truncate" title={opportunity.subject}>
               {opportunity.subject}
             </h4>
-            <p className="text-gray-600 text-xs truncate mt-0.5" title={`${opportunity.customer.name}${opportunity.customer.companyName ? ` · ${opportunity.customer.companyName}` : ''}`}>
-              {opportunity.customer.name}
-              {opportunity.customer.companyName && ` · ${opportunity.customer.companyName}`}
+            <p className="text-gray-600 text-xs truncate mt-0.5" title={`${opportunity.customer?.name || 'Unknown Customer'}${opportunity.customer?.companyName ? ` · ${opportunity.customer.companyName}` : ''}`}>
+              {opportunity.customer?.name || 'Unknown Customer'}
+              {opportunity.customer?.companyName && ` · ${opportunity.customer.companyName}`}
             </p>
           </div>
         </div>
@@ -876,7 +876,9 @@ export default function OpportunitiesContent() {
     genericMessage,
     onGenericConfirm,
     onGenericCancel,
-    handleStatusUpdate
+    handleStatusUpdate,
+    lastError: statusUpdateError,
+    clearLastError: clearStatusUpdateError
   } = useOpportunityStatusUpdate();
 
   // Memoize filter dependencies
@@ -1375,6 +1377,12 @@ export default function OpportunitiesContent() {
       window.removeEventListener('opportunity-status-updated', handleOpportunityStatusUpdated as EventListener);
     };
   }, [applyLocalStatusUpdate, fetchOpportunities]);
+
+  useEffect(() => {
+    if (!statusUpdateError) return;
+    showToast(statusUpdateError, 'error', 4000);
+    clearStatusUpdateError();
+  }, [statusUpdateError, showToast, clearStatusUpdateError]);
 
   useEffect(() => {
     fetchOverview();
@@ -2467,6 +2475,7 @@ export default function OpportunitiesContent() {
         confirmText="Confirm"
         cancelText="Cancel"
         type="warning"
+        isLoading={updatingStatus}
       />
     </div>
   );

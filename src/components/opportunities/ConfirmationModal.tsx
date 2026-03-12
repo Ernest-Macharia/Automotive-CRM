@@ -107,21 +107,6 @@ export default function ConfirmationModal({
             </div>
           </div>
 
-          {/* Content */}
-          <div className="p-6 space-y-4">
-            <div className="text-sm text-gray-700 space-y-2">
-              <p>This action will:</p>
-              <ul className="list-disc pl-5 space-y-1">
-                <li>Create a new Opportunity record for this customer</li>
-                <li>Move the opportunity to the "Attempeted to Contact" stage</li>
-                <li>Allow you to track detailed customer interactions</li>
-              </ul>
-              <p className="mt-3 font-medium">
-                You can always edit the opportunity details later.
-              </p>
-            </div>
-          </div>
-
           {/* Footer */}
           <div className="p-6 border-t border-gray-200/50 bg-white/50 rounded-b-2xl">
             <div className="flex items-center justify-between gap-3">
