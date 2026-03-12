@@ -183,6 +183,7 @@ const useColumnInfiniteScroll = (
 interface ExtendedOpportunity extends Opportunity {
   invoices?: any[];
   payments?: any[];
+  currentStage?: string;
   leadScore?: {
     totalScore: number;
     tier: 'hot' | 'warm' | 'cold';
@@ -195,6 +196,23 @@ interface ExtendedOpportunity extends Opportunity {
   computedTier?: string;
   computedChildCounts?: any;
 }
+
+const normalizeBoardOpportunity = (opp: ExtendedOpportunity): ExtendedOpportunity => {
+  const normalizedStatus = normalizeOpportunityStatus(opp.status || opp.currentStage);
+
+  return {
+    ...opp,
+    status: normalizedStatus,
+    customer: opp.customer || {
+      name: 'Unknown Customer',
+      email: undefined,
+      phone: undefined,
+      companyName: undefined,
+      _id: '',
+      id: '',
+    },
+  };
+};
 
 function useDebounce<T extends (...args: any[]) => any>(
     callback: T, 
@@ -294,6 +312,7 @@ SkeletonColumn.displayName = 'SkeletonColumn';
 interface KanbanColumnProps {
   stage: typeof stages[0];
   opportunities: ExtendedOpportunity[];
+  totalCount: number;
   allOpportunities: ExtendedOpportunity[];
   onRecalculateScore: (id: string) => Promise<void>;
   getAvatarColor: (type: string, score?: number) => string;
@@ -313,6 +332,7 @@ interface KanbanColumnProps {
 function KanbanColumn({
   stage,
   opportunities,
+  totalCount,
   allOpportunities,
   onRecalculateScore,
   getAvatarColor,
@@ -500,7 +520,7 @@ function KanbanColumn({
             {isLoading ? (
               <Loader2 className="h-3 w-3 animate-spin" />
             ) : (
-              opportunities.length
+              totalCount
             )}
           </span>
         </div>
@@ -1116,13 +1136,16 @@ export default function OpportunitiesContent() {
       
       if (response.data.length > 0) {
         // Process new opportunities
-        const processedOpportunities = response.data.map((opp: ExtendedOpportunity) => ({
-          ...opp,
-          computedStageColor: getStageColor(opp.status as StageId),
-          computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
-          computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
-          computedChildCounts: getChildCounts(opp)
-        }));
+        const processedOpportunities = response.data.map((rawOpp: ExtendedOpportunity) => {
+          const opp = normalizeBoardOpportunity(rawOpp);
+          return {
+            ...opp,
+            computedStageColor: getStageColor(opp.status as StageId),
+            computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
+            computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
+            computedChildCounts: getChildCounts(opp)
+          };
+        });
 
         // Append to existing opportunities without duplicates
         setOpportunities(prev => {
@@ -1212,13 +1235,16 @@ export default function OpportunitiesContent() {
         } = cachedData;
         
         // Pre-compute all values for opportunities
-        const processedOpportunities = data.map((opp: ExtendedOpportunity) => ({
-          ...opp,
-          computedStageColor: getStageColor(opp.status as StageId),
-          computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
-          computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
-          computedChildCounts: getChildCounts(opp)
-        }));
+        const processedOpportunities = data.map((rawOpp: ExtendedOpportunity) => {
+          const opp = normalizeBoardOpportunity(rawOpp);
+          return {
+            ...opp,
+            computedStageColor: getStageColor(opp.status as StageId),
+            computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
+            computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
+            computedChildCounts: getChildCounts(opp)
+          };
+        });
         
         setOpportunities(processedOpportunities);
         setPagination(cachedPagination);
@@ -1248,13 +1274,16 @@ export default function OpportunitiesContent() {
       ]);
       
       // Pre-compute all values for opportunities
-      const processedOpportunities = response.data.map((opp: ExtendedOpportunity) => ({
-        ...opp,
-        computedStageColor: getStageColor(opp.status as StageId),
-        computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
-        computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
-        computedChildCounts: getChildCounts(opp)
-      }));
+      const processedOpportunities = response.data.map((rawOpp: ExtendedOpportunity) => {
+        const opp = normalizeBoardOpportunity(rawOpp);
+        return {
+          ...opp,
+          computedStageColor: getStageColor(opp.status as StageId),
+          computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
+          computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
+          computedChildCounts: getChildCounts(opp)
+        };
+      });
       
       setOpportunities(processedOpportunities);
       setPagination(response.pagination);
@@ -1371,6 +1400,18 @@ export default function OpportunitiesContent() {
     });
     return grouped;
   }, [opportunities]);
+
+  const stageCounts = useMemo(() => {
+    const sourceCounts: Record<string, number> =
+      (hasActiveFilters ? filteredStats?.byStatus : stats?.byStatus) || {};
+
+    const counts = {} as Record<StageId, number>;
+    stages.forEach((stage) => {
+      counts[stage.id] = Number(sourceCounts[stage.id] || 0);
+    });
+
+    return counts;
+  }, [hasActiveFilters, filteredStats?.byStatus, stats?.byStatus]);
 
   // Card metrics should reflect backend aggregates, not only the loaded page.
   const cardMetrics = useMemo(() => {
@@ -2331,6 +2372,7 @@ export default function OpportunitiesContent() {
                     <KanbanColumn
                       stage={stage}
                       opportunities={opportunitiesByStage[stage.id] || []}
+                      totalCount={stageCounts[stage.id] || 0}
                       allOpportunities={opportunities}
                       onRecalculateScore={handleRecalculateScore}
                       getAvatarColor={getAvatarColor}
