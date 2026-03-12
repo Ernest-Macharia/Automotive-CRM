@@ -1,6 +1,6 @@
 'use client';
 
-import { opportunityService, Opportunity, FilterParams, FilteredStats, ZohoOpportunityRecord } from '@/services/opportunityService';
+import { opportunityService, Opportunity, FilterParams, FilteredStats } from '@/services/opportunityService';
 import { useToast } from '@/contexts/ToastContext';
 import { useState, useEffect, useRef, useCallback, useMemo, memo, type ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
@@ -18,7 +18,7 @@ import ConfirmationModal from '@/components/opportunities/ConfirmationModal';
 import { useOpportunityStatusUpdate } from '@/hooks/useOpportunityStatusUpdate';
 import { OrganizationError } from '@/services/settings/organizationService';
 
-type StageId = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost' | 'won';
+type StageId = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost';
 type OpportunityStatusUpdateDetail = {
   opportunityId: string;
   newStatus: string;
@@ -62,43 +62,7 @@ const stages: { id: StageId; label: string; pastelClass: string; borderColor: st
     pastelClass: 'bg-rose-50/80 backdrop-blur-sm', 
     borderColor: 'border-rose-100' 
   },
-  {
-    id: 'won',
-    label: 'Won',
-    pastelClass: 'bg-emerald-50/80 backdrop-blur-sm',
-    borderColor: 'border-emerald-100'
-  },
 ];
-
-const normalizeOpportunityStatus = (value?: string): StageId => {
-  const normalized = String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ');
-
-  const compact = normalized.replace(/\s+/g, '');
-  const statusMap: Record<string, StageId> = {
-    new: 'new',
-    open: 'new',
-    attemptedtocontact: 'attempted_to_contact',
-    attemptedcontact: 'attempted_to_contact',
-    contacted: 'attempted_to_contact',
-    prospecting: 'prospecting',
-    appointmentscheduled: 'appointment_scheduled',
-    scheduled: 'appointment_scheduled',
-    nonprogressive: 'non_progressive',
-    dormant: 'non_progressive',
-    stalled: 'non_progressive',
-    lost: 'lost',
-    closedlost: 'lost',
-    won: 'won',
-    closedwon: 'won',
-    closed: 'won',
-  };
-
-  return statusMap[compact] || 'new';
-};
 
 const leadTiers = [
   { id: 'hot', label: 'Hot', color: 'bg-red-100 text-red-600' },
@@ -584,7 +548,7 @@ const OpportunityCard = memo(function OpportunityCard({
     [opportunity.type, opportunity.leadScore?.totalScore, getAvatarColor]);
   const tier = useMemo(() => getLeadScoreTier(opportunity.leadScore?.totalScore), 
     [opportunity.leadScore?.totalScore, getLeadScoreTier]);
-  const stageColor = useMemo(() => getStageColor(normalizeOpportunityStatus(opportunity.status)), 
+  const stageColor = useMemo(() => getStageColor(opportunity.status as StageId), 
     [opportunity.status, getStageColor]);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -816,7 +780,6 @@ const OpportunityCard = memo(function OpportunityCard({
 OpportunityCard.displayName = 'OpportunityCard';
 
 export default function OpportunitiesContent() {
-  const ZOHO_PAGE_SIZE = 50;
   const { showToast } = useToast();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
@@ -840,15 +803,6 @@ export default function OpportunitiesContent() {
   const [pagination, setPagination] = useState<any>(null);
   const [activeQuickFilter, setActiveQuickFilter] = useState<string | null>(null);
   const [organizationError, setOrganizationError] = useState<string | null>(null);
-  const [showZohoModal, setShowZohoModal] = useState(false);
-  const [zohoSearch, setZohoSearch] = useState('');
-  const [zohoStatus, setZohoStatus] = useState('');
-  const [zohoData, setZohoData] = useState<ZohoOpportunityRecord[]>([]);
-  const [zohoLoading, setZohoLoading] = useState(false);
-  const [zohoError, setZohoError] = useState<string | null>(null);
-  const [zohoPage, setZohoPage] = useState(1);
-  const [zohoTotalPages, setZohoTotalPages] = useState(1);
-  const [zohoTotal, setZohoTotal] = useState(0);
   const csvInputRef = useRef<HTMLInputElement>(null);
   
   const [filters, setFilters] = useState<FilterParams>({
@@ -972,7 +926,6 @@ export default function OpportunitiesContent() {
       case 'appointment_scheduled': return 'bg-gradient-to-r from-orange-400 to-orange-500';
       case 'non_progressive': return 'bg-gradient-to-r from-gray-400 to-gray-500';
       case 'lost': return 'bg-gradient-to-r from-rose-400 to-rose-500';
-      case 'won': return 'bg-gradient-to-r from-emerald-400 to-emerald-500';
     }
   }, []);
 
@@ -1014,9 +967,9 @@ export default function OpportunitiesContent() {
         opp._id === opportunityId
           ? {
               ...opp,
+              status: newStatus as any,
               updatedAt: new Date().toISOString(),
-              status: normalizeOpportunityStatus(newStatus),
-              computedStageColor: getStageColor(normalizeOpportunityStatus(newStatus)),
+              computedStageColor: getStageColor(newStatus as StageId),
               computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
               computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
               computedChildCounts: getChildCounts(opp),
@@ -1105,7 +1058,6 @@ export default function OpportunitiesContent() {
     appointment_scheduled: false,
     non_progressive: false,
     lost: false,
-    won: false,
   });
 
   const [stagePagination, setStagePagination] = useState<Record<StageId, { page: number; hasMore: boolean }>>({
@@ -1115,7 +1067,6 @@ export default function OpportunitiesContent() {
     appointment_scheduled: { page: 0, hasMore: true },
     non_progressive: { page: 0, hasMore: true },
     lost: { page: 0, hasMore: true },
-    won: { page: 0, hasMore: true },
   });
 
   useEffect(() => {
@@ -1127,7 +1078,6 @@ export default function OpportunitiesContent() {
       appointment_scheduled: { page: 0, hasMore: true },
       non_progressive: { page: 0, hasMore: true },
       lost: { page: 0, hasMore: true },
-      won: { page: 0, hasMore: true },
     });
   }, [memoizedFilters, memoizedAdvancedFilters]);
   const loadMoreForStage = useCallback(async (stageId: StageId) => {
@@ -1151,8 +1101,7 @@ export default function OpportunitiesContent() {
         // Process new opportunities
         const processedOpportunities = response.data.map((opp: ExtendedOpportunity) => ({
           ...opp,
-          status: normalizeOpportunityStatus(opp.status),
-          computedStageColor: getStageColor(normalizeOpportunityStatus(opp.status)),
+          computedStageColor: getStageColor(opp.status as StageId),
           computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
           computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
           computedChildCounts: getChildCounts(opp)
@@ -1248,8 +1197,7 @@ export default function OpportunitiesContent() {
         // Pre-compute all values for opportunities
         const processedOpportunities = data.map((opp: ExtendedOpportunity) => ({
           ...opp,
-          status: normalizeOpportunityStatus(opp.status),
-          computedStageColor: getStageColor(normalizeOpportunityStatus(opp.status)),
+          computedStageColor: getStageColor(opp.status as StageId),
           computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
           computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
           computedChildCounts: getChildCounts(opp)
@@ -1274,17 +1222,18 @@ export default function OpportunitiesContent() {
       // Fetch fresh data
       const [response, filteredStatsResponse] = await Promise.all([
         opportunityService.getAllOpportunities(params),
-        opportunityService.getFilteredStats(statsParams).catch((error) => {
-          console.warn('Failed to load filtered stats, falling back to response stats:', error);
-          return null;
-        }),
+        hasActiveFilters
+          ? opportunityService.getFilteredStats(statsParams).catch((error) => {
+              console.warn('Failed to load filtered stats, falling back to response stats:', error);
+              return null;
+            })
+          : Promise.resolve(null),
       ]);
       
       // Pre-compute all values for opportunities
       const processedOpportunities = response.data.map((opp: ExtendedOpportunity) => ({
         ...opp,
-        status: normalizeOpportunityStatus(opp.status),
-        computedStageColor: getStageColor(normalizeOpportunityStatus(opp.status)),
+        computedStageColor: getStageColor(opp.status as StageId),
         computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
         computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
         computedChildCounts: getChildCounts(opp)
@@ -1402,7 +1351,7 @@ export default function OpportunitiesContent() {
 
   // Card metrics should reflect backend aggregates, not only the loaded page.
   const cardMetrics = useMemo(() => {
-    const useFilteredStats = !!filteredStats;
+    const useFilteredStats = hasActiveFilters && !!filteredStats;
     const byTier = (useFilteredStats ? filteredStats?.byTier : undefined) || {};
     const byStatus = (useFilteredStats ? filteredStats?.byStatus : undefined) || {};
 
@@ -1654,42 +1603,6 @@ export default function OpportunitiesContent() {
     }
   };
 
-  const fetchZohoData = useCallback(async (page = 1) => {
-    try {
-      setZohoLoading(true);
-      setZohoError(null);
-      const response = await opportunityService.fetchZohoOpportunityData({
-        search: zohoSearch.trim() || undefined,
-        status: zohoStatus || undefined,
-        page,
-        limit: ZOHO_PAGE_SIZE,
-      });
-      const data = response.data || [];
-      const currentPage = response.page || page;
-      const total = typeof response.total === 'number' ? response.total : data.length;
-      const totalPages = response.totalPages || Math.max(1, Math.ceil(total / ZOHO_PAGE_SIZE));
-
-      setZohoData(data);
-      setZohoPage(currentPage);
-      setZohoTotal(total);
-      setZohoTotalPages(totalPages);
-    } catch (error: any) {
-      console.error('Error loading Zoho data:', error);
-      setZohoError(error?.message || 'Failed to load Zoho data');
-      setZohoData([]);
-      setZohoTotal(0);
-      setZohoTotalPages(1);
-    } finally {
-      setZohoLoading(false);
-    }
-  }, [zohoSearch, zohoStatus, ZOHO_PAGE_SIZE]);
-
-  useEffect(() => {
-    if (showZohoModal) {
-      void fetchZohoData(1);
-    }
-  }, [showZohoModal, fetchZohoData]);
-
   // Check scroll buttons
   useEffect(() => {
     const checkScroll = () => {
@@ -1811,7 +1724,7 @@ export default function OpportunitiesContent() {
                     </span>
                   ) : stats ? (
                     <>
-                      {filteredStats?.total ?? stats.totalopportunities} total opportunities
+                      {stats.totalopportunities} total opportunities
                     </>
                   ) : (
                     'Track and manage your leads & deals'
@@ -1850,14 +1763,6 @@ export default function OpportunitiesContent() {
             >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">New Opportunity</span>
-            </button>
-            <button
-              onClick={() => setShowZohoModal(true)}
-              disabled={loading || creating}
-              className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-medium shadow-sm transition-all disabled:opacity-50"
-            >
-              <FileText className="h-4 w-4" />
-              <span className="hidden sm:inline">Zoho Data</span>
             </button>
           </div>
         </div>
@@ -2508,123 +2413,6 @@ export default function OpportunitiesContent() {
           </div>
         </div>
       </div>
-
-      {showZohoModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-4">
-          <div className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Zoho Opportunities</h2>
-                <p className="text-sm text-gray-500">Browse `magcrm.opportunities` records where the source is Zoho.</p>
-                <p className="text-xs text-gray-500 mt-1">Total records: {zohoTotal}</p>
-              </div>
-              <button
-                onClick={() => setShowZohoModal(false)}
-                className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="p-5">
-              <div className="space-y-4">
-                <div className="flex flex-col md:flex-row gap-3">
-                  <input
-                    type="text"
-                    value={zohoSearch}
-                    onChange={(e) => setZohoSearch(e.target.value)}
-                    placeholder="Search customer, phone, email, subject..."
-                    className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                  />
-                  <select
-                    value={zohoStatus}
-                    onChange={(e) => setZohoStatus(e.target.value)}
-                    className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                  >
-                    <option value="">All Statuses</option>
-                    <option value="new">New</option>
-                    <option value="attempted_to_contact">Attempted To Contact</option>
-                    <option value="prospecting">Prospecting</option>
-                    <option value="appointment_scheduled">Appointment Scheduled</option>
-                    <option value="non_progressive">Non Progressive</option>
-                    <option value="lost">Lost</option>
-                    <option value="won">Won</option>
-                  </select>
-                  <button
-                    onClick={() => void fetchZohoData(1)}
-                    className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    disabled={zohoLoading}
-                  >
-                    {zohoLoading ? 'Loading...' : 'Search'}
-                  </button>
-                </div>
-
-                {zohoError && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                    {zohoError}
-                  </div>
-                )}
-
-                <div className="max-h-[420px] overflow-auto rounded-xl border border-gray-100">
-                  <table className="min-w-full text-sm">
-                    <thead className="sticky top-0 bg-gray-50 text-gray-600">
-                      <tr>
-                        <th className="text-left px-3 py-2 font-medium">Subject</th>
-                        <th className="text-left px-3 py-2 font-medium">Customer</th>
-                        <th className="text-left px-3 py-2 font-medium">Phone</th>
-                        <th className="text-left px-3 py-2 font-medium">Email</th>
-                        <th className="text-left px-3 py-2 font-medium">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {zohoData.length === 0 && !zohoLoading ? (
-                        <tr>
-                          <td colSpan={5} className="px-3 py-8 text-center text-gray-500">
-                            No opportunity records found.
-                          </td>
-                        </tr>
-                      ) : (
-                        zohoData.map((row, idx) => (
-                          <tr key={row.id || row._id || idx} className="border-t border-gray-100">
-                            <td className="px-3 py-2 text-gray-800">{row.subject || '-'}</td>
-                            <td className="px-3 py-2 text-gray-700">{row.customerName || row.name || '-'}</td>
-                            <td className="px-3 py-2 text-gray-700">{row.phone || row.customerPhone || '-'}</td>
-                            <td className="px-3 py-2 text-gray-700">{row.email || row.customerEmail || '-'}</td>
-                            <td className="px-3 py-2 text-gray-700">{row.status || '-'}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-gray-500">
-                    Page {zohoPage} of {zohoTotalPages}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => void fetchZohoData(Math.max(1, zohoPage - 1))}
-                      disabled={zohoLoading || zohoPage <= 1}
-                      className="px-3 py-1.5 rounded-lg border border-gray-200/50 bg-white/50 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      onClick={() => void fetchZohoData(Math.min(zohoTotalPages, zohoPage + 1))}
-                      disabled={zohoLoading || zohoPage >= zohoTotalPages}
-                      className="px-3 py-1.5 rounded-lg border border-gray-200/50 bg-white/50 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Confirmation Modal */}
       <ConfirmationModal
