@@ -590,6 +590,16 @@ const OpportunityCard = memo(function OpportunityCard({
 }: OpportunityCardProps) {
   const router = useRouter();
   const [isRecalculating, setIsRecalculating] = useState(false);
+  if (!opportunity.customer) {
+    opportunity.customer = {
+      name: 'Unknown Customer',
+      email: '',
+      companyName: '',
+      phone: '',
+      _id: '',
+      id: '',
+    } as any;
+  }
   
   // Memoize expensive computations
   const childCounts = useMemo(() => getChildCounts(opportunity), [opportunity, getChildCounts]);
@@ -599,6 +609,8 @@ const OpportunityCard = memo(function OpportunityCard({
     [opportunity.leadScore?.totalScore, getLeadScoreTier]);
   const stageColor = useMemo(() => getStageColor(normalizeOpportunityStatus(opportunity.status)), 
     [opportunity.status, getStageColor]);
+  const customerName = opportunity.customer?.name || 'Unknown Customer';
+  const customerCompany = opportunity.customer?.companyName || '';
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) {
@@ -669,7 +681,7 @@ const OpportunityCard = memo(function OpportunityCard({
               {opportunity.subject}
             </h4>
             <p className="text-gray-600 text-xs truncate mt-0.5" title={`${opportunity.customer.name}${opportunity.customer.companyName ? ` · ${opportunity.customer.companyName}` : ''}`}>
-              {opportunity.customer.name}
+              {customerName}
               {opportunity.customer.companyName && ` · ${opportunity.customer.companyName}`}
             </p>
           </div>
