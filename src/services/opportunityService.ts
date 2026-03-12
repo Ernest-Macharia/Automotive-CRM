@@ -915,7 +915,7 @@ class OpportunityService {
     limit?: number;
   }): Promise<ZohoOpportunitySearchResponse> {
     const queryParams = new URLSearchParams();
-    if (params?.search) queryParams.append('search', params.search);
+    if (params?.search) queryParams.append('q', params.search);
     if (params?.status) queryParams.append('status', params.status);
     if (params?.page) queryParams.append('page', String(params.page));
     if (params?.limit) queryParams.append('limit', String(params.limit));
@@ -936,12 +936,27 @@ class OpportunityService {
         }
         return {
           data: response?.data || [],
-          total: response?.total ?? response?.count ?? response?.pagination?.total,
-          page: response?.page ?? response?.pagination?.page ?? params?.page ?? 1,
-          limit: response?.limit ?? response?.pagination?.limit ?? params?.limit,
+          total:
+            response?.total ??
+            response?.count ??
+            response?.meta?.total ??
+            response?.pagination?.total,
+          page:
+            response?.page ??
+            response?.meta?.page ??
+            response?.meta?.currentPage ??
+            response?.pagination?.page ??
+            params?.page ??
+            1,
+          limit:
+            response?.limit ??
+            response?.meta?.limit ??
+            response?.pagination?.limit ??
+            params?.limit,
           totalPages:
             response?.totalPages ??
             response?.pages ??
+            response?.meta?.totalPages ??
             response?.pagination?.totalPages ??
             response?.pagination?.pages,
         };
