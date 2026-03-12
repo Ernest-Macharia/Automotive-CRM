@@ -100,11 +100,6 @@ const normalizeOpportunityStatus = (value?: string): StageId => {
   return statusMap[compact] || 'new';
 };
 
-const normalizeSearchPhone = (value?: string): string | undefined => {
-  const digits = String(value || '').replace(/\D+/g, '');
-  return digits.length >= 7 ? digits : undefined;
-};
-
 const leadTiers = [
   { id: 'hot', label: 'Hot', color: 'bg-red-100 text-red-600' },
   { id: 'warm', label: 'Warm', color: 'bg-amber-100 text-amber-600' },
@@ -1079,7 +1074,6 @@ export default function OpportunitiesContent() {
   // Debounced search
   const debouncedSetSearch = useDebounce((search: string) => {
     const trimmedSearch = search.trim();
-    const phoneSearch = normalizeSearchPhone(trimmedSearch);
     
     if (trimmedSearch.length >= 3 || trimmedSearch.length === 0) {
       setDebouncedSearch(trimmedSearch);
@@ -1089,14 +1083,12 @@ export default function OpportunitiesContent() {
         setFilters(prev => ({ 
           ...prev, 
           search: trimmedSearch,
-          customerPhone: phoneSearch,
           page: 1 
         }));
-      } else if (trimmedSearch.length === 0 && (filters.search || filters.customerPhone)) {
+      } else if (trimmedSearch.length === 0 && filters.search) {
         setFilters(prev => ({ 
           ...prev, 
           search: undefined,
-          customerPhone: undefined,
           page: 1 
         }));
       }
@@ -1457,14 +1449,12 @@ export default function OpportunitiesContent() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedSearch = searchQuery.trim();
-    const phoneSearch = normalizeSearchPhone(trimmedSearch);
     
     if (trimmedSearch.length >= 3) {
       setSearchLoading(true);
       setFilters(prev => ({ 
         ...prev, 
         search: trimmedSearch,
-        customerPhone: phoneSearch,
         page: 1 
       }));
       setActiveQuickFilter(null);
@@ -1476,11 +1466,10 @@ export default function OpportunitiesContent() {
   const handleClearSearch = () => {
     setSearchQuery('');
     setDebouncedSearch('');
-    if (filters.search || filters.customerPhone) {
+    if (filters.search) {
       setFilters(prev => ({ 
         ...prev, 
         search: undefined,
-        customerPhone: undefined,
         page: 1 
       }));
     }
