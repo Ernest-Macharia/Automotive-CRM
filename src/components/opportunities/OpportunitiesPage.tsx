@@ -18,7 +18,7 @@ import ConfirmationModal from '@/components/opportunities/ConfirmationModal';
 import { useOpportunityStatusUpdate } from '@/hooks/useOpportunityStatusUpdate';
 import { OrganizationError } from '@/services/settings/organizationService';
 
-type StageId = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost';
+type StageId = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost' | 'won';
 type OpportunityStatusUpdateDetail = {
   opportunityId: string;
   newStatus: string;
@@ -1095,6 +1095,7 @@ export default function OpportunitiesContent() {
     appointment_scheduled: false,
     non_progressive: false,
     lost: false,
+    won: false,
   });
 
   const [stagePagination, setStagePagination] = useState<Record<StageId, { page: number; hasMore: boolean }>>({
@@ -1104,6 +1105,7 @@ export default function OpportunitiesContent() {
     appointment_scheduled: { page: 0, hasMore: true },
     non_progressive: { page: 0, hasMore: true },
     lost: { page: 0, hasMore: true },
+    won: { page: 0, hasMore: true },
   });
 
   useEffect(() => {
@@ -1115,6 +1117,7 @@ export default function OpportunitiesContent() {
       appointment_scheduled: { page: 0, hasMore: true },
       non_progressive: { page: 0, hasMore: true },
       lost: { page: 0, hasMore: true },
+      won: { page: 0, hasMore: true },
     });
   }, [memoizedFilters, memoizedAdvancedFilters]);
   const loadMoreForStage = useCallback(async (stageId: StageId) => {
