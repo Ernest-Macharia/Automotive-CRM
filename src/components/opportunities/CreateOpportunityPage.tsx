@@ -1017,6 +1017,7 @@ export default function CreateOpportunityPage() {
   const normalizeDuplicateOpportunity = (raw: any): Opportunity => {
     const customer = raw?.customer || {};
     const id = raw?._id || raw?.id || '';
+    const owner = raw?.owner || null;
 
     return {
       _id: String(id),
@@ -1037,7 +1038,7 @@ export default function CreateOpportunityPage() {
       jobCards: [],
       waivers: [],
       quotes: [],
-      assignedTo: raw?.assignedTo || null,
+      assignedTo: owner || raw?.assignedTo || null,
       createdAt: raw?.createdAt || new Date().toISOString(),
       updatedAt: raw?.updatedAt || new Date().toISOString(),
       isNurturing: Boolean(raw?.isNurturing),
@@ -1052,7 +1053,7 @@ export default function CreateOpportunityPage() {
     };
   };
 
-  const extractDuplicatesFromApiError = (error: any): Opportunity[] => {
+  const extractDuplicatePayload = (error: any): any | null => {
     const parsePayload = (value: unknown): any | null => {
       if (!value) return null;
       if (typeof value === 'object') return value;
@@ -1067,10 +1068,15 @@ export default function CreateOpportunityPage() {
       }
     };
 
-    const parsed =
+    return (
       parsePayload(error?.response?.data) ||
       parsePayload(error?.data) ||
-      parsePayload(error?.message);
+      parsePayload(error?.message)
+    );
+  };
+
+  const extractDuplicatesFromApiError = (error: any): Opportunity[] => {
+    const parsed = extractDuplicatePayload(error);
 
     const code = parsed?.code || parsed?.errorCode;
     const isDuplicateCode = String(code || '').toUpperCase() === 'DUPLICATE_OPPORTUNITY';
@@ -1083,6 +1089,32 @@ export default function CreateOpportunityPage() {
     return duplicateList.map((item: any) => normalizeDuplicateOpportunity(item));
   };
 
+  const getDuplicateFeedbackMessage = (error: any): string | null => {
+    const parsed = extractDuplicatePayload(error);
+    const code = String(parsed?.code || parsed?.errorCode || '').toUpperCase();
+
+    if (code !== 'DUPLICATE_OPPORTUNITY' && code !== 'DUPLICATE_OPPORTUNITY_AUTO_REASSIGNED') {
+      return null;
+    }
+
+    const firstDuplicate = Array.isArray(parsed?.duplicates) ? parsed.duplicates[0] : null;
+    const ownerName =
+      firstDuplicate?.owner?.name ||
+      firstDuplicate?.assignedTo?.name ||
+      firstDuplicate?.assignedTo?.fullName ||
+      null;
+
+    if (code === 'DUPLICATE_OPPORTUNITY_AUTO_REASSIGNED') {
+      return 'Duplicate found. The existing opportunity was reassigned to you because the previous owner was unavailable.';
+    }
+
+    if (ownerName) {
+      return `This opportunity already exists and is currently owned by ${ownerName}.`;
+    }
+
+    return 'This opportunity already exists and is currently assigned to another sales representative.';
+  };
+
   const handleCreateOpportunityError = (error: any) => {
     console.error('Create opportunity error:', error);
 
@@ -1092,7 +1124,7 @@ export default function CreateOpportunityPage() {
     if (duplicateFromApi.length > 0) {
       setDuplicateOpportunities(duplicateFromApi);
       setShowDuplicateModal(true);
-      showToast('Duplicate opportunity detected. Review existing records first.', 'warning', 4000);
+      showToast(getDuplicateFeedbackMessage(error) || 'Duplicate opportunity detected. Review existing records first.', 'warning', 5000);
       return;
     }
     
@@ -2815,4 +2847,3 @@ export default function CreateOpportunityPage() {
     </>
   );
 }
-
