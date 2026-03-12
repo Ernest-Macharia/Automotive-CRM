@@ -64,6 +64,40 @@ const stages: { id: StageId; label: string; pastelClass: string; borderColor: st
   },
 ];
 
+const normalizeOpportunityStatus = (value?: string): StageId => {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ');
+
+  const compact = normalized.replace(/\s+/g, '');
+  const statusMap: Record<string, StageId> = {
+    new: 'new',
+    open: 'new',
+    attemptedtocontact: 'attempted_to_contact',
+    attemptedcontact: 'attempted_to_contact',
+    contacted: 'attempted_to_contact',
+    prospecting: 'prospecting',
+    appointmentscheduled: 'appointment_scheduled',
+    scheduled: 'appointment_scheduled',
+    nonprogressive: 'non_progressive',
+    dormant: 'non_progressive',
+    stalled: 'non_progressive',
+    lost: 'lost',
+    closedlost: 'lost',
+    won: 'won',
+    closedwon: 'won',
+    closed: 'won',
+  };
+
+  return statusMap[compact] || 'new';
+};
+
+const normalizeSearchPhone = (value?: string): string | undefined => {
+  const digits = String(value || '').replace(/\D+/g, '');
+  return digits.length >= 7 ? digits : undefined;
+};
 const leadTiers = [
   { id: 'hot', label: 'Hot', color: 'bg-red-100 text-red-600' },
   { id: 'warm', label: 'Warm', color: 'bg-amber-100 text-amber-600' },
@@ -1026,6 +1060,7 @@ export default function OpportunitiesContent() {
   // Debounced search
   const debouncedSetSearch = useDebounce((search: string) => {
     const trimmedSearch = search.trim();
+    const phoneSearch = normalizeSearchPhone(trimmedSearch);
     
     if (trimmedSearch.length >= 3 || trimmedSearch.length === 0) {
       setDebouncedSearch(trimmedSearch);
@@ -1035,12 +1070,14 @@ export default function OpportunitiesContent() {
         setFilters(prev => ({ 
           ...prev, 
           search: trimmedSearch,
+          customerPhone: phoneSearch,
           page: 1 
         }));
-      } else if (trimmedSearch.length === 0 && filters.search) {
+      } else if (trimmedSearch.length === 0 && (filters.search || filters.customerPhone)) {
         setFilters(prev => ({ 
           ...prev, 
           search: undefined,
+          customerPhone: undefined,
           page: 1 
         }));
       }
@@ -1397,12 +1434,14 @@ export default function OpportunitiesContent() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedSearch = searchQuery.trim();
+    const phoneSearch = normalizeSearchPhone(trimmedSearch);
     
     if (trimmedSearch.length >= 3) {
       setSearchLoading(true);
       setFilters(prev => ({ 
         ...prev, 
         search: trimmedSearch,
+        customerPhone: phoneSearch,
         page: 1 
       }));
       setActiveQuickFilter(null);
@@ -1414,10 +1453,11 @@ export default function OpportunitiesContent() {
   const handleClearSearch = () => {
     setSearchQuery('');
     setDebouncedSearch('');
-    if (filters.search) {
+    if (filters.search || filters.customerPhone) {
       setFilters(prev => ({ 
         ...prev, 
         search: undefined,
+        customerPhone: undefined,
         page: 1 
       }));
     }
