@@ -867,6 +867,7 @@ class OpportunityService {
     source?: string;
     status?: string;
     search?: string;
+    customerPhone?: string;
   }): Promise<OpportunitiesResponse> {
     try {
       const queryParams = new URLSearchParams();
