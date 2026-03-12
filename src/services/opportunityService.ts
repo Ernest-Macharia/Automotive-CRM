@@ -902,26 +902,19 @@ class OpportunityService {
       
       const endpoint = `/opportunities${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
       const response = await extendedApiClient.get<any>(endpoint);
-      const payload =
-        Array.isArray(response?.data)
-          ? response
-          : Array.isArray(response?.data?.data)
-            ? response.data
-            : response;
-
       return {
-        data: Array.isArray(payload?.data) ? payload.data : [],
+        data: Array.isArray(response?.data) ? response.data : [],
         pagination:
-          payload?.pagination ||
-          (payload?.meta
+          response?.pagination ||
+          (response?.meta
             ? {
-                total: payload.meta.total,
-                page: payload.meta.page,
-                limit: payload.meta.limit,
-                totalPages: payload.meta.totalPages,
+                total: response.meta.total,
+                page: response.meta.page,
+                limit: response.meta.limit,
+                totalPages: response.meta.totalPages,
               }
             : undefined),
-        stats: payload?.stats,
+        stats: response?.stats,
       };
     } catch (error) {
       console.error('Error getting all opportunities:', error);
