@@ -100,6 +100,14 @@ const normalizeOpportunityStatus = (value?: string): StageId => {
   return statusMap[compact] || 'new';
 };
 
+const resolveOpportunityStage = (opportunity: Partial<ExtendedOpportunity> | undefined): StageId => {
+  return normalizeOpportunityStatus(
+    opportunity?.status ||
+    opportunity?.currentStage ||
+    ''
+  );
+};
+
 const normalizeSearchPhone = (value?: string): string | undefined => {
   const digits = String(value || '').replace(/\D+/g, '');
   return digits.length >= 7 ? digits : undefined;
@@ -1020,8 +1028,8 @@ export default function OpportunitiesContent() {
           ? {
               ...opp,
               updatedAt: new Date().toISOString(),
-              status: normalizeOpportunityStatus(newStatus),
-              computedStageColor: getStageColor(normalizeOpportunityStatus(newStatus)),
+          status: normalizeOpportunityStatus(newStatus),
+          computedStageColor: getStageColor(normalizeOpportunityStatus(newStatus)),
               computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
               computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
               computedChildCounts: getChildCounts(opp),
@@ -1159,8 +1167,8 @@ export default function OpportunitiesContent() {
         // Process new opportunities
         const processedOpportunities = response.data.map((opp: ExtendedOpportunity) => ({
           ...opp,
-          status: normalizeOpportunityStatus(opp.status),
-          computedStageColor: getStageColor(normalizeOpportunityStatus(opp.status)),
+          status: resolveOpportunityStage(opp),
+          computedStageColor: getStageColor(resolveOpportunityStage(opp)),
           computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
           computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
           computedChildCounts: getChildCounts(opp)
@@ -1256,8 +1264,8 @@ export default function OpportunitiesContent() {
         // Pre-compute all values for opportunities
         const processedOpportunities = data.map((opp: ExtendedOpportunity) => ({
           ...opp,
-          status: normalizeOpportunityStatus(opp.status),
-          computedStageColor: getStageColor(normalizeOpportunityStatus(opp.status)),
+          status: resolveOpportunityStage(opp),
+          computedStageColor: getStageColor(resolveOpportunityStage(opp)),
           computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
           computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
           computedChildCounts: getChildCounts(opp)
@@ -1291,8 +1299,8 @@ export default function OpportunitiesContent() {
       // Pre-compute all values for opportunities
       const processedOpportunities = response.data.map((opp: ExtendedOpportunity) => ({
         ...opp,
-        status: normalizeOpportunityStatus(opp.status),
-        computedStageColor: getStageColor(normalizeOpportunityStatus(opp.status)),
+        status: resolveOpportunityStage(opp),
+        computedStageColor: getStageColor(resolveOpportunityStage(opp)),
         computedAvatarColor: getAvatarColor(opp.type, opp.leadScore?.totalScore),
         computedTier: getLeadScoreTier(opp.leadScore?.totalScore),
         computedChildCounts: getChildCounts(opp)
