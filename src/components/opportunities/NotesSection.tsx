@@ -32,6 +32,7 @@ import { format } from 'date-fns';
 interface NotesSectionProps {
   opportunityId: string;
   className?: string;
+  onNotesChanged?: () => void | Promise<void>;
 }
 
 const noteTypeConfig: Record<NoteType, { label: string; icon: React.ReactNode; bgColor: string }> = {
@@ -97,7 +98,7 @@ const noteTypeConfig: Record<NoteType, { label: string; icon: React.ReactNode; b
   }
 };
 
-export default function NotesSection({ opportunityId, className = '' }: NotesSectionProps) {
+export default function NotesSection({ opportunityId, className = '', onNotesChanged }: NotesSectionProps) {
   const { showToast } = useToast();
   const { user } = useCurrentUser(); // Get current user
   const [notes, setNotes] = useState<Note[]>([]);
@@ -213,6 +214,7 @@ export default function NotesSection({ opportunityId, className = '' }: NotesSec
       
       // Refresh notes
       await fetchNotes();
+      await onNotesChanged?.();
     } catch (error: any) {
       console.error('Error saving note:', error);
       showToast(error.message || 'Failed to save note', 'error');
@@ -225,7 +227,8 @@ export default function NotesSection({ opportunityId, className = '' }: NotesSec
     try {
       await opportunityService.deleteNote(opportunityId, noteId);
       showToast('Note deleted', 'success');
-      fetchNotes();
+      await fetchNotes();
+      await onNotesChanged?.();
     } catch (error) {
       console.error('Error deleting note:', error);
       showToast('Failed to delete note', 'error');
@@ -240,7 +243,8 @@ export default function NotesSection({ opportunityId, className = '' }: NotesSec
           pinned: !note.metadata?.pinned
         }
       });
-      fetchNotes();
+      await fetchNotes();
+      await onNotesChanged?.();
     } catch (error) {
       console.error('Error pinning note:', error);
       showToast('Failed to update note', 'error');

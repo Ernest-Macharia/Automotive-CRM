@@ -485,6 +485,10 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
     }
   };
 
+  const handleNotesChanged = async () => {
+    await fetchOpportunityDetails();
+  };
+
   const fetchAvailableSalesReps = async () => {
     try {
       const reps = await opportunityService.getAvailableSalesReps();
@@ -1031,7 +1035,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
             {/* Notes Section - Mobile */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
               <h3 className="font-medium text-gray-900 mb-3">Notes</h3>
-              <NotesSection opportunityId={opportunityId} />
+              <NotesSection opportunityId={opportunityId} onNotesChanged={handleNotesChanged} />
             </div>
           </div>
         );
@@ -1973,7 +1977,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
             )}
 
             {/* Notes Section - always visible */}
-            <NotesSection opportunityId={opportunityId} />
+            <NotesSection opportunityId={opportunityId} onNotesChanged={handleNotesChanged} />
 
             {/* Quick Actions - Permission Based */}
             {(canManageOpportunity || canEdit || canReassign) && (
