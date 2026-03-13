@@ -1073,6 +1073,47 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
       default: // overview
         return (
           <div className="space-y-4">
+            {/* Vehicles Section - Mobile Overview */}
+            {opportunity?.vehicles && opportunity.vehicles.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-1.5 bg-blue-50 rounded-lg">
+                    <Car className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Vehicle Details</h3>
+                    <p className="text-xs text-gray-600">{opportunity.vehicles.length} vehicle(s) associated</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {opportunity.vehicles.slice(0, 2).map((vehicle) => (
+                    <div
+                      key={vehicle._id}
+                      className="border border-gray-200 rounded-lg p-3"
+                      onClick={() => handleViewVehicleDetails(vehicle)}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900">
+                            {[vehicle.year || undefined, vehicle.make || undefined, vehicle.model || undefined]
+                              .filter(Boolean)
+                              .join(' ') || 'Vehicle'}
+                          </h4>
+                          <p className="text-xs text-gray-600 mt-1">
+                            {[vehicle.color || undefined, vehicle.registrationNumber || vehicle.licensePlate || undefined]
+                              .filter(Boolean)
+                              .join(' • ') || 'Tap to view details'}
+                          </p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-gray-400" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Stage History - Mobile */}
             {opportunity?.stageHistory && opportunity.stageHistory.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
