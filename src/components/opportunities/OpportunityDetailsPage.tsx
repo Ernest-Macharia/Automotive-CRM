@@ -132,6 +132,31 @@ interface Vehicle {
   licensePlate?: string;
 }
 
+const normalizeVehicle = (vehicle: any): Vehicle => ({
+  _id: String(vehicle?._id || vehicle?.id || ''),
+  vin: String(vehicle?.vin || ''),
+  registrationNumber: String(vehicle?.registrationNumber || vehicle?.licensePlate || ''),
+  make: String(vehicle?.make || ''),
+  model: String(vehicle?.model || ''),
+  year: Number(vehicle?.year || 0),
+  color: String(vehicle?.color || ''),
+  images: Array.isArray(vehicle?.images) ? vehicle.images : [],
+  createdAt: String(vehicle?.createdAt || ''),
+  updatedAt: String(vehicle?.updatedAt || ''),
+  active: typeof vehicle?.active === 'boolean' ? vehicle.active : undefined,
+  engineSize: vehicle?.engineSize ? String(vehicle.engineSize) : undefined,
+  fuelType: vehicle?.fuelType ? String(vehicle.fuelType) : undefined,
+  transmission: vehicle?.transmission ? String(vehicle.transmission) : undefined,
+  mileage: vehicle?.mileage ? String(vehicle.mileage) : undefined,
+  chassisNumber: vehicle?.chassisNumber ? String(vehicle.chassisNumber) : undefined,
+  bodyType: vehicle?.bodyType ? String(vehicle.bodyType) : undefined,
+  licensePlate: vehicle?.licensePlate
+    ? String(vehicle.licensePlate)
+    : vehicle?.registrationNumber
+      ? String(vehicle.registrationNumber)
+      : undefined,
+});
+
 const statusConfig: Record<string, { label: string; color: string; pastel: string; activeClass: string }> = {
   new: { label: 'New', color: 'bg-blue-100 text-blue-600', pastel: 'bg-blue-50', activeClass: 'bg-blue-500 text-white' },
   attempted_to_contact: { label: 'Attempted to Contact', color: 'bg-purple-100 text-purple-600', pastel: 'bg-purple-50', activeClass: 'bg-purple-500 text-white' },
@@ -475,7 +500,12 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
       setLoading(true);
       setError(null);
       const data = await opportunityService.getOpportunityById(opportunityId);
-      setOpportunity(data as OpportunityWithDetails);
+      setOpportunity({
+        ...(data as OpportunityWithDetails),
+        vehicles: Array.isArray((data as OpportunityWithDetails)?.vehicles)
+          ? (data as OpportunityWithDetails).vehicles.map(normalizeVehicle)
+          : [],
+      });
     } catch (err: any) {
       console.error('Error fetching opportunity details:', err);
       setError(err.message || 'Failed to fetch opportunity details');
