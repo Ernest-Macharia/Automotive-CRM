@@ -94,6 +94,18 @@ const getInvoiceIdFromOrder = (order: any): string | null => {
   return id || null;
 };
 
+const getOrderCustomer = (order: any) => {
+  const opportunity = typeof order?.opportunityId === 'object' ? order.opportunityId : null;
+  const customer = opportunity?.customer || null;
+
+  return {
+    name: customer?.name || customer?.companyName || opportunity?.subject || '—',
+    phone: customer?.phone || '—',
+    email: customer?.email || '—',
+    address: customer?.address || customer?.companyAddress || '—',
+  };
+};
+
 const getOrderStatusColor = (status: string) => {
   switch (status?.toLowerCase()) {
     case 'delivered': return 'text-green-700';
@@ -236,6 +248,8 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
     if (!salesOrder?.invoiceId) return '—';
     return typeof salesOrder.invoiceId === 'object' ? salesOrder.invoiceId.status : 'draft';
   }, [salesOrder?.invoiceId]);
+
+  const customerDetails = useMemo(() => getOrderCustomer(salesOrder), [salesOrder]);
 
   const handleAcceptQuoteAndGenerateInvoice = useCallback(async () => {
     if (!salesOrder) return;
@@ -1814,19 +1828,19 @@ export default function SalesOrderDetailPage({ orderId }: SalesOrderDetailPagePr
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-gray-600">Name</p>
-                  <p className="font-medium text-gray-900">{salesOrder.customer?.name || '—'}</p>
+                  <p className="font-medium text-gray-900">{customerDetails.name}</p>
                 </div>
                 <div>
                   <p className="text-gray-600">Phone</p>
-                  <p className="font-medium text-gray-900">{salesOrder.customer?.phone || '—'}</p>
+                  <p className="font-medium text-gray-900">{customerDetails.phone}</p>
                 </div>
                 <div>
                   <p className="text-gray-600">Email</p>
-                  <p className="font-medium text-gray-900">{salesOrder.customer?.email || '—'}</p>
+                  <p className="font-medium text-gray-900">{customerDetails.email}</p>
                 </div>
                 <div>
                   <p className="text-gray-600">Address</p>
-                  <p className="font-medium text-gray-900">{salesOrder.customer?.address || '—'}</p>
+                  <p className="font-medium text-gray-900">{customerDetails.address}</p>
                 </div>
               </div>
             </div>

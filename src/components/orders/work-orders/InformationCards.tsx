@@ -20,7 +20,12 @@ export default function InformationCards({ workOrder }: InformationCardsProps) {
 
   const getCustomerName = () => {
     if (typeof workOrder.opportunityId === 'object' && workOrder.opportunityId.customer) {
-      return workOrder.opportunityId.customer.name;
+      return (
+        workOrder.opportunityId.customer.name ||
+        workOrder.opportunityId.customer.companyName ||
+        workOrder.opportunityId.subject ||
+        'Unknown Customer'
+      );
     }
     return 'Unknown Customer';
   };
