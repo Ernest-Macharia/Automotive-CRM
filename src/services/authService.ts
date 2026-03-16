@@ -194,6 +194,11 @@ class AuthService {
     }
   }
 
+  private shouldPersistSession(): boolean {
+    if (typeof window === 'undefined') return false;
+    return !!localStorage.getItem(this.TOKEN_KEY);
+  }
+
   private clearAuthData(): void {
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem(this.TOKEN_KEY);
@@ -516,9 +521,24 @@ class AuthService {
       if (data.newPassword !== data.confirmPassword) {
         throw new ValidationError('Passwords do not match');
       }
-      
-      await apiClient.patch('/auth/force-change-password', data);
-      await this.refreshUserData();
+
+      const response = await apiClient.patch<ForceChangePasswordData, LoginApiResponse>(
+        '/auth/force-change-password',
+        data,
+      );
+
+      if (!response.accessToken) {
+        throw new Error('No access token received after password change');
+      }
+
+      const frontendUser = this.mapBackendUserToFrontend(response.user);
+
+      this.storeAuthData(
+        response.accessToken,
+        response.refreshToken,
+        frontendUser,
+        this.shouldPersistSession(),
+      );
       
     } catch (error: any) {
       if (error instanceof ValidationError) {
