@@ -52,7 +52,7 @@ export interface CreateUserData {
 export interface UpdateUserData {
   name?: string;
   email?: string;
-  role?: string;
+  role?: UserRole | string;
   permissions?: string[];
   active?: boolean;
   canViewSummary?: boolean;
@@ -378,10 +378,23 @@ class UserService {
 
       // Update role if provided
       if (data.role) {
-        // We need to get the role ID from the role name
-        const role = await roleService.getRoleByName(data.role);
-        if (role) {
-          await this.setUserRole(id, role.id);
+        const rawRole = data.role as any;
+        const directRoleId =
+          typeof rawRole === 'object' && rawRole !== null
+            ? rawRole._id || rawRole.id || rawRole.value || rawRole.roleId
+            : undefined;
+        const roleName =
+          typeof rawRole === 'string'
+            ? rawRole
+            : rawRole?.name || rawRole?.roleName || rawRole?.display_name || rawRole?.displayName;
+
+        if (typeof directRoleId === 'string' && directRoleId.trim()) {
+          await this.setUserRole(id, directRoleId.trim());
+        } else if (typeof roleName === 'string' && roleName.trim()) {
+          const role = await roleService.getRoleByName(roleName.trim());
+          if (role?.id) {
+            await this.setUserRole(id, role.id);
+          }
         }
       }
 

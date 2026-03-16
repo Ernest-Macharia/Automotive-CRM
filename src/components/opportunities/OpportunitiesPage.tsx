@@ -62,6 +62,12 @@ const stages: { id: StageId; label: string; pastelClass: string; borderColor: st
     pastelClass: 'bg-rose-50/80 backdrop-blur-sm', 
     borderColor: 'border-rose-100' 
   },
+  {
+    id: 'won',
+    label: 'Won',
+    pastelClass: 'bg-emerald-50/80 backdrop-blur-sm',
+    borderColor: 'border-emerald-100'
+  },
 ];
 
 const normalizeOpportunityStatus = (value?: string): StageId => {
