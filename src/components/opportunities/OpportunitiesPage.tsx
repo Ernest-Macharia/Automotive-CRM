@@ -1413,11 +1413,13 @@ export default function OpportunitiesContent() {
 
     const counts = {} as Record<StageId, number>;
     stages.forEach((stage) => {
-      counts[stage.id] = Number(sourceCounts[stage.id] || 0);
+      const backendCount = Number(sourceCounts[stage.id] || 0);
+      const visibleCount = opportunitiesByStage[stage.id]?.length || 0;
+      counts[stage.id] = Math.max(backendCount, visibleCount);
     });
 
     return counts;
-  }, [hasActiveFilters, filteredStats?.byStatus, stats?.byStatus]);
+  }, [hasActiveFilters, filteredStats?.byStatus, stats?.byStatus, opportunitiesByStage]);
 
   // Card metrics should reflect backend aggregates, not only the loaded page.
   const cardMetrics = useMemo(() => {
