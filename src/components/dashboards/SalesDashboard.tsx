@@ -23,6 +23,7 @@ import {
   User,
   BarChart3,
   FileText,
+  Receipt,
   ChevronRight,
   Filter
 } from 'lucide-react';
