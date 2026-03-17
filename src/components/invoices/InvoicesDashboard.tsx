@@ -244,6 +244,13 @@ export default function InvoicesDashboard() {
     return '';
   };
 
+  function getOpportunityName(invoice: Invoice): string {
+    if (typeof invoice.opportunityId === 'object') {
+      return invoice.opportunityId.subject || invoice.opportunityId.companyName || 'Opportunity';
+    }
+    return 'Opportunity';
+  }
+
   const isAwaitingFinance = (invoice: Invoice): boolean =>
     invoice.status === INVOICE_STATUS.SENT &&
     !!invoice.quoteId &&
@@ -351,13 +358,6 @@ Created: ${formatDate(invoice.createdAt)}
 
   const handleSendEmail = async (invoiceId: string) => {
     showToast('Email feature coming soon!', 'info');
-  };
-
-  const getOpportunityName = (invoice: Invoice): string => {
-    if (typeof invoice.opportunityId === 'object') {
-      return invoice.opportunityId.subject || invoice.opportunityId.companyName || 'Opportunity';
-    }
-    return 'Opportunity';
   };
 
   // Skeleton Components (keep as is)
