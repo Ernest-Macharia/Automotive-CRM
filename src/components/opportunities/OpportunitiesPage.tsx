@@ -12,10 +12,12 @@ import {
   Users, Target, BarChart3, Globe, Heart, Zap, Sparkles,
   Eye, Receipt, Wallet, ClipboardList, X, ChevronDown, Calendar, Star, Hash,
   Mail, Clock, TrendingUp as TrendingUpIcon, Award, CheckCircle, AlertTriangle,
-  Trophy, Upload
+  Trophy, Upload, Database
 } from 'lucide-react';
 import ConfirmationModal from '@/components/opportunities/ConfirmationModal';
+import OpportunitiesJsonModal from '@/components/opportunities/OpportunitiesJsonModal';
 import { useOpportunityStatusUpdate } from '@/hooks/useOpportunityStatusUpdate';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { OrganizationError } from '@/services/settings/organizationService';
 
 type StageId = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost' | 'won';
@@ -835,10 +837,12 @@ export default function OpportunitiesContent() {
   const [showFilters, setShowFilters] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const [importingCsv, setImportingCsv] = useState(false);
+  const [showOpportunitiesJsonModal, setShowOpportunitiesJsonModal] = useState(false);
   const [pagination, setPagination] = useState<any>(null);
   const [activeQuickFilter, setActiveQuickFilter] = useState<string | null>(null);
   const [organizationError, setOrganizationError] = useState<string | null>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
+  const { user: currentUser } = useCurrentUser();
   
   const [filters, setFilters] = useState<FilterParams>({
     status: undefined,
@@ -869,6 +873,24 @@ export default function OpportunitiesContent() {
 
   // Create cache instance
   const cacheRef = useRef(createCache());
+  const currentRoleName = useMemo(() => {
+    const rawRole = (currentUser as any)?.role;
+    if (typeof rawRole === 'string') return rawRole.toLowerCase();
+    if (rawRole && typeof rawRole === 'object') {
+      return String(
+        rawRole.name ||
+        rawRole.display_name ||
+        rawRole.displayName ||
+        rawRole.code ||
+        ''
+      ).toLowerCase();
+    }
+    return '';
+  }, [currentUser]);
+  const canManageSharedJson =
+    currentRoleName.includes('superadmin') ||
+    currentRoleName.includes('admin') ||
+    currentRoleName.includes('management');
   
   // Use the opportunity status update hook at the top level
   const {
@@ -1831,6 +1853,15 @@ export default function OpportunitiesContent() {
                 <Upload className="h-4 w-4" />
               )}
             </button>
+            <button
+              onClick={() => setShowOpportunitiesJsonModal(true)}
+              disabled={loading || creating}
+              className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-medium shadow-sm transition-all disabled:opacity-50"
+              title="Imported Opportunities Data"
+            >
+              <Database className="h-4 w-4" />
+              <span className="hidden sm:inline">Imported Data</span>
+            </button>
             <button 
               onClick={() => router.push('/opportunities/create')}
               disabled={loading || creating}
@@ -2476,6 +2507,13 @@ export default function OpportunitiesContent() {
           </div>
         </div>
       </div>
+
+      <OpportunitiesJsonModal
+        isOpen={showOpportunitiesJsonModal}
+        onClose={() => setShowOpportunitiesJsonModal(false)}
+        canUpload={canManageSharedJson}
+        showToast={showToast}
+      />
 
       {/* Confirmation Modal */}
       <ConfirmationModal
