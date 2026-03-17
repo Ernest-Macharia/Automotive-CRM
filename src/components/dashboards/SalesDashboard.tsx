@@ -35,6 +35,7 @@ interface SalesDashboardProps {
 }
 
 interface SalesStats {
+  paidInvoices: number;
   totalLeads: number;
   hotLeads: number;
   warmLeads: number;
@@ -66,6 +67,7 @@ interface PipelineStage {
 
 export default function SalesDashboard({ user }: SalesDashboardProps) {
   const [stats, setStats] = useState<SalesStats>({
+    paidInvoices: 0,
     totalLeads: 0,
     hotLeads: 0,
     warmLeads: 0,
@@ -251,6 +253,7 @@ export default function SalesDashboard({ user }: SalesDashboardProps) {
       let warmLeads = 0;
       let coldLeads = 0;
       let monthlyRevenue = 0;
+      let paidInvoices = 0;
       let dealsClosed = 0;
       let pipelineValue = 0;
       let avgDealSize = 0;
@@ -297,6 +300,7 @@ export default function SalesDashboard({ user }: SalesDashboardProps) {
         const revStats = revenueStats.value;
         if (revStats.monthlyRevenue) monthlyRevenue = revStats.monthlyRevenue;
         if (revStats.avgDealSize) avgDealSize = revStats.avgDealSize;
+        if (revStats.paidInvoicesCount) paidInvoices = revStats.paidInvoicesCount;
       }
 
       // Process pipeline data
@@ -386,6 +390,7 @@ export default function SalesDashboard({ user }: SalesDashboardProps) {
 
       // Update stats
       setStats({
+        paidInvoices,
         totalLeads,
         hotLeads,
         warmLeads,
@@ -531,7 +536,7 @@ export default function SalesDashboard({ user }: SalesDashboardProps) {
       {/* Main Content */}
       <div className="h-[calc(100vh-64px)] p-4 md:p-6 space-y-6 overflow-auto">
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Total Leads */}
           <div className="group relative">
             <div className="absolute -inset-0.5 bg-gradient-to-r from-green-400 via-emerald-400 to-teal-400 rounded-2xl opacity-0 group-hover:opacity-50 blur transition duration-500"></div>
@@ -629,6 +634,31 @@ export default function SalesDashboard({ user }: SalesDashboardProps) {
               <div className="mt-4 pt-4 border-t border-gray-100/50">
                 <div className="text-sm text-gray-600">
                   <span>Require immediate follow-up</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Paid Invoices */}
+          <div className="group relative">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-400 rounded-2xl opacity-0 group-hover:opacity-50 blur transition duration-500"></div>
+            <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5 hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-100 to-blue-100">
+                  <Receipt className="h-6 w-6 text-cyan-600" />
+                </div>
+                <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-cyan-100/80 text-cyan-700 text-xs font-medium">
+                  <CheckCircle className="h-3 w-3" />
+                  <span>Collected</span>
+                </span>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 font-medium mb-1">Paid Invoices</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.paidInvoices}</p>
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-100/50">
+                <div className="text-sm text-gray-600">
+                  <span>Invoices settled this period</span>
                 </div>
               </div>
             </div>

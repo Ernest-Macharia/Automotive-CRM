@@ -237,10 +237,28 @@ export default function InvoicesDashboard() {
     }
   };
 
+  const getQuoteNumber = (invoice: Invoice): string => {
+    if (typeof invoice.quoteId === 'object') {
+      return invoice.quoteId?.quoteNumber || '';
+    }
+    return '';
+  };
+
+  const isAwaitingFinance = (invoice: Invoice): boolean =>
+    invoice.status === INVOICE_STATUS.SENT &&
+    !!invoice.quoteId &&
+    invoice.paymentStatus !== PAYMENT_STATUS.PAID;
+
+  const awaitingFinanceCount = invoices.filter(isAwaitingFinance).length;
+
   const filteredInvoices = invoices.filter(invoice => {
+    const opportunityName = getOpportunityName(invoice).toLowerCase();
+    const quoteNumber = getQuoteNumber(invoice).toLowerCase();
     const matchesSearch = 
       invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      invoice.notes?.toLowerCase().includes(searchTerm.toLowerCase());
+      invoice.notes?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      opportunityName.includes(searchTerm.toLowerCase()) ||
+      quoteNumber.includes(searchTerm.toLowerCase());
     
     if (filterStatus === 'all') return matchesSearch;
     
@@ -253,8 +271,12 @@ export default function InvoicesDashboard() {
     } else if (isPaymentStatusFilter) {
       return matchesSearch && invoice.paymentStatus === filterStatus;
     }
-    
     return matchesSearch;
+  }).sort((a, b) => {
+    const aPriority = isAwaitingFinance(a) ? 1 : 0;
+    const bPriority = isAwaitingFinance(b) ? 1 : 0;
+    if (aPriority !== bPriority) return bPriority - aPriority;
+    return new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime();
   });
 
   const getStatusColor = (invoice: Invoice) => {
@@ -471,7 +493,7 @@ Created: ${formatDate(invoice.createdAt)}
           {statsLoading ? (
             <SkeletonStats />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
               {[
                 { 
                   label: 'Total Invoices', 
@@ -500,6 +522,13 @@ Created: ${formatDate(invoice.createdAt)}
                   icon: Clock, 
                   color: 'text-blue-600', 
                   bg: 'bg-blue-50' 
+                },
+                { 
+                  label: 'Awaiting Finance', 
+                  value: awaitingFinanceCount, 
+                  icon: Mail, 
+                  color: 'text-indigo-600', 
+                  bg: 'bg-indigo-50' 
                 },
                 { 
                   label: 'Overdue', 
@@ -682,10 +711,20 @@ Created: ${formatDate(invoice.createdAt)}
                                         From Quote
                                       </span>
                                     )}
+                                    {isAwaitingFinance(invoice) && (
+                                      <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">
+                                        Finance Queue
+                                      </span>
+                                    )}
                                   </div>
                                   <div className="text-xs text-gray-500 mt-1">
                                     {getOpportunityName(invoice)}
                                   </div>
+                                  {getQuoteNumber(invoice) && (
+                                    <div className="text-xs text-indigo-600 mt-1">
+                                      Quote: {getQuoteNumber(invoice)}
+                                    </div>
+                                  )}
                                   {invoice.notes && (
                                     <div className="text-xs text-gray-500 mt-1 line-clamp-1 max-w-xs">
                                       {invoice.notes}
