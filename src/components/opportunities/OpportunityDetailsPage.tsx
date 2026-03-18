@@ -465,17 +465,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
     return 'Assigned';
   };
 
-  const getOrganizationLabel = () => {
-    const organization = opportunity?.organizationId;
-    if (!organization) return null;
-
-    if (typeof organization === 'string') {
-      return `Org ${organization.slice(-6)}`;
-    }
-
-    return organization.name || organization.slug || null;
-  };
-
   // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -1374,14 +1363,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
 
           {/* Assigned To Badge - Mobile */}
           <div className="mt-2 flex items-center gap-2">
-            {getOrganizationLabel() && (
-              <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 rounded-lg">
-                <Building className="h-3 w-3 text-slate-600" />
-                <span className="text-xs font-medium text-slate-700 truncate max-w-[150px]">
-                  {getOrganizationLabel()}
-                </span>
-              </div>
-            )}
             <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-100 rounded-lg">
               <Users className="h-3 w-3 text-gray-600" />
               <span className="text-xs font-medium text-gray-700 truncate max-w-[150px]">
@@ -1409,15 +1390,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                   <span className="text-sm text-gray-600">ID: {opportunity._id.slice(-8)}</span>
                   <span className="text-gray-400">•</span>
                   <span className="text-sm text-gray-600">Created {formatDate(opportunity.createdAt)}</span>
-                  {getOrganizationLabel() && (
-                    <>
-                      <span className="text-gray-400">â€¢</span>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium">
-                        <Building className="h-3 w-3" />
-                        {getOrganizationLabel()}
-                      </span>
-                    </>
-                  )}
                 </div>
               </div>
             </div>
