@@ -82,8 +82,8 @@ export default function ReassignModal({
     try {
       setLoadingUsers(true);
 
-      // Primary source: backend-scoped endpoint for available sales reps
-      const repsData = await opportunityService.getAvailableSalesReps();
+      // Use reassignment candidates so the list stays scoped to the opportunity's organization.
+      const repsData = await opportunityService.getReassignmentCandidates(opportunityId);
       const repsArray = Array.isArray(repsData) ? repsData : [];
       const normalizedReps: User[] = repsArray
         .map((rep: any) => ({
@@ -91,7 +91,7 @@ export default function ReassignModal({
           _id: rep?._id || rep?.id || rep?.userId || '',
           name: rep?.name || rep?.fullName || rep?.displayName || rep?.email || 'Unknown User',
           email: rep?.email || '',
-          role: rep?.role || rep?.displayName || 'sales_representative',
+          role: rep?.role || 'sales_representative',
           department: rep?.department,
         }))
         .filter((rep: User) => Boolean(rep.id || rep._id));
@@ -235,7 +235,7 @@ export default function ReassignModal({
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select New Sales Representative
-                </label>
+                </label> 
                 <div className="relative" ref={dropdownRef}>
                   <div className="relative">
                     <input

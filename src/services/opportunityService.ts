@@ -97,6 +97,7 @@ export interface Opportunity {
 }
 
 export interface CreateOpportunityData {
+  organizationId?: string;
   type: 'individual' | 'organization';
   subject: string;
   status?: 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost' | 'won';
@@ -1014,9 +1015,12 @@ class OpportunityService {
   }
 
   // Get available sales reps
-  async getAvailableSalesReps(): Promise<any[]> {
+  async getAvailableSalesReps(organizationId?: string): Promise<any[]> {
     try {
-      return await extendedApiClient.get<any[]>('/opportunities/sales-reps/available');
+      const endpoint = organizationId
+        ? `/opportunities/sales-reps/available?organizationId=${encodeURIComponent(organizationId)}`
+        : '/opportunities/sales-reps/available';
+      return await extendedApiClient.get<any[]>(endpoint);
     } catch (error) {
       console.error('Error fetching available sales reps:', error);
       throw error;
