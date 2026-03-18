@@ -633,6 +633,17 @@ const OpportunityCard = memo(function OpportunityCard({
   }, [opportunity.customer?.phone, handleClick]);
 
   const showNeedsLeadBadge = false;
+  const getOrganizationTag = () => {
+    const organization = opportunity.organizationId;
+    if (!organization) return null;
+
+    if (typeof organization === 'string') {
+      return `Org ${organization.slice(-6)}`;
+    }
+
+    return organization.name || organization.slug || null;
+  };
+  const organizationTag = getOrganizationTag();
 
   return (
     <div 
@@ -684,6 +695,11 @@ const OpportunityCard = memo(function OpportunityCard({
         {opportunity.type === 'organization' && (
           <span className="px-2 py-1 rounded-lg bg-purple-50/80 text-purple-600 text-xs transition-colors hover:bg-purple-100/80 whitespace-nowrap">
             Organization
+          </span>
+        )}
+        {organizationTag && (
+          <span className="px-2 py-1 rounded-lg bg-slate-100/90 text-slate-700 text-xs font-medium whitespace-nowrap">
+            {organizationTag}
           </span>
         )}
       </div>
