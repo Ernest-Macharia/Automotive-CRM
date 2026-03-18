@@ -520,7 +520,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
         (data as any)?.organizationId?._id ||
         (data as any)?.organizationId?.id ||
         (data as any)?.organizationId;
-      await fetchAvailableSalesReps(
+      void fetchAvailableSalesReps(
         typeof opportunityOrgId === 'string' ? opportunityOrgId : undefined,
       );
     } catch (err: any) {
