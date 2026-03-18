@@ -40,8 +40,10 @@ const RoleBasedDashboard = () => {
   
   switch (userRole) {
     // System Roles
-    case 'admin':
+    case 'superadmin':
       return <AdminDashboard user={user} />;
+    case 'admin':
+      return <ManagementDashboard user={user} />;
     case 'developer':
       return <DeveloperDashboard user={user} />;
       
@@ -49,7 +51,6 @@ const RoleBasedDashboard = () => {
     case 'management':
     case 'branch_manager':
     case 'fleet_manager':
-    case 'finance':
     case 'compliance':
       return <ManagementDashboard user={user} />;
       

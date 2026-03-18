@@ -40,7 +40,7 @@ import {
 import { opportunityService, Opportunity } from '@/services/opportunityService';
 import { invoiceService, Invoice, PAYMENT_STATUS, INVOICE_STATUS } from '@/services/invoiceService';
 import { workOrderService } from '@/services/workOrderService';
-import { createPermissionChecker } from '@/services/settings/roleService';
+import { reportService, RoleDashboardResponse } from '@/services/reportService';
 
 interface FinanceDashboardProps {
   user: any;
@@ -122,6 +122,23 @@ interface InvoiceStats {
   outstandingAmount: number;
 }
 
+interface FinanceConversionMetrics {
+  pipelineCount: number;
+  pipelineValue: number;
+  wonDealsCount: number;
+  wonDealsValue: number;
+  quotesCount: number;
+  quotesValue: number;
+  invoicesCount: number;
+  invoicesValue: number;
+  paidInvoicesCount: number;
+  paidInvoicesValue: number;
+  unpaidInvoicesValue: number;
+  invoiceOverQuotePercentage: number;
+  paidOverInvoicePercentage: number;
+  quoteCoverageGap: number;
+}
+
 export default function FinanceDashboard({ user }: FinanceDashboardProps) {
   const [metrics, setMetrics] = useState<FinancialMetrics>({
     revenue: 0,
@@ -151,6 +168,8 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
     paidAmount: 0,
     outstandingAmount: 0
   });
+  const [financeNumbers, setFinanceNumbers] = useState<FinanceConversionMetrics | null>(null);
+  const [convertedInvoices, setConvertedInvoices] = useState<RoleDashboardResponse['convertedInvoices']>([]);
   
   const [showDetailedNumbers, setShowDetailedNumbers] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -235,6 +254,7 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
 
       // Fetch multiple data sources in parallel
       const [
+        roleDashboardResult,
         // Current period invoices
         currentInvoicesResult,
         // Previous period invoices for growth
@@ -256,6 +276,10 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
         // Work orders for expense estimation
         workOrdersResult
       ] = await Promise.allSettled([
+        reportService.getRoleDashboard({
+          from: dateRange.start,
+          to: dateRange.end,
+        }),
         // Current period invoices
         invoiceService.getAllInvoices({
           fromDate: dateRange.start,
@@ -313,6 +337,12 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
           toDate: dateRange.end
         })
       ]);
+
+      const roleDashboard =
+        roleDashboardResult.status === 'fulfilled' ? roleDashboardResult.value : null;
+      const scopedFinanceNumbers = roleDashboard?.financeNumbers || null;
+      setFinanceNumbers(scopedFinanceNumbers);
+      setConvertedInvoices(roleDashboard?.convertedInvoices || []);
 
       // Process invoices
       const currentInvoices: Invoice[] = currentInvoicesResult.status === 'fulfilled' 
@@ -563,12 +593,12 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
 
       setInvoiceStats({
         total: totalInvoices,
-        paid: paidCount,
+        paid: scopedFinanceNumbers?.paidInvoicesCount ?? paidCount,
         unpaid: unpaidCount,
         overdue: overdueCount,
-        totalAmount: currentInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0),
-        paidAmount: revenue,
-        outstandingAmount: accountsReceivable
+        totalAmount: scopedFinanceNumbers?.invoicesValue ?? currentInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0),
+        paidAmount: scopedFinanceNumbers?.paidInvoicesValue ?? revenue,
+        outstandingAmount: scopedFinanceNumbers?.unpaidInvoicesValue ?? accountsReceivable
       });
 
       // Budget status (mock for now - would come from budget system)
@@ -604,16 +634,28 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
       ];
 
       // Update all state
+      const scopedRevenue = scopedFinanceNumbers?.paidInvoicesValue ?? revenue;
+      const scopedAccountsReceivable =
+        scopedFinanceNumbers?.unpaidInvoicesValue ?? accountsReceivable;
+      const scopedProfit = scopedRevenue - expenses;
+      const scopedProfitMargin =
+        scopedRevenue > 0 ? (scopedProfit / scopedRevenue) * 100 : 0;
+      const scopedCashFlow = scopedRevenue - scopedAccountsReceivable;
+      const scopedAvgDealSize =
+        (scopedFinanceNumbers?.paidInvoicesCount || 0) > 0
+          ? scopedRevenue / (scopedFinanceNumbers?.paidInvoicesCount || 1)
+          : avgDealSize;
+
       setMetrics({
-        revenue,
+        revenue: scopedRevenue,
         expenses,
-        profit,
-        cashFlow,
-        accountsReceivable,
+        profit: scopedProfit,
+        cashFlow: scopedCashFlow,
+        accountsReceivable: scopedAccountsReceivable,
         accountsPayable,
         revenueGrowth: parseFloat(revenueGrowth.toFixed(1)),
-        profitMargin: parseFloat(profitMargin.toFixed(1)),
-        avgDealSize: parseFloat(avgDealSize.toFixed(0)),
+        profitMargin: parseFloat(scopedProfitMargin.toFixed(1)),
+        avgDealSize: parseFloat(scopedAvgDealSize.toFixed(0)),
         customerLifetimeValue: parseFloat(customerLTV.toFixed(0))
       });
 
@@ -944,6 +986,91 @@ export default function FinanceDashboard({ user }: FinanceDashboardProps) {
             <p className="text-sm text-red-700 font-medium mb-1">Overdue</p>
             <p className="text-2xl font-bold text-gray-900">{invoiceStats.overdue}</p>
             <p className="text-xs text-red-600 mt-1">Requires immediate attention</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Quote to Invoice Conversion</h2>
+                <p className="text-sm text-gray-600">Track how pipeline business is converting into billable invoices</p>
+              </div>
+              <BarChart3 className="h-5 w-5 text-cyan-600" />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="rounded-xl bg-cyan-50 p-4">
+                <p className="text-sm text-cyan-700 font-medium">Pipeline Value</p>
+                <p className="mt-1 text-2xl font-bold text-gray-900">
+                  {formatCurrency(financeNumbers?.pipelineValue || 0)}
+                </p>
+                <p className="mt-1 text-xs text-gray-600">{financeNumbers?.pipelineCount || 0} open deals</p>
+              </div>
+              <div className="rounded-xl bg-amber-50 p-4">
+                <p className="text-sm text-amber-700 font-medium">Quotes Value</p>
+                <p className="mt-1 text-2xl font-bold text-gray-900">
+                  {formatCurrency(financeNumbers?.quotesValue || 0)}
+                </p>
+                <p className="mt-1 text-xs text-gray-600">{financeNumbers?.quotesCount || 0} quotes</p>
+              </div>
+              <div className="rounded-xl bg-emerald-50 p-4">
+                <p className="text-sm text-emerald-700 font-medium">Invoices Value</p>
+                <p className="mt-1 text-2xl font-bold text-gray-900">
+                  {formatCurrency(financeNumbers?.invoicesValue || 0)}
+                </p>
+                <p className="mt-1 text-xs text-gray-600">{financeNumbers?.invoicesCount || 0} invoices</p>
+              </div>
+              <div className="rounded-xl bg-blue-50 p-4">
+                <p className="text-sm text-blue-700 font-medium">Invoice over Quotes</p>
+                <p className="mt-1 text-2xl font-bold text-gray-900">
+                  {(financeNumbers?.invoiceOverQuotePercentage || 0).toFixed(1)}%
+                </p>
+                <p className="mt-1 text-xs text-gray-600">
+                  Gap: {formatCurrency(Math.max(financeNumbers?.quoteCoverageGap || 0, 0))}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-slate-50 to-cyan-50 rounded-2xl border border-slate-200 p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Converted Invoices</h2>
+                <p className="text-sm text-gray-600">Quotes already turned into invoices</p>
+              </div>
+              <Receipt className="h-5 w-5 text-cyan-600" />
+            </div>
+
+            <div className="space-y-3">
+              {convertedInvoices && convertedInvoices.length > 0 ? convertedInvoices.slice(0, 6).map((item) => (
+                <div key={item.id} className="rounded-xl bg-white/80 border border-slate-200 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-gray-900">{item.invoiceNumber}</p>
+                      <p className="text-sm text-gray-500">{item.quoteNumber || 'Generated from quote'}</p>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                      item.paymentStatus === 'paid'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {item.paymentStatus}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between text-sm">
+                    <span className="text-gray-500">{new Date(item.createdAt).toLocaleDateString()}</span>
+                    <span className="font-semibold text-gray-900">{formatCurrency(item.total)}</span>
+                  </div>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-white/70 p-6 text-center">
+                  <Receipt className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+                  <p className="text-sm font-medium text-gray-700">No converted invoices yet</p>
+                  <p className="mt-1 text-sm text-gray-500">Won opportunities that carry quotes will appear here as invoices.</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

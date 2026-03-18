@@ -87,6 +87,7 @@ import { opportunityService } from '@/services/opportunityService';
 import { userService } from '@/services/userService';
 import { workOrderService } from '@/services/workOrderService';
 import { salesOrderService } from '@/services/salesOrderService';
+import { reportService, RoleDashboardFeatureUsage } from '@/services/reportService';
 
 interface AdminDashboardProps {
   user: any;
@@ -232,6 +233,15 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   });
 
   const [recentActivities, setRecentActivities] = useState<UserActivity[]>([]);
+  const [featureUsage, setFeatureUsage] = useState<RoleDashboardFeatureUsage[]>([]);
+  const [platformSummary, setPlatformSummary] = useState<{
+    totalOrganizations: number;
+    activeOrganizations: number;
+    totalUsers: number;
+    activeUsers: number;
+    avgStorageUsagePercentage: number;
+    avgApiUsagePercentage: number;
+  } | null>(null);
   const [recentOpportunities, setRecentOpportunities] = useState<any[]>([]);
   const [topOpportunities, setTopOpportunities] = useState<any[]>([]);
   const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetric[]>([
@@ -308,6 +318,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
       // Fetch multiple data sources in parallel
       const [
+        roleDashboardResponse,
         usersResponse,
         overviewResponse,
         filteredStatsResponse,
@@ -320,6 +331,10 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         slaStats,
         lisSlaStats
       ] = await Promise.allSettled([
+        reportService.getRoleDashboard({
+          from: currentPeriodStart,
+          to: todayStr,
+        }),
         userService.getAllUsers(),
         opportunityService.getOpportunitiesOverview(),
         opportunityService.getFilteredStats({}),
@@ -344,6 +359,34 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       let activeUsers = 0;
       let pendingUsers = 0;
       let previousUsers = 0;
+      let scopedPlatformSummary: typeof platformSummary = null;
+
+      if (roleDashboardResponse.status === 'fulfilled' && roleDashboardResponse.value) {
+        const dashboard = roleDashboardResponse.value;
+
+        if (dashboard.summary) {
+          scopedPlatformSummary = dashboard.summary;
+          setPlatformSummary(dashboard.summary);
+          totalUsers = dashboard.summary.totalUsers || totalUsers;
+          activeUsers = dashboard.summary.activeUsers || activeUsers;
+        }
+
+        setFeatureUsage(dashboard.featureUsage || []);
+
+        if (dashboard.recentActivities) {
+          setRecentActivities(
+            dashboard.recentActivities.map((activity) => ({
+              id: activity.id,
+              user: activity.type.charAt(0).toUpperCase() + activity.type.slice(1),
+              action: activity.title,
+              timestamp: activity.createdAt,
+              ip: 'Platform',
+              location: activity.status,
+              details: activity.amount ? formatCurrency(activity.amount) : undefined,
+            })),
+          );
+        }
+      }
 
       if (usersResponse.status === 'fulfilled' && usersResponse.value) {
         const usersData = usersResponse.value;
@@ -522,7 +565,12 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         { name: 'Storage', status: 'up' as const, responseTime: 85 },
         { name: 'Auth Service', status: 'up' as const, responseTime: 65 }
       ];
-      setRecentActivities([]);
+      if (
+        roleDashboardResponse.status !== 'fulfilled' ||
+        !roleDashboardResponse.value?.recentActivities?.length
+      ) {
+        setRecentActivities([]);
+      }
 
       // Calculate growth percentages
       const userGrowth = calculateGrowth(totalUsers, previousUsers);
@@ -588,11 +636,11 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         responseTime: services.reduce((acc, s) => acc + s.responseTime, 0) / services.length,
         apiCalls: 12450, // Replace with actual API metrics
         errorRate,
-        storageUsage: 2.4, // Replace with actual storage metrics
+        storageUsage: scopedPlatformSummary?.avgStorageUsagePercentage || 2.4, // Replace with actual storage metrics
         storageTotal: 3.2,
-        storagePercentage: 75,
+        storagePercentage: scopedPlatformSummary?.avgStorageUsagePercentage || 75,
         activeSessions: 245, // Replace with actual session count
-        cacheHitRate: 92.5,
+        cacheHitRate: scopedPlatformSummary?.avgApiUsagePercentage || 92.5,
         
         weeklyGrowth,
         monthlyGrowth,
@@ -1013,6 +1061,90 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                     {stats.responseTime}ms
                   </span>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 bg-white/90 backdrop-blur-sm rounded-2xl border border-white/30 p-5">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Platform Feature Usage</h2>
+                <p className="text-sm text-gray-600">Percentage of organizations actively using each feature area</p>
+              </div>
+              <Sparkles className="h-5 w-5 text-blue-600" />
+            </div>
+
+            <div className="space-y-4">
+              {featureUsage.length > 0 ? featureUsage.map((feature) => (
+                <div key={feature.key} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{feature.label}</p>
+                      <p className="text-xs text-gray-500">
+                        {feature.usedOrganizations} of {feature.totalOrganizations} organizations
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                      {feature.percentage.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-blue-500 via-cyan-500 to-sky-500"
+                      style={{ width: `${Math.min(feature.percentage, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )) : (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+                  <BarChart3 className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+                  <p className="text-sm font-medium text-gray-700">No feature usage data yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl border border-blue-100 p-5">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Platform Snapshot</h2>
+                <p className="text-sm text-gray-600">Superadmin view across all organizations</p>
+              </div>
+              <Building2 className="h-5 w-5 text-cyan-600" />
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-xl bg-white/80 p-4">
+                <p className="text-sm text-gray-500">Organizations</p>
+                <p className="mt-1 text-2xl font-bold text-gray-900">
+                  {formatNumber(platformSummary?.totalOrganizations || 0)}
+                </p>
+                <p className="mt-1 text-sm text-gray-600">
+                  {formatNumber(platformSummary?.activeOrganizations || 0)} active
+                </p>
+              </div>
+              <div className="rounded-xl bg-white/80 p-4">
+                <p className="text-sm text-gray-500">Active Users</p>
+                <p className="mt-1 text-2xl font-bold text-gray-900">
+                  {formatNumber(platformSummary?.activeUsers || stats.activeUsers)}
+                </p>
+                <p className="mt-1 text-sm text-gray-600">
+                  {formatNumber(platformSummary?.totalUsers || stats.totalUsers)} total users
+                </p>
+              </div>
+              <div className="rounded-xl bg-white/80 p-4">
+                <p className="text-sm text-gray-500">Average API Usage</p>
+                <p className="mt-1 text-2xl font-bold text-gray-900">
+                  {(platformSummary?.avgApiUsagePercentage || 0).toFixed(1)}%
+                </p>
+              </div>
+              <div className="rounded-xl bg-white/80 p-4">
+                <p className="text-sm text-gray-500">Average Storage Usage</p>
+                <p className="mt-1 text-2xl font-bold text-gray-900">
+                  {(platformSummary?.avgStorageUsagePercentage || 0).toFixed(1)}%
+                </p>
               </div>
             </div>
           </div>
