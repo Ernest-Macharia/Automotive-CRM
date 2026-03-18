@@ -19,13 +19,6 @@ export default function ClientLayout({
   const pathname = usePathname();
   const router = useRouter();
 
-  const normalizePath = (value?: string | null) => {
-    if (!value) return '/';
-    const normalized = value.trim();
-    if (normalized === '/') return normalized;
-    return normalized.replace(/\/+$/, '') || '/';
-  };
-
   /* ---------------------------
      AUTH GUARD
   ----------------------------*/
@@ -41,8 +34,7 @@ export default function ClientLayout({
           '/unauthorized',
         ];
 
-        const normalizedPathname = normalizePath(pathname);
-        const isPublicPath = publicPaths.includes(normalizedPathname);
+        const isPublicPath = publicPaths.includes(pathname);
         const isAuthenticated = authService.isAuthenticated();
 
         if (!isAuthenticated && !isPublicPath) {
@@ -50,7 +42,7 @@ export default function ClientLayout({
           return;
         }
 
-        if (isAuthenticated && normalizedPathname === '/auth/login') {
+        if (isAuthenticated && pathname === '/auth/login') {
           router.replace('/dashboard');
           return;
         }
@@ -91,7 +83,7 @@ export default function ClientLayout({
     if (isMobile) setSidebarOpen(false);
   }, [isMobile]);
 
-  const isAuthPage = normalizePath(pathname).startsWith('/auth');
+  const isAuthPage = pathname?.startsWith('/auth');
 
   /* ---------------------------
      LOADING STATE (AUTH)

@@ -349,31 +349,12 @@ class AuthService {
     return null;
   }
 
-  private readStoredUser(storage: Storage): FrontendUser | null {
-    const rawValue = storage.getItem(this.USER_KEY);
-
-    if (!rawValue || rawValue === 'undefined' || rawValue === 'null') {
-      if (rawValue === 'undefined' || rawValue === 'null') {
-        storage.removeItem(this.USER_KEY);
-      }
-      return null;
-    }
-
-    try {
-      return JSON.parse(rawValue) as FrontendUser;
-    } catch (error) {
-      console.error('Error parsing stored user:', error);
-      storage.removeItem(this.USER_KEY);
-      return null;
-    }
-  }
-
   getUser(): FrontendUser | null {
-    if (typeof window === 'undefined') {
-      return null;
+    if (typeof window !== 'undefined') {
+      const userStr = localStorage.getItem(this.USER_KEY) || sessionStorage.getItem(this.USER_KEY);
+      return userStr ? JSON.parse(userStr) : null;
     }
-
-    return this.readStoredUser(localStorage) || this.readStoredUser(sessionStorage);
+    return null;
   }
 
   isAuthenticated(): boolean {
@@ -654,4 +635,3 @@ class AuthService {
 }
 
 export const authService = new AuthService();
-
