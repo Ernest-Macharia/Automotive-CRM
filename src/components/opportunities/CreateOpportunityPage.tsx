@@ -17,7 +17,7 @@ import DuplicateModal from '@/components/opportunities/DuplicateModal';
 import { Opportunity } from '@/services/opportunityService';
 import React from 'react';
 import { authService } from '@/services/authService';
-import { userService } from '@/services/settings/userService';
+import { organizationService } from '@/services/settings/organizationService';
 import { productService, Product } from '@/services/productService';
 import { serviceService, Service } from '@/services/serviceService';
 import { cardataService } from '@/services/carDataService';
@@ -61,6 +61,7 @@ interface CountryCode {
 }
 
 interface OpportunityFormData {
+  organizationId?: string;
   accountType: 'individual' | 'organization';
   source?: 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner';
   firstName: string;
@@ -116,6 +117,12 @@ interface Role {
 
 interface UserPreferences {
   useDropdowns: boolean;
+}
+
+interface OrganizationOption {
+  id: string;
+  name: string;
+  slug?: string;
 }
 
 const fallbackVehicleMakes = [
@@ -180,6 +187,7 @@ export default function CreateOpportunityPage() {
   const [showPreferences, setShowPreferences] = useState(false);
   
   const [formData, setFormData] = useState<OpportunityFormData>({
+    organizationId: '',
     accountType: 'individual',
     source: 'walk_in',
     firstName: '',
@@ -240,6 +248,8 @@ export default function CreateOpportunityPage() {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [showUsersDropdown, setShowUsersDropdown] = useState(false);
   const [userSearch, setUserSearch] = useState('');
+  const [availableOrganizations, setAvailableOrganizations] = useState<OrganizationOption[]>([]);
+  const [loadingOrganizations, setLoadingOrganizations] = useState(false);
   const [vehicleMakes, setVehicleMakes] = useState<string[]>(fallbackVehicleMakes);
   const [vehicleModelsByMake, setVehicleModelsByMake] = useState<Record<string, string[]>>(fallbackVehicleModels);
   const [loadingVehicleData, setLoadingVehicleData] = useState(false);
@@ -337,6 +347,30 @@ export default function CreateOpportunityPage() {
     return false;
   };
 
+  const extractAccessibleOrganizationIds = (rawUser: any): string[] => {
+    const values = [
+      rawUser?.organizationId,
+      rawUser?.organization?._id,
+      rawUser?.organization?.id,
+      ...(Array.isArray(rawUser?.accessibleOrganizationIds)
+        ? rawUser.accessibleOrganizationIds
+        : []),
+      ...(Array.isArray(rawUser?.accessibleOrganizations)
+        ? rawUser.accessibleOrganizations.map((value: any) =>
+            typeof value === 'string' ? value : value?._id || value?.id,
+          )
+        : []),
+    ];
+
+    return Array.from(
+      new Set(
+        values
+          .map((value) => (typeof value === 'string' ? value : ''))
+          .filter((value) => value && /^[a-fA-F0-9]{24}$/.test(value)),
+      ),
+    );
+  };
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (makeDropdownRef.current && !makeDropdownRef.current.contains(event.target as Node)) {
@@ -430,22 +464,83 @@ export default function CreateOpportunityPage() {
   }, []);
 
   useEffect(() => {
+    const fetchOrganizations = async () => {
+      try {
+        setLoadingOrganizations(true);
+        const currentUser = await authService.getCurrentUser().catch(() => authService.getUser());
+        const organizationIds = extractAccessibleOrganizationIds(currentUser);
+
+        if (organizationIds.length === 0) {
+          setAvailableOrganizations([]);
+          return;
+        }
+
+        const organizations = await Promise.all(
+          organizationIds.map(async (organizationId, index) => {
+            try {
+              const org = await organizationService.getOrganizationById(organizationId);
+              return {
+                id: org.id || org._id || organizationId,
+                name: org.name,
+                slug: org.slug,
+              } as OrganizationOption;
+            } catch {
+              return {
+                id: organizationId,
+                name:
+                  index === 0 && (currentUser as any)?.organization?.name
+                    ? (currentUser as any).organization.name
+                    : `Organization ${index + 1}`,
+              } as OrganizationOption;
+            }
+          }),
+        );
+
+        setAvailableOrganizations(organizations);
+        setFormData((prev) => ({
+          ...prev,
+          organizationId:
+            prev.organizationId ||
+            (typeof (currentUser as any)?.organizationId === 'string'
+              ? (currentUser as any).organizationId
+              : organizations[0]?.id || ''),
+        }));
+      } catch (error) {
+        console.error('Error fetching organizations:', error);
+      } finally {
+        setLoadingOrganizations(false);
+      }
+    };
+
+    fetchOrganizations();
+  }, []);
+
+  useEffect(() => {
     const fetchUsers = async () => {
       try {
         setLoadingUsers(true);
-        const usersData = await userService.getAllUsers();
-        const salesPeople = usersData.filter(user => isSalesPerson(user));
-        setUsers(salesPeople || []);
+        const usersData = await opportunityService.getAvailableSalesReps(
+          formData.organizationId || undefined,
+        );
+        setUsers(Array.isArray(usersData) ? usersData : []);
       } catch (error) {
         console.error('Error fetching users:', error);
-        // showToast('Failed to load users list', 'error', 3000);
       } finally {
         setLoadingUsers(false);
       }
     };
 
     fetchUsers();
-  }, [showToast]);
+  }, [formData.organizationId]);
+
+  useEffect(() => {
+    if (!formData.assignedTo) return;
+    const stillAvailable = users.some((user) => getUserId(user) === formData.assignedTo);
+    if (!stillAvailable) {
+      setFormData((prev) => ({ ...prev, assignedTo: '' }));
+      setUserSearch('');
+    }
+  }, [users, formData.assignedTo]);
 
   useEffect(() => {
     const fetchVehicleData = async () => {
@@ -504,10 +599,6 @@ export default function CreateOpportunityPage() {
   };
 
   const getUserId = (user: User): string => user._id || user.id;
-  const getCurrentUserId = (): string | undefined => {
-    const currentUser = authService.getUser();
-    return currentUser?.id || undefined;
-  };
 
   const savePreferences = (prefs: UserPreferences) => {
     setUserPreferences(prefs);
@@ -883,13 +974,14 @@ export default function CreateOpportunityPage() {
       });
 
       const apiFormData: CreateOpportunityData = {
+        organizationId: formData.organizationId || undefined,
         type: formData.accountType,
         source: formData.source,
         subject,
         status: 'new',
         opportunityType: formData.opportunityType,
         packageType: packageType,
-        assignedTo: formData.assignedTo || getCurrentUserId(),
+        assignedTo: formData.assignedTo || undefined,
 
         customer: {
           name: isIndividual
@@ -1762,6 +1854,34 @@ export default function CreateOpportunityPage() {
                           Phone: {formData.phoneCode}{formData.phone || '_______'}
                         </p>
                       </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Organization
+                      </label>
+                      <div className="relative">
+                        <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <select
+                          value={formData.organizationId || ''}
+                          onChange={(e) => handleInputChange('organizationId', e.target.value)}
+                          disabled={loadingOrganizations || availableOrganizations.length <= 1}
+                          className="pl-10 pr-4 py-3 w-full rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                        >
+                          <option value="">
+                            {loadingOrganizations ? 'Loading organizations...' : 'Select organization'}
+                          </option>
+                          {availableOrganizations.map((organization) => (
+                            <option key={organization.id} value={organization.id}>
+                              {organization.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {availableOrganizations.length > 1 && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          New opportunities and sales rep options will use the selected organization.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
