@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { authService } from '@/services/authService';
+import { useRouter } from 'next/navigation';
+import { authService, type FrontendUser } from '@/services/authService';
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -44,26 +46,77 @@ const DefaultDashboard = dynamic(() => import('@/components/dashboards/DefaultDa
   loading: LoadingFallback,
 });
 
-export default function DashboardPage() {
-  const user = authService.getUser();
+function resolveUserRole(user: FrontendUser | null): string {
+  const roleValue = (user as { role?: unknown } | null)?.role;
 
-  if (!user) {
-    return <DefaultDashboard />;
+  if (typeof roleValue === 'object' && roleValue !== null && 'name' in roleValue) {
+    return String((roleValue as { name?: string }).name || '');
   }
 
-  const roleValue = (user as { role?: unknown }).role;
-  const userRole =
-    typeof roleValue === 'object' && roleValue !== null && 'name' in roleValue
-      ? String((roleValue as { name?: string }).name || '')
-      : String(roleValue || '');
-  
+  return String(roleValue || '');
+}
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<FrontendUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const resolveUser = async () => {
+      try {
+        if (!authService.isAuthenticated()) {
+          router.replace('/auth/login');
+          return;
+        }
+
+        const storedUser = authService.getUser();
+        if (storedUser) {
+          if (isMounted) {
+            setUser(storedUser);
+          }
+          return;
+        }
+
+        const currentUser = await authService.getCurrentUser();
+        if (isMounted) {
+          setUser(currentUser);
+        }
+      } catch (error) {
+        console.error('Error resolving dashboard user:', error);
+        router.replace('/auth/login');
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    resolveUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
+
+  if (loading) {
+    return <LoadingFallback />;
+  }
+
+  if (!user) {
+    return <LoadingFallback />;
+  }
+
+  const userRole = resolveUserRole(user);
+
   switch (userRole) {
     case 'superadmin':
       return <AdminDashboard user={user} />;
 
     case 'admin':
       return <ManagementDashboard user={user} />;
-    
+
     case 'management':
     case 'branch_manager':
     case 'fleet_manager':
@@ -76,7 +129,7 @@ export default function DashboardPage() {
     case 'controller':
     case 'cfo':
       return <FinanceDashboard user={user} />;
-    
+
     case 'sales_director':
     case 'sales_manager':
     case 'sales_lead':
@@ -84,30 +137,30 @@ export default function DashboardPage() {
     case 'account_executive':
     case 'business_development':
       return <SalesDashboard user={user} />;
-    
+
     case 'engineer':
     case 'technician':
     case 'workshop':
       return <TechnicianDashboard user={user} />;
-    
+
     case 'support':
     case 'customer_service':
     case 'customer_experience':
-      return userRole === 'customer_experience' 
+      return userRole === 'customer_experience'
         ? <CustomerExperienceDashboard user={user} />
         : <CustomerServiceDashboard user={user} />;
-    
+
     case 'customer':
       return <CustomerDashboard user={user} />;
-    
+
     case 'dealer':
     case 'partner':
     case 'insurer':
       return <PartnerDashboard user={user} />;
-    
+
     case 'developer':
       return <DeveloperDashboard user={user} />;
-    
+
     default:
       return <DefaultDashboard user={user} />;
   }

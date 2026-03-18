@@ -102,7 +102,12 @@ export interface AuthResponse {
 }
 
 interface MeApiResponse {
-  user: FrontendUser;
+  user?: BackendUser | FrontendUser;
+  sub?: string;
+  email?: string;
+  role?: string;
+  permissions?: string[];
+  requiresPasswordChange?: boolean;
 }
 
 interface RefreshTokenResponse {
@@ -229,6 +234,37 @@ class AuthService {
     };
   }
 
+  private normalizeApiUser(rawUser: BackendUser | FrontendUser | null | undefined): FrontendUser | null {
+    if (!rawUser) {
+      return null;
+    }
+
+    if ('id' in rawUser && 'firstName' in rawUser) {
+      return rawUser as FrontendUser;
+    }
+
+    if ('sub' in rawUser && 'email' in rawUser) {
+      return this.mapBackendUserToFrontend(rawUser as BackendUser);
+    }
+
+    return null;
+  }
+
+  private extractUserFromMeResponse(
+    response: MeApiResponse | BackendUser | FrontendUser | null | undefined,
+  ): FrontendUser | null {
+    if (!response) {
+      return null;
+    }
+
+    const candidate =
+      typeof response === 'object' && response !== null && 'user' in response
+        ? response.user
+        : response;
+
+    return this.normalizeApiUser(candidate as BackendUser | FrontendUser | null | undefined);
+  }
+
   async validateCurrentUser(): Promise<boolean> {
     try {
       const token = this.getToken();
@@ -271,12 +307,15 @@ class AuthService {
   async refreshUserData(): Promise<FrontendUser | null> {
     try {
       const response = await apiClient.get<MeApiResponse>('/auth/me');
-      if (response.user) {
-        const userStr = JSON.stringify(response.user);
+      const user = this.extractUserFromMeResponse(response);
+
+      if (user) {
+        const userStr = JSON.stringify(user);
         sessionStorage.setItem(this.USER_KEY, userStr);
         localStorage.setItem(this.USER_KEY, userStr);
-        return response.user;
+        return user;
       }
+
       return null;
     } catch (error) {
       console.error('Error refreshing user data:', error);
@@ -571,9 +610,12 @@ class AuthService {
   async getCurrentUser(): Promise<FrontendUser> {
     try {
       const response = await apiClient.get<MeApiResponse>('/auth/me');
-      const user = response.user;
+      const user = this.extractUserFromMeResponse(response);
+
+      if (!user) {
+        throw new AuthenticationError('Unable to resolve current user');
+      }
       
-      // Update stored user data
       const userStr = JSON.stringify(user);
       sessionStorage.setItem(this.USER_KEY, userStr);
       localStorage.setItem(this.USER_KEY, userStr);
@@ -654,4 +696,5 @@ class AuthService {
 }
 
 export const authService = new AuthService();
+
 
