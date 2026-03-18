@@ -22,7 +22,6 @@ import {
   TrendingDown
 } from 'lucide-react';
 import { opportunityService } from '@/services/opportunityService';
-import { reportService, RoleDashboardResponse } from '@/services/reportService';
 
 interface ManagementDashboardProps {
   user: any;
@@ -47,26 +46,6 @@ interface ManagementStats {
   };
 }
 
-interface SalesRepPipeline {
-  repId: string;
-  rep: {
-    id: string;
-    name: string;
-    email: string;
-    customId: string;
-  };
-  opportunitiesCount: number;
-  pipelineCount: number;
-  pipelineValue: number;
-  wonCount: number;
-  wonValue: number;
-  quotesCount: number;
-  quotesValue: number;
-  invoicesCount: number;
-  invoicesValue: number;
-  paidInvoicesValue: number;
-}
-
 export default function ManagementDashboard({ user }: ManagementDashboardProps) {
   const [stats, setStats] = useState<ManagementStats>({
     totalRevenue: 0,
@@ -84,8 +63,6 @@ export default function ManagementDashboard({ user }: ManagementDashboardProps) 
   });
   
   const [topOpportunities, setTopOpportunities] = useState<any[]>([]);
-  const [businessNumbers, setBusinessNumbers] = useState<RoleDashboardResponse['businessNumbers'] | null>(null);
-  const [salesRepPerformance, setSalesRepPerformance] = useState<SalesRepPipeline[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'quarter' | 'year'>('month');
@@ -122,10 +99,10 @@ export default function ManagementDashboard({ user }: ManagementDashboardProps) 
       }
 
       // Fetch all relevant data
-      const [roleDashboardResponse, overviewResponse, filteredStatsResponse, topOppsResponse] = await Promise.allSettled([
-        reportService.getRoleDashboard(),
+      const [overviewResponse, filteredStatsResponse, revenueStatsResponse, topOppsResponse] = await Promise.allSettled([
         opportunityService.getOpportunitiesOverview(),
         opportunityService.getFilteredStats({}),
+        opportunityService.getRevenueStats(),
         opportunityService.getTopOpportunities(5)
       ]);
 
@@ -135,35 +112,9 @@ export default function ManagementDashboard({ user }: ManagementDashboardProps) 
       let totalOpportunities = 0;
       let wonOpportunities = 0;
       let openOpportunities = 0;
-      let scopedBusinessNumbers: RoleDashboardResponse['businessNumbers'] | null = null;
       const opportunityTypes: Record<string, { count: number; revenue: number }> = {};
 
-      if (roleDashboardResponse.status === 'fulfilled' && roleDashboardResponse.value?.businessNumbers) {
-        const dashboard = roleDashboardResponse.value;
-        const numbers = dashboard.businessNumbers;
-        const repPerformance = dashboard.salesRepPerformance || [];
-        scopedBusinessNumbers = numbers;
-
-        setBusinessNumbers(numbers);
-        setSalesRepPerformance(repPerformance as SalesRepPipeline[]);
-
-        totalRevenue = numbers.invoicesValue || numbers.paidInvoicesValue || 0;
-        monthlyRevenue = numbers.paidInvoicesValue || 0;
-        totalOpportunities = numbers.totalOpportunities || 0;
-        activeOpportunities = numbers.openPipelineCount || 0;
-        wonOpportunities = numbers.wonDealsCount || 0;
-        openOpportunities = numbers.openPipelineCount || 0;
-
-        repPerformance.forEach((rep) => {
-          const label = rep.rep?.name || 'Unassigned';
-          opportunityTypes[label] = {
-            count: rep.pipelineCount || rep.opportunitiesCount || 0,
-            revenue: rep.pipelineValue || 0,
-          };
-        });
-      }
-
-      if (filteredStatsResponse.status === 'fulfilled' && filteredStatsResponse.value && totalOpportunities === 0) {
+      if (filteredStatsResponse.status === 'fulfilled' && filteredStatsResponse.value) {
         const filteredStats = filteredStatsResponse.value;
         totalOpportunities = filteredStats.total || 0;
         wonOpportunities = filteredStats.byStatus?.won || 0;
@@ -176,7 +127,7 @@ export default function ManagementDashboard({ user }: ManagementDashboardProps) 
       }
 
       // Process overview data
-      if (overviewResponse.status === 'fulfilled' && overviewResponse.value && Object.keys(opportunityTypes).length === 0) {
+      if (overviewResponse.status === 'fulfilled' && overviewResponse.value) {
         const overview = overviewResponse.value;
         totalOpportunities = overview.totalopportunities || totalOpportunities;
         activeOpportunities = overview.openopportunities || activeOpportunities;
@@ -194,14 +145,18 @@ export default function ManagementDashboard({ user }: ManagementDashboardProps) 
         }
       }
 
-      // Calculate metrics
-      const conversionRate = scopedBusinessNumbers?.quotesToInvoices || (totalOpportunities > 0 ? (wonOpportunities / totalOpportunities) * 100 : 0);
-      const winRate = openOpportunities > 0 ? (wonOpportunities / openOpportunities) * 100 : 0;
-      const avgDealSize = wonOpportunities > 0 ? (scopedBusinessNumbers?.wonDealsValue || totalRevenue) / wonOpportunities : 0;
-      
-      if (!monthlyRevenue) {
-        monthlyRevenue = totalRevenue * 0.33;
+      if (revenueStatsResponse.status === 'fulfilled' && revenueStatsResponse.value) {
+        const revenueStats = revenueStatsResponse.value;
+        totalRevenue = revenueStats.totalRevenue || totalRevenue;
       }
+
+      // Calculate metrics
+      const conversionRate = totalOpportunities > 0 ? (wonOpportunities / totalOpportunities) * 100 : 0;
+      const winRate = openOpportunities > 0 ? (wonOpportunities / openOpportunities) * 100 : 0;
+      const avgDealSize = wonOpportunities > 0 ? totalRevenue / wonOpportunities : 0;
+      
+      // Estimate monthly revenue (1/3 of total for demo purposes)
+      monthlyRevenue = totalRevenue * 0.33;
       const revenueGrowth = 15.2; // Could calculate from historical data
 
       // Prepare top opportunity types
@@ -269,8 +224,6 @@ export default function ManagementDashboard({ user }: ManagementDashboardProps) 
       });
       
       setTopOpportunities([]);
-      setBusinessNumbers(null);
-      setSalesRepPerformance([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -586,97 +539,6 @@ export default function ManagementDashboard({ user }: ManagementDashboardProps) 
                   <p className="text-sm text-gray-500 mt-1">Create opportunities to see them here</p>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white/85 backdrop-blur-sm rounded-2xl border border-white/30 p-5">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Sales Rep Pipeline</h2>
-                <p className="text-sm text-gray-600">Business added by sales reps in this organization</p>
-              </div>
-              <Users className="h-5 w-5 text-blue-500" />
-            </div>
-
-            <div className="space-y-3">
-              {salesRepPerformance.length > 0 ? salesRepPerformance.slice(0, 6).map((rep) => (
-                <div key={rep.repId} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-gray-900">{rep.rep?.name || 'Unassigned'}</p>
-                      <p className="text-sm text-gray-500">{rep.rep?.email || rep.rep?.customId || 'No rep details'}</p>
-                    </div>
-                    <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700">
-                      {rep.pipelineCount} in pipeline
-                    </span>
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Pipeline</p>
-                      <p className="text-sm font-semibold text-gray-900">{formatCurrency(rep.pipelineValue)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Won</p>
-                      <p className="text-sm font-semibold text-emerald-700">{formatCurrency(rep.wonValue)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Quotes</p>
-                      <p className="text-sm font-semibold text-amber-700">{formatCurrency(rep.quotesValue)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-gray-500">Invoices</p>
-                      <p className="text-sm font-semibold text-cyan-700">{formatCurrency(rep.invoicesValue)}</p>
-                    </div>
-                  </div>
-                </div>
-              )) : (
-                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-                  <Users className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-                  <p className="text-sm font-medium text-gray-700">No sales rep pipeline data yet</p>
-                  <p className="mt-1 text-sm text-gray-500">Rep performance will appear here as opportunities, quotes, and invoices are created.</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl border border-blue-100 p-5">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Business Snapshot</h2>
-                <p className="text-sm text-gray-600">Org-wide pipeline and conversion totals</p>
-              </div>
-              <Target className="h-5 w-5 text-cyan-600" />
-            </div>
-
-            <div className="space-y-4">
-              <div className="rounded-xl bg-white/80 p-4">
-                <p className="text-sm text-gray-500">Open Pipeline</p>
-                <p className="mt-1 text-2xl font-bold text-gray-900">
-                  {formatCurrency(businessNumbers?.openPipelineValue || 0)}
-                </p>
-                <p className="mt-1 text-sm text-gray-600">{businessNumbers?.openPipelineCount || 0} opportunities</p>
-              </div>
-
-              <div className="rounded-xl bg-white/80 p-4">
-                <p className="text-sm text-gray-500">Quoted Business</p>
-                <p className="mt-1 text-2xl font-bold text-amber-700">
-                  {formatCurrency(businessNumbers?.quotesValue || 0)}
-                </p>
-                <p className="mt-1 text-sm text-gray-600">{businessNumbers?.quotesCount || 0} quotes</p>
-              </div>
-
-              <div className="rounded-xl bg-white/80 p-4">
-                <p className="text-sm text-gray-500">Invoiced Business</p>
-                <p className="mt-1 text-2xl font-bold text-cyan-700">
-                  {formatCurrency(businessNumbers?.invoicesValue || 0)}
-                </p>
-                <p className="mt-1 text-sm text-gray-600">
-                  {businessNumbers?.quotesToInvoices?.toFixed(1) || '0.0'}% quote to invoice
-                </p>
-              </div>
             </div>
           </div>
         </div>

@@ -92,15 +92,7 @@ export class NavigationService {
     const userRole = user.role?.name || user.role;
     
     if (permission === 'reports.generate' || permission === 'dashboard.view') {
-      return ['management', 'branch_manager', 'fleet_manager', 'finance', 'finance_director', 'accountant', 'controller', 'cfo', 'admin', 'superadmin'].includes(userRole);
-    }
-
-    if (permission === 'quotes.read' || permission.startsWith('quotes.')) {
-      return ['finance', 'finance_director', 'accountant', 'controller', 'cfo', 'management', 'branch_manager', 'fleet_manager', 'admin', 'superadmin'].includes(userRole);
-    }
-
-    if (permission === 'invoices.read' || permission.startsWith('invoices.')) {
-      return ['finance', 'finance_director', 'accountant', 'controller', 'cfo', 'management', 'branch_manager', 'fleet_manager', 'admin', 'superadmin'].includes(userRole);
+      return ['management', 'branch_manager', 'fleet_manager', 'finance'].includes(userRole);
     }
     
     if (permission.includes('sales') || permission.includes('leads') || permission.includes('opportunities')) {
@@ -134,3 +126,4 @@ export class NavigationService {
     return iconMap[iconName] || require('lucide-react').LayoutDashboard;
   }
 }
+

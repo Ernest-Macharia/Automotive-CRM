@@ -116,104 +116,6 @@ export interface SlaTrendReport {
   };
 }
 
-export interface RoleDashboardFeatureUsage {
-  key: string;
-  label: string;
-  usedOrganizations: number;
-  totalOrganizations: number;
-  percentage: number;
-}
-
-export interface RoleDashboardRecentActivity {
-  id: string;
-  type: 'opportunity' | 'quote' | 'invoice';
-  title: string;
-  status: string;
-  amount: number;
-  createdAt: string;
-}
-
-export interface RoleDashboardResponse {
-  role: string;
-  summary?: {
-    totalOrganizations: number;
-    activeOrganizations: number;
-    totalUsers: number;
-    activeUsers: number;
-    avgStorageUsagePercentage: number;
-    avgApiUsagePercentage: number;
-  };
-  featureUsage?: RoleDashboardFeatureUsage[];
-  organizations?: Array<{
-    id: string;
-    name: string;
-    tier: string;
-    currentUsers: number;
-    maxUsers: number;
-    apiCalls: number;
-    storageUsed: number;
-    createdAt: string;
-  }>;
-  businessNumbers?: {
-    totalOpportunities: number;
-    openPipelineCount: number;
-    openPipelineValue: number;
-    wonDealsCount: number;
-    wonDealsValue: number;
-    quotesCount: number;
-    quotesValue: number;
-    invoicesCount: number;
-    invoicesValue: number;
-    paidInvoicesValue: number;
-    opportunitiesToQuotes: number;
-    quotesToInvoices: number;
-  };
-  salesRepPerformance?: Array<{
-    repId: string;
-    rep: {
-      id: string;
-      name: string;
-      email: string;
-      customId: string;
-    };
-    opportunitiesCount: number;
-    pipelineCount: number;
-    pipelineValue: number;
-    wonCount: number;
-    wonValue: number;
-    quotesCount: number;
-    quotesValue: number;
-    invoicesCount: number;
-    invoicesValue: number;
-    paidInvoicesValue: number;
-  }>;
-  financeNumbers?: {
-    pipelineCount: number;
-    pipelineValue: number;
-    wonDealsCount: number;
-    wonDealsValue: number;
-    quotesCount: number;
-    quotesValue: number;
-    invoicesCount: number;
-    invoicesValue: number;
-    paidInvoicesCount: number;
-    paidInvoicesValue: number;
-    unpaidInvoicesValue: number;
-    invoiceOverQuotePercentage: number;
-    paidOverInvoicePercentage: number;
-    quoteCoverageGap: number;
-  };
-  convertedInvoices?: Array<{
-    id: string;
-    invoiceNumber: string;
-    quoteNumber: string;
-    total: number;
-    paymentStatus: string;
-    createdAt: string;
-  }>;
-  recentActivities?: RoleDashboardRecentActivity[];
-}
-
 export interface WeeklyReportSettings {
   adminEmails: string[];
   schedule: string;
@@ -336,16 +238,6 @@ class ReportService {
       return await apiClient.get<DashboardSummary>('/reports/dashboard', queryParams);
     } catch (error) {
       console.error('Error getting dashboard summary:', error);
-      throw error;
-    }
-  }
-
-  async getRoleDashboard(params?: DateRangeDto): Promise<RoleDashboardResponse> {
-    try {
-      const queryParams = this.buildQueryParams(params);
-      return await apiClient.get<RoleDashboardResponse>('/reports/dashboard/role', queryParams);
-    } catch (error) {
-      console.error('Error getting role dashboard:', error);
       throw error;
     }
   }
