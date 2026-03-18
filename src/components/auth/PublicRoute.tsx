@@ -17,17 +17,25 @@ export default function PublicRoute({
   const pathname = usePathname();
   const [isChecking, setIsChecking] = useState(true);
 
+  const normalizePath = (value?: string | null) => {
+    if (!value) return '/';
+    const normalized = value.trim();
+    if (normalized === '/') return normalized;
+    return normalized.replace(/\/+$/, '') || '/';
+  };
+
   useEffect(() => {
     const checkAuth = async () => {
       setIsChecking(true);
       
       const isAuthenticated = authService.isAuthenticated();
       const user = authService.getUser();
+      const normalizedPathname = normalizePath(pathname);
 
       // If authenticated and trying to access public pages
       if (isAuthenticated) {
         // Allow access to force-change-password
-        if (pathname.includes('/force-change-password')) {
+        if (normalizedPathname.includes('/force-change-password')) {
           setIsChecking(false);
           return;
         }
