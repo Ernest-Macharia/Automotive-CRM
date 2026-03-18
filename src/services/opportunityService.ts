@@ -13,12 +13,6 @@ import {
 export interface Opportunity {
   _id: string;
   id: string;
-  organizationId?: string | {
-    _id?: string;
-    id?: string;
-    name?: string;
-    slug?: string;
-  };
   type: 'individual' | 'organization';
   subject: string;
   status: 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost' | 'won';
