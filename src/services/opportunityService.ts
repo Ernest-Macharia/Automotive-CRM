@@ -878,9 +878,16 @@ class OpportunityService {
   }): Promise<OpportunitiesResponse> {
     try {
       const queryParams = new URLSearchParams();
+      const safeParams = {
+        ...params,
+        limit:
+          typeof params?.limit === 'number'
+            ? Math.max(1, Math.min(params.limit, 100))
+            : params?.limit,
+      };
       
-      if (params) {
-        Object.entries(params).forEach(([key, value]) => {
+      if (safeParams) {
+        Object.entries(safeParams).forEach(([key, value]) => {
           if (value !== undefined && value !== null && value !== '') {
             queryParams.append(key, value.toString());
           }
@@ -1533,7 +1540,11 @@ class OpportunityService {
 
   async getTopOpportunities(limit: number = 10): Promise<Opportunity[]> {
     try {
-      return await extendedApiClient.get(`/opportunities/stats/top?limit=${limit}`);
+      const response = await this.getAllOpportunities({
+        sort: 'leadScore.totalScore:desc',
+        limit: Math.max(1, Math.min(limit, 100)),
+      });
+      return response.data || [];
     } catch (error) {
       console.error('Error fetching top opportunities:', error);
       throw error;
@@ -2425,3 +2436,4 @@ async updateNote(opportunityId: string, noteId: string, noteData: UpdateNoteData
 }
 
 export const opportunityService = new OpportunityService();
+
