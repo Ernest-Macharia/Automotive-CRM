@@ -491,6 +491,7 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
   useEffect(() => {
     if (opportunityId) {
       fetchOpportunityDetails();
+      fetchAvailableSalesReps();
     }
   }, [opportunityId]);
 
@@ -505,13 +506,6 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
           ? (data as OpportunityWithDetails).vehicles.map(normalizeVehicle)
           : [],
       });
-      const opportunityOrgId =
-        (data as any)?.organizationId?._id ||
-        (data as any)?.organizationId?.id ||
-        (data as any)?.organizationId;
-      await fetchAvailableSalesReps(
-        typeof opportunityOrgId === 'string' ? opportunityOrgId : undefined,
-      );
     } catch (err: any) {
       console.error('Error fetching opportunity details:', err);
       setError(err.message || 'Failed to fetch opportunity details');
@@ -525,9 +519,9 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
     await fetchOpportunityDetails();
   };
 
-  const fetchAvailableSalesReps = async (organizationId?: string) => {
+  const fetchAvailableSalesReps = async () => {
     try {
-      const reps = await opportunityService.getAvailableSalesReps(organizationId);
+      const reps = await opportunityService.getAvailableSalesReps();
       setAvailableSalesReps(reps);
     } catch (err) {
       console.error('Error fetching sales reps:', err);
