@@ -24,13 +24,9 @@ export class ValidationError extends Error {
 export interface BackendUser {
   sub: string;
   email: string;
-  role: string;
+  role: 'admin' | 'manager' | 'user' | 'superadmin';
   permissions: string[];
   requiresPasswordChange: boolean;
-  customId?: string;
-  organizationId?: string | null;
-  organization?: string | null;
-  accessibleOrganizationIds?: string[];
 }
 
 export interface FrontendUser {
@@ -38,13 +34,9 @@ export interface FrontendUser {
   email: string;
   firstName: string;
   lastName?: string;
-  role: string;
+  role: 'admin' | 'manager' | 'user' | 'superadmin';
   avatar?: string;
   companyId?: string;
-  customId?: string;
-  organizationId?: string | null;
-  organization?: string | null;
-  accessibleOrganizationIds?: string[];
   isActive: boolean;
   lastLogin?: string;
   createdAt: string;
@@ -236,12 +228,6 @@ class AuthService {
       role: backendUser.role,
       permissions: backendUser.permissions,
       requiresPasswordChange: backendUser.requiresPasswordChange,
-      customId: backendUser.customId,
-      organizationId: backendUser.organizationId ?? backendUser.organization ?? null,
-      organization: backendUser.organization ?? backendUser.organizationId ?? null,
-      accessibleOrganizationIds: Array.isArray(backendUser.accessibleOrganizationIds)
-        ? backendUser.accessibleOrganizationIds
-        : [],
       isActive: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -710,6 +696,5 @@ class AuthService {
 }
 
 export const authService = new AuthService();
-
 
 
