@@ -24,20 +24,12 @@ export default function AuthGuard({
   const pathname = usePathname();
   const [isChecking, setIsChecking] = useState(true);
 
-  const normalizePath = (value?: string | null) => {
-    if (!value) return '/';
-    const normalized = value.trim();
-    if (normalized === '/') return normalized;
-    return normalized.replace(/\/+$/, '') || '/';
-  };
-
   useEffect(() => {
     const checkAuth = async () => {
       setIsChecking(true);
-      const normalizedPathname = normalizePath(pathname);
       
       const isPublicPath = publicPaths.some(path => 
-        normalizedPathname === path || normalizedPathname.startsWith(`${path}/`)
+        pathname === path || pathname.startsWith(`${path}/`)
       );
       
       const isAuthenticated = authService.isAuthenticated();
@@ -50,9 +42,9 @@ export default function AuthGuard({
       }
 
       // If authenticated and trying to access auth pages (except force-change-password)
-      if (isAuthenticated && normalizedPathname.startsWith('/auth/')) {
+      if (isAuthenticated && pathname.startsWith('/auth/')) {
         // Allow access to force-change-password
-        if (normalizedPathname.includes('/force-change-password')) {
+        if (pathname.includes('/force-change-password')) {
           setIsChecking(false);
           return;
         }
@@ -69,11 +61,7 @@ export default function AuthGuard({
       }
 
       // If user needs password change but not on force-change-password page
-      if (
-        isAuthenticated &&
-        user?.requiresPasswordChange &&
-        !normalizedPathname.includes('/force-change-password')
-      ) {
+      if (isAuthenticated && user?.requiresPasswordChange && !pathname.includes('/force-change-password')) {
         router.push('/auth/force-change-password');
         return;
       }
