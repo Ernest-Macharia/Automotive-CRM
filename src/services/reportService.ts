@@ -130,6 +130,34 @@ export interface DateRangeDto {
   salesRepId?: string;
 }
 
+export interface RoleDashboardResponse {
+  role: string;
+  scope?: {
+    organizationIds?: string[];
+  };
+  summary?: Record<string, any>;
+  businessNumbers?: {
+    totalOpportunities?: number;
+    openPipelineCount?: number;
+    openPipelineValue?: number;
+    wonDealsCount?: number;
+    wonDealsValue?: number;
+    quotesCount?: number;
+    quotesValue?: number;
+    invoicesCount?: number;
+    invoicesValue?: number;
+    paidInvoicesValue?: number;
+    opportunitiesToQuotes?: number;
+    quotesToInvoices?: number;
+  };
+  financeNumbers?: Record<string, any>;
+  salesRepPerformance?: Array<Record<string, any>>;
+  recentActivities?: Array<Record<string, any>>;
+  featureUsage?: Array<Record<string, any>>;
+  organizations?: Array<Record<string, any>>;
+  convertedInvoices?: Array<Record<string, any>>;
+}
+
 class ReportService {
   // Helper method to build query params
   private buildQueryParams(params?: DateRangeDto): Record<string, string> {
@@ -141,6 +169,16 @@ class ReportService {
     if (params?.salesRepId) queryParams.salesRepId = params.salesRepId;
     
     return queryParams;
+  }
+
+  async getRoleDashboard(params?: DateRangeDto): Promise<RoleDashboardResponse> {
+    try {
+      const queryParams = this.buildQueryParams(params);
+      return await apiClient.get<RoleDashboardResponse>('/reports/dashboard/role', queryParams);
+    } catch (error) {
+      console.error('Error getting role dashboard:', error);
+      throw error;
+    }
   }
 
   // 1. Get dashboard summary

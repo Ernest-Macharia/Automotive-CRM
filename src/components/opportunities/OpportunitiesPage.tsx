@@ -1255,7 +1255,9 @@ export default function OpportunitiesContent() {
         limit: 20, // Load 20 at a time
       };
 
-      const response = await opportunityService.getAllOpportunities(params);
+      const response = hasActiveFilters
+        ? await opportunityService.filterOpportunities(params)
+        : await opportunityService.getAllOpportunities(params);
       
       if (response.data.length > 0) {
         // Process new opportunities
@@ -1387,7 +1389,9 @@ export default function OpportunitiesContent() {
 
       // Fetch fresh data
       const [response, filteredStatsResponse] = await Promise.all([
-        opportunityService.getAllOpportunities(params),
+        hasActiveFilters
+          ? opportunityService.filterOpportunities(params)
+          : opportunityService.getAllOpportunities(params),
         hasActiveFilters
           ? opportunityService.getFilteredStats(statsParams).catch((error) => {
               console.warn('Failed to load filtered stats, falling back to response stats:', error);
