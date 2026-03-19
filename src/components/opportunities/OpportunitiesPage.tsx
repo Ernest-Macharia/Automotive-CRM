@@ -1545,11 +1545,12 @@ export default function OpportunitiesContent() {
   useEffect(() => {
     const stagesToPreload = stages.filter((stage) => {
       const visibleCount = opportunitiesByStage[stage.id]?.length || 0;
+      const targetVisibleCount = Math.min(stageCounts[stage.id] || 0, 20);
       const paginationState = stagePagination[stage.id];
 
       return (
         stageCounts[stage.id] > 0 &&
-        visibleCount === 0 &&
+        visibleCount < targetVisibleCount &&
         paginationState?.page === 0 &&
         paginationState?.hasMore &&
         !columnLoading[stage.id]
