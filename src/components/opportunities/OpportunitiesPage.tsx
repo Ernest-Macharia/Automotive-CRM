@@ -18,7 +18,7 @@ import ConfirmationModal from '@/components/opportunities/ConfirmationModal';
 import OpportunitiesJsonModal from '@/components/opportunities/OpportunitiesJsonModal';
 import { useOpportunityStatusUpdate } from '@/hooks/useOpportunityStatusUpdate';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { OrganizationError } from '@/services/settings/organizationService';
+import { OrganizationError, organizationService } from '@/services/settings/organizationService';
 
 type StageId = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost' | 'won';
 type OpportunityStatusUpdateDetail = {
@@ -336,6 +336,7 @@ interface KanbanColumnProps {
   columnLoading: boolean;
   loadMore: (stageId: StageId) => Promise<void>;
   showOwnerDetails: boolean;
+  getOrganizationLabel: (opportunity: ExtendedOpportunity) => string | null;
 }
 
 function KanbanColumn({
@@ -357,6 +358,7 @@ function KanbanColumn({
   columnLoading,
   loadMore,
   showOwnerDetails,
+  getOrganizationLabel,
 }: KanbanColumnProps) {
   const CARD_HEIGHT = 228;
   const router = useRouter();
@@ -489,6 +491,7 @@ function KanbanColumn({
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
                   showOwnerDetails={showOwnerDetails}
+                  getOrganizationLabel={getOrganizationLabel}
                 />
               </div>
             );
@@ -567,6 +570,7 @@ interface OpportunityCardProps {
   onDragStart: () => void;
   onDragEnd: () => void;
   showOwnerDetails: boolean;
+  getOrganizationLabel: (opportunity: ExtendedOpportunity) => string | null;
 }
 
 const OpportunityCard = memo(function OpportunityCard({
@@ -579,7 +583,8 @@ const OpportunityCard = memo(function OpportunityCard({
   getChildCounts,
   onDragStart,
   onDragEnd,
-  showOwnerDetails
+  showOwnerDetails,
+  getOrganizationLabel
 }: OpportunityCardProps) {
   const router = useRouter();
   const [isRecalculating, setIsRecalculating] = useState(false);
@@ -592,12 +597,7 @@ const OpportunityCard = memo(function OpportunityCard({
     [opportunity.leadScore?.totalScore, getLeadScoreTier]);
   const stageColor = useMemo(() => getStageColor(opportunity.status as StageId), 
     [opportunity.status, getStageColor]);
-  const organizationLabel = useMemo(() => {
-    const rawOrganization = opportunity.organizationId;
-    if (!rawOrganization) return null;
-    if (typeof rawOrganization === 'string') return rawOrganization;
-    return rawOrganization.name || rawOrganization.slug || rawOrganization.id || rawOrganization._id || null;
-  }, [opportunity.organizationId]);
+  const organizationLabel = useMemo(() => getOrganizationLabel(opportunity), [opportunity, getOrganizationLabel]);
   const ownerLabel = useMemo(() => {
     const rawAssignedTo = opportunity.assignedTo;
     if (!rawAssignedTo) return null;
@@ -660,7 +660,7 @@ const OpportunityCard = memo(function OpportunityCard({
   return (
     <div 
       data-id={opportunity._id}
-      className="group bg-white/80 backdrop-blur-sm rounded-xl border border-white/30 p-3 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
+      className="group bg-white rounded-xl border border-slate-200/90 p-3 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
@@ -876,6 +876,7 @@ export default function OpportunitiesContent() {
   const [pagination, setPagination] = useState<any>(null);
   const [activeQuickFilter, setActiveQuickFilter] = useState<string | null>(null);
   const [organizationError, setOrganizationError] = useState<string | null>(null);
+  const [organizationNameMap, setOrganizationNameMap] = useState<Record<string, string>>({});
   const csvInputRef = useRef<HTMLInputElement>(null);
   const { user: currentUser } = useCurrentUser();
   
@@ -929,7 +930,62 @@ export default function OpportunitiesContent() {
   const showOwnerDetails =
     currentRoleName.includes('admin') ||
     currentRoleName.includes('management');
+  const getOrganizationLabel = useCallback((opportunity: ExtendedOpportunity) => {
+    const rawOrganization = opportunity.organizationId;
+    if (!rawOrganization) return null;
+
+    if (typeof rawOrganization === 'object') {
+      if (rawOrganization.name) return rawOrganization.name;
+      const objectId = rawOrganization.id || rawOrganization._id;
+      if (objectId && organizationNameMap[objectId]) return organizationNameMap[objectId];
+      return rawOrganization.slug || null;
+    }
+
+    return organizationNameMap[rawOrganization] || null;
+  }, [organizationNameMap]);
   
+  useEffect(() => {
+    const organizationIds = Array.from(new Set(
+      opportunities
+        .map((opportunity) => {
+          const rawOrganization = opportunity.organizationId;
+          if (!rawOrganization) return null;
+          if (typeof rawOrganization === 'string') return rawOrganization;
+          return rawOrganization.id || rawOrganization._id || null;
+        })
+        .filter((value): value is string => Boolean(value) && !organizationNameMap[value])
+    ));
+
+    if (!organizationIds.length) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void Promise.all(
+      organizationIds.map(async (organizationId) => {
+        try {
+          const organization = await organizationService.getOrganizationById(organizationId);
+          return [organizationId, organization.name] as const;
+        } catch {
+          return null;
+        }
+      })
+    ).then((results) => {
+      if (cancelled) return;
+      const resolvedEntries = results.filter((entry): entry is readonly [string, string] => Boolean(entry));
+      if (!resolvedEntries.length) return;
+      setOrganizationNameMap((prev) => ({
+        ...prev,
+        ...Object.fromEntries(resolvedEntries),
+      }));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [opportunities, organizationNameMap]);
+
   // Use the opportunity status update hook at the top level
   const {
     updatingStatus,
@@ -2488,6 +2544,7 @@ export default function OpportunitiesContent() {
                       columnLoading={columnLoading[stage.id]}
                       loadMore={loadMoreForStage}
                       showOwnerDetails={showOwnerDetails}
+                      getOrganizationLabel={getOrganizationLabel}
                     />
                   </div>
                 ))}
