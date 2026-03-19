@@ -75,6 +75,8 @@ class OpportunitiesJsonService {
     customerPhone?: string;
     customerEmail?: string;
     status?: string;
+    page?: number;
+    limit?: number;
   }): Promise<OpportunitiesJsonSearchResponse> {
     const query: Record<string, string> = {};
 

@@ -59,6 +59,8 @@ function getRecordOwnerName(record: OpportunitiesJsonRecord): string {
   );
 }
 
+const PAGE_SIZE = 50;
+
 export default function OpportunitiesJsonModal({
   isOpen,
   onClose,
@@ -69,6 +71,8 @@ export default function OpportunitiesJsonModal({
   const [query, setQuery] = useState('');
   const [records, setRecords] = useState<OpportunitiesJsonRecord[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [replaceExisting, setReplaceExisting] = useState(true);
@@ -99,24 +103,30 @@ export default function OpportunitiesJsonModal({
     selectableRecords.length > 0 &&
     selectableRecords.every((record) => selectedRecordIds.includes(String(record._id)));
 
-  const loadRecords = async (searchValue = '') => {
+  const loadRecords = async (searchValue = '', nextPage = 1) => {
     try {
       setLoading(true);
-      const result = await opportunitiesJsonService.search(
-        searchValue
+      const result = await opportunitiesJsonService.search({
+        ...(searchValue
           ? { q: searchValue, customerPhone: searchValue }
-          : undefined,
-      );
+          : {}),
+        page: nextPage,
+        limit: PAGE_SIZE,
+      });
       const nextRecords = result.data || [];
+      const currentPage = result.meta?.currentPage || result.meta?.page || nextPage;
       setRecords(nextRecords);
       setTotal(result.meta?.total || 0);
+      setPage(currentPage);
+      setTotalPages(Math.max(result.meta?.totalPages || 1, 1));
       setSelectedRecordIds((prev) => {
         const validIds = new Set(nextRecords.map((record) => String(record._id || '')));
         return prev.filter((id) => validIds.has(id));
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to load imported opportunities:', error);
-      showToast(error.message || 'Failed to load imported opportunities data', 'error', 4000);
+      const message = error instanceof Error ? error.message : 'Failed to load imported opportunities data';
+      showToast(message, 'error', 4000);
     } finally {
       setLoading(false);
     }
@@ -124,7 +134,7 @@ export default function OpportunitiesJsonModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    void loadRecords(query);
+    void loadRecords(query, 1);
   }, [isOpen]);
 
   useEffect(() => {
@@ -147,10 +157,11 @@ export default function OpportunitiesJsonModal({
         setLoadingSalesReps(true);
         const reps = await opportunityService.getAvailableSalesReps(selectedOrganizationId);
         setSalesReps(reps || []);
-      } catch (error: any) {
+      } catch (error) {
         console.error('Failed to load sales reps for imported opportunity reassignment:', error);
         setSalesReps([]);
-        showToast(error.message || 'Failed to load sales reps for this organization', 'error', 4000);
+        const message = error instanceof Error ? error.message : 'Failed to load sales reps for this organization';
+        showToast(message, 'error', 4000);
       } finally {
         setLoadingSalesReps(false);
       }
@@ -162,7 +173,7 @@ export default function OpportunitiesJsonModal({
   if (!isOpen) return null;
 
   const handleSearch = async () => {
-    await loadRecords(query.trim());
+    await loadRecords(query.trim(), 1);
   };
 
   const handleUploadChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -177,10 +188,11 @@ export default function OpportunitiesJsonModal({
         'success',
         4000,
       );
-      await loadRecords(query.trim());
-    } catch (error: any) {
+      await loadRecords(query.trim(), 1);
+    } catch (error) {
       console.error('Failed to upload opportunities JSON:', error);
-      showToast(error.message || 'Failed to upload opportunities JSON file', 'error', 5000);
+      const message = error instanceof Error ? error.message : 'Failed to upload opportunities JSON file';
+      showToast(message, 'error', 5000);
     } finally {
       setUploading(false);
       if (event.target) {
@@ -261,14 +273,18 @@ export default function OpportunitiesJsonModal({
       setSelectedRecordIds([]);
       setSelectedSalesRepId('');
       setReassignmentNote('');
-      await loadRecords(query.trim());
-    } catch (error: any) {
+      await loadRecords(query.trim(), 1);
+    } catch (error) {
       console.error('Failed to bulk reassign imported opportunities:', error);
-      showToast(error.message || 'Failed to bulk reassign imported opportunities', 'error', 5000);
+      const message = error instanceof Error ? error.message : 'Failed to bulk reassign imported opportunities';
+      showToast(message, 'error', 5000);
     } finally {
       setReassigning(false);
     }
   };
+
+  const pageStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = total === 0 ? 0 : Math.min(page * PAGE_SIZE, total);
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 backdrop-blur-sm p-4">
@@ -499,6 +515,30 @@ export default function OpportunitiesJsonModal({
                   );
                 })
               )}
+            </div>
+            <div className="flex flex-col gap-3 border-t border-gray-100 px-5 py-4 text-sm text-gray-600 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                Showing {pageStart}-{pageEnd} of {total}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => void loadRecords(query.trim(), page - 1)}
+                  disabled={loading || page <= 1}
+                  className="rounded-xl border border-gray-200 px-3 py-2 font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <span className="rounded-xl bg-gray-50 px-3 py-2 text-gray-700">
+                  Page {page} of {Math.max(totalPages, 1)}
+                </span>
+                <button
+                  onClick={() => void loadRecords(query.trim(), page + 1)}
+                  disabled={loading || page >= totalPages}
+                  className="rounded-xl border border-gray-200 px-3 py-2 font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </div>
         </div>
