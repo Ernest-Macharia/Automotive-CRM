@@ -20,6 +20,7 @@ import {
   OpportunitiesJsonRecord,
 } from '@/services/opportunitiesJsonService';
 import { opportunityService } from '@/services/opportunityService';
+import { userService } from '@/services/userService';
 
 interface OpportunitiesJsonModalProps {
   isOpen: boolean;
@@ -76,6 +77,28 @@ function getRecordOwnerName(record: OpportunitiesJsonRecord): string {
     record.raw?.owner?.email ||
     'Unassigned'
   );
+}
+
+function isSalesPerson(user: any): boolean {
+  const roleName = String(user?.role || '').toLowerCase();
+  return roleName.includes('sales') || roleName.includes('representative') || roleName.includes('account_executive') || roleName.includes('business_development');
+}
+
+function normalizeSalesRep(rep: any) {
+  const id = rep?.id || rep?._id || rep?.userId || '';
+  if (!id) return null;
+
+  return {
+    id,
+    _id: rep?._id || rep?.id || rep?.userId || '',
+    userId: rep?.userId || rep?._id || rep?.id || '',
+    name: rep?.name || rep?.fullName || rep?.displayName || rep?.email || 'Unknown User',
+    fullName: rep?.fullName || rep?.name || rep?.displayName || rep?.email || 'Unknown User',
+    displayName: rep?.displayName || rep?.name || rep?.fullName || rep?.email || 'Unknown User',
+    email: rep?.email || '',
+    role: rep?.role || rep?.displayName || 'sales_representative',
+    department: rep?.department,
+  };
 }
 
 const PAGE_SIZE = 50;
@@ -201,8 +224,50 @@ export default function OpportunitiesJsonModal({
     const loadSalesReps = async () => {
       try {
         setLoadingSalesReps(true);
-        const reps = await opportunitiesJsonService.getAvailableSalesReps(selectedRecordIds);
-        setSalesReps(reps || []);
+
+        const importedScopedReps = await opportunitiesJsonService.getAvailableSalesReps(selectedRecordIds);
+        const normalizedImportedScopedReps = (Array.isArray(importedScopedReps) ? importedScopedReps : [])
+          .map(normalizeSalesRep)
+          .filter(Boolean);
+
+        if (normalizedImportedScopedReps.length > 0) {
+          setSalesReps(normalizedImportedScopedReps);
+          return;
+        }
+
+        const orgScopedReps = await opportunityService.getAvailableSalesReps(selectedOrganizationId || undefined);
+        const normalizedOrgScopedReps = (Array.isArray(orgScopedReps) ? orgScopedReps : [])
+          .map(normalizeSalesRep)
+          .filter(Boolean);
+
+        if (normalizedOrgScopedReps.length > 0) {
+          setSalesReps(normalizedOrgScopedReps);
+          return;
+        }
+
+        const usersData = await userService.getAllUsers();
+        let usersArray = [];
+
+        if (!usersData) {
+          usersArray = [];
+        } else if (Array.isArray(usersData)) {
+          usersArray = usersData;
+        } else if (typeof usersData === 'object') {
+          if ('data' in usersData && Array.isArray(usersData.data)) {
+            usersArray = usersData.data;
+          } else if ('users' in usersData && Array.isArray(usersData.users)) {
+            usersArray = usersData.users;
+          } else if ('items' in usersData && Array.isArray(usersData.items)) {
+            usersArray = usersData.items;
+          }
+        }
+
+        const fallbackSalesReps = usersArray
+          .map(normalizeSalesRep)
+          .filter(Boolean)
+          .filter((user) => isSalesPerson(user));
+
+        setSalesReps(fallbackSalesReps);
       } catch (error) {
         console.error('Failed to load sales reps for imported opportunity reassignment:', error);
         setSalesReps([]);
