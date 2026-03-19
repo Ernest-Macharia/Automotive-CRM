@@ -360,7 +360,7 @@ function KanbanColumn({
   showOwnerDetails,
   getOrganizationLabel,
 }: KanbanColumnProps) {
-  const CARD_HEIGHT = 228;
+  const CARD_HEIGHT = 244;
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -477,7 +477,8 @@ function KanbanColumn({
                   position: 'absolute',
                   top: `${actualIndex * CARD_HEIGHT}px`,
                   width: '100%',
-                  height: `${CARD_HEIGHT}px`
+                  height: `${CARD_HEIGHT}px`,
+                  paddingBottom: '12px'
                 }}
               >
                 <OpportunityCard
