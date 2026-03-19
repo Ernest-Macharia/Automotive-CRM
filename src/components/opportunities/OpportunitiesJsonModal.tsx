@@ -161,7 +161,7 @@ export default function OpportunitiesJsonModal({
       return;
     }
 
-    if (!selectedOrganizationId || hasMixedOrganizations) {
+    if (hasMixedOrganizations) {
       setSalesReps([]);
       setSelectedSalesRepId('');
       return;
@@ -170,12 +170,12 @@ export default function OpportunitiesJsonModal({
     const loadSalesReps = async () => {
       try {
         setLoadingSalesReps(true);
-        const reps = await opportunityService.getAvailableSalesReps(selectedOrganizationId);
+        const reps = await opportunitiesJsonService.getAvailableSalesReps(selectedRecordIds);
         setSalesReps(reps || []);
       } catch (error) {
         console.error('Failed to load sales reps for imported opportunity reassignment:', error);
         setSalesReps([]);
-        const message = error instanceof Error ? error.message : 'Failed to load sales reps for this organization';
+        const message = error instanceof Error ? error.message : 'Failed to load sales reps for the selected imported opportunities';
         showToast(message, 'error', 4000);
       } finally {
         setLoadingSalesReps(false);
@@ -183,7 +183,7 @@ export default function OpportunitiesJsonModal({
     };
 
     void loadSalesReps();
-  }, [isOpen, canUpload, selectedRecordIds, selectedOrganizationId, hasMixedOrganizations]);
+  }, [isOpen, canUpload, selectedRecordIds, hasMixedOrganizations]);
 
   if (!isOpen) return null;
 
@@ -421,7 +421,7 @@ export default function OpportunitiesJsonModal({
                     <select
                       value={selectedSalesRepId}
                       onChange={(e) => setSelectedSalesRepId(e.target.value)}
-                      disabled={loadingSalesReps || selectedRecordIds.length === 0 || hasMixedOrganizations}
+                      disabled={loadingSalesReps || selectedRecordIds.length === 0 || hasMixedOrganizations || salesReps.length === 0}
                       className="w-full rounded-2xl border border-violet-200 bg-white px-4 py-3 text-sm text-gray-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100 disabled:opacity-50"
                     >
                       <option value="">Select sales representative</option>

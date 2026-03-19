@@ -110,6 +110,12 @@ class OpportunitiesJsonService {
     });
   }
 
+  async getAvailableSalesReps(recordIds: string[]): Promise<any[]> {
+    return apiClient.post<{ recordIds: string[] }, any[]>(`${this.basePath}/available-sales-reps`, {
+      recordIds,
+    });
+  }
+
   async uploadJsonFile(file: File, replaceExisting = true): Promise<OpportunitiesJsonUploadResponse> {
     const formData = new FormData();
     formData.append('file', file);
