@@ -1,17 +1,62 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Loader2, Search, Upload, X, Database, RefreshCw } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  CheckSquare,
+  Database,
+  Loader2,
+  RefreshCw,
+  Search,
+  Upload,
+  Users,
+  X,
+} from 'lucide-react';
 import {
   opportunitiesJsonService,
   OpportunitiesJsonRecord,
 } from '@/services/opportunitiesJsonService';
+import { opportunityService } from '@/services/opportunityService';
 
 interface OpportunitiesJsonModalProps {
   isOpen: boolean;
   onClose: () => void;
   canUpload: boolean;
-  showToast: (message: string, type: 'success' | 'error' | 'info' | 'warning', duration?: number) => void;
+  showToast: (
+    message: string,
+    type: 'success' | 'error' | 'info' | 'warning',
+    duration?: number,
+  ) => void;
+}
+
+function getRecordOrganizationId(record: OpportunitiesJsonRecord): string | null {
+  const raw = record.raw || {};
+  const candidates = [
+    record.organizationId,
+    raw.organizationId,
+    raw.organization?._id,
+    raw.organization,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === 'object' && '_id' in candidate && candidate._id) {
+      return String(candidate._id);
+    }
+    if (candidate) {
+      return String(candidate);
+    }
+  }
+
+  return null;
+}
+
+function getRecordOwnerName(record: OpportunitiesJsonRecord): string {
+  return (
+    record.owner?.name ||
+    record.owner?.email ||
+    record.raw?.owner?.name ||
+    record.raw?.owner?.email ||
+    'Unassigned'
+  );
 }
 
 export default function OpportunitiesJsonModal({
@@ -27,6 +72,32 @@ export default function OpportunitiesJsonModal({
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [replaceExisting, setReplaceExisting] = useState(true);
+  const [selectedRecordIds, setSelectedRecordIds] = useState<string[]>([]);
+  const [salesReps, setSalesReps] = useState<any[]>([]);
+  const [loadingSalesReps, setLoadingSalesReps] = useState(false);
+  const [selectedSalesRepId, setSelectedSalesRepId] = useState('');
+  const [reassignmentNote, setReassignmentNote] = useState('');
+  const [reassigning, setReassigning] = useState(false);
+
+  const selectedRecords = useMemo(
+    () => records.filter((record) => record._id && selectedRecordIds.includes(String(record._id))),
+    [records, selectedRecordIds],
+  );
+
+  const selectedOrganizationIds = useMemo(
+    () => Array.from(new Set(selectedRecords.map(getRecordOrganizationId).filter(Boolean))) as string[],
+    [selectedRecords],
+  );
+
+  const selectedOrganizationId = selectedOrganizationIds.length === 1 ? selectedOrganizationIds[0] : null;
+  const hasMixedOrganizations = selectedOrganizationIds.length > 1;
+  const selectableRecords = useMemo(
+    () => records.filter((record) => Boolean(record._id && record.originalId)),
+    [records],
+  );
+  const allSelectableVisibleSelected =
+    selectableRecords.length > 0 &&
+    selectableRecords.every((record) => selectedRecordIds.includes(String(record._id)));
 
   const loadRecords = async (searchValue = '') => {
     try {
@@ -36,8 +107,13 @@ export default function OpportunitiesJsonModal({
           ? { q: searchValue, customerPhone: searchValue }
           : undefined,
       );
-      setRecords(result.data || []);
+      const nextRecords = result.data || [];
+      setRecords(nextRecords);
       setTotal(result.meta?.total || 0);
+      setSelectedRecordIds((prev) => {
+        const validIds = new Set(nextRecords.map((record) => String(record._id || '')));
+        return prev.filter((id) => validIds.has(id));
+      });
     } catch (error: any) {
       console.error('Failed to load imported opportunities:', error);
       showToast(error.message || 'Failed to load imported opportunities data', 'error', 4000);
@@ -48,8 +124,40 @@ export default function OpportunitiesJsonModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    loadRecords(query);
+    void loadRecords(query);
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !canUpload) return;
+
+    if (selectedRecordIds.length === 0) {
+      setSalesReps([]);
+      setSelectedSalesRepId('');
+      return;
+    }
+
+    if (!selectedOrganizationId || hasMixedOrganizations) {
+      setSalesReps([]);
+      setSelectedSalesRepId('');
+      return;
+    }
+
+    const loadSalesReps = async () => {
+      try {
+        setLoadingSalesReps(true);
+        const reps = await opportunityService.getAvailableSalesReps(selectedOrganizationId);
+        setSalesReps(reps || []);
+      } catch (error: any) {
+        console.error('Failed to load sales reps for imported opportunity reassignment:', error);
+        setSalesReps([]);
+        showToast(error.message || 'Failed to load sales reps for this organization', 'error', 4000);
+      } finally {
+        setLoadingSalesReps(false);
+      }
+    };
+
+    void loadSalesReps();
+  }, [isOpen, canUpload, selectedRecordIds, selectedOrganizationId, hasMixedOrganizations]);
 
   if (!isOpen) return null;
 
@@ -81,9 +189,90 @@ export default function OpportunitiesJsonModal({
     }
   };
 
+  const handleToggleRecord = (recordId: string) => {
+    setSelectedRecordIds((prev) =>
+      prev.includes(recordId) ? prev.filter((id) => id !== recordId) : [...prev, recordId],
+    );
+  };
+
+  const handleToggleAllVisible = () => {
+    if (allSelectableVisibleSelected) {
+      setSelectedRecordIds((prev) =>
+        prev.filter((id) => !selectableRecords.some((record) => String(record._id) === id)),
+      );
+      return;
+    }
+
+    setSelectedRecordIds((prev) => {
+      const next = new Set(prev);
+      selectableRecords.forEach((record) => {
+        if (record._id) {
+          next.add(String(record._id));
+        }
+      });
+      return Array.from(next);
+    });
+  };
+
+  const handleBulkReassign = async () => {
+    if (selectedRecordIds.length === 0) {
+      showToast('Select at least one imported opportunity to reassign', 'warning', 3500);
+      return;
+    }
+
+    if (hasMixedOrganizations || !selectedOrganizationId) {
+      showToast('Bulk reassignment only works for imported opportunities from the same organization', 'warning', 4500);
+      return;
+    }
+
+    if (!selectedSalesRepId) {
+      showToast('Select a sales representative first', 'warning', 3500);
+      return;
+    }
+
+    try {
+      setReassigning(true);
+      const result = await opportunitiesJsonService.bulkReassign(
+        selectedRecordIds,
+        selectedSalesRepId,
+        reassignmentNote,
+      );
+
+      if (result.failedCount > 0 && result.reassignedCount > 0) {
+        showToast(
+          `Reassigned ${result.reassignedCount} imported opportunity link(s). ${result.failedCount} failed.`,
+          'warning',
+          5000,
+        );
+      } else if (result.failedCount > 0) {
+        showToast(
+          result.failed?.[0]?.reason || 'Bulk reassignment failed',
+          'error',
+          5000,
+        );
+      } else {
+        showToast(
+          `Reassigned ${result.reassignedCount} imported opportunity link(s) successfully`,
+          'success',
+          4500,
+        );
+      }
+
+      setSelectedRecordIds([]);
+      setSelectedSalesRepId('');
+      setReassignmentNote('');
+      await loadRecords(query.trim());
+    } catch (error: any) {
+      console.error('Failed to bulk reassign imported opportunities:', error);
+      showToast(error.message || 'Failed to bulk reassign imported opportunities', 'error', 5000);
+    } finally {
+      setReassigning(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 backdrop-blur-sm p-4">
-      <div className="w-full max-w-6xl rounded-3xl bg-white shadow-2xl border border-white/40 overflow-hidden">
+      <div className="w-full max-w-7xl rounded-3xl bg-white shadow-2xl border border-white/40 overflow-hidden">
         <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
           <div>
             <div className="flex items-center gap-3">
@@ -164,13 +353,101 @@ export default function OpportunitiesJsonModal({
             )}
           </div>
 
+          {canUpload && (
+            <div className="rounded-2xl border border-violet-100 bg-violet-50/60 px-4 py-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium text-violet-900">
+                    <Users className="h-4 w-4" />
+                    Bulk Reassignment
+                  </div>
+                  <p className="text-sm text-violet-700">
+                    Select imported opportunities from one organization, then choose the sales representative who should own them.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <button
+                      onClick={handleToggleAllVisible}
+                      disabled={selectableRecords.length === 0}
+                      className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-white px-3 py-1.5 font-medium text-violet-700 transition hover:bg-violet-50 disabled:opacity-50"
+                    >
+                      <CheckSquare className="h-3.5 w-3.5" />
+                      {allSelectableVisibleSelected ? 'Clear Visible' : 'Select Visible'}
+                    </button>
+                    <span className="rounded-full bg-white px-3 py-1.5 text-violet-700 border border-violet-100">
+                      {selectedRecordIds.length} selected
+                    </span>
+                    {hasMixedOrganizations && (
+                      <span className="rounded-full bg-amber-100 px-3 py-1.5 text-amber-700 border border-amber-200">
+                        Mixed organizations selected
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid w-full gap-3 lg:w-auto lg:grid-cols-[minmax(240px,280px)_minmax(260px,320px)_auto]">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-violet-900">Sales Representative</label>
+                    <select
+                      value={selectedSalesRepId}
+                      onChange={(e) => setSelectedSalesRepId(e.target.value)}
+                      disabled={loadingSalesReps || selectedRecordIds.length === 0 || hasMixedOrganizations}
+                      className="w-full rounded-2xl border border-violet-200 bg-white px-4 py-3 text-sm text-gray-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100 disabled:opacity-50"
+                    >
+                      <option value="">Select sales representative</option>
+                      {salesReps.map((rep) => (
+                        <option key={String(rep.id || rep._id || rep.userId)} value={String(rep.id || rep._id || rep.userId)}>
+                          {rep.fullName || rep.name || rep.email}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-violet-900">Reassignment Note</label>
+                    <input
+                      value={reassignmentNote}
+                      onChange={(e) => setReassignmentNote(e.target.value)}
+                      placeholder="Optional note for this mass reassignment"
+                      className="w-full rounded-2xl border border-violet-200 bg-white px-4 py-3 text-sm text-gray-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                    />
+                  </div>
+
+                  <button
+                    onClick={() => void handleBulkReassign()}
+                    disabled={
+                      reassigning ||
+                      loadingSalesReps ||
+                      selectedRecordIds.length === 0 ||
+                      !selectedSalesRepId ||
+                      hasMixedOrganizations
+                    }
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-violet-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-violet-700 disabled:opacity-50"
+                  >
+                    {reassigning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+                    Mass Reassign
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-2xl border border-gray-100">
-            <div className="grid grid-cols-5 gap-4 border-b border-gray-100 bg-gray-50/80 px-5 py-3 text-sm font-medium text-gray-700">
+            <div className="grid grid-cols-[56px_1.3fr_1fr_1fr_1fr_0.9fr_0.8fr] gap-4 border-b border-gray-100 bg-gray-50/80 px-5 py-3 text-sm font-medium text-gray-700">
+              <div className="flex items-center justify-center">
+                <input
+                  type="checkbox"
+                  checked={allSelectableVisibleSelected}
+                  onChange={handleToggleAllVisible}
+                  disabled={!canUpload || selectableRecords.length === 0}
+                  className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                />
+              </div>
               <div>Subject</div>
               <div>Customer</div>
               <div>Phone</div>
-              <div>Email</div>
+              <div>Owner</div>
               <div>Status</div>
+              <div>Linked</div>
             </div>
             <div className="max-h-[55vh] overflow-y-auto">
               {loading ? (
@@ -183,18 +460,44 @@ export default function OpportunitiesJsonModal({
                   No imported opportunities found.
                 </div>
               ) : (
-                records.map((record, index) => (
-                  <div
-                    key={`${record._id || record.subject || 'record'}-${index}`}
-                    className="grid grid-cols-5 gap-4 border-b border-gray-100 px-5 py-3 text-sm text-gray-700 last:border-b-0"
-                  >
-                    <div className="truncate font-medium text-gray-900">{record.subject || '-'}</div>
-                    <div className="truncate">{record.customer?.name || record.customerName || '-'}</div>
-                    <div className="truncate">{record.customer?.phone || record.phone || '-'}</div>
-                    <div className="truncate">{record.customer?.email || record.email || '-'}</div>
-                    <div className="truncate">{record.status || record.currentStage || '-'}</div>
-                  </div>
-                ))
+                records.map((record, index) => {
+                  const recordId = String(record._id || '');
+                  const isSelectable = Boolean(canUpload && record._id && record.originalId);
+                  const isSelected = selectedRecordIds.includes(recordId);
+
+                  return (
+                    <div
+                      key={`${record._id || record.subject || 'record'}-${index}`}
+                      className="grid grid-cols-[56px_1.3fr_1fr_1fr_1fr_0.9fr_0.8fr] gap-4 border-b border-gray-100 px-5 py-3 text-sm text-gray-700 last:border-b-0"
+                    >
+                      <div className="flex items-center justify-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleRecord(recordId)}
+                          disabled={!isSelectable}
+                          className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500 disabled:opacity-40"
+                        />
+                      </div>
+                      <div className="truncate font-medium text-gray-900">{record.subject || '-'}</div>
+                      <div className="truncate">{record.customer?.name || record.customerName || '-'}</div>
+                      <div className="truncate">{record.customer?.phone || record.phone || '-'}</div>
+                      <div className="truncate">{getRecordOwnerName(record)}</div>
+                      <div className="truncate">{record.status || record.currentStage || '-'}</div>
+                      <div>
+                        {record.originalId ? (
+                          <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-100">
+                            Linked
+                          </span>
+                        ) : (
+                          <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 border border-gray-200">
+                            Unlinked
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
