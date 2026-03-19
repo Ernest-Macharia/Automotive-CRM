@@ -421,10 +421,10 @@ export default function OpportunitiesJsonModal({
                     <select
                       value={selectedSalesRepId}
                       onChange={(e) => setSelectedSalesRepId(e.target.value)}
-                      disabled={loadingSalesReps || selectedRecordIds.length === 0 || hasMixedOrganizations || salesReps.length === 0}
+                      disabled={loadingSalesReps || selectedRecordIds.length === 0 || hasMixedOrganizations}
                       className="w-full rounded-2xl border border-violet-200 bg-white px-4 py-3 text-sm text-gray-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100 disabled:opacity-50"
                     >
-                      <option value="">Select sales representative</option>
+                      <option value="">{loadingSalesReps ? 'Loading sales representatives...' : salesReps.length === 0 ? 'No sales representatives available' : 'Select sales representative'}</option>
                       {salesReps.map((rep) => (
                         <option key={String(rep.id || rep._id || rep.userId)} value={String(rep.id || rep._id || rep.userId)}>
                           {rep.fullName || rep.name || rep.email}
