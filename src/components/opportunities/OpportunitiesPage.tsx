@@ -1443,6 +1443,29 @@ export default function OpportunitiesContent() {
     return counts;
   }, [hasActiveFilters, filteredStats?.byStatus, stats?.byStatus, opportunitiesByStage]);
 
+  useEffect(() => {
+    const stagesToPreload = stages.filter((stage) => {
+      const visibleCount = opportunitiesByStage[stage.id]?.length || 0;
+      const paginationState = stagePagination[stage.id];
+
+      return (
+        stageCounts[stage.id] > 0 &&
+        visibleCount === 0 &&
+        paginationState?.page === 0 &&
+        paginationState?.hasMore &&
+        !columnLoading[stage.id]
+      );
+    });
+
+    if (!stagesToPreload.length) {
+      return;
+    }
+
+    stagesToPreload.forEach((stage) => {
+      void loadMoreForStage(stage.id);
+    });
+  }, [stageCounts, opportunitiesByStage, stagePagination, columnLoading, loadMoreForStage]);
+
   // Card metrics should reflect backend aggregates, not only the loaded page.
   const cardMetrics = useMemo(() => {
     const useFilteredStats = hasActiveFilters && !!filteredStats;
@@ -2530,3 +2553,4 @@ export default function OpportunitiesContent() {
     </div>
   );
 }
+
