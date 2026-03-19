@@ -2,12 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  CheckCircle,
   CheckSquare,
+  ChevronDown,
+  ChevronUp,
   Database,
   Loader2,
   RefreshCw,
   Search,
   Upload,
+  User,
   Users,
   X,
 } from 'lucide-react';
@@ -83,6 +87,7 @@ export default function OpportunitiesJsonModal({
   showToast,
 }: OpportunitiesJsonModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
   const [records, setRecords] = useState<OpportunitiesJsonRecord[]>([]);
   const [total, setTotal] = useState(0);
@@ -95,6 +100,8 @@ export default function OpportunitiesJsonModal({
   const [salesReps, setSalesReps] = useState<any[]>([]);
   const [loadingSalesReps, setLoadingSalesReps] = useState(false);
   const [selectedSalesRepId, setSelectedSalesRepId] = useState('');
+  const [salesRepSearchTerm, setSalesRepSearchTerm] = useState('');
+  const [showSalesRepDropdown, setShowSalesRepDropdown] = useState(false);
   const [reassignmentNote, setReassignmentNote] = useState('');
   const [reassigning, setReassigning] = useState(false);
 
@@ -110,6 +117,17 @@ export default function OpportunitiesJsonModal({
 
   const selectedOrganizationId = selectedOrganizationIds.length === 1 ? selectedOrganizationIds[0] : null;
   const hasMixedOrganizations = selectedOrganizationIds.length > 1;
+  const selectedSalesRep = salesReps.find(
+    (rep) => String(rep.id || rep._id || rep.userId) === selectedSalesRepId,
+  );
+  const filteredSalesReps = salesReps.filter((rep) => {
+    if (!salesRepSearchTerm.trim()) return true;
+    const term = salesRepSearchTerm.trim().toLowerCase();
+    const name = String(rep.fullName || rep.name || rep.displayName || rep.email || '').toLowerCase();
+    const email = String(rep.email || '').toLowerCase();
+    const role = String(rep.role || '').toLowerCase();
+    return name.includes(term) || email.includes(term) || role.includes(term);
+  });
   const selectableRecords = useMemo(
     () => records.filter((record) => Boolean(record._id && record.originalId)),
     [records],
@@ -148,6 +166,17 @@ export default function OpportunitiesJsonModal({
   };
 
   useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowSalesRepDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
     if (!isOpen) return;
     void loadRecords(query, 1);
   }, [isOpen]);
@@ -158,12 +187,14 @@ export default function OpportunitiesJsonModal({
     if (selectedRecordIds.length === 0) {
       setSalesReps([]);
       setSelectedSalesRepId('');
+      setSalesRepSearchTerm('');
       return;
     }
 
     if (hasMixedOrganizations) {
       setSalesReps([]);
       setSelectedSalesRepId('');
+      setSalesRepSearchTerm('');
       return;
     }
 
@@ -186,6 +217,16 @@ export default function OpportunitiesJsonModal({
   }, [isOpen, canUpload, selectedRecordIds, hasMixedOrganizations]);
 
   if (!isOpen) return null;
+
+  const getSalesRepName = (rep: any) =>
+    rep?.fullName || rep?.name || rep?.displayName || rep?.email || 'Sales Representative';
+
+  const handleSelectSalesRep = (rep: any) => {
+    const nextId = String(rep.id || rep._id || rep.userId || '');
+    setSelectedSalesRepId(nextId);
+    setSalesRepSearchTerm(getSalesRepName(rep));
+    setShowSalesRepDropdown(false);
+  };
 
   const handleSearch = async () => {
     await loadRecords(query.trim(), 1);
@@ -418,19 +459,104 @@ export default function OpportunitiesJsonModal({
                 <div className="grid w-full gap-3 lg:w-auto lg:grid-cols-[minmax(240px,280px)_minmax(260px,320px)_auto]">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-violet-900">Sales Representative</label>
-                    <select
-                      value={selectedSalesRepId}
-                      onChange={(e) => setSelectedSalesRepId(e.target.value)}
-                      disabled={loadingSalesReps || selectedRecordIds.length === 0 || hasMixedOrganizations}
-                      className="w-full rounded-2xl border border-violet-200 bg-white px-4 py-3 text-sm text-gray-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100 disabled:opacity-50"
-                    >
-                      <option value="">{loadingSalesReps ? 'Loading sales representatives...' : salesReps.length === 0 ? 'No sales representatives available' : 'Select sales representative'}</option>
-                      {salesReps.map((rep) => (
-                        <option key={String(rep.id || rep._id || rep.userId)} value={String(rep.id || rep._id || rep.userId)}>
-                          {rep.fullName || rep.name || rep.email}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative" ref={dropdownRef}>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={selectedSalesRep ? getSalesRepName(selectedSalesRep) : salesRepSearchTerm}
+                          onChange={(e) => {
+                            setSalesRepSearchTerm(e.target.value);
+                            if (selectedSalesRepId) setSelectedSalesRepId('');
+                          }}
+                          onFocus={() => {
+                            if (selectedRecordIds.length > 0 && !hasMixedOrganizations) {
+                              setShowSalesRepDropdown(true);
+                            }
+                          }}
+                          placeholder={loadingSalesReps ? 'Loading sales representatives...' : 'Search for sales representative...'}
+                          disabled={loadingSalesReps || selectedRecordIds.length === 0 || hasMixedOrganizations}
+                          className="w-full rounded-2xl border border-violet-200 bg-white pl-10 pr-10 py-3 text-sm text-gray-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100 disabled:opacity-50"
+                        />
+                        <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedRecordIds.length > 0 && !hasMixedOrganizations && !loadingSalesReps) {
+                              setShowSalesRepDropdown((prev) => !prev);
+                            }
+                          }}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showSalesRepDropdown ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </button>
+                      </div>
+
+                      {showSalesRepDropdown && (
+                        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-2xl border border-violet-100 bg-white shadow-xl">
+                          <div className="sticky top-0 border-b border-gray-100 bg-white p-2">
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                              <input
+                                type="text"
+                                value={salesRepSearchTerm}
+                                onChange={(e) => setSalesRepSearchTerm(e.target.value)}
+                                placeholder="Search sales representatives..."
+                                className="w-full rounded-xl border border-gray-200 pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="max-h-60 overflow-y-auto">
+                            {loadingSalesReps ? (
+                              <div className="p-4 text-center text-gray-500">
+                                <div className="flex items-center justify-center gap-2">
+                                  <Loader2 className="h-4 w-4 animate-spin text-violet-500" />
+                                  Loading sales representatives...
+                                </div>
+                              </div>
+                            ) : filteredSalesReps.length === 0 ? (
+                              <div className="p-4 text-center text-gray-500">
+                                <p className="text-sm">No sales representatives available</p>
+                              </div>
+                            ) : (
+                              filteredSalesReps.map((rep) => {
+                                const repId = String(rep.id || rep._id || rep.userId || '');
+                                const repName = getSalesRepName(rep);
+                                const repRole = String(rep.role || 'sales_representative');
+                                const repEmail = String(rep.email || '');
+
+                                return (
+                                  <button
+                                    key={repId}
+                                    type="button"
+                                    onClick={() => handleSelectSalesRep(rep)}
+                                    className={`flex w-full items-center gap-3 border-b border-gray-100 px-3 py-3 text-left hover:bg-violet-50 last:border-b-0 ${selectedSalesRepId === repId ? 'bg-violet-50' : ''}`}
+                                  >
+                                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-blue-100 to-purple-100">
+                                      <span className="text-sm font-medium text-gray-700">
+                                        {repName.charAt(0).toUpperCase()}
+                                      </span>
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <p className="truncate text-sm font-medium text-gray-900">{repName}</p>
+                                        <span className="rounded-full bg-orange-100 px-2 py-1 text-xs text-orange-800">
+                                          {repRole}
+                                        </span>
+                                      </div>
+                                      <p className="truncate text-xs text-gray-500">{repEmail}</p>
+                                    </div>
+                                    {selectedSalesRepId === repId && (
+                                      <CheckCircle className="h-5 w-5 flex-shrink-0 text-violet-600" />
+                                    )}
+                                  </button>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div>
