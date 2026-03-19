@@ -335,6 +335,7 @@ interface KanbanColumnProps {
   onStatusUpdate: (opportunity: ExtendedOpportunity, newStatus: string) => Promise<{ success: boolean; needsLead?: boolean }>;
   columnLoading: boolean;
   loadMore: (stageId: StageId) => Promise<void>;
+  showOwnerDetails: boolean;
 }
 
 function KanbanColumn({
@@ -355,6 +356,7 @@ function KanbanColumn({
   onStatusUpdate,
   columnLoading,
   loadMore,
+  showOwnerDetails,
 }: KanbanColumnProps) {
   const CARD_HEIGHT = 228;
   const router = useRouter();
@@ -486,6 +488,7 @@ function KanbanColumn({
                   getChildCounts={getChildCounts}
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
+                  showOwnerDetails={showOwnerDetails}
                 />
               </div>
             );
@@ -563,6 +566,7 @@ interface OpportunityCardProps {
   getChildCounts: (opp: ExtendedOpportunity) => any;
   onDragStart: () => void;
   onDragEnd: () => void;
+  showOwnerDetails: boolean;
 }
 
 const OpportunityCard = memo(function OpportunityCard({
@@ -574,7 +578,8 @@ const OpportunityCard = memo(function OpportunityCard({
   getStageColor,
   getChildCounts,
   onDragStart,
-  onDragEnd
+  onDragEnd,
+  showOwnerDetails
 }: OpportunityCardProps) {
   const router = useRouter();
   const [isRecalculating, setIsRecalculating] = useState(false);
@@ -587,6 +592,24 @@ const OpportunityCard = memo(function OpportunityCard({
     [opportunity.leadScore?.totalScore, getLeadScoreTier]);
   const stageColor = useMemo(() => getStageColor(opportunity.status as StageId), 
     [opportunity.status, getStageColor]);
+  const organizationLabel = useMemo(() => {
+    const rawOrganization = opportunity.organizationId;
+    if (!rawOrganization) return null;
+    if (typeof rawOrganization === 'string') return rawOrganization;
+    return rawOrganization.name || rawOrganization.slug || rawOrganization.id || rawOrganization._id || null;
+  }, [opportunity.organizationId]);
+  const ownerLabel = useMemo(() => {
+    const rawAssignedTo = opportunity.assignedTo;
+    if (!rawAssignedTo) return null;
+    if (typeof rawAssignedTo === 'string') return rawAssignedTo;
+
+    const fullName = [rawAssignedTo.firstName, rawAssignedTo.lastName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    return rawAssignedTo.name || rawAssignedTo.displayName || fullName || rawAssignedTo.email || rawAssignedTo.customId || null;
+  }, [opportunity.assignedTo]);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) {
@@ -686,7 +709,19 @@ const OpportunityCard = memo(function OpportunityCard({
             Organization
           </span>
         )}
+
+        {organizationLabel && (
+          <span className="px-2 py-1 rounded-lg bg-slate-100/90 text-slate-700 text-xs font-medium whitespace-nowrap">
+            {organizationLabel}
+          </span>
+        )}
       </div>
+
+      {showOwnerDetails && ownerLabel && (
+        <div className="mb-2 text-xs text-gray-600 truncate">
+          <span className="font-medium text-gray-700">Owner:</span> {ownerLabel}
+        </div>
+      )}
 
       {opportunity.leadScore && (
         <div className="mb-2">
@@ -889,6 +924,9 @@ export default function OpportunitiesContent() {
   }, [currentUser]);
   const canManageSharedJson =
     currentRoleName.includes('superadmin') ||
+    currentRoleName.includes('admin') ||
+    currentRoleName.includes('management');
+  const showOwnerDetails =
     currentRoleName.includes('admin') ||
     currentRoleName.includes('management');
   
@@ -2449,6 +2487,7 @@ export default function OpportunitiesContent() {
                       onStatusUpdate={handleStatusUpdateWrapper}
                       columnLoading={columnLoading[stage.id]}
                       loadMore={loadMoreForStage}
+                      showOwnerDetails={showOwnerDetails}
                     />
                   </div>
                 ))}
@@ -2553,4 +2592,5 @@ export default function OpportunitiesContent() {
     </div>
   );
 }
+
 
