@@ -38,12 +38,27 @@ function getRecordOrganizationId(record: OpportunitiesJsonRecord): string | null
   ];
 
   for (const candidate of candidates) {
-    if (candidate && typeof candidate === 'object' && '_id' in candidate && candidate._id) {
-      return String(candidate._id);
+    if (!candidate) continue;
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim();
+      if (trimmed) return trimmed;
+      continue;
     }
-    if (candidate) {
-      return String(candidate);
+    if (typeof candidate === 'object') {
+      if ('$oid' in candidate && candidate.$oid) {
+        return String(candidate.$oid).trim();
+      }
+      if ('_id' in candidate && candidate._id) {
+        if (typeof candidate._id === 'object' && candidate._id && '$oid' in candidate._id && candidate._id.$oid) {
+          return String(candidate._id.$oid).trim();
+        }
+        return String(candidate._id).trim();
+      }
+      if ('id' in candidate && candidate.id) {
+        return String(candidate.id).trim();
+      }
     }
+    return String(candidate).trim();
   }
 
   return null;
