@@ -3,7 +3,7 @@
 import { opportunityService, Opportunity, FilterParams, FilteredStats } from '@/services/opportunityService';
 import { useToast } from '@/contexts/ToastContext';
 import { useState, useEffect, useRef, useCallback, useMemo, memo, type ChangeEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { authService } from '@/services/authService';
 import { 
   Plus, Filter, CalendarDays, Search, MoreVertical, Phone, MessageCircle,
@@ -362,6 +362,7 @@ function KanbanColumn({
 }: KanbanColumnProps) {
   const CARD_HEIGHT = 244;
   const router = useRouter();
+  const searchParams = useSearchParams();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { loading: scrollLoading } = useColumnInfiniteScroll(

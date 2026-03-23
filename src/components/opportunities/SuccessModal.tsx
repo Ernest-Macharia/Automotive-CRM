@@ -194,7 +194,9 @@ export default function SuccessModal({
           return;
         }
 
-        const createdWorkOrder = await workOrderService.createWorkOrderFromOpportunity(opportunity._id);
+        const createdWorkOrder = await workOrderService.createWorkOrder({
+          opportunityId: opportunity._id,
+        });
 
         if (createdWorkOrder?._id) {
           router.push(`/orders/work-orders/${createdWorkOrder._id}`);
@@ -203,17 +205,15 @@ export default function SuccessModal({
         }
       } catch (error) {
         console.error('Error opening work order from success modal:', error);
-        router.push('/orders/work-orders');
+        router.push(`/orders/work-orders/create?opportunityId=${opportunity._id}`);
         onClose();
         return;
       }
     } else if (isSalesOpportunity()) {
-      // Navigate to sales order creation/management
       router.push(`/opportunities/${opportunity._id}/sales-order`);
       onClose();
       return;
     } else {
-      // Default to view details
       onViewDetails?.();
     }
     onClose();
