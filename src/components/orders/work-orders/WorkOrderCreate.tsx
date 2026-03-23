@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   Wrench, ArrowLeft, Save, Loader2,
   Search, X, Package, CheckCircle
@@ -20,7 +20,6 @@ interface FormData {
 
 export default function WorkOrderCreate() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { showToast } = useToast();
   
   const [loading, setLoading] = useState(false);
@@ -34,32 +33,6 @@ export default function WorkOrderCreate() {
     selectedOpportunity: null,
     showDropdown: false
   });
-
-  useEffect(() => {
-    const opportunityId = searchParams.get('opportunityId');
-    if (!opportunityId || formData.opportunityId === opportunityId) return;
-
-    let cancelled = false;
-
-    void opportunityService.getOpportunityById(opportunityId)
-      .then((opportunity) => {
-        if (cancelled || !opportunity) return;
-        setFormData((prev) => ({
-          ...prev,
-          opportunityId: opportunity._id,
-          selectedOpportunity: opportunity,
-          searchOpportunity: `${opportunity.subject} - ${opportunity.customer?.name || 'No customer'}`,
-          showDropdown: false,
-        }));
-      })
-      .catch((error) => {
-        console.error('Error preloading opportunity for work order:', error);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [searchParams, formData.opportunityId]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -133,13 +106,13 @@ export default function WorkOrderCreate() {
       // Create work order with just the opportunity ID
       const createData = {
         opportunityId: formData.opportunityId,
-        ...(formData.quoteId ? { quoteId: formData.quoteId } : {})
+        quoteId: formData.quoteId
       };
       
       const newWorkOrder = await workOrderService.createWorkOrder(createData);
       showToast('Work order created successfully!', 'success');
       
-      router.push(`/orders/work-orders/${newWorkOrder._id}`);
+      router.push(`/workorders/${newWorkOrder._id}`);
       
     } catch (error: any) {
       console.error('Error creating work order:', error);
@@ -151,7 +124,7 @@ export default function WorkOrderCreate() {
   };
 
   const handleCancel = () => {
-    router.push('/orders/work-orders');
+    router.push('/workorders');
   };
 
   return (

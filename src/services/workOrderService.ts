@@ -192,7 +192,7 @@ export interface WorkOrder {
 
 export interface CreateWorkOrderData {
   opportunityId?: string;
-  quoteId?: string;
+  quoteId: string;
   waiverId?: string;
   jobCards?: string[];
   vehicleId?: string;

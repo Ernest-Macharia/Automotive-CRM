@@ -13,12 +13,6 @@ import {
 export interface Opportunity {
   _id: string;
   id: string;
-  organizationId?: string | {
-    _id?: string;
-    id?: string;
-    name?: string;
-    slug?: string;
-  };
   type: 'individual' | 'organization';
   subject: string;
   status: 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost' | 'won';
@@ -28,7 +22,6 @@ export interface Opportunity {
     email?: string;
     companyName?: string;
     phone?: string;
-    secondaryPhone?: string;
     _id: string;
     id: string;
     companyAddress?: string;
@@ -112,7 +105,6 @@ export interface CreateOpportunityData {
     name: string;
     email?: string;
     phone?: string;
-    secondaryPhone?: string;
     companyName?: string;
     companyAddress?: string;
     companyTaxId?: string;
@@ -170,7 +162,6 @@ export interface UpdateOpportunityData {
     name?: string;
     email?: string;
     phone?: string;
-    secondaryPhone?: string;
     companyName?: string;
     companyAddress?: string;
     companyTaxId?: string;
@@ -474,7 +465,6 @@ export interface ValidateWithDuplicatesRequest extends DuplicateCheckRequest {
     name: string;
     email?: string;
     phone?: string;
-    secondaryPhone?: string;
     companyName?: string;
   };
   vehicles?: Array<{
@@ -1031,12 +1021,9 @@ class OpportunityService {
   }
 
   // Get available sales reps
-  async getAvailableSalesReps(organizationId?: string): Promise<any[]> {
+  async getAvailableSalesReps(): Promise<any[]> {
     try {
-      const endpoint = organizationId
-        ? `/opportunities/sales-reps/available?organizationId=${encodeURIComponent(organizationId)}`
-        : '/opportunities/sales-reps/available';
-      return await extendedApiClient.get<any[]>(endpoint);
+      return await extendedApiClient.get<any[]>('/opportunities/sales-reps/available');
     } catch (error) {
       console.error('Error fetching available sales reps:', error);
       throw error;
@@ -2435,6 +2422,5 @@ async updateNote(opportunityId: string, noteId: string, noteData: UpdateNoteData
 }
 
 export const opportunityService = new OpportunityService();
-
 
 

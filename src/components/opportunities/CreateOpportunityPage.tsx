@@ -68,7 +68,6 @@ interface OpportunityFormData {
   companyName: string;
   email: string;
   phone: string;
-  secondaryPhone: string;
   phoneCode: string;
   vehicles: Vehicle[];
   servicesProducts: ServiceProduct[];
@@ -188,7 +187,6 @@ export default function CreateOpportunityPage() {
     companyName: '',
     email: '',
     phone: '',
-    secondaryPhone: '',
     phoneCode: '+254',
     vehicles: [{
       id: '1',
@@ -899,7 +897,6 @@ export default function CreateOpportunityPage() {
             : formData.companyName,
           email: formData.email || undefined,
           phone: `${formData.phoneCode}${formData.phone}` || undefined,
-          secondaryPhone: formData.secondaryPhone ? `${formData.phoneCode}${formData.secondaryPhone}` : undefined,
           companyName: !isIndividual ? formData.companyName : undefined,
           ...(formData.accountType === 'organization' && {
             contactPersonName: formData.contactPersonName || undefined,
@@ -1169,7 +1166,6 @@ export default function CreateOpportunityPage() {
       companyName: '',
       email: '',
       phone: '',
-      secondaryPhone: '',
       phoneCode: '+254',
       vehicles: [{
         id: '1',
@@ -1764,35 +1760,6 @@ export default function CreateOpportunityPage() {
                         )}
                         <p className="text-xs text-gray-500 mt-1">
                           Phone: {formData.phoneCode}{formData.phone || '_______'}
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Secondary Phone
-                        </label>
-                        <div className="flex gap-2">
-                          <div className="relative flex-1">
-                            <div className="flex items-center justify-between w-full px-3 py-3 rounded-xl border border-gray-200 bg-white">
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg">
-                                  {getFlagEmoji(formData.phoneCode)}
-                                </span>
-                                <span>{formData.phoneCode}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <input
-                            type="tel"
-                            value={formData.secondaryPhone}
-                            onChange={(e) => handleInputChange('secondaryPhone', e.target.value)}
-                            placeholder="711234567"
-                            className="flex-1 pl-4 pr-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                          />
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Secondary: {formData.phoneCode}{formData.secondaryPhone || '_______'}
                         </p>
                       </div>
                     </div>

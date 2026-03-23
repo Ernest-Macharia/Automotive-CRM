@@ -21,8 +21,8 @@ import {
   ShoppingBag
 } from 'lucide-react';
 import { Opportunity } from '@/services/opportunityService';
-import { workOrderService } from '@/services/workOrderService';
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 interface SuccessModalProps {
   isOpen: boolean;
@@ -182,38 +182,15 @@ export default function SuccessModal({
     }
   };
 
-  const handleActionButtonClick = async () => {
+  const handleActionButtonClick = () => {
     if (isServiceOpportunity()) {
-      try {
-        const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunity._id);
-        const existingWorkOrder = workOrders[0];
-
-        if (existingWorkOrder?._id) {
-          router.push(`/orders/work-orders/${existingWorkOrder._id}`);
-          onClose();
-          return;
-        }
-
-        const createdWorkOrder = await workOrderService.createWorkOrder({
-          opportunityId: opportunity._id,
-        });
-
-        if (createdWorkOrder?._id) {
-          router.push(`/orders/work-orders/${createdWorkOrder._id}`);
-          onClose();
-          return;
-        }
-      } catch (error) {
-        console.error('Error opening work order from success modal:', error);
-        router.push(`/orders/work-orders/create?opportunityId=${opportunity._id}`);
-        onClose();
-        return;
-      }
+      // Navigate to work order creation/management
+      router.push(`/opportunities/${opportunity._id}/work-order`);
     } else if (isSalesOpportunity()) {
+      // Navigate to sales order creation/management
       router.push(`/opportunities/${opportunity._id}/sales-order`);
-      onClose();
-      return;
     } else {
+      // Default to view details
       onViewDetails?.();
     }
     onClose();

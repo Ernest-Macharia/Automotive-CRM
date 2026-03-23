@@ -220,11 +220,11 @@ export default function ReassignModal({
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
                       <span className="text-blue-600 font-semibold">
-                        {(currentAssignee.name || currentAssignee.email?.split('@')[0] || 'Unassigned').charAt(0).toUpperCase()}
+                        {currentAssignee.name?.charAt(0) || currentAssignee.email?.charAt(0) || 'U'}
                       </span>
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">{currentAssignee.name || currentAssignee.email?.split('@')[0] || 'Unassigned'}</p>
+                      <p className="font-medium text-gray-900">{currentAssignee.name || 'Unknown'}</p>
                       <p className="text-sm text-gray-600">{currentAssignee.email}</p>
                     </div>
                   </div>
