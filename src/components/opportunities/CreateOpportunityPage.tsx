@@ -68,6 +68,7 @@ interface OpportunityFormData {
   companyName: string;
   email: string;
   phone: string;
+  secondaryPhone: string;
   phoneCode: string;
   vehicles: Vehicle[];
   servicesProducts: ServiceProduct[];
@@ -187,6 +188,7 @@ export default function CreateOpportunityPage() {
     companyName: '',
     email: '',
     phone: '',
+    secondaryPhone: '',
     phoneCode: '+254',
     vehicles: [{
       id: '1',
@@ -897,6 +899,7 @@ export default function CreateOpportunityPage() {
             : formData.companyName,
           email: formData.email || undefined,
           phone: `${formData.phoneCode}${formData.phone}` || undefined,
+          secondaryPhone: formData.secondaryPhone ? `${formData.phoneCode}${formData.secondaryPhone}` : undefined,
           companyName: !isIndividual ? formData.companyName : undefined,
           ...(formData.accountType === 'organization' && {
             contactPersonName: formData.contactPersonName || undefined,
@@ -1166,6 +1169,7 @@ export default function CreateOpportunityPage() {
       companyName: '',
       email: '',
       phone: '',
+      secondaryPhone: '',
       phoneCode: '+254',
       vehicles: [{
         id: '1',

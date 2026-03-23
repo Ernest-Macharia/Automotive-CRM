@@ -46,6 +46,7 @@ interface CustomerForm {
   name: string;
   email: string;
   phone: string;
+  secondaryPhone?: string;
   companyName: string;
   contactPersonName?: string;
   contactPersonPhone?: string;
@@ -219,6 +220,7 @@ export default function EditOpportunityPage() {
       name: '',
       email: '',
       phone: '',
+      secondaryPhone: '',
       companyName: '',
       contactPersonName: '',
       contactPersonPhone: '',
@@ -366,6 +368,10 @@ export default function EditOpportunityPage() {
           name: customer.name || '',
           email: customer.email || '',
           phone: phoneNumber,
+          secondaryPhone: normalizePhoneForInput(
+            getSafeCustomerField(customer, 'secondaryPhone'),
+            phoneCode
+          ),
           companyName: getSafeCustomerField(customer, 'companyName'),
           contactPersonName: getSafeCustomerField(customer, 'contactPersonName'),
           contactPersonPhone: normalizePhoneForInput(
@@ -600,6 +606,9 @@ export default function EditOpportunityPage() {
           name: customerName,
           email: formData.customer.email || undefined,
           phone: formData.customer.phone ? `${formData.phoneCode}${formData.customer.phone}` : undefined,
+          secondaryPhone: formData.customer.secondaryPhone
+            ? `${formData.phoneCode}${formData.customer.secondaryPhone}`
+            : undefined,
           ...(formData.type === 'organization' && {
             companyName: formData.customer.companyName,
             contactPersonName: formData.customer.contactPersonName || undefined,
@@ -1190,6 +1199,33 @@ export default function EditOpportunityPage() {
                     )}
                     <p className="text-xs text-gray-500 mt-1">
                       Phone: {formData.phoneCode}{formData.customer.phone || '_______'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Secondary Phone
+                    </label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <div className="flex items-center justify-between w-full px-3 py-3 rounded-xl border border-gray-200 bg-white/50">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">????????</span>
+                            <span>{formData.phoneCode}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <input
+                        type="tel"
+                        value={formData.customer.secondaryPhone || ''}
+                        onChange={(e) => handleCustomerChange('secondaryPhone', e.target.value)}
+                        className="flex-1 px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        placeholder="711234567"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Secondary: {formData.phoneCode}{formData.customer.secondaryPhone || '_______'}
                     </p>
                   </div>
                 </div>

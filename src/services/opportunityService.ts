@@ -28,6 +28,7 @@ export interface Opportunity {
     email?: string;
     companyName?: string;
     phone?: string;
+    secondaryPhone?: string;
     _id: string;
     id: string;
     companyAddress?: string;
@@ -111,6 +112,7 @@ export interface CreateOpportunityData {
     name: string;
     email?: string;
     phone?: string;
+    secondaryPhone?: string;
     companyName?: string;
     companyAddress?: string;
     companyTaxId?: string;
@@ -168,6 +170,7 @@ export interface UpdateOpportunityData {
     name?: string;
     email?: string;
     phone?: string;
+    secondaryPhone?: string;
     companyName?: string;
     companyAddress?: string;
     companyTaxId?: string;
@@ -471,6 +474,7 @@ export interface ValidateWithDuplicatesRequest extends DuplicateCheckRequest {
     name: string;
     email?: string;
     phone?: string;
+    secondaryPhone?: string;
     companyName?: string;
   };
   vehicles?: Array<{
