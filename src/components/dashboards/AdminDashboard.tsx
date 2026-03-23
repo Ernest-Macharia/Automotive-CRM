@@ -87,6 +87,7 @@ import { opportunityService } from '@/services/opportunityService';
 import { userService } from '@/services/userService';
 import { workOrderService } from '@/services/workOrderService';
 import { salesOrderService } from '@/services/salesOrderService';
+import { reportService } from '@/services/reportService';
 
 interface AdminDashboardProps {
   user: any;
@@ -259,6 +260,21 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     }).format(amount);
   };
 
+  const withTimeout = useCallback(<T,>(promise: Promise<T>, ms = 12000): Promise<T> => {
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Request timed out')), ms);
+      promise
+        .then((value) => {
+          clearTimeout(timer);
+          resolve(value);
+        })
+        .catch((error) => {
+          clearTimeout(timer);
+          reject(error);
+        });
+    });
+  }, []);
+
   const formatBytes = (gb: number) => {
     const bytes = gb * 1024 * 1024 * 1024;
     if (bytes === 0) return '0 Bytes';
@@ -308,8 +324,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
       // Fetch multiple data sources in parallel
       const [
+        roleDashboardResponse,
         usersResponse,
-        overviewResponse,
         filteredStatsResponse,
         recentOpps,
         topOpps,
@@ -320,23 +336,23 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         slaStats,
         lisSlaStats
       ] = await Promise.allSettled([
-        userService.getAllUsers(),
-        opportunityService.getOpportunitiesOverview(),
-        opportunityService.getFilteredStats({}),
-        opportunityService.getAllOpportunities({ sort: 'updatedAt:desc', limit: 5 }),
-        opportunityService.getAllOpportunities({ sort: 'leadScore.totalScore:desc', limit: 3 }),
-        workOrderService.getWorkOrderStats(),
-        salesOrderService.getSalesOrderStats(),
-        opportunityService.filterOpportunities({ 
+        withTimeout(reportService.getRoleDashboard({ from: currentPeriodStart, to: todayStr })),
+        withTimeout(userService.getAllUsers()),
+        withTimeout(opportunityService.getFilteredStats({})),
+        withTimeout(opportunityService.getAllOpportunities({ sort: 'updatedAt:desc', limit: 5 })),
+        withTimeout(opportunityService.getAllOpportunities({ sort: 'leadScore.totalScore:desc', limit: 3 })),
+        withTimeout(workOrderService.getWorkOrderStats()),
+        withTimeout(salesOrderService.getSalesOrderStats()),
+        withTimeout(opportunityService.filterOpportunities({ 
           fromDate: currentPeriodStart, 
           toDate: todayStr 
-        }),
-        opportunityService.filterOpportunities({ 
+        })),
+        withTimeout(opportunityService.filterOpportunities({ 
           fromDate: previousPeriodStart, 
           toDate: previousPeriodEnd 
-        }),
-        opportunityService.getSLAStatusSummary().catch(() => null),
-        opportunityService.getLISSLADashboardStats().catch(() => null)
+        })),
+        withTimeout(opportunityService.getSLAStatusSummary().catch(() => null)),
+        withTimeout(opportunityService.getLISSLADashboardStats().catch(() => null))
       ]);
 
       // Process users data
@@ -379,6 +395,39 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       let topSource = 'website';
       let currentPeriodTotal = 0;
       let previousPeriodTotal = 0;
+      let avgDealSize = 0;
+      let conversionRate = 0;
+      let winRate = 0;
+
+      if (roleDashboardResponse.status === 'fulfilled' && roleDashboardResponse.value) {
+        const roleDashboard = roleDashboardResponse.value as any;
+        const businessNumbers = roleDashboard.businessNumbers || {};
+        totalOpportunities = Number(businessNumbers.totalOpportunities || totalOpportunities);
+        openOpportunities = Number(businessNumbers.openPipelineCount || openOpportunities);
+        const wonDealsCount = Number(businessNumbers.wonDealsCount || 0);
+        closedOpportunities = wonDealsCount;
+        totalRevenue = Number(
+          businessNumbers.wonDealsValue ??
+          businessNumbers.invoicesValue ??
+          totalRevenue
+        );
+        conversionRate = Number(businessNumbers.opportunitiesToQuotes || 0);
+        winRate = totalOpportunities > 0 ? (wonDealsCount / totalOpportunities) * 100 : 0;
+        avgDealSize = wonDealsCount > 0 ? totalRevenue / wonDealsCount : 0;
+
+        const roleActivities = Array.isArray(roleDashboard.recentActivities)
+          ? roleDashboard.recentActivities
+          : [];
+        setRecentActivities(roleActivities.map((activity: any, index: number) => ({
+          id: String(activity.id || activity._id || index),
+          user: activity.type ? String(activity.type).replace(/_/g, ' ') : 'System',
+          action: activity.title || 'Recent activity',
+          timestamp: activity.createdAt || new Date().toISOString(),
+          ip: '-',
+          location: '-',
+          details: activity.status || undefined,
+        })));
+      }
 
       if (filteredStatsResponse.status === 'fulfilled' && filteredStatsResponse.value) {
         const filteredStats = filteredStatsResponse.value;
@@ -414,28 +463,12 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         previousPeriodTotal = previousPeriodOpps.value.pagination?.total ?? (previousPeriodOpps.value.data || []).length;
       }
 
-      // Process overview data
-      let avgDealSize = 0;
-      let conversionRate = 0;
-      let winRate = 0;
-
-      if (overviewResponse.status === 'fulfilled' && overviewResponse.value) {
-        const overview = overviewResponse.value;
-        
-        totalOpportunities = overview.totalopportunities || totalOpportunities;
-        openOpportunities = overview.openopportunities || openOpportunities;
-        closedOpportunities = overview.closedopportunities || closedOpportunities;
-        
-        // Calculate conversion rate and win rate
-        const wonOppsCount =
-          filteredStatsResponse.status === 'fulfilled' && filteredStatsResponse.value
-            ? (filteredStatsResponse.value.byStatus?.won || 0)
-            : 0;
-        
-        conversionRate = totalOpportunities > 0 ? (wonOppsCount / totalOpportunities) * 100 : 0;
-        winRate = openOpportunities > 0 ? (wonOppsCount / openOpportunities) * 100 : 0;
-        totalRevenue = overview.totalRevenue || totalRevenue;
-        avgDealSize = wonOppsCount > 0 ? totalRevenue / wonOppsCount : (overview.averageDealSize || 0);
+      // Process overview data from scoped dashboard and filtered stats
+      if (filteredStatsResponse.status === 'fulfilled' && filteredStatsResponse.value) {
+        const wonOppsCount = filteredStatsResponse.value.byStatus?.won || 0;
+        conversionRate = totalOpportunities > 0 ? (wonOppsCount / totalOpportunities) * 100 : conversionRate;
+        winRate = totalOpportunities > 0 ? (wonOppsCount / totalOpportunities) * 100 : winRate;
+        avgDealSize = wonOppsCount > 0 ? totalRevenue / wonOppsCount : avgDealSize;
       }
 
       // Process work order stats
@@ -522,7 +555,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         { name: 'Storage', status: 'up' as const, responseTime: 85 },
         { name: 'Auth Service', status: 'up' as const, responseTime: 65 }
       ];
-      setRecentActivities([]);
+      if (roleDashboardResponse.status !== 'fulfilled') {
+        setRecentActivities([]);
+      }
 
       // Calculate growth percentages
       const userGrowth = calculateGrowth(totalUsers, previousUsers);

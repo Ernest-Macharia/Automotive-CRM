@@ -12,6 +12,15 @@ export interface OpportunitiesJsonRecord {
   source?: string | null;
   dataSource?: string | null;
   currentStage?: string | null;
+  originalId?: string | null;
+  ownerId?: string | null;
+  organizationId?: string | null;
+  owner?: {
+    id?: string;
+    name?: string;
+    email?: string;
+  } | null;
+  raw?: Record<string, any> | null;
   customer?: {
     name?: string;
     phone?: string | null;
@@ -46,6 +55,17 @@ export interface OpportunitiesJsonUploadResponse {
   replacedExisting: boolean;
 }
 
+export interface OpportunitiesJsonBulkReassignResponse {
+  success: boolean;
+  organizationId: string;
+  selectedRecords: number;
+  linkedOpportunities: number;
+  reassignedCount: number;
+  failedCount: number;
+  reassigned: Array<Record<string, any>>;
+  failed: Array<{ recordId: string; subject?: string; reason: string }>;
+}
+
 class OpportunitiesJsonService {
   private readonly basePath = '/opportunities-json';
 
@@ -55,6 +75,8 @@ class OpportunitiesJsonService {
     customerPhone?: string;
     customerEmail?: string;
     status?: string;
+    page?: number;
+    limit?: number;
   }): Promise<OpportunitiesJsonSearchResponse> {
     const query: Record<string, string> = {};
 
@@ -65,6 +87,33 @@ class OpportunitiesJsonService {
     });
 
     return apiClient.get<OpportunitiesJsonSearchResponse>(this.basePath, query);
+  }
+
+  async bulkReassign(
+    recordIds: string[],
+    specificUserId: string,
+    reason?: string,
+  ): Promise<OpportunitiesJsonBulkReassignResponse> {
+    return apiClient.post<
+      {
+        recordIds: string[];
+        specificUserId: string;
+        reason?: string;
+        notifyOldAssignee: boolean;
+      },
+      OpportunitiesJsonBulkReassignResponse
+    >(`${this.basePath}/bulk-reassign`, {
+      recordIds,
+      specificUserId,
+      reason,
+      notifyOldAssignee: true,
+    });
+  }
+
+  async getAvailableSalesReps(recordIds: string[]): Promise<any[]> {
+    return apiClient.post<{ recordIds: string[] }, any[]>(`${this.basePath}/available-sales-reps`, {
+      recordIds,
+    });
   }
 
   async uploadJsonFile(file: File, replaceExisting = true): Promise<OpportunitiesJsonUploadResponse> {

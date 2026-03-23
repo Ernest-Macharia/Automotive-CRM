@@ -18,7 +18,7 @@ import ConfirmationModal from '@/components/opportunities/ConfirmationModal';
 import OpportunitiesJsonModal from '@/components/opportunities/OpportunitiesJsonModal';
 import { useOpportunityStatusUpdate } from '@/hooks/useOpportunityStatusUpdate';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { OrganizationError } from '@/services/settings/organizationService';
+import { OrganizationError, organizationService } from '@/services/settings/organizationService';
 
 type StageId = 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost' | 'won';
 type OpportunityStatusUpdateDetail = {
@@ -335,6 +335,8 @@ interface KanbanColumnProps {
   onStatusUpdate: (opportunity: ExtendedOpportunity, newStatus: string) => Promise<{ success: boolean; needsLead?: boolean }>;
   columnLoading: boolean;
   loadMore: (stageId: StageId) => Promise<void>;
+  showOwnerDetails: boolean;
+  getOrganizationLabel: (opportunity: ExtendedOpportunity) => string | null;
 }
 
 function KanbanColumn({
@@ -355,8 +357,10 @@ function KanbanColumn({
   onStatusUpdate,
   columnLoading,
   loadMore,
+  showOwnerDetails,
+  getOrganizationLabel,
 }: KanbanColumnProps) {
-  const CARD_HEIGHT = 228;
+  const CARD_HEIGHT = 244;
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -473,7 +477,8 @@ function KanbanColumn({
                   position: 'absolute',
                   top: `${actualIndex * CARD_HEIGHT}px`,
                   width: '100%',
-                  height: `${CARD_HEIGHT}px`
+                  height: `${CARD_HEIGHT}px`,
+                  paddingBottom: '12px'
                 }}
               >
                 <OpportunityCard
@@ -486,6 +491,8 @@ function KanbanColumn({
                   getChildCounts={getChildCounts}
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
+                  showOwnerDetails={showOwnerDetails}
+                  getOrganizationLabel={getOrganizationLabel}
                 />
               </div>
             );
@@ -563,6 +570,8 @@ interface OpportunityCardProps {
   getChildCounts: (opp: ExtendedOpportunity) => any;
   onDragStart: () => void;
   onDragEnd: () => void;
+  showOwnerDetails: boolean;
+  getOrganizationLabel: (opportunity: ExtendedOpportunity) => string | null;
 }
 
 const OpportunityCard = memo(function OpportunityCard({
@@ -574,7 +583,9 @@ const OpportunityCard = memo(function OpportunityCard({
   getStageColor,
   getChildCounts,
   onDragStart,
-  onDragEnd
+  onDragEnd,
+  showOwnerDetails,
+  getOrganizationLabel
 }: OpportunityCardProps) {
   const router = useRouter();
   const [isRecalculating, setIsRecalculating] = useState(false);
@@ -587,6 +598,19 @@ const OpportunityCard = memo(function OpportunityCard({
     [opportunity.leadScore?.totalScore, getLeadScoreTier]);
   const stageColor = useMemo(() => getStageColor(opportunity.status as StageId), 
     [opportunity.status, getStageColor]);
+  const organizationLabel = useMemo(() => getOrganizationLabel(opportunity), [opportunity, getOrganizationLabel]);
+  const ownerLabel = useMemo(() => {
+    const rawAssignedTo = opportunity.assignedTo;
+    if (!rawAssignedTo) return null;
+    if (typeof rawAssignedTo === 'string') return rawAssignedTo;
+
+    const fullName = [rawAssignedTo.firstName, rawAssignedTo.lastName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    return rawAssignedTo.name || rawAssignedTo.displayName || fullName || rawAssignedTo.email || rawAssignedTo.customId || null;
+  }, [opportunity.assignedTo]);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) {
@@ -637,7 +661,7 @@ const OpportunityCard = memo(function OpportunityCard({
   return (
     <div 
       data-id={opportunity._id}
-      className="group bg-white/80 backdrop-blur-sm rounded-xl border border-white/30 p-3 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
+      className="group bg-white rounded-xl border border-slate-200/90 p-3 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
@@ -686,7 +710,19 @@ const OpportunityCard = memo(function OpportunityCard({
             Organization
           </span>
         )}
+
+        {organizationLabel && (
+          <span className="px-2 py-1 rounded-lg bg-slate-100/90 text-slate-700 text-xs font-medium whitespace-nowrap">
+            {organizationLabel}
+          </span>
+        )}
       </div>
+
+      {showOwnerDetails && ownerLabel && (
+        <div className="mb-2 text-xs text-gray-600 truncate">
+          <span className="font-medium text-gray-700">Owner:</span> {ownerLabel}
+        </div>
+      )}
 
       {opportunity.leadScore && (
         <div className="mb-2">
@@ -841,6 +877,7 @@ export default function OpportunitiesContent() {
   const [pagination, setPagination] = useState<any>(null);
   const [activeQuickFilter, setActiveQuickFilter] = useState<string | null>(null);
   const [organizationError, setOrganizationError] = useState<string | null>(null);
+  const [organizationNameMap, setOrganizationNameMap] = useState<Record<string, string>>({});
   const csvInputRef = useRef<HTMLInputElement>(null);
   const { user: currentUser } = useCurrentUser();
   
@@ -891,7 +928,65 @@ export default function OpportunitiesContent() {
     currentRoleName.includes('superadmin') ||
     currentRoleName.includes('admin') ||
     currentRoleName.includes('management');
+  const showOwnerDetails =
+    currentRoleName.includes('admin') ||
+    currentRoleName.includes('management');
+  const getOrganizationLabel = useCallback((opportunity: ExtendedOpportunity) => {
+    const rawOrganization = opportunity.organizationId;
+    if (!rawOrganization) return null;
+
+    if (typeof rawOrganization === 'object') {
+      if (rawOrganization.name) return rawOrganization.name;
+      const objectId = rawOrganization.id || rawOrganization._id;
+      if (objectId && organizationNameMap[objectId]) return organizationNameMap[objectId];
+      return rawOrganization.slug || null;
+    }
+
+    return organizationNameMap[rawOrganization] || null;
+  }, [organizationNameMap]);
   
+  useEffect(() => {
+    const organizationIds = Array.from(new Set(
+      opportunities
+        .map((opportunity) => {
+          const rawOrganization = opportunity.organizationId;
+          if (!rawOrganization) return null;
+          if (typeof rawOrganization === 'string') return rawOrganization;
+          return rawOrganization.id || rawOrganization._id || null;
+        })
+        .filter((value): value is string => Boolean(value) && !organizationNameMap[value])
+    ));
+
+    if (!organizationIds.length) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void Promise.all(
+      organizationIds.map(async (organizationId) => {
+        try {
+          const organization = await organizationService.getOrganizationById(organizationId);
+          return [organizationId, organization.name] as const;
+        } catch {
+          return null;
+        }
+      })
+    ).then((results) => {
+      if (cancelled) return;
+      const resolvedEntries = results.filter((entry): entry is readonly [string, string] => Boolean(entry));
+      if (!resolvedEntries.length) return;
+      setOrganizationNameMap((prev) => ({
+        ...prev,
+        ...Object.fromEntries(resolvedEntries),
+      }));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [opportunities, organizationNameMap]);
+
   // Use the opportunity status update hook at the top level
   const {
     updatingStatus,
@@ -1160,7 +1255,9 @@ export default function OpportunitiesContent() {
         limit: 20, // Load 20 at a time
       };
 
-      const response = await opportunityService.getAllOpportunities(params);
+      const response = hasActiveFilters
+        ? await opportunityService.filterOpportunities(params)
+        : await opportunityService.getAllOpportunities(params);
       
       if (response.data.length > 0) {
         // Process new opportunities
@@ -1292,7 +1389,9 @@ export default function OpportunitiesContent() {
 
       // Fetch fresh data
       const [response, filteredStatsResponse] = await Promise.all([
-        opportunityService.getAllOpportunities(params),
+        hasActiveFilters
+          ? opportunityService.filterOpportunities(params)
+          : opportunityService.getAllOpportunities(params),
         hasActiveFilters
           ? opportunityService.getFilteredStats(statsParams).catch((error) => {
               console.warn('Failed to load filtered stats, falling back to response stats:', error);
@@ -1442,6 +1541,30 @@ export default function OpportunitiesContent() {
 
     return counts;
   }, [hasActiveFilters, filteredStats?.byStatus, stats?.byStatus, opportunitiesByStage]);
+
+  useEffect(() => {
+    const stagesToPreload = stages.filter((stage) => {
+      const visibleCount = opportunitiesByStage[stage.id]?.length || 0;
+      const targetVisibleCount = Math.min(stageCounts[stage.id] || 0, 20);
+      const paginationState = stagePagination[stage.id];
+
+      return (
+        stageCounts[stage.id] > 0 &&
+        visibleCount < targetVisibleCount &&
+        paginationState?.page === 0 &&
+        paginationState?.hasMore &&
+        !columnLoading[stage.id]
+      );
+    });
+
+    if (!stagesToPreload.length) {
+      return;
+    }
+
+    stagesToPreload.forEach((stage) => {
+      void loadMoreForStage(stage.id);
+    });
+  }, [stageCounts, opportunitiesByStage, stagePagination, columnLoading, loadMoreForStage]);
 
   // Card metrics should reflect backend aggregates, not only the loaded page.
   const cardMetrics = useMemo(() => {
@@ -2426,6 +2549,8 @@ export default function OpportunitiesContent() {
                       onStatusUpdate={handleStatusUpdateWrapper}
                       columnLoading={columnLoading[stage.id]}
                       loadMore={loadMoreForStage}
+                      showOwnerDetails={showOwnerDetails}
+                      getOrganizationLabel={getOrganizationLabel}
                     />
                   </div>
                 ))}
@@ -2530,3 +2655,5 @@ export default function OpportunitiesContent() {
     </div>
   );
 }
+
+

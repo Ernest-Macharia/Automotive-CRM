@@ -22,6 +22,7 @@ import {
   TrendingDown
 } from 'lucide-react';
 import { opportunityService } from '@/services/opportunityService';
+import { reportService } from '@/services/reportService';
 
 interface ManagementDashboardProps {
   user: any;
@@ -90,6 +91,21 @@ export default function ManagementDashboard({ user }: ManagementDashboardProps) 
     return 'text-gray-600 bg-gray-50';
   };
 
+  const withTimeout = useCallback(<T,>(promise: Promise<T>, ms = 12000): Promise<T> => {
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Request timed out')), ms);
+      promise
+        .then((value) => {
+          clearTimeout(timer);
+          resolve(value);
+        })
+        .catch((error) => {
+          clearTimeout(timer);
+          reject(error);
+        });
+    });
+  }, []);
+
   const fetchManagementData = useCallback(async (isRefresh = false) => {
     try {
       if (!isRefresh) {
@@ -99,11 +115,12 @@ export default function ManagementDashboard({ user }: ManagementDashboardProps) 
       }
 
       // Fetch all relevant data
-      const [overviewResponse, filteredStatsResponse, revenueStatsResponse, topOppsResponse] = await Promise.allSettled([
-        opportunityService.getOpportunitiesOverview(),
-        opportunityService.getFilteredStats({}),
-        opportunityService.getRevenueStats(),
-        opportunityService.getTopOpportunities(5)
+      const [roleDashboardResponse, overviewResponse, filteredStatsResponse, revenueStatsResponse, topOppsResponse] = await Promise.allSettled([
+        withTimeout(reportService.getRoleDashboard()),
+        withTimeout(opportunityService.getOpportunitiesOverview()),
+        withTimeout(opportunityService.getFilteredStats({})),
+        withTimeout(opportunityService.getRevenueStats()),
+        withTimeout(opportunityService.getTopOpportunities(5))
       ]);
 
       let totalRevenue = 0;
@@ -113,6 +130,37 @@ export default function ManagementDashboard({ user }: ManagementDashboardProps) 
       let wonOpportunities = 0;
       let openOpportunities = 0;
       const opportunityTypes: Record<string, { count: number; revenue: number }> = {};
+
+      if (roleDashboardResponse.status === 'fulfilled' && roleDashboardResponse.value) {
+        const roleDashboard = roleDashboardResponse.value as any;
+        const businessNumbers = roleDashboard.businessNumbers || {};
+        totalRevenue = Number(
+          businessNumbers.wonDealsValue ??
+          businessNumbers.openPipelineValue ??
+          totalRevenue
+        );
+        totalOpportunities = Number(businessNumbers.totalOpportunities || totalOpportunities);
+        activeOpportunities = Number(businessNumbers.openPipelineCount || activeOpportunities);
+        wonOpportunities = Number(businessNumbers.wonDealsCount || wonOpportunities);
+        openOpportunities = activeOpportunities;
+
+        const salesRepPerformance = Array.isArray(roleDashboard.salesRepPerformance)
+          ? roleDashboard.salesRepPerformance
+          : [];
+        if (salesRepPerformance.length > 0) {
+          const derivedTypes = salesRepPerformance.slice(0, 3).map((item: any) => ({
+            type: item?.rep?.name || 'Sales Rep',
+            count: Number(item?.pipelineCount || item?.opportunitiesCount || 0),
+            revenue: Number(item?.pipelineValue || item?.wonValue || 0),
+          }));
+          if (derivedTypes.some((item: any) => item.count > 0 || item.revenue > 0)) {
+            Object.keys(opportunityTypes).forEach((key) => delete opportunityTypes[key]);
+            derivedTypes.forEach((item: any) => {
+              opportunityTypes[item.type] = { count: item.count, revenue: item.revenue };
+            });
+          }
+        }
+      }
 
       if (filteredStatsResponse.status === 'fulfilled' && filteredStatsResponse.value) {
         const filteredStats = filteredStatsResponse.value;
@@ -228,7 +276,7 @@ export default function ManagementDashboard({ user }: ManagementDashboardProps) 
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [withTimeout]);
 
   useEffect(() => {
     fetchManagementData();
