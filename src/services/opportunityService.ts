@@ -225,6 +225,7 @@ export interface FilterParams {
   search?: string;
   minScore?: number;
   maxScore?: number;
+  month?: string;
   fromDate?: string;
   toDate?: string;
   assignedTo?: string | null;
@@ -787,6 +788,9 @@ class OpportunityService {
       
       if (params) {
         Object.entries(params).forEach(([key, value]) => {
+          if (key === 'month') {
+            return;
+          }
           if (value !== undefined && value !== null && value !== '') {
             if (Array.isArray(value)) {
               value.forEach(item => queryParams.append(`${key}[]`, item));
@@ -822,6 +826,9 @@ class OpportunityService {
       
       if (params) {
         Object.entries(params).forEach(([key, value]) => {
+          if (key === 'month') {
+            return;
+          }
           if (value !== undefined && value !== null && value !== '') {
             if (Array.isArray(value)) {
               value.forEach(item => queryParams.append(`${key}[]`, item));
@@ -849,6 +856,9 @@ class OpportunityService {
       
       if (params) {
         Object.entries(params).forEach(([key, value]) => {
+          if (key === 'month') {
+            return;
+          }
           if (value !== undefined && value !== null && value !== '') {
             if (Array.isArray(value)) {
               value.forEach(item => queryParams.append(`${key}[]`, item));
@@ -891,6 +901,9 @@ class OpportunityService {
       
       if (safeParams) {
         Object.entries(safeParams).forEach(([key, value]) => {
+          if (key === 'month') {
+            return;
+          }
           if (value !== undefined && value !== null && value !== '') {
             queryParams.append(key, value.toString());
           }
