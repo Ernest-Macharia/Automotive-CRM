@@ -7,7 +7,6 @@ import Image from 'next/image';
 import DiamondRimsPDF from './DiamondRimsPDF';
 import { userService, User } from '@/services/settings/userService';
 import SignatureCanvas from 'react-signature-canvas';
-import FileUploadSection from '@/components/pre-checklist/FileUploadSection';
 import {
   ClipboardCheck,
   ArrowLeft,
@@ -114,6 +113,50 @@ interface ServiceRisk {
   riskLevel: 'high' | 'medium' | 'low';
 }
 
+const PRE_CHECKLIST_DRAFT_KEY = 'diamondRimsPreChecklistDraft';
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function mergeDraftData<T>(base: T, draft: unknown): T {
+  if (Array.isArray(base)) {
+    return (Array.isArray(draft) ? draft : base) as T;
+  }
+
+  if (!isPlainObject(base) || !isPlainObject(draft)) {
+    return (draft ?? base) as T;
+  }
+
+  const merged: Record<string, any> = { ...base };
+
+  Object.keys(draft).forEach((key) => {
+    const baseValue = (base as Record<string, any>)[key];
+    const draftValue = (draft as Record<string, any>)[key];
+    merged[key] = mergeDraftData(baseValue, draftValue);
+  });
+
+  return merged as T;
+}
+
+function isCompatiblePreChecklistDraft(
+  draft: any,
+  opportunityId?: string | null,
+  workOrderId?: string | null,
+  vehicleId?: string | null,
+): boolean {
+  if (!draft || typeof draft !== 'object') return false;
+
+  const matches = (draftValue: string | undefined, routeValue: string | null | undefined) =>
+    !draftValue || !routeValue || draftValue === routeValue;
+
+  return (
+    matches(draft.opportunityId, opportunityId) &&
+    matches(draft.vehicleId, vehicleId) &&
+    matches(draft.workOrderId, workOrderId)
+  );
+}
+
 export default function DiamondRimsPreChecklistCreatePage({ 
   mode = 'create', 
   checklistId 
@@ -148,6 +191,7 @@ export default function DiamondRimsPreChecklistCreatePage({
   const [showCustomerEdit, setShowCustomerEdit] = useState(false);
   const [showVehicleEdit, setShowVehicleEdit] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const draftRestoredRef = useRef(false);
 
   // Add state for fetched services
   const [availableServices, setAvailableServices] = useState<Service[]>([]);
@@ -402,9 +446,7 @@ export default function DiamondRimsPreChecklistCreatePage({
   ];
 
   // Required field indicator component
-  const RequiredField = () => (
-    <span className="text-red-500 ml-1">*</span>
-  );
+  const RequiredField = () => null;
 
   // Function to get appropriate icon for service
   const getServiceIcon = (serviceName: string) => {
@@ -728,6 +770,49 @@ export default function DiamondRimsPreChecklistCreatePage({
     };
   }, []);
 
+  useEffect(() => {
+    if (loading || mode === 'edit' || draftRestoredRef.current) {
+      return;
+    }
+
+    try {
+      const savedDraft = localStorage.getItem(PRE_CHECKLIST_DRAFT_KEY);
+      if (!savedDraft) {
+        draftRestoredRef.current = true;
+        return;
+      }
+
+      const parsedDraft = JSON.parse(savedDraft);
+      if (!isCompatiblePreChecklistDraft(parsedDraft, opportunityId, workOrderId, vehicleId)) {
+        draftRestoredRef.current = true;
+        return;
+      }
+
+      setFormData(prev => mergeDraftData(prev, parsedDraft));
+      draftRestoredRef.current = true;
+      showToast('Restored your saved pre-checklist draft', 'info');
+    } catch (error) {
+      console.error('Failed to restore pre-checklist draft:', error);
+      draftRestoredRef.current = true;
+    }
+  }, [loading, mode, opportunityId, workOrderId, vehicleId, showToast]);
+
+  useEffect(() => {
+    if (loading || mode === 'edit') {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      try {
+        localStorage.setItem(PRE_CHECKLIST_DRAFT_KEY, JSON.stringify(formData));
+      } catch (error) {
+        console.error('Failed to autosave pre-checklist draft:', error);
+      }
+    }, 800);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [formData, loading, mode]);
+
   const toId = (v: any): string => {
     if (!v) return '';
     return typeof v === 'string' ? v : (v._id ?? '');
@@ -927,104 +1012,86 @@ export default function DiamondRimsPreChecklistCreatePage({
   const loadRelatedData = async () => {
     try {
       setLoading(true);
+      const [checklistResult, opportunityResult, workOrderResult] = await Promise.allSettled([
+        mode === 'edit' && checklistId ? preChecklistService.getPreChecklistById(checklistId) : Promise.resolve(null),
+        opportunityId ? opportunityService.getOpportunityById(opportunityId, false) : Promise.resolve(null),
+        workOrderId ? workOrderService.getWorkOrderById(workOrderId) : Promise.resolve(null),
+      ]);
 
-      if (mode === 'edit' && checklistId) {
-        const checklist = await preChecklistService.getPreChecklistById(checklistId);
+      if (checklistResult.status === 'fulfilled' && checklistResult.value) {
+        const checklist = checklistResult.value;
         setExistingChecklist(checklist);
-        
+
         if (checklist?.checklistType === 'diamond_rims') {
           setFormData(mapChecklistToForm(checklist));
         }
-        
+
         if (typeof checklist.opportunityId === 'object') {
           setOpportunity(checklist.opportunityId);
         }
         if (typeof checklist.vehicleId === 'object') {
           setVehicle(checklist.vehicleId);
         }
+      } else if (checklistResult.status === 'rejected') {
+        console.error('Error loading existing pre-checklist:', checklistResult.reason);
       }
 
-      if (opportunityId) {
-        try {
-          const opp = await opportunityService.getOpportunityById(opportunityId, false);
-          setOpportunity(opp);
-          
-          // Check if vehicles exist
-          if (opp.vehicles && opp.vehicles.length > 0) {
-            const primaryVehicle = opp.vehicles[0];
-            
-            // First, try to load detailed vehicle info
-            if (primaryVehicle._id) {
-              try {
-                const detailedVehicle = await vehicleService.getVehicleById(primaryVehicle._id);
-                setVehicle(detailedVehicle);
-                
-                setFormData(prev => ({
-                  ...prev,
-                  opportunityId,
-                  vehicleId: primaryVehicle._id || vehicleId || ''
-                }));
-              } catch (vehError) {
-                setVehicle(primaryVehicle);
-                
-                setFormData(prev => ({
-                  ...prev,
-                  opportunityId,
-                  vehicleId: primaryVehicle._id || vehicleId || ''
-                }));
-              }
-            } else {
-              setVehicle(primaryVehicle);
-              
-              setFormData(prev => ({
-                ...prev,
-                opportunityId,
-                vehicleId: vehicleId || ''
-              }));
-            }
-          } else {
-            if (vehicleId) {
-              try {
-                const veh = await vehicleService.getVehicleById(vehicleId);
-                setVehicle(veh);
-                
-                setFormData(prev => ({
-                  ...prev,
-                  opportunityId,
-                  vehicleId
-                }));
-              } catch (vehError) {
-                console.error('Error loading vehicle:', vehError);
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Error loading opportunity:', error);
-          showToast('Could not load opportunity details', 'warning');
-        }
+      let resolvedOpportunity =
+        opportunityResult.status === 'fulfilled' ? opportunityResult.value : null;
+
+      if (opportunityResult.status === 'rejected') {
+        console.error('Error loading opportunity:', opportunityResult.reason);
+        showToast('Could not load opportunity details', 'warning');
       }
 
-      if (workOrderId) {
-        try {
-          const wo = await workOrderService.getWorkOrderById(workOrderId);
-          setWorkOrder(wo);
-          
-          if (wo.opportunityId) {
-            const oppId = typeof wo.opportunityId === 'object' ? wo.opportunityId._id : wo.opportunityId;
-            if (!opportunityId) {
-              const opp = await opportunityService.getOpportunityById(oppId);
-              setOpportunity(opp);
-              
-              setFormData(prev => ({
-                ...prev,
-                opportunityId: oppId
-              }));
+      if (workOrderResult.status === 'fulfilled' && workOrderResult.value) {
+        const wo = workOrderResult.value;
+        setWorkOrder(wo);
+
+        if (wo.opportunityId && !resolvedOpportunity) {
+          const oppId = typeof wo.opportunityId === 'object' ? wo.opportunityId._id : wo.opportunityId;
+          if (oppId) {
+            try {
+              resolvedOpportunity = await opportunityService.getOpportunityById(oppId, false);
+            } catch (error) {
+              console.error('Error loading work order opportunity:', error);
+              showToast('Could not load related opportunity details', 'warning');
             }
           }
-        } catch (error) {
-          console.error('Error loading work order:', error);
-          showToast('Could not load work order details', 'warning');
         }
+      } else if (workOrderResult.status === 'rejected') {
+        console.error('Error loading work order:', workOrderResult.reason);
+        showToast('Could not load work order details', 'warning');
+      }
+
+      if (resolvedOpportunity) {
+        setOpportunity(resolvedOpportunity);
+
+        const primaryVehicle = resolvedOpportunity.vehicles?.[0];
+        const resolvedVehicleId = primaryVehicle?._id || vehicleId || '';
+
+        if (primaryVehicle?._id) {
+          try {
+            const detailedVehicle = await vehicleService.getVehicleById(primaryVehicle._id);
+            setVehicle(detailedVehicle);
+          } catch (vehError) {
+            console.error('Error loading detailed vehicle:', vehError);
+            setVehicle(primaryVehicle);
+          }
+        } else if (vehicleId) {
+          try {
+            const veh = await vehicleService.getVehicleById(vehicleId);
+            setVehicle(veh);
+          } catch (vehError) {
+            console.error('Error loading vehicle:', vehError);
+          }
+        }
+
+        setFormData(prev => ({
+          ...prev,
+          opportunityId: resolvedOpportunity._id || opportunityId || prev.opportunityId,
+          vehicleId: resolvedVehicleId || prev.vehicleId,
+        }));
       }
 
     } catch (error) {
@@ -1403,42 +1470,9 @@ export default function DiamondRimsPreChecklistCreatePage({
     try {
       setSubmitting(true);
 
-      if (!formData.customerDetails.firstName || 
-        !formData.customerDetails.lastName ||
-        !formData.customerDetails.mobile ||
-        !formData.customerDetails.email) {
-        showToast('Please fill in all required customer details', 'error');
-        setSubmitting(false);
-        return;
-      }
-      
-      if (formData.services.actualService.length === 0) {
-        showToast('Please select at least one service', 'error');
-        setSubmitting(false);
-        return;
-      }
-      
-      if (!formData.deliveryMode) {
-        showToast('Please select delivery mode', 'error');
-        setSubmitting(false);
-        return;
-      }
-      
-      if (!formData.acceptTerms) {
-        showToast('Please accept the terms and conditions', 'error');
-        setSubmitting(false);
-        return;
-      }
-
       // Check if all required must-knows are acknowledged
       const requiredMustKnows = serviceMustKnows.filter(m => m.required);
       const allMustKnowsAcknowledged = requiredMustKnows.every(m => m.isAcknowledged);
-      
-      if (!allMustKnowsAcknowledged) {
-        showToast('Please acknowledge all required must-know items', 'error');
-        setSubmitting(false);
-        return;
-      }
 
       // Create submission data with proper structure matching backend DTO
       const submissionData: CreatePreChecklistDto = {
@@ -1534,6 +1568,7 @@ export default function DiamondRimsPreChecklistCreatePage({
       } else {
         result = await preChecklistService.createPreChecklist(submissionData, userId);
         showToast('Diamond Rims pre-checklist created successfully', 'success');
+        localStorage.removeItem(PRE_CHECKLIST_DRAFT_KEY);
       }
 
       if (workOrderId && result._id) {
@@ -1619,7 +1654,7 @@ export default function DiamondRimsPreChecklistCreatePage({
 
   const handleSaveAsDraft = () => {
     try {
-      localStorage.setItem('diamondRimsPreChecklistDraft', JSON.stringify(formData));
+      localStorage.setItem(PRE_CHECKLIST_DRAFT_KEY, JSON.stringify(formData));
       setDraftSaved(true);
       setTimeout(() => setDraftSaved(false), 3000);
       showToast('Draft saved successfully!', 'success');
@@ -2046,7 +2081,7 @@ export default function DiamondRimsPreChecklistCreatePage({
       <div className="max-w-7xl mx-auto px-8 py-8">
 
         {/* Form Content */}
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <form onSubmit={handleSubmit} className="space-y-8" noValidate>
           <div className="bg-white rounded-2xl shadow-xl border p-6 md:p-8">
             {/* Service Intake Information */}
             <div className="mb-8">
@@ -2908,9 +2943,6 @@ export default function DiamondRimsPreChecklistCreatePage({
                     );
                   })}
                 </div>
-                {formData.preServiceInspection.condition.length === 0 && (
-                  <p className="mt-2 text-sm text-red-600">Please select at least one condition</p>
-                )}
               </div>
               
               {/* Inspector Access Notes Section */}
@@ -3975,14 +4007,13 @@ export default function DiamondRimsPreChecklistCreatePage({
                   {/* SINGLE ACCEPTANCE CHECKBOX */}
                   <div className="mt-6 pt-6 border-t border-gray-200">
                     <div className="flex items-start gap-3">
-                      <input
-                        type="checkbox"
-                        id="acceptTermsConditions"
-                        checked={formData.acceptTerms}
-                        onChange={(e) => handleInputChange('acceptTerms', e.target.checked)}
-                        className="mt-1 h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-                        required
-                      />
+                    <input
+                      type="checkbox"
+                      id="acceptTermsConditions"
+                      checked={formData.acceptTerms}
+                      onChange={(e) => handleInputChange('acceptTerms', e.target.checked)}
+                      className="mt-1 h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                    />
                       <div className="flex-1">
                         <label htmlFor="acceptTermsConditions" className="text-sm font-medium text-gray-700">
                           I HAVE READ, UNDERSTOOD, AND ACCEPT ALL TERMS, CONDITIONS, MUST KNOWS AND ASSOCIATED RISKS <RequiredField />
@@ -3993,99 +4024,17 @@ export default function DiamondRimsPreChecklistCreatePage({
                         </p>
                       </div>
                     </div>
-                    {!formData.acceptTerms && (
-                      <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <div className="flex items-center gap-2 text-sm text-red-700">
-                          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                          <span>You must accept all terms and conditions to proceed with service</span>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Signatures & Uploads */}
+            {/* Signatures */}
             <div className="mb-8 border-t pt-8">
               <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                 <FileSignature className="h-5 w-5 text-purple-600" />
-                Signatures & Uploads
+                Signatures
               </h2>
-              
-              <FileUploadSection
-                checklistId={checklistId}
-                checklistType="pre"
-                files={formData.files || []}
-                onFileUpload={async (file) => {
-                  if (checklistId) {
-                    const response = await preChecklistService.uploadFile(checklistId, file);
-                    if (response.success) {
-                      // Refresh data
-                      const updatedChecklist = await preChecklistService.getPreChecklistById(checklistId);
-                      setFormData(prev => ({
-                        ...prev,
-                        files: updatedChecklist.files || []
-                      }));
-                    }
-                  } else {
-                    // Handle local upload for create mode
-                    const mockFile = {
-                      _id: Date.now().toString(),
-                      filename: file.name,
-                      originalName: file.name,
-                      fileType: file.type,
-                      mimeType: file.type,
-                      size: file.size,
-                      path: URL.createObjectURL(file),
-                      uploadedBy: sessionStorage.getItem('userId') || '',
-                      uploadedAt: new Date().toISOString()
-                    };
-                    
-                    setFormData(prev => ({
-                      ...prev,
-                      files: [...(prev.files || []), mockFile]
-                    }));
-                  }
-                }}
-                onFileDelete={async (fileId) => {
-                  if (checklistId) {
-                    await preChecklistService.deleteFile(fileId);
-                    // Refresh data
-                    const updatedChecklist = await preChecklistService.getPreChecklistById(checklistId);
-                    setFormData(prev => ({
-                      ...prev,
-                      files: updatedChecklist.files || []
-                    }));
-                  } else {
-                    // Remove from local state
-                    setFormData(prev => ({
-                      ...prev,
-                      files: (prev.files || []).filter(file => file._id !== fileId)
-                    }));
-                  }
-                }}
-                onFileView={(fileId) => {
-                  const file = formData.files?.find(f => f._id === fileId);
-                  if (file?.path) {
-                    window.open(file.path, '_blank');
-                  }
-                }}
-                onFileDownload={(fileId) => {
-                  const file = formData.files?.find(f => f._id === fileId);
-                  if (file?.path) {
-                    const link = document.createElement('a');
-                    link.href = file.path;
-                    link.download = file.originalName;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                  }
-                }}
-                disabled={!checklistId && formData.files && formData.files.length >= 6}
-                maxFiles={6}
-                maxSizeMB={50}
-              />
               
               {/* Signatures Section - Inspector first, then Client */}
               <div className="mt-8 space-y-6">

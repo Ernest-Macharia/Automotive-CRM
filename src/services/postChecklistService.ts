@@ -1,5 +1,15 @@
 import { apiClient } from '@/lib/api/client';
 import { handleUnauthorizedRedirect } from '@/lib/auth/unauthorized';
+import { getStoredAccessToken } from '@/lib/auth/tokenStorage';
+import {
+  buildRequestCacheKey,
+  clearPendingRequest,
+  clearRequestCache,
+  getCachedResponse,
+  getPendingRequest,
+  setCachedResponse,
+  setPendingRequest,
+} from '@/lib/api/requestCache';
 
 export enum ChecklistItemStatus {
   COMPLETED = 'completed',
@@ -339,7 +349,7 @@ class ExtendedApiClient {
       'Content-Type': 'application/json',
     };
 
-    const token = sessionStorage.getItem('accessToken');
+    const token = getStoredAccessToken();
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
@@ -367,24 +377,60 @@ class ExtendedApiClient {
       credentials: 'include',
     };
 
-    const response = await fetch(url, config);
+    const method = (config.method || 'GET').toUpperCase();
+    const cacheKey = buildRequestCacheKey(method, url, headers);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API Error Response:', errorText);
-      
-      if (response.status === 401) {
-        handleUnauthorizedRedirect();
+    if (method === 'GET') {
+      const cached = getCachedResponse<T>(cacheKey);
+      if (cached !== null) {
+        return cached;
+      }
+
+      const pending = getPendingRequest<T>(cacheKey);
+      if (pending) {
+        return pending;
+      }
+    } else {
+      clearRequestCache();
+    }
+
+    const executeRequest = async (): Promise<T> => {
+      const response = await fetch(url, config);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        
+        if (response.status === 401) {
+          handleUnauthorizedRedirect();
+        }
+        
+        throw new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
       }
       
-      throw new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const data = await response.json();
+        if (method === 'GET') {
+          setCachedResponse(cacheKey, data);
+        }
+        return data;
+      }
+
+      const emptyResponse = {} as T;
+      if (method === 'GET') {
+        setCachedResponse(cacheKey, emptyResponse);
+      }
+      return emptyResponse;
+    };
+
+    if (method === 'GET') {
+      const pendingPromise = executeRequest().finally(() => clearPendingRequest(cacheKey));
+      setPendingRequest(cacheKey, pendingPromise);
+      return pendingPromise;
     }
-    
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      return response.json();
-    }
-    return {} as T;
+
+    return executeRequest();
   }
 
   async get<T>(endpoint: string, params?: Record<string, string>, headers?: Record<string, string>): Promise<T> {
@@ -665,7 +711,7 @@ class PostChecklistService {
   // 12. Download PDF for post-checklist
   async downloadPDF(id: string): Promise<Blob> {
     try {
-      const token = sessionStorage.getItem('accessToken');
+      const token = getStoredAccessToken();
       const headers: Record<string, string> = {
         'Authorization': token ? `Bearer ${token}` : '',
       };
@@ -690,7 +736,7 @@ class PostChecklistService {
   // 13. View PDF in browser
   async viewPDF(id: string): Promise<Blob> {
     try {
-      const token = sessionStorage.getItem('accessToken');
+      const token = getStoredAccessToken();
       const headers: Record<string, string> = {
         'Authorization': token ? `Bearer ${token}` : '',
       };
@@ -802,7 +848,7 @@ class PostChecklistService {
   // 20. Download a file
   async downloadFile(fileId: string): Promise<Blob> {
     try {
-      const token = sessionStorage.getItem('accessToken');
+      const token = getStoredAccessToken();
       const headers: Record<string, string> = {
         'Authorization': token ? `Bearer ${token}` : '',
       };
@@ -827,7 +873,7 @@ class PostChecklistService {
   // 21. View a file in browser
   async viewFile(fileId: string): Promise<Blob> {
     try {
-      const token = sessionStorage.getItem('accessToken');
+      const token = getStoredAccessToken();
       const headers: Record<string, string> = {
         'Authorization': token ? `Bearer ${token}` : '',
       };
@@ -852,7 +898,7 @@ class PostChecklistService {
   // 22. Get file thumbnail
   async getFileThumbnail(fileId: string): Promise<Blob> {
     try {
-      const token = sessionStorage.getItem('accessToken');
+      const token = getStoredAccessToken();
       const headers: Record<string, string> = {
         'Authorization': token ? `Bearer ${token}` : '',
       };
@@ -1737,4 +1783,3 @@ class PostChecklistService {
 }
 
 export const postChecklistService = new PostChecklistService();
-
