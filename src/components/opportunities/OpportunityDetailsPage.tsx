@@ -1546,6 +1546,18 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                         </div>
                       </div>
                     )}
+
+                    {opportunity.customer?.secondaryPhone && (
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-50 rounded-lg">
+                          <Phone className="h-4 w-4 text-indigo-600" />
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500">Second Number</div>
+                          <div className="text-sm font-medium text-gray-900">{opportunity.customer.secondaryPhone}</div>
+                        </div>
+                      </div>
+                    )}
                     
                     {opportunity.customer?.email && (
                       <div className="flex items-center gap-3">

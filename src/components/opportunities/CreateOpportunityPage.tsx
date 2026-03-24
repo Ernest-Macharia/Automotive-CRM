@@ -68,6 +68,7 @@ interface OpportunityFormData {
   companyName: string;
   email: string;
   phone: string;
+  secondaryPhone: string;
   phoneCode: string;
   vehicles: Vehicle[];
   servicesProducts: ServiceProduct[];
@@ -187,6 +188,7 @@ export default function CreateOpportunityPage() {
     companyName: '',
     email: '',
     phone: '',
+    secondaryPhone: '',
     phoneCode: '+254',
     vehicles: [{
       id: '1',
@@ -897,6 +899,9 @@ export default function CreateOpportunityPage() {
             : formData.companyName,
           email: formData.email || undefined,
           phone: `${formData.phoneCode}${formData.phone}` || undefined,
+          secondaryPhone: formData.secondaryPhone
+            ? `${formData.phoneCode}${formData.secondaryPhone}`
+            : undefined,
           companyName: !isIndividual ? formData.companyName : undefined,
           ...(formData.accountType === 'organization' && {
             contactPersonName: formData.contactPersonName || undefined,
@@ -1166,6 +1171,7 @@ export default function CreateOpportunityPage() {
       companyName: '',
       email: '',
       phone: '',
+      secondaryPhone: '',
       phoneCode: '+254',
       vehicles: [{
         id: '1',
@@ -1760,6 +1766,22 @@ export default function CreateOpportunityPage() {
                         )}
                         <p className="text-xs text-gray-500 mt-1">
                           Phone: {formData.phoneCode}{formData.phone || '_______'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Second Number
+                        </label>
+                        <input
+                          type="tel"
+                          value={formData.secondaryPhone}
+                          onChange={(e) => handleInputChange('secondaryPhone', e.target.value)}
+                          placeholder="711234567"
+                          className="w-full pl-4 pr-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Second number: {formData.secondaryPhone ? `${formData.phoneCode}${formData.secondaryPhone}` : 'Not provided'}
                         </p>
                       </div>
                     </div>
@@ -2713,6 +2735,11 @@ export default function CreateOpportunityPage() {
                           <p className="text-sm">
                             <span className="font-medium">Phone:</span> {formData.phoneCode}{formData.phone}
                           </p>
+                          {formData.secondaryPhone && (
+                            <p className="text-sm">
+                              <span className="font-medium">Second Number:</span> {formData.phoneCode}{formData.secondaryPhone}
+                            </p>
+                          )}
                           <p className="text-sm">
                             <span className="font-medium">Assigned To:</span> {
                               formData.assignedTo && users.find(u => getUserId(u) === formData.assignedTo)

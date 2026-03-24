@@ -28,6 +28,7 @@ export interface Opportunity {
     email?: string;
     companyName?: string;
     phone?: string;
+    secondaryPhone?: string;
     _id: string;
     id: string;
     companyAddress?: string;
@@ -111,6 +112,7 @@ export interface CreateOpportunityData {
     name: string;
     email?: string;
     phone?: string;
+    secondaryPhone?: string;
     companyName?: string;
     companyAddress?: string;
     companyTaxId?: string;
@@ -168,6 +170,7 @@ export interface UpdateOpportunityData {
     name?: string;
     email?: string;
     phone?: string;
+    secondaryPhone?: string;
     companyName?: string;
     companyAddress?: string;
     companyTaxId?: string;
@@ -2431,8 +2434,3 @@ async updateNote(opportunityId: string, noteId: string, noteData: UpdateNoteData
 }
 
 export const opportunityService = new OpportunityService();
-
-
-
-
-
