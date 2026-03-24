@@ -483,13 +483,11 @@ function NoteCard({ note, currentUser, onEdit, onDelete, onPin }: {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 3600));
-    
-    if (diffInHours < 24) {
-      return diffInHours < 1 ? 'Just now' : `${diffInHours}h ago`;
+    if (Number.isNaN(date.getTime())) {
+      return 'Unknown time';
     }
-    return format(date, 'MMM d, yyyy');
+
+    return format(date, 'MMM d, yyyy HH:mm:ss');
   };
 
   // Check if current user is the author
