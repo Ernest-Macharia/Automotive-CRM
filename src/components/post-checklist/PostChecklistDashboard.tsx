@@ -80,15 +80,18 @@ export default function PostChecklistDashboard() {
       c.overallCondition === 'needs_attention'
     ).length;
     
-    let totalCompletion = 0;
-    for (const checklist of checklists) {
-      try {
-        const stats = await postChecklistService.getChecklistCompletionRate(checklist._id);
-        totalCompletion += stats.completionPercentage;
-      } catch (error) {
-        console.error('Error calculating completion for checklist:', checklist._id, error);
+    const totalCompletion = checklists.reduce((sum, checklist) => {
+      const items = Array.isArray(checklist.inspectionItems) ? checklist.inspectionItems : [];
+      if (items.length === 0) {
+        return sum;
       }
-    }
+
+      const completedItems = items.filter(item =>
+        item.status === ChecklistItemStatus.COMPLETED || item.status === ChecklistItemStatus.NOT_APPLICABLE
+      ).length;
+
+      return sum + (completedItems / items.length) * 100;
+    }, 0);
     
     const avgCompletion = total > 0 ? Math.round(totalCompletion / total) : 0;
 

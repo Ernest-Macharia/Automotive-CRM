@@ -79,6 +79,52 @@ interface DiamondRimsPostChecklistCreatePageProps {
   preChecklistId?: string;
 }
 
+const POST_CHECKLIST_DRAFT_KEY = 'diamondRimsPostChecklistDraft';
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function mergeDraftData<T>(base: T, draft: unknown): T {
+  if (Array.isArray(base)) {
+    return (Array.isArray(draft) ? draft : base) as T;
+  }
+
+  if (!isPlainObject(base) || !isPlainObject(draft)) {
+    return (draft ?? base) as T;
+  }
+
+  const merged: Record<string, any> = { ...base };
+
+  Object.keys(draft).forEach((key) => {
+    const baseValue = (base as Record<string, any>)[key];
+    const draftValue = (draft as Record<string, any>)[key];
+    merged[key] = mergeDraftData(baseValue, draftValue);
+  });
+
+  return merged as T;
+}
+
+function isCompatiblePostChecklistDraft(
+  draft: any,
+  opportunityId?: string | null,
+  workOrderId?: string | null,
+  vehicleId?: string | null,
+  preChecklistId?: string | null,
+): boolean {
+  if (!draft || typeof draft !== 'object') return false;
+
+  const matches = (draftValue: string | undefined, routeValue: string | null | undefined) =>
+    !draftValue || !routeValue || draftValue === routeValue;
+
+  return (
+    matches(draft.opportunityId, opportunityId) &&
+    matches(draft.workOrderId, workOrderId) &&
+    matches(draft.vehicleId, vehicleId) &&
+    matches(draft.preChecklistId, preChecklistId)
+  );
+}
+
 export default function DiamondRimsPostChecklistCreatePage({ 
   mode = 'create', 
   checklistId,
@@ -123,6 +169,7 @@ export default function DiamondRimsPostChecklistCreatePage({
   const [showTechnicianDropdown, setShowTechnicianDropdown] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const technicianDropdownRef = useRef<HTMLDivElement>(null);
+  const draftRestoredRef = useRef(false);
 
   // POST CHECKLIST FORM STATE
   const [formData, setFormData] = useState({
@@ -265,6 +312,49 @@ export default function DiamondRimsPostChecklistCreatePage({
     };
   }, []);
 
+  useEffect(() => {
+    if (loading || mode === 'edit' || draftRestoredRef.current) {
+      return;
+    }
+
+    try {
+      const savedDraft = localStorage.getItem(POST_CHECKLIST_DRAFT_KEY);
+      if (!savedDraft) {
+        draftRestoredRef.current = true;
+        return;
+      }
+
+      const parsedDraft = JSON.parse(savedDraft);
+      if (!isCompatiblePostChecklistDraft(parsedDraft, opportunityId, workOrderId, vehicleId, preChecklistId)) {
+        draftRestoredRef.current = true;
+        return;
+      }
+
+      setFormData(prev => mergeDraftData(prev, parsedDraft));
+      draftRestoredRef.current = true;
+      showToast('Restored your saved post-checklist draft', 'info');
+    } catch (error) {
+      console.error('Failed to restore post-checklist draft:', error);
+      draftRestoredRef.current = true;
+    }
+  }, [loading, mode, opportunityId, workOrderId, vehicleId, preChecklistId, showToast]);
+
+  useEffect(() => {
+    if (loading || mode === 'edit') {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      try {
+        localStorage.setItem(POST_CHECKLIST_DRAFT_KEY, JSON.stringify(formData));
+      } catch (error) {
+        console.error('Failed to autosave post-checklist draft:', error);
+      }
+    }, 800);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [formData, loading, mode]);
+
   const fetchTechnicians = async () => {
     try {
       setLoadingUsers(true);
@@ -292,171 +382,169 @@ export default function DiamondRimsPostChecklistCreatePage({
   const loadRelatedData = async () => {
     try {
       setLoading(true);
+      const [opportunityResult, preChecklistResult, workOrderResult, checklistResult] = await Promise.allSettled([
+        opportunityId ? opportunityService.getOpportunityById(opportunityId, false) : Promise.resolve(null),
+        preChecklistId ? preChecklistService.getPreChecklistById(preChecklistId) : Promise.resolve(null),
+        workOrderId ? workOrderService.getWorkOrderById(workOrderId) : Promise.resolve(null),
+        mode === 'edit' && checklistId ? postChecklistService.getPostChecklistById(checklistId) : Promise.resolve(null),
+      ]);
 
-      // Load opportunity if provided
-      if (opportunityId) {
-        try {
-          const opp = await opportunityService.getOpportunityById(opportunityId, false);
-          setOpportunity(opp);
-          
-          // Check if vehicles exist
-          if (opp.vehicles && opp.vehicles.length > 0) {
-            const primaryVehicle = opp.vehicles[0];
-            
-            if (primaryVehicle._id) {
-              try {
-                const detailedVehicle = await vehicleService.getVehicleById(primaryVehicle._id);
-                setVehicle(detailedVehicle);
-              } catch (vehError) {
-                setVehicle(primaryVehicle);
-              }
-            } else {
-              setVehicle(primaryVehicle);
-            }
-          } else if (vehicleId) {
+      let resolvedOpportunity =
+        opportunityResult.status === 'fulfilled' ? opportunityResult.value : null;
+
+      if (opportunityResult.status === 'rejected') {
+        console.error('Error loading opportunity:', opportunityResult.reason);
+      }
+
+      if (preChecklistResult.status === 'fulfilled' && preChecklistResult.value) {
+        const preCheck = preChecklistResult.value;
+        setPreChecklist(preCheck);
+        setFormData(prev => ({
+          ...prev,
+          preChecklistId,
+        }));
+      } else if (preChecklistResult.status === 'rejected') {
+        console.error('Error loading pre-checklist:', preChecklistResult.reason);
+      }
+
+      if (workOrderResult.status === 'fulfilled' && workOrderResult.value) {
+        const wo = workOrderResult.value;
+        setWorkOrder(wo);
+
+        let jobCardId = '';
+        if (wo?.jobCards && Array.isArray(wo.jobCards) && wo.jobCards.length > 0) {
+          if (typeof wo.jobCards[0] === 'object') {
+            jobCardId = (wo.jobCards[0] as any)._id || '';
+          } else {
+            jobCardId = wo.jobCards[0] as string || '';
+          }
+        }
+
+        if (wo.opportunityId && !resolvedOpportunity) {
+          const oppId = typeof wo.opportunityId === 'object' ? wo.opportunityId._id : wo.opportunityId;
+          if (oppId) {
             try {
-              const veh = await vehicleService.getVehicleById(vehicleId);
-              setVehicle(veh);
-            } catch (vehError) {
-              console.error('Error loading vehicle:', vehError);
+              resolvedOpportunity = await opportunityService.getOpportunityById(oppId, false);
+            } catch (error) {
+              console.error('Error loading work order opportunity:', error);
             }
           }
-        } catch (error) {
-          console.error('Error loading opportunity:', error);
         }
+
+        setFormData(prev => ({
+          ...prev,
+          workOrderId,
+          ...(jobCardId && { tempJobCardId: jobCardId })
+        }));
+      } else if (workOrderResult.status === 'rejected') {
+        console.error('Error loading work order:', workOrderResult.reason);
       }
 
-      // Load pre-checklist if provided
-      if (preChecklistId) {
-        try {
-          const preCheck = await preChecklistService.getPreChecklistById(preChecklistId);
-          setPreChecklist(preCheck);
-          
+      if (checklistResult.status === 'fulfilled' && checklistResult.value) {
+        const checklist = checklistResult.value;
+        setExistingChecklist(checklist);
+
+        const serviceCompletion = {
+          date: (checklist as any).serviceCompletion?.date || new Date().toISOString().split('T')[0],
+          completedBy: (checklist as any).serviceCompletion?.completedBy || sessionStorage.getItem('userName') || '',
+          completionTime: (checklist as any).serviceCompletion?.completionTime || '',
+        };
+
+        const qualityChecks = (checklist as any).qualityChecks || {
+          tpmsSensorsFitted: false,
+          lockNutsFitted: false,
+          nozzleCapsFitted: false,
+          centerCapsFitted: false,
+          wheelBalanced: false,
+          punctureCheck: false,
+          rimStraightness: '',
+          coatingQuality: '',
+          weldingQuality: '',
+          diamondCuttingQuality: '',
+        };
+
+        const clientSignature = (checklist as any).clientSignature || (checklist as any).customerSignature || '';
+        const acceptTerms = (checklist as any).acceptTerms || false;
+        const remarks = (checklist as any).remarks || (checklist as any).notes || '';
+        const files = (checklist as any).files || [];
+
+        setFormData(prev => ({
+          ...prev,
+          serviceCompletion,
+          qualityChecks,
+          clientSignature,
+          acceptTerms,
+          remarks,
+          files
+        }));
+
+        if (clientSignature) {
+          setClientSignature(clientSignature);
+        }
+
+        if ((checklist as any).customerDetails) {
           setFormData(prev => ({
             ...prev,
-            preChecklistId: preChecklistId,
-          }));
-        } catch (error) {
-          console.error('Error loading pre-checklist:', error);
-        }
-      }
-
-      // Load work order if ID provided
-      if (workOrderId) {
-        try {
-          const wo = await workOrderService.getWorkOrderById(workOrderId);
-          setWorkOrder(wo);
-          
-          // Extract jobCardId from workOrder.jobCards array
-          let jobCardId = '';
-          if (wo?.jobCards && Array.isArray(wo.jobCards) && wo.jobCards.length > 0) {
-            // Check if jobCards contains objects with _id or strings
-            if (typeof wo.jobCards[0] === 'object') {
-              jobCardId = (wo.jobCards[0] as any)._id || '';
-            } else {
-              jobCardId = wo.jobCards[0] as string || '';
+            customerDetails: {
+              ...prev.customerDetails,
+              ...(checklist as any).customerDetails
             }
-          }
-          
+          }));
+        }
+
+        if ((checklist as any).carDetails || (checklist as any).vehicleDetails) {
+          const vehicleInfo = (checklist as any).carDetails || (checklist as any).vehicleDetails || {};
           setFormData(prev => ({
             ...prev,
-            workOrderId: workOrderId,
-            // Store jobCardId in a temporary field (you might need to add this to your formData type)
-            ...(jobCardId && { tempJobCardId: jobCardId })
+            carDetails: {
+              ...prev.carDetails,
+              ...vehicleInfo
+            }
           }));
-        } catch (error) {
-          console.error('Error loading work order:', error);
         }
+
+        if ((checklist as any).services) {
+          setFormData(prev => ({
+            ...prev,
+            services: {
+              actualService: (checklist as any).services?.actualService || []
+            }
+          }));
+        }
+
+        if ((checklist as any).powderCoating) {
+          setFormData(prev => ({
+            ...prev,
+            powderCoating: {
+              ...prev.powderCoating,
+              ...(checklist as any).powderCoating
+            }
+          }));
+        }
+      } else if (checklistResult.status === 'rejected') {
+        console.error('Error loading existing checklist:', checklistResult.reason);
+        showToast('Failed to load existing checklist data', 'error');
       }
 
-      // Load existing post checklist if in edit mode
-      if (mode === 'edit' && checklistId) {
-        try {
-          const checklist = await postChecklistService.getPostChecklistById(checklistId);
-          setExistingChecklist(checklist);
-          
-          // Safely extract data from the checklist response
-          const serviceCompletion = {
-            date: (checklist as any).serviceCompletion?.date || new Date().toISOString().split('T')[0],
-            completedBy: (checklist as any).serviceCompletion?.completedBy || sessionStorage.getItem('userName') || '',
-            completionTime: (checklist as any).serviceCompletion?.completionTime || '',
-          };
-          
-          const qualityChecks = (checklist as any).qualityChecks || {
-            tpmsSensorsFitted: false,
-            lockNutsFitted: false,
-            nozzleCapsFitted: false,
-            centerCapsFitted: false,
-            wheelBalanced: false,
-            punctureCheck: false,
-            rimStraightness: '',
-            coatingQuality: '',
-            weldingQuality: '',
-            diamondCuttingQuality: '',
-          };
-          
-          const clientSignature = (checklist as any).clientSignature || (checklist as any).customerSignature || '';
-          const acceptTerms = (checklist as any).acceptTerms || false;
-          const remarks = (checklist as any).remarks || (checklist as any).notes || '';
-          const files = (checklist as any).files || [];
-          
-          setFormData(prev => ({
-            ...prev,
-            serviceCompletion,
-            qualityChecks,
-            clientSignature,
-            acceptTerms,
-            remarks,
-            files
-          }));
-          
-          if (clientSignature) {
-            setClientSignature(clientSignature);
+      if (resolvedOpportunity) {
+        setOpportunity(resolvedOpportunity);
+
+        const primaryVehicle = resolvedOpportunity.vehicles?.[0];
+        if (primaryVehicle?._id) {
+          try {
+            const detailedVehicle = await vehicleService.getVehicleById(primaryVehicle._id);
+            setVehicle(detailedVehicle);
+          } catch (vehError) {
+            console.error('Error loading detailed vehicle:', vehError);
+            setVehicle(primaryVehicle);
           }
-          
-          if ((checklist as any).customerDetails) {
-            setFormData(prev => ({
-              ...prev,
-              customerDetails: {
-                ...prev.customerDetails,
-                ...(checklist as any).customerDetails
-              }
-            }));
+        } else if (vehicleId) {
+          try {
+            const veh = await vehicleService.getVehicleById(vehicleId);
+            setVehicle(veh);
+          } catch (vehError) {
+            console.error('Error loading vehicle:', vehError);
           }
-          
-          if ((checklist as any).carDetails || (checklist as any).vehicleDetails) {
-            const vehicleInfo = (checklist as any).carDetails || (checklist as any).vehicleDetails || {};
-            setFormData(prev => ({
-              ...prev,
-              carDetails: {
-                ...prev.carDetails,
-                ...vehicleInfo
-              }
-            }));
-          }
-          
-          if ((checklist as any).services) {
-            setFormData(prev => ({
-              ...prev,
-              services: {
-                actualService: (checklist as any).services?.actualService || []
-              }
-            }));
-          }
-          
-          if ((checklist as any).powderCoating) {
-            setFormData(prev => ({
-              ...prev,
-              powderCoating: {
-                ...prev.powderCoating,
-                ...(checklist as any).powderCoating
-              }
-            }));
-          }
-          
-        } catch (error) {
-          console.error('Error loading existing checklist:', error);
-          showToast('Failed to load existing checklist data', 'error');
         }
       }
 
@@ -805,6 +893,7 @@ export default function DiamondRimsPostChecklistCreatePage({
       } else {
         result = await postChecklistService.createPostChecklist(submissionData as any, userId);
         showToast('Post-checklist created successfully', 'success');
+        localStorage.removeItem(POST_CHECKLIST_DRAFT_KEY);
       }
 
       // Update work order with post-checklist ID
@@ -856,7 +945,7 @@ export default function DiamondRimsPostChecklistCreatePage({
 
   const handleSaveAsDraft = () => {
     try {
-      localStorage.setItem('diamondRimsPostChecklistDraft', JSON.stringify(formData));
+      localStorage.setItem(POST_CHECKLIST_DRAFT_KEY, JSON.stringify(formData));
       setDraftSaved(true);
       setTimeout(() => setDraftSaved(false), 3000);
       showToast('Draft saved successfully!', 'success');

@@ -1,4 +1,9 @@
 import { apiClient } from '@/lib/api/client';
+import {
+  clearStoredAuth,
+  getStoredAccessToken,
+  getStoredRefreshToken,
+} from '@/lib/auth/tokenStorage';
 
 export class AuthenticationError extends Error {
   constructor(message: string) {
@@ -200,14 +205,7 @@ class AuthService {
   }
 
   private clearAuthData(): void {
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem(this.TOKEN_KEY);
-      sessionStorage.removeItem(this.REFRESH_TOKEN_KEY);
-      sessionStorage.removeItem(this.USER_KEY);
-      localStorage.removeItem(this.TOKEN_KEY);
-      localStorage.removeItem(this.REFRESH_TOKEN_KEY);
-      localStorage.removeItem(this.USER_KEY);
-    }
+    clearStoredAuth();
   }
 
   private mapBackendUserToFrontend(backendUser: BackendUser): FrontendUser {
@@ -270,12 +268,13 @@ class AuthService {
 
   async refreshUserData(): Promise<FrontendUser | null> {
     try {
-      const response = await apiClient.get<MeApiResponse>('/auth/me');
-      if (response.user) {
-        const userStr = JSON.stringify(response.user);
+      const response = await apiClient.get<MeApiResponse | FrontendUser>('/auth/me');
+      const user = 'user' in response ? response.user : response;
+      if (user) {
+        const userStr = JSON.stringify(user);
         sessionStorage.setItem(this.USER_KEY, userStr);
         localStorage.setItem(this.USER_KEY, userStr);
-        return response.user;
+        return user;
       }
       return null;
     } catch (error) {
@@ -336,17 +335,11 @@ class AuthService {
   }
 
   getToken(): string | null {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(this.TOKEN_KEY) || sessionStorage.getItem(this.TOKEN_KEY);
-    }
-    return null;
+    return getStoredAccessToken();
   }
 
   getRefreshToken(): string | null {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(this.REFRESH_TOKEN_KEY) || sessionStorage.getItem(this.REFRESH_TOKEN_KEY);
-    }
-    return null;
+    return getStoredRefreshToken();
   }
 
   getUser(): FrontendUser | null {
@@ -551,8 +544,8 @@ class AuthService {
 
   async getCurrentUser(): Promise<FrontendUser> {
     try {
-      const response = await apiClient.get<MeApiResponse>('/auth/me');
-      const user = response.user;
+      const response = await apiClient.get<MeApiResponse | FrontendUser>('/auth/me');
+      const user = 'user' in response ? response.user : response;
       
       // Update stored user data
       const userStr = JSON.stringify(user);
