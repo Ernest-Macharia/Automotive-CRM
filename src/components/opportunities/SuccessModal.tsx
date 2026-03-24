@@ -412,6 +412,18 @@ export default function SuccessModal({
                         </div>
                       </div>
                     )}
+
+                    {opportunity.customer?.secondaryPhone && (
+                      <div className="flex items-center gap-3 p-3 bg-white/50 rounded-lg border border-gray-100">
+                        <div className="p-2 bg-indigo-50 rounded-lg">
+                          <Phone className="h-4 w-4 text-indigo-500" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm text-gray-600">Second Number</div>
+                          <div className="font-medium text-gray-800">{opportunity.customer.secondaryPhone}</div>
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Company Contact Details */}
                     {(opportunity.customer?.companyEmail || opportunity.customer?.companyPhone) && (

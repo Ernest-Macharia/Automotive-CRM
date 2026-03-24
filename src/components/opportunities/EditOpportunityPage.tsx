@@ -46,6 +46,7 @@ interface CustomerForm {
   name: string;
   email: string;
   phone: string;
+  secondaryPhone: string;
   companyName: string;
   contactPersonName?: string;
   contactPersonPhone?: string;
@@ -212,15 +213,16 @@ export default function EditOpportunityPage() {
   
   const [formData, setFormData] = useState({
     type: 'individual' as 'individual' | 'organization',
-    source: 'walk_in' as 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner',
-    opportunityType: 'SERVICE' as 'SERVICE' | 'SALE',
-    phoneCode: '+254',
-    customer: {
-      name: '',
-      email: '',
-      phone: '',
-      companyName: '',
-      contactPersonName: '',
+      source: 'walk_in' as 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner',
+      opportunityType: 'SERVICE' as 'SERVICE' | 'SALE',
+      phoneCode: '+254',
+      customer: {
+        name: '',
+        email: '',
+        phone: '',
+        secondaryPhone: '',
+        companyName: '',
+        contactPersonName: '',
       contactPersonPhone: '',
       contactPersonEmail: '',
       contactPersonTitle: ''
@@ -366,6 +368,10 @@ export default function EditOpportunityPage() {
           name: customer.name || '',
           email: customer.email || '',
           phone: phoneNumber,
+          secondaryPhone: normalizePhoneForInput(
+            getSafeCustomerField(customer, 'secondaryPhone'),
+            phoneCode
+          ),
           companyName: getSafeCustomerField(customer, 'companyName'),
           contactPersonName: getSafeCustomerField(customer, 'contactPersonName'),
           contactPersonPhone: normalizePhoneForInput(
@@ -600,6 +606,9 @@ export default function EditOpportunityPage() {
           name: customerName,
           email: formData.customer.email || undefined,
           phone: formData.customer.phone ? `${formData.phoneCode}${formData.customer.phone}` : undefined,
+          secondaryPhone: formData.customer.secondaryPhone
+            ? `${formData.phoneCode}${formData.customer.secondaryPhone}`
+            : undefined,
           ...(formData.type === 'organization' && {
             companyName: formData.customer.companyName,
             contactPersonName: formData.customer.contactPersonName || undefined,
@@ -1190,6 +1199,22 @@ export default function EditOpportunityPage() {
                     )}
                     <p className="text-xs text-gray-500 mt-1">
                       Phone: {formData.phoneCode}{formData.customer.phone || '_______'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Second Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.customer.secondaryPhone}
+                      onChange={(e) => handleCustomerChange('secondaryPhone', e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      placeholder="711234567"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Second number: {formData.customer.secondaryPhone ? `${formData.phoneCode}${formData.customer.secondaryPhone}` : 'Not provided'}
                     </p>
                   </div>
                 </div>
@@ -1882,6 +1907,11 @@ export default function EditOpportunityPage() {
                     <p className="text-sm">
                       <span className="font-medium">Phone:</span> {formData.phoneCode}{formData.customer.phone}
                     </p>
+                    {formData.customer.secondaryPhone && (
+                      <p className="text-sm">
+                        <span className="font-medium">Second Number:</span> {formData.phoneCode}{formData.customer.secondaryPhone}
+                      </p>
+                    )}
                   </div>
                 </div>
                 
