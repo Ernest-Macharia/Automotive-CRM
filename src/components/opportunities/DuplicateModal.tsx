@@ -10,6 +10,8 @@ interface DuplicateModalProps {
   onClose: () => void;
   onContinueAnyway: () => void;
   allowCreateAnyway?: boolean;
+  canMergeDuplicates?: boolean;
+  onMergeDuplicates?: () => void;
   existingOpportunities: Opportunity[];
   newOpportunityData: any;
 }
@@ -19,6 +21,8 @@ export default function DuplicateModal({
   onClose,
   onContinueAnyway,
   allowCreateAnyway = true,
+  canMergeDuplicates = false,
+  onMergeDuplicates,
   existingOpportunities,
   newOpportunityData
 }: DuplicateModalProps) {
@@ -235,6 +239,15 @@ export default function DuplicateModal({
               >
                 Cancel
               </button>
+
+              {canMergeDuplicates && existingOpportunities.length > 1 && onMergeDuplicates && (
+                <button
+                  onClick={onMergeDuplicates}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-blue-600 text-white hover:from-purple-600 hover:to-blue-700 font-medium shadow-sm transition-all"
+                >
+                  Merge Existing Duplicates
+                </button>
+              )}
 
               {allowCreateAnyway && (
                 <>

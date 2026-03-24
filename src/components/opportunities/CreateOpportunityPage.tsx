@@ -14,6 +14,7 @@ import { CreateOpportunityData, opportunityService, SimilarOpportunitiesRequest 
 import { useToast } from '@/contexts/ToastContext';
 import SuccessModal from '@/components/opportunities/SuccessModal';
 import DuplicateModal from '@/components/opportunities/DuplicateModal';
+import MergeDuplicatesModal from '@/components/opportunities/MergeDuplicatesModal';
 import { Opportunity } from '@/services/opportunityService';
 import React from 'react';
 import { authService } from '@/services/authService';
@@ -248,6 +249,7 @@ export default function CreateOpportunityPage() {
    
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [duplicateOpportunities, setDuplicateOpportunities] = useState<Opportunity[]>([]);
+  const [showMergeDuplicatesModal, setShowMergeDuplicatesModal] = useState(false);
   const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
   
   // New state for services and products from APIs
@@ -509,6 +511,12 @@ export default function CreateOpportunityPage() {
   const getCurrentUserId = (): string | undefined => {
     const currentUser = authService.getUser();
     return currentUser?.id || undefined;
+  };
+
+  const canCurrentUserMergeDuplicates = (): boolean => {
+    const currentUser = authService.getUser();
+    const role = String(currentUser?.role || '').toLowerCase().trim();
+    return ['superadmin', 'admin', 'management'].includes(role);
   };
 
   const savePreferences = (prefs: UserPreferences) => {
@@ -1205,6 +1213,17 @@ export default function CreateOpportunityPage() {
   const handleCloseSuccessModal = () => {
     setShowSuccessModal(false);
     router.push('/opportunities');
+  };
+
+  const handleMergeComplete = (mergedOpportunity: Opportunity) => {
+    setShowMergeDuplicatesModal(false);
+    setShowDuplicateModal(false);
+    setDuplicateOpportunities([]);
+    showToast('Duplicate opportunities merged successfully', 'success', 3000);
+
+    if (mergedOpportunity?._id) {
+      router.push(`/opportunities/details?id=${mergedOpportunity._id}`);
+    }
   };
 
   useEffect(() => {
@@ -2890,9 +2909,21 @@ export default function CreateOpportunityPage() {
         onClose={() => setShowDuplicateModal(false)}
         onContinueAnyway={handleContinueAnyway}
         allowCreateAnyway={false}
+        canMergeDuplicates={canCurrentUserMergeDuplicates()}
+        onMergeDuplicates={() => setShowMergeDuplicatesModal(true)}
         existingOpportunities={duplicateOpportunities}
         newOpportunityData={formData}
       />
+
+      {duplicateOpportunities.length > 1 && (
+        <MergeDuplicatesModal
+          isOpen={showMergeDuplicatesModal}
+          onClose={() => setShowMergeDuplicatesModal(false)}
+          onMergeComplete={handleMergeComplete}
+          sourceOpportunity={duplicateOpportunities[0]}
+          duplicateOpportunities={duplicateOpportunities.slice(1)}
+        />
+      )}
     </>
   );
 }
