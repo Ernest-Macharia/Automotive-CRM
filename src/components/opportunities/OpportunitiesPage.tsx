@@ -889,6 +889,7 @@ export default function OpportunitiesContent() {
     search: undefined,
     minScore: undefined,
     maxScore: undefined,
+    month: undefined,
     fromDate: undefined,
     toDate: undefined,
     assignedTo: undefined,
@@ -1002,7 +1003,7 @@ export default function OpportunitiesContent() {
   // Memoize filter dependencies
   const memoizedFilters = useMemo(() => filters, [
     filters.status, filters.tier, filters.source, filters.type, 
-    filters.search, filters.minScore, filters.maxScore, filters.fromDate,
+    filters.search, filters.minScore, filters.maxScore, filters.month, filters.fromDate,
     filters.toDate, filters.assignedTo, filters.sort, filters.page, filters.limit
   ]);
 
@@ -1648,8 +1649,61 @@ export default function OpportunitiesContent() {
     setFilters(prev => ({ ...prev, [key]: value, page: 1 }));
   }, 300);
 
+  const getMonthDateRange = useCallback((monthValue: string) => {
+    const [yearPart, monthPart] = monthValue.split('-');
+    const year = Number(yearPart);
+    const monthIndex = Number(monthPart) - 1;
+
+    if (!Number.isInteger(year) || !Number.isInteger(monthIndex) || monthIndex < 0 || monthIndex > 11) {
+      return null;
+    }
+
+    const start = new Date(year, monthIndex, 1);
+    const end = new Date(year, monthIndex + 1, 0);
+
+    return {
+      fromDate: start.toISOString().split('T')[0],
+      toDate: end.toISOString().split('T')[0],
+    };
+  }, []);
+
   const handleFilterChange = (key: keyof FilterParams, value: any) => {
     debouncedFilterChange(key, value);
+  };
+
+  const handleMonthFilterChange = (monthValue?: string) => {
+    if (!monthValue) {
+      setFilters(prev => ({
+        ...prev,
+        month: undefined,
+        fromDate: undefined,
+        toDate: undefined,
+        page: 1,
+      }));
+      return;
+    }
+
+    const range = getMonthDateRange(monthValue);
+    if (!range) {
+      return;
+    }
+
+    setFilters(prev => ({
+      ...prev,
+      month: monthValue,
+      fromDate: range.fromDate,
+      toDate: range.toDate,
+      page: 1,
+    }));
+  };
+
+  const handleDateRangeFilterChange = (key: 'fromDate' | 'toDate', value?: string) => {
+    setFilters(prev => ({
+      ...prev,
+      month: undefined,
+      [key]: value,
+      page: 1,
+    }));
   };
 
   const handleRecalculateScore = async (opportunityId: string) => {
@@ -1722,6 +1776,7 @@ export default function OpportunitiesContent() {
       search: undefined,
       minScore: undefined,
       maxScore: undefined,
+      month: undefined,
       fromDate: undefined,
       toDate: undefined,
       assignedTo: undefined,
@@ -2265,11 +2320,21 @@ export default function OpportunitiesContent() {
                   {advancedFilters.showAdvanced && (
                     <>
                       <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-2">Month</label>
+                        <input
+                          type="month"
+                          value={filters.month || ''}
+                          onChange={(e) => handleMonthFilterChange(e.target.value || undefined)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                        />
+                      </div>
+
+                      <div>
                         <label className="block text-xs font-medium text-gray-700 mb-2">Date From</label>
                         <input
                           type="date"
                           value={filters.fromDate || ''}
-                          onChange={(e) => handleFilterChange('fromDate', e.target.value || undefined)}
+                          onChange={(e) => handleDateRangeFilterChange('fromDate', e.target.value || undefined)}
                           className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
                         />
                       </div>
@@ -2279,7 +2344,7 @@ export default function OpportunitiesContent() {
                         <input
                           type="date"
                           value={filters.toDate || ''}
-                          onChange={(e) => handleFilterChange('toDate', e.target.value || undefined)}
+                          onChange={(e) => handleDateRangeFilterChange('toDate', e.target.value || undefined)}
                           className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
                         />
                       </div>
@@ -2655,5 +2720,4 @@ export default function OpportunitiesContent() {
     </div>
   );
 }
-
 
