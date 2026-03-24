@@ -520,7 +520,8 @@ export interface MergeDuplicatesResponse {
   success: boolean;
   mergedOpportunity: Opportunity;
   mergedCount: number;
-  mergedOpportunities: string[];
+  mergedOpportunities?: string[];
+  mergedOpportunityIds?: string[];
   notes?: string;
 }
 
@@ -2330,10 +2331,19 @@ async updateNote(opportunityId: string, noteId: string, noteData: UpdateNoteData
    */
   async mergeDuplicates(data: MergeDuplicatesRequest): Promise<MergeDuplicatesResponse> {
     try {
-      return await extendedApiClient.post<MergeDuplicatesRequest, MergeDuplicatesResponse>(
+      const response = await extendedApiClient.post<
+        MergeDuplicatesRequest,
+        ApiEnvelope<MergeDuplicatesResponse> | MergeDuplicatesResponse
+      >(
         '/opportunities/merge-duplicates',
         data
       );
+
+      if (response && typeof response === 'object' && 'data' in (response as any)) {
+        return (response as ApiEnvelope<MergeDuplicatesResponse>).data as MergeDuplicatesResponse;
+      }
+
+      return response as MergeDuplicatesResponse;
     } catch (error) {
       console.error('Error merging duplicates:', error);
       throw error;
