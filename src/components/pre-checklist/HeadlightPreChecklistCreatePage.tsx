@@ -6,7 +6,6 @@ import { PDFDownloadLink, pdf } from '@react-pdf/renderer';
 import PreChecklistPDF from './PreChecklistPDF';
 import { userService, User } from '@/services/settings/userService';
 import SignatureCanvas from 'react-signature-canvas';
-import FileUploadSection from '@/components/pre-checklist/FileUploadSection';
 import {
   ClipboardCheck,
   ArrowLeft,
@@ -121,6 +120,7 @@ export default function HeadlightPreChecklistCreatePage({
   const [showCustomerEdit, setShowCustomerEdit] = useState(false);
   const [showVehicleEdit, setShowVehicleEdit] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Step-by-step wizard state
   const [currentStep, setCurrentStep] = useState(1);
@@ -1019,6 +1019,64 @@ export default function HeadlightPreChecklistCreatePage({
         files: [...(prev.files || []), mockFile]
       }));
     }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const newFiles = Array.from(files);
+    const imageFiles = newFiles.filter((file) => file.type.startsWith('image/'));
+
+    if (imageFiles.length !== newFiles.length) {
+      showToast('Only image files are allowed in this section', 'warning');
+    }
+
+    if (imageFiles.length === 0) {
+      e.target.value = '';
+      return;
+    }
+
+    const remainingSlots = 5 - formData.uploadedImages.length;
+    if (remainingSlots <= 0) {
+      showToast('A maximum of 5 images is allowed', 'warning');
+      e.target.value = '';
+      return;
+    }
+
+    const acceptedFiles = imageFiles.slice(0, remainingSlots);
+    if (acceptedFiles.length < imageFiles.length) {
+      showToast('Only the first 5 images can be kept', 'warning');
+    }
+
+    const totalSize = acceptedFiles.reduce((acc, file) => acc + file.size, 0);
+    if (totalSize > 50 * 1024 * 1024) {
+      showToast('Total file size exceeds 50MB limit', 'error');
+      e.target.value = '';
+      return;
+    }
+
+    acceptedFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        setFormData((prev) => ({
+          ...prev,
+          uploadedImages: [...prev.uploadedImages, result]
+        }));
+      };
+      reader.readAsDataURL(file);
+    });
+
+    showToast(`${acceptedFiles.length} image(s) added`, 'success');
+    e.target.value = '';
+  };
+
+  const removeImage = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      uploadedImages: prev.uploadedImages.filter((_, i) => i !== index)
+    }));
   };
 
   const handleFileDelete = async (fileId: string) => {
@@ -3123,24 +3181,90 @@ export default function HeadlightPreChecklistCreatePage({
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">{stepTitles[4]}</h2>
                 <p className="text-gray-600 mb-6">{stepDescriptions[4]}</p>
                 
-                {/* File Upload Section */}
+                {/* Inspection Images */}
                 <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <Upload className="h-5 w-5 text-blue-600" />
-                    File Attachments
-                  </h3>
-                  <FileUploadSection
-                    checklistId={checklistId}
-                    checklistType="pre"
-                    files={formData.files}
-                    onFileUpload={handleFileUpload}
-                    onFileDelete={handleFileDelete}
-                    onFileView={handleFileView}
-                    onFileDownload={handleFileDownload}
-                    disabled={!checklistId && formData.files.length >= 6}
-                    maxFiles={6}
-                    maxSizeMB={50}
+                  <div className="flex items-center justify-between gap-4 mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                        <Camera className="h-5 w-5 text-blue-600" />
+                        Inspection Images
+                      </h3>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Optional images for the headlight intake record.
+                      </p>
+                    </div>
+                    <span className="text-sm font-medium text-gray-600">
+                      {formData.uploadedImages.length}/5 images
+                    </span>
+                  </div>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageUpload}
+                    className="hidden"
                   />
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={formData.uploadedImages.length >= 5}
+                    className={`w-full rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
+                      formData.uploadedImages.length >= 5
+                        ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400'
+                        : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50/40'
+                    }`}
+                  >
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="rounded-full bg-blue-100 p-3">
+                        <Upload className="h-6 w-6 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">
+                          {formData.uploadedImages.length >= 5
+                            ? 'Maximum of 5 images reached'
+                            : 'Click to upload inspection images'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Images only. This section is optional.
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+
+                  {formData.uploadedImages.length > 0 && (
+                    <div className="mt-6">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                        Uploaded Images ({formData.uploadedImages.length})
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {formData.uploadedImages.map((image, index) => (
+                          <div key={`${index}-${image.slice(0, 24)}`} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                            <div className="aspect-[4/3] bg-gray-100">
+                              <img
+                                src={image}
+                                alt={`Inspection image ${index + 1}`}
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                            <div className="flex items-center justify-between px-4 py-3">
+                              <span className="text-sm text-gray-600">Image {index + 1}</span>
+                              <button
+                                type="button"
+                                onClick={() => removeImage(index)}
+                                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-red-600 hover:bg-red-50 hover:text-red-700"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Terms Section */}

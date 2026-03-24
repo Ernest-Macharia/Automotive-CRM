@@ -389,7 +389,7 @@ export default function DiamondRimsPreChecklistCreatePage({
 
     files: [] as ChecklistFile[],
     
-    // Upload section for photos (6 image limit for 50mbs)
+    // Optional inspection images
     uploadedImages: [] as string[],
     
     // Client signing options
@@ -1219,35 +1219,58 @@ export default function DiamondRimsPreChecklistCreatePage({
     if (!files) return;
     
     const newFiles = Array.from(files);
+    const imageFiles = newFiles.filter((file) => file.type.startsWith('image/'));
+
+    if (imageFiles.length !== newFiles.length) {
+      showToast('Only image files are allowed in this section', 'warning');
+    }
+
+    if (imageFiles.length === 0) {
+      e.target.value = '';
+      return;
+    }
+
+    const remainingSlots = 5 - formData.uploadedImages.length;
+    if (remainingSlots <= 0) {
+      showToast('A maximum of 5 images is allowed', 'warning');
+      e.target.value = '';
+      return;
+    }
+
+    const acceptedFiles = imageFiles.slice(0, remainingSlots);
+    if (acceptedFiles.length < imageFiles.length) {
+      showToast('Only the first 5 images can be kept', 'warning');
+    }
     
     // Validate file sizes
-    const totalSize = newFiles.reduce((acc, file) => acc + file.size, 0);
+    const totalSize = acceptedFiles.reduce((acc, file) => acc + file.size, 0);
     if (totalSize > 50 * 1024 * 1024) { // 50MB
       showToast('Total file size exceeds 50MB limit', 'error');
+      e.target.value = '';
       return;
     }
     
-    setSelectedFiles(prev => [...prev, ...newFiles]);
+    setSelectedFiles(prev => [...prev, ...acceptedFiles]);
     
     // Preview images
-    newFiles.forEach(file => {
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const result = e.target?.result as string;
-          setFormData(prev => ({
-            ...prev,
-            uploadedImages: [...prev.uploadedImages, result]
-          }));
-        };
-        reader.readAsDataURL(file);
-      }
+    acceptedFiles.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        setFormData(prev => ({
+          ...prev,
+          uploadedImages: [...prev.uploadedImages, result]
+        }));
+      };
+      reader.readAsDataURL(file);
     });
     
-    showToast(`${newFiles.length} image(s) uploaded`, 'success');
+    showToast(`${acceptedFiles.length} image(s) added`, 'success');
+    e.target.value = '';
   };
 
   const removeImage = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     setFormData(prev => ({
       ...prev,
       uploadedImages: prev.uploadedImages.filter((_, i) => i !== index)
@@ -4027,6 +4050,93 @@ export default function DiamondRimsPreChecklistCreatePage({
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Inspection Images */}
+            <div className="mb-8 border-t pt-8">
+              <div className="flex items-center justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <Camera className="h-5 w-5 text-purple-600" />
+                    Inspection Images
+                    <span className="ml-2 text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">Optional</span>
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Add up to 5 images for the rim intake record.
+                  </p>
+                </div>
+                <span className="text-sm font-medium text-gray-600">
+                  {formData.uploadedImages.length}/5 images
+                </span>
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={formData.uploadedImages.length >= 5}
+                className={`w-full rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
+                  formData.uploadedImages.length >= 5
+                    ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400'
+                    : 'border-gray-300 hover:border-purple-400 hover:bg-purple-50/40'
+                }`}
+              >
+                <div className="flex flex-col items-center gap-3">
+                  <div className="rounded-full bg-purple-100 p-3">
+                    <Upload className="h-6 w-6 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">
+                      {formData.uploadedImages.length >= 5
+                        ? 'Maximum of 5 images reached'
+                        : 'Click to upload inspection images'}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Images only. This section is optional.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              {formData.uploadedImages.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                    Uploaded Images ({formData.uploadedImages.length})
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {formData.uploadedImages.map((image, index) => (
+                      <div key={`${index}-${image.slice(0, 24)}`} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                        <div className="aspect-[4/3] bg-gray-100">
+                          <img
+                            src={image}
+                            alt={`Inspection image ${index + 1}`}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between px-4 py-3">
+                          <span className="text-sm text-gray-600">Image {index + 1}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeImage(index)}
+                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-red-600 hover:bg-red-50 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Signatures */}
