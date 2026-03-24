@@ -1204,17 +1204,28 @@ export default function EditOpportunityPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Second Number
+                      Secondary Number
                     </label>
-                    <input
-                      type="tel"
-                      value={formData.customer.secondaryPhone}
-                      onChange={(e) => handleCustomerChange('secondaryPhone', e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                      placeholder="711234567"
-                    />
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <div className="flex items-center justify-between w-full px-3 py-3 rounded-xl border border-gray-200 bg-white/50">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">ðŸ‡°ðŸ‡ª</span>
+                            <span>{formData.phoneCode}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <input
+                        type="tel"
+                        value={formData.customer.secondaryPhone}
+                        onChange={(e) => handleCustomerChange('secondaryPhone', e.target.value)}
+                        className="flex-1 px-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        placeholder="711234567"
+                      />
+                    </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      Second number: {formData.customer.secondaryPhone ? `${formData.phoneCode}${formData.customer.secondaryPhone}` : 'Not provided'}
+                      Secondary Number: {formData.customer.secondaryPhone ? `${formData.phoneCode}${formData.customer.secondaryPhone}` : 'Not provided'}
                     </p>
                   </div>
                 </div>
@@ -1909,7 +1920,7 @@ export default function EditOpportunityPage() {
                     </p>
                     {formData.customer.secondaryPhone && (
                       <p className="text-sm">
-                        <span className="font-medium">Second Number:</span> {formData.phoneCode}{formData.customer.secondaryPhone}
+                        <span className="font-medium">Secondary Number:</span> {formData.phoneCode}{formData.customer.secondaryPhone}
                       </p>
                     )}
                   </div>
