@@ -419,7 +419,7 @@ export default function SuccessModal({
                           <Phone className="h-4 w-4 text-indigo-500" />
                         </div>
                         <div className="flex-1">
-                          <div className="text-sm text-gray-600">Second Number</div>
+                          <div className="text-sm text-gray-600">Secondary Number</div>
                           <div className="font-medium text-gray-800">{opportunity.customer.secondaryPhone}</div>
                         </div>
                       </div>

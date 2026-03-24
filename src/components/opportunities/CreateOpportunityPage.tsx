@@ -1771,17 +1771,39 @@ export default function CreateOpportunityPage() {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Second Number
+                          Secondary Number
                         </label>
-                        <input
-                          type="tel"
-                          value={formData.secondaryPhone}
-                          onChange={(e) => handleInputChange('secondaryPhone', e.target.value)}
-                          placeholder="711234567"
-                          className="w-full pl-4 pr-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                        />
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <div className="flex items-center justify-between w-full px-3 py-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50">
+                              <div className="flex items-center gap-2">
+                                {loadingCountries ? (
+                                  <>
+                                    <div className="h-4 w-6 bg-gray-200 rounded animate-pulse" />
+                                    <span className="text-gray-500">Loading...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="text-lg">
+                                      {getFlagEmoji(formData.phoneCode)}
+                                    </span>
+                                    <span>{formData.phoneCode}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <input
+                            type="tel"
+                            value={formData.secondaryPhone}
+                            onChange={(e) => handleInputChange('secondaryPhone', e.target.value)}
+                            placeholder="711234567"
+                            className="flex-1 pl-4 pr-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                          />
+                        </div>
                         <p className="text-xs text-gray-500 mt-1">
-                          Second number: {formData.secondaryPhone ? `${formData.phoneCode}${formData.secondaryPhone}` : 'Not provided'}
+                          Secondary Number: {formData.secondaryPhone ? `${formData.phoneCode}${formData.secondaryPhone}` : 'Not provided'}
                         </p>
                       </div>
                     </div>
@@ -2737,7 +2759,7 @@ export default function CreateOpportunityPage() {
                           </p>
                           {formData.secondaryPhone && (
                             <p className="text-sm">
-                              <span className="font-medium">Second Number:</span> {formData.phoneCode}{formData.secondaryPhone}
+                              <span className="font-medium">Secondary Number:</span> {formData.phoneCode}{formData.secondaryPhone}
                             </p>
                           )}
                           <p className="text-sm">
