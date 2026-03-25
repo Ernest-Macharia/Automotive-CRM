@@ -92,6 +92,98 @@ interface PreChecklistCreatePageProps {
 
 type ServiceType = 'pickup_only' | 'workshop_installation' | 'mobile_service';
 type DeliveryMethod = 'customer_pickup' | 'courier_delivery' | 'mobile_delivery_install';
+const PRE_CHECKLIST_DRAFT_KEY = 'headlightPreChecklistDraft';
+const PRE_CHECKLIST_DRAFT_EXCLUDED_FIELDS = ['uploadedImages', 'files', 'clientSignature', 'inspectorSignature'] as const;
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function mergeDraftData<T>(base: T, draft: unknown): T {
+  if (Array.isArray(base)) {
+    return (Array.isArray(draft) ? draft : base) as T;
+  }
+
+  if (!isPlainObject(base) || !isPlainObject(draft)) {
+    return (draft ?? base) as T;
+  }
+
+  const merged: Record<string, any> = { ...base };
+
+  Object.keys(draft).forEach((key) => {
+    const baseValue = (base as Record<string, any>)[key];
+    const draftValue = (draft as Record<string, any>)[key];
+    merged[key] = mergeDraftData(baseValue, draftValue);
+  });
+
+  return merged as T;
+}
+
+function isCompatiblePreChecklistDraft(
+  draft: any,
+  opportunityId?: string | null,
+  workOrderId?: string | null,
+  vehicleId?: string | null,
+): boolean {
+  if (!draft || typeof draft !== 'object') return false;
+
+  const matches = (draftValue: string | undefined, routeValue: string | null | undefined) =>
+    !draftValue || !routeValue || draftValue === routeValue;
+
+  return (
+    matches(draft.opportunityId, opportunityId) &&
+    matches(draft.vehicleId, vehicleId) &&
+    matches(draft.workOrderId, workOrderId)
+  );
+}
+
+function buildPreChecklistDraftPayload<T extends Record<string, any>>(value: T): T {
+  const cloned = JSON.parse(JSON.stringify(value));
+
+  for (const field of PRE_CHECKLIST_DRAFT_EXCLUDED_FIELDS) {
+    if (!(field in cloned)) continue;
+    cloned[field] = field === 'uploadedImages' || field === 'files' ? [] : '';
+  }
+
+  return cloned;
+}
+
+async function readFileAsDataUrl(file: File): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => resolve(String(event.target?.result || ''));
+    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function compressChecklistImage(file: File, maxDimension = 1600, quality = 0.78): Promise<string> {
+  const sourceDataUrl = await readFileAsDataUrl(file);
+
+  return await new Promise((resolve) => {
+    const image = new window.Image();
+
+    image.onload = () => {
+      const longestSide = Math.max(image.width, image.height) || 1;
+      const scale = Math.min(1, maxDimension / longestSide);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+
+      const context = canvas.getContext('2d');
+      if (!context) {
+        resolve(sourceDataUrl);
+        return;
+      }
+
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+
+    image.onerror = () => resolve(sourceDataUrl);
+    image.src = sourceDataUrl;
+  });
+}
 
 export default function HeadlightPreChecklistCreatePage({ 
   mode = 'create', 
@@ -121,6 +213,7 @@ export default function HeadlightPreChecklistCreatePage({
   const [showVehicleEdit, setShowVehicleEdit] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const draftRestoredRef = useRef(false);
 
   // Step-by-step wizard state
   const [currentStep, setCurrentStep] = useState(1);
@@ -374,6 +467,52 @@ export default function HeadlightPreChecklistCreatePage({
   const [showInspectorSignature, setShowInspectorSignature] = useState(false);
   const clientSigRef = useRef<SignatureCanvas>(null);
   const inspectorSigRef = useRef<SignatureCanvas>(null);
+
+  useEffect(() => {
+    if (loading || mode === 'edit' || draftRestoredRef.current) {
+      return;
+    }
+
+    try {
+      const savedDraft = localStorage.getItem(PRE_CHECKLIST_DRAFT_KEY);
+      if (!savedDraft) {
+        draftRestoredRef.current = true;
+        return;
+      }
+
+      const parsedDraft = JSON.parse(savedDraft);
+      if (!isCompatiblePreChecklistDraft(parsedDraft, opportunityId, workOrderId, vehicleId)) {
+        draftRestoredRef.current = true;
+        return;
+      }
+
+      setFormData((prev) => mergeDraftData(prev, parsedDraft));
+      draftRestoredRef.current = true;
+      showToast('Restored your saved pre-checklist draft', 'info');
+    } catch (error) {
+      console.error('Failed to restore headlight pre-checklist draft:', error);
+      draftRestoredRef.current = true;
+    }
+  }, [loading, mode, opportunityId, workOrderId, vehicleId, showToast]);
+
+  useEffect(() => {
+    if (loading || mode === 'edit') {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      try {
+        localStorage.setItem(
+          PRE_CHECKLIST_DRAFT_KEY,
+          JSON.stringify(buildPreChecklistDraftPayload(formData)),
+        );
+      } catch (error) {
+        console.error('Failed to autosave headlight pre-checklist draft:', error);
+      }
+    }, 800);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [formData, loading, mode]);
 
   // Selected template
   const [selectedTemplate, setSelectedTemplate] = useState('headlight_comprehensive');
@@ -858,7 +997,10 @@ export default function HeadlightPreChecklistCreatePage({
 
   const handleSaveAsDraft = () => {
     try {
-      localStorage.setItem('headlightPreChecklistDraft', JSON.stringify(formData));
+      localStorage.setItem(
+        PRE_CHECKLIST_DRAFT_KEY,
+        JSON.stringify(buildPreChecklistDraftPayload(formData)),
+      );
       setDraftSaved(true);
       setTimeout(() => setDraftSaved(false), 3000);
       showToast('Draft saved successfully!', 'success');
@@ -1021,7 +1163,7 @@ export default function HeadlightPreChecklistCreatePage({
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
@@ -1056,19 +1198,22 @@ export default function HeadlightPreChecklistCreatePage({
       return;
     }
 
-    acceptedFiles.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        setFormData((prev) => ({
-          ...prev,
-          uploadedImages: [...prev.uploadedImages, result]
-        }));
-      };
-      reader.readAsDataURL(file);
-    });
+    try {
+      const compressedImages = await Promise.all(
+        acceptedFiles.map((file) => compressChecklistImage(file)),
+      );
 
-    showToast(`${acceptedFiles.length} image(s) added`, 'success');
+      setFormData((prev) => ({
+        ...prev,
+        uploadedImages: [...prev.uploadedImages, ...compressedImages]
+      }));
+
+      showToast(`${acceptedFiles.length} image(s) added`, 'success');
+    } catch (error) {
+      console.error('Failed to process checklist images:', error);
+      showToast('Failed to process one or more images', 'error');
+    }
+
     e.target.value = '';
   };
 
@@ -1250,6 +1395,7 @@ export default function HeadlightPreChecklistCreatePage({
         const userId = sessionStorage.getItem('userId') || undefined;
         result = await preChecklistService.createPreChecklist(submissionData as any, userId);
         showToast('Headlight inspection created successfully', 'success');
+        localStorage.removeItem(PRE_CHECKLIST_DRAFT_KEY);
         
         // Link to work order if provided
         if (workOrderId && result._id) {

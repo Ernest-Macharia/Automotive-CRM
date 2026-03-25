@@ -114,6 +114,7 @@ interface ServiceRisk {
 }
 
 const PRE_CHECKLIST_DRAFT_KEY = 'diamondRimsPreChecklistDraft';
+const PRE_CHECKLIST_DRAFT_EXCLUDED_FIELDS = ['uploadedImages', 'files', 'clientSignature', 'inspectorSignature'] as const;
 
 function isPlainObject(value: unknown): value is Record<string, any> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -155,6 +156,54 @@ function isCompatiblePreChecklistDraft(
     matches(draft.vehicleId, vehicleId) &&
     matches(draft.workOrderId, workOrderId)
   );
+}
+
+function buildPreChecklistDraftPayload<T extends Record<string, any>>(value: T): T {
+  const cloned = JSON.parse(JSON.stringify(value));
+
+  for (const field of PRE_CHECKLIST_DRAFT_EXCLUDED_FIELDS) {
+    if (!(field in cloned)) continue;
+    cloned[field] = field === 'uploadedImages' || field === 'files' ? [] : '';
+  }
+
+  return cloned;
+}
+
+async function readFileAsDataUrl(file: File): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => resolve(String(event.target?.result || ''));
+    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function compressChecklistImage(file: File, maxDimension = 1600, quality = 0.78): Promise<string> {
+  const sourceDataUrl = await readFileAsDataUrl(file);
+
+  return await new Promise((resolve) => {
+    const image = new window.Image();
+
+    image.onload = () => {
+      const longestSide = Math.max(image.width, image.height) || 1;
+      const scale = Math.min(1, maxDimension / longestSide);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+
+      const context = canvas.getContext('2d');
+      if (!context) {
+        resolve(sourceDataUrl);
+        return;
+      }
+
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+
+    image.onerror = () => resolve(sourceDataUrl);
+    image.src = sourceDataUrl;
+  });
 }
 
 export default function DiamondRimsPreChecklistCreatePage({ 
@@ -804,7 +853,10 @@ export default function DiamondRimsPreChecklistCreatePage({
 
     const timeoutId = window.setTimeout(() => {
       try {
-        localStorage.setItem(PRE_CHECKLIST_DRAFT_KEY, JSON.stringify(formData));
+        localStorage.setItem(
+          PRE_CHECKLIST_DRAFT_KEY,
+          JSON.stringify(buildPreChecklistDraftPayload(formData)),
+        );
       } catch (error) {
         console.error('Failed to autosave pre-checklist draft:', error);
       }
@@ -1214,7 +1266,7 @@ export default function DiamondRimsPreChecklistCreatePage({
     }));
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
     
@@ -1251,21 +1303,23 @@ export default function DiamondRimsPreChecklistCreatePage({
     }
     
     setSelectedFiles(prev => [...prev, ...acceptedFiles]);
-    
-    // Preview images
-    acceptedFiles.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        setFormData(prev => ({
-          ...prev,
-          uploadedImages: [...prev.uploadedImages, result]
-        }));
-      };
-      reader.readAsDataURL(file);
-    });
-    
-    showToast(`${acceptedFiles.length} image(s) added`, 'success');
+
+    try {
+      const compressedImages = await Promise.all(
+        acceptedFiles.map((file) => compressChecklistImage(file)),
+      );
+
+      setFormData(prev => ({
+        ...prev,
+        uploadedImages: [...prev.uploadedImages, ...compressedImages]
+      }));
+
+      showToast(`${acceptedFiles.length} image(s) added`, 'success');
+    } catch (error) {
+      console.error('Failed to process checklist images:', error);
+      showToast('Failed to process one or more images', 'error');
+    }
+
     e.target.value = '';
   };
 
@@ -1677,7 +1731,10 @@ export default function DiamondRimsPreChecklistCreatePage({
 
   const handleSaveAsDraft = () => {
     try {
-      localStorage.setItem(PRE_CHECKLIST_DRAFT_KEY, JSON.stringify(formData));
+      localStorage.setItem(
+        PRE_CHECKLIST_DRAFT_KEY,
+        JSON.stringify(buildPreChecklistDraftPayload(formData)),
+      );
       setDraftSaved(true);
       setTimeout(() => setDraftSaved(false), 3000);
       showToast('Draft saved successfully!', 'success');
