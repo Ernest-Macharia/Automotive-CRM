@@ -21,6 +21,9 @@ const TechnicianDashboard = dynamic(() => import('@/components/dashboards/Techni
 const ManagementDashboard = dynamic(() => import('@/components/dashboards/ManagementDashboard'), {
   loading: LoadingFallback,
 });
+const FinanceDashboard = dynamic(() => import('@/components/dashboards/FinanceDashboard'), {
+  loading: LoadingFallback,
+});
 const CustomerServiceDashboard = dynamic(() => import('@/components/dashboards/CustomerServiceDashboard'), {
   loading: LoadingFallback,
 });
@@ -61,9 +64,15 @@ export default function DashboardPage() {
     case 'management':
     case 'branch_manager':
     case 'fleet_manager':
-    case 'finance':
     case 'compliance':
       return <ManagementDashboard user={user} />;
+    
+    case 'finance':
+    case 'finance_director':
+    case 'accountant':
+    case 'controller':
+    case 'cfo':
+      return <FinanceDashboard user={user} />;
     
     case 'sales_director':
     case 'sales_manager':
