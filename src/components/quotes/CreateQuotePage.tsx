@@ -107,10 +107,10 @@ export default function CreateQuotePage() {
     const lowerSearchTerm = searchTerm.toLowerCase();
     const filtered = opportunities.filter(opp => 
       opp.subject.toLowerCase().includes(lowerSearchTerm) ||
-      opp.customer.name.toLowerCase().includes(lowerSearchTerm) ||
-      opp.customer.email?.toLowerCase().includes(lowerSearchTerm) ||
-      opp.customer.phone?.toLowerCase().includes(lowerSearchTerm) ||
-      opp.customer.companyName?.toLowerCase().includes(lowerSearchTerm) ||
+      opp.customer?.name?.toLowerCase().includes(lowerSearchTerm) ||
+      opp.customer?.email?.toLowerCase().includes(lowerSearchTerm) ||
+      opp.customer?.phone?.toLowerCase().includes(lowerSearchTerm) ||
+      opp.customer?.companyName?.toLowerCase().includes(lowerSearchTerm) ||
       opp.vehicles?.some(vehicle => 
         vehicle.registrationNumber?.toLowerCase().includes(lowerSearchTerm) ||
         vehicle.make?.toLowerCase().includes(lowerSearchTerm) ||
@@ -672,14 +672,14 @@ export default function CreateQuotePage() {
                             <div className="flex items-start gap-2">
                               <User className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
                               <div>
-                                <p className="text-sm font-medium text-gray-900">{opp.customer.name}</p>
-                                {opp.customer.companyName && (
+                                <p className="text-sm font-medium text-gray-900">{opp.customer?.name || 'Unknown customer'}</p>
+                                {opp.customer?.companyName && (
                                   <p className="text-xs text-gray-600">{opp.customer.companyName}</p>
                                 )}
-                                {opp.customer.email && (
+                                {opp.customer?.email && (
                                   <p className="text-xs text-gray-500">{opp.customer.email}</p>
                                 )}
-                                {opp.customer.phone && (
+                                {opp.customer?.phone && (
                                   <p className="text-xs text-gray-500">{opp.customer.phone}</p>
                                 )}
                               </div>
@@ -916,15 +916,15 @@ export default function CreateQuotePage() {
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
                             <User className="h-4 w-4 text-gray-500" />
-                            <span className="text-gray-900">{opportunity.customer.name}</span>
+                            <span className="text-gray-900">{opportunity.customer?.name || 'Unknown customer'}</span>
                           </div>
-                          {opportunity.customer.companyName && (
+                          {opportunity.customer?.companyName && (
                             <div className="flex items-center gap-2">
                               <Building className="h-4 w-4 text-gray-500" />
                               <span className="text-gray-700">{opportunity.customer.companyName}</span>
                             </div>
                           )}
-                          {opportunity.customer.email && (
+                          {opportunity.customer?.email && (
                             <div className="flex items-center gap-2">
                               <Mail className="h-4 w-4 text-gray-500" />
                               <a href={`mailto:${opportunity.customer.email}`} className="text-blue-600 hover:underline">
@@ -932,7 +932,7 @@ export default function CreateQuotePage() {
                               </a>
                             </div>
                           )}
-                          {opportunity.customer.phone && (
+                          {opportunity.customer?.phone && (
                             <div className="flex items-center gap-2">
                               <Phone className="h-4 w-4 text-gray-500" />
                               <a href={`tel:${opportunity.customer.phone}`} className="text-blue-600 hover:underline">
