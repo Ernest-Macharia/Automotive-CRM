@@ -197,15 +197,24 @@ class QuoteService {
         description: item.description,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-        total: item.quantity * item.unitPrice
+        total: item.total ?? (item.quantity * item.unitPrice)
       }));
+
+      const subtotal = data.subtotal ?? processedItems.reduce((sum, item) => sum + item.total, 0);
+      const tax = data.tax ?? 0;
+      const totalAmount = data.totalAmount ?? data.total ?? (subtotal + tax);
 
       const requestData = {
         quoteNumber: data.quoteNumber,
         opportunityId: data.opportunityId,
         vehicleId: data.vehicleId || undefined,
+        jobCardId: data.jobCardId || undefined,
         items: processedItems,
-        totalAmount: data.totalAmount,
+        subtotal,
+        tax,
+        totalAmount,
+        total: data.total ?? totalAmount,
+        status: data.status || undefined,
         notes: data.notes || undefined
       };
 
@@ -285,19 +294,26 @@ class QuoteService {
    */
   async updateQuote(id: string, data: UpdateQuoteData, userRole?: string, userId?: string): Promise<Quote> {
     try {
+      const requestData: UpdateQuoteData = { ...data };
+
       // If items are being updated, recalculate totals
-      if (data.items) {
-        const processedItems = data.items.map(item => ({
+      if (requestData.items) {
+        const processedItems = requestData.items.map(item => ({
           ...item,
-          total: item.quantity * item.unitPrice
+          total: item.total ?? (item.quantity * item.unitPrice)
         }));
 
         const calculatedTotal = processedItems.reduce((sum, item) => sum + item.total, 0);
-        data.totalAmount = calculatedTotal;
-        data.items = processedItems;
+        const subtotal = requestData.subtotal ?? calculatedTotal;
+        const tax = requestData.tax ?? 0;
+        requestData.items = processedItems;
+        requestData.subtotal = subtotal;
+        requestData.tax = tax;
+        requestData.totalAmount = requestData.totalAmount ?? subtotal + tax;
+        requestData.total = requestData.total ?? requestData.totalAmount;
       }
 
-      const response = await apiClient.patch<UpdateQuoteData, any>(`/quotes/${id}`, data);
+      const response = await apiClient.patch<UpdateQuoteData, any>(`/quotes/${id}`, requestData);
       return this.normalizeQuote(response);
     } catch (error) {
       console.error(`Error updating quote ${id}:`, error);

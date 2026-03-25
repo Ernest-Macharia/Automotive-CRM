@@ -35,6 +35,10 @@ export interface Opportunity {
     companyTaxId?: string;
     companyPhone?: string;
     companyEmail?: string;
+    contactPersonName?: string;
+    contactPersonEmail?: string;
+    contactPersonPhone?: string;
+    contactPersonTitle?: string;
   };
   vehicles: any[];
   jobCards: any[];
@@ -107,7 +111,7 @@ export interface CreateOpportunityData {
   type: 'individual' | 'organization';
   subject: string;
   status?: 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost' | 'won';
-  source?: 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner';
+  source?: 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner' | 'zoho';
   customer: {
     name: string;
     email?: string;
@@ -162,7 +166,7 @@ export interface UpdateOpportunityData {
   subject?: string;
   type?: 'individual' | 'organization';
   status?: 'new' | 'attempted_to_contact' | 'prospecting' | 'appointment_scheduled' | 'non_progressive' | 'lost' | 'won';
-  source?: 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner';
+  source?: 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner' | 'zoho';
   assignedTo?: string;
   isNurturing?: boolean;
   notes?: string;

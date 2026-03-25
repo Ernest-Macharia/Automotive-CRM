@@ -596,7 +596,7 @@ export default function CreateQuotePage() {
                     type="text"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search opportunities by subject, customer, vehicle, or ID..."
+                    placeholder="Search opportunities by subject, client, vehicle, or ID..."
                     className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
@@ -668,11 +668,11 @@ export default function CreateQuotePage() {
                           <h4 className="font-semibold text-gray-900 mb-1">{opp.subject}</h4>
                           
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                            {/* Customer Info */}
+                            {/* Client Info */}
                             <div className="flex items-start gap-2">
                               <User className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
                               <div>
-                                <p className="text-sm font-medium text-gray-900">{opp.customer?.name || 'Unknown customer'}</p>
+                                <p className="text-sm font-medium text-gray-900">{opp.customer?.name || 'Unknown client'}</p>
                                 {opp.customer?.companyName && (
                                   <p className="text-xs text-gray-600">{opp.customer.companyName}</p>
                                 )}
@@ -910,13 +910,13 @@ export default function CreateQuotePage() {
                     <h3 className="text-xl font-bold text-gray-900 mb-2">{opportunity.subject}</h3>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Customer Info */}
+                      {/* Client Info */}
                       <div>
-                        <h4 className="text-sm font-semibold text-gray-700 mb-2">Customer Information</h4>
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2">Client Information</h4>
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
                             <User className="h-4 w-4 text-gray-500" />
-                            <span className="text-gray-900">{opportunity.customer?.name || 'Unknown customer'}</span>
+                            <span className="text-gray-900">{opportunity.customer?.name || 'Unknown client'}</span>
                           </div>
                           {opportunity.customer?.companyName && (
                             <div className="flex items-center gap-2">
@@ -1023,7 +1023,7 @@ export default function CreateQuotePage() {
                 </div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No Opportunity Selected</h3>
                 <p className="text-gray-600 mb-4">
-                  Select an opportunity to automatically pre-fill customer and vehicle information
+                  Select an opportunity to automatically pre-fill client and vehicle information
                 </p>
                 <button
                   onClick={() => setShowOpportunitySelector(true)}

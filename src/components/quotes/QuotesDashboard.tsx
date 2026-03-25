@@ -321,7 +321,7 @@ export default function QuotesDashboard() {
   };
 
   const handleSendEmail = async (quoteId: string) => {
-    const email = prompt('Enter recipient email:', 'customer@example.com');
+    const email = prompt('Enter recipient email:', 'client@example.com');
     if (!email) return;
     
     try {
@@ -353,7 +353,7 @@ export default function QuotesDashboard() {
                 <FileText className="h-6 w-6" />
                 Quotes
               </h1>
-              <p className="text-blue-100 mt-1">Create, manage, and track customer quotes</p>
+              <p className="text-blue-100 mt-1">Create, manage, and track client quotes</p>
             </div>
             
             <div className="flex gap-3">

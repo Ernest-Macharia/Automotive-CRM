@@ -524,7 +524,7 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
                               <User className="h-5 w-5 text-green-600" />
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-gray-600">Customer</p>
+                              <p className="text-sm font-medium text-gray-600">Client</p>
                               <p className="font-medium text-gray-900">{quote.opportunityId.customer.name}</p>
                               <p className="text-sm text-gray-600">Sales Representative: {getSalesRepresentativeName()}</p>
                             </div>
@@ -693,11 +693,11 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
               </div>
             </div>
 
-            {/* Customer Info Card */}
+            {/* Client Info Card */}
             {typeof quote.opportunityId === 'object' && quote.opportunityId.customer && (
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <div className="px-5 py-4 border-b border-gray-200 bg-gray-50">
-                  <h2 className="text-lg font-semibold text-gray-900">Customer</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">Client</h2>
                 </div>
                 
                 <div className="p-5">
