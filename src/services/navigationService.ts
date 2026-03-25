@@ -89,10 +89,14 @@ export class NavigationService {
       }
     }
     
-    const userRole = user.role?.name || user.role;
+    const userRole = String(user.role?.name || user.role || '').toLowerCase();
     
     if (permission === 'reports.generate' || permission === 'dashboard.view') {
       return ['management', 'branch_manager', 'fleet_manager', 'finance'].includes(userRole);
+    }
+
+    if (permission.startsWith('quotes.') || permission.startsWith('invoices.')) {
+      return ['admin', 'management', 'finance', 'finance_director', 'accountant', 'controller', 'cfo'].includes(userRole);
     }
     
     if (permission.includes('sales') || permission.includes('leads') || permission.includes('opportunities')) {
@@ -126,4 +130,3 @@ export class NavigationService {
     return iconMap[iconName] || require('lucide-react').LayoutDashboard;
   }
 }
-
