@@ -44,6 +44,7 @@ import { blueprintsService } from '@/services/settings/blueprintsService';
 import { workflowService } from '@/services/settings/workflowService';
 import { roleService } from '@/services/settings/roleService';
 import { profileService } from '@/services/settings/profileService';
+import { authService } from '@/services/authService';
 
 interface MenuItem {
   id: string;
@@ -193,13 +194,38 @@ export default function SettingsDashboard() {
       
       // Load organization statistics with timeout
       try {
-        const orgStats = await loadDataWithTimeout(organizationService.getOrganizationStatistics());
-        if (orgStats) {
-          setOrganizationsStats({
-            total: (orgStats as any)?.total || 0,
-            active: (orgStats as any)?.active || 0
-          });
-          newServiceStatus.organizations = true;
+        const authUser = authService.getUser() as any;
+        const rawRole = authUser?.role;
+        const userRole =
+          typeof rawRole === 'string'
+            ? rawRole.toLowerCase()
+            : String(rawRole?.name || '').toLowerCase();
+        const organizationId =
+          authUser?.organizationId ||
+          authUser?.organization?._id ||
+          authUser?.organization?.id;
+
+        if (userRole === 'superadmin') {
+          const orgStats = await loadDataWithTimeout(organizationService.getOrganizationStatistics());
+          if (orgStats) {
+            setOrganizationsStats({
+              total: (orgStats as any)?.total || 0,
+              active: (orgStats as any)?.active || 0
+            });
+            newServiceStatus.organizations = true;
+          }
+        } else if (organizationId) {
+          const organization = await loadDataWithTimeout(
+            organizationService.getOrganizationById(String(organizationId))
+          );
+          if (organization) {
+            const normalizedOrg = organization as any;
+            setOrganizationsStats({
+              total: 1,
+              active: normalizedOrg.status === 'active' ? 1 : 0
+            });
+            newServiceStatus.organizations = true;
+          }
         }
       } catch (orgError) {
         console.error('Error loading organization stats:', orgError);
