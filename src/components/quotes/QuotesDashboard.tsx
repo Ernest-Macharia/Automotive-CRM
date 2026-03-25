@@ -546,13 +546,10 @@ export default function QuotesDashboard() {
                                 href={`/quotes/${quote.id}`}
                                 className="font-medium text-gray-900 hover:text-blue-600"
                               >
-                                {(typeof quote.opportunityId === 'object' && quote.opportunityId.customer?.name) || quote.quoteNumber}
+                                {quote.quoteNumber}
                               </Link>
                               <p className="text-sm text-gray-600 truncate max-w-[220px] mt-1">
-                                {getSalesRepresentativeName(quote)}
-                              </p>
-                              <p className="text-xs text-gray-500 truncate max-w-[220px] mt-1">
-                                {quote.quoteNumber}
+                                {(typeof quote.opportunityId === 'object' && quote.opportunityId.customer?.name) || 'Unknown customer'}
                               </p>
                             </div>
                           </div>
