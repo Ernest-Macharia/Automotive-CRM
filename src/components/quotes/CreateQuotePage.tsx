@@ -14,7 +14,7 @@ import {
   RefreshCw, Search, AlertTriangle, X,
   ChevronDown, Filter, Check, ExternalLink
 } from 'lucide-react';
-import { quoteService } from '@/services/quoteService';
+import { quoteService, type CreateQuoteData } from '@/services/quoteService';
 import { opportunityService, Opportunity } from '@/services/opportunityService';
 import { vehicleService } from '@/services/vehicleService';
 import { useToast } from '@/contexts/ToastContext';
@@ -430,7 +430,7 @@ export default function CreateQuotePage() {
       }
       
       // Prepare data matching backend DTO
-      const quoteData = {
+      const quoteData: CreateQuoteData = {
         quoteNumber: formData.quoteNumber || undefined,
         opportunityId: finalOpportunityId,
         vehicleId: formData.vehicleId || undefined,
@@ -482,7 +482,7 @@ export default function CreateQuotePage() {
     setLoading(true);
     
     try {
-      const quoteData = {
+      const quoteData: CreateQuoteData = {
         quoteNumber: formData.quoteNumber || undefined,
         opportunityId: formData.opportunityId,
         vehicleId: formData.vehicleId || undefined,

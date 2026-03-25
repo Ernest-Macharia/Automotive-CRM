@@ -60,8 +60,12 @@ export interface CreateQuoteData {
   quoteNumber?: string;
   opportunityId: string;
   vehicleId?: string;
-  items: Omit<QuoteItem, 'id' | 'total'>[];
+  jobCardId?: string;
+  items: Omit<QuoteItem, 'id'>[];
   totalAmount: number;
+  subtotal?: number;
+  tax?: number;
+  total?: number;
   status?: 'pending' | 'approved' | 'rejected' | 'draft';
   notes?: string;
 }
@@ -69,8 +73,12 @@ export interface CreateQuoteData {
 export interface UpdateQuoteData {
   opportunityId?: string;
   vehicleId?: string;
+  jobCardId?: string;
   items?: Omit<QuoteItem, 'id'>[];
   totalAmount?: number;
+  subtotal?: number;
+  tax?: number;
+  total?: number;
   status?: 'pending' | 'approved' | 'rejected' | 'draft';
   notes?: string;
 }
