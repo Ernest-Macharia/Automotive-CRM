@@ -96,6 +96,21 @@ export default function QuotesDashboard() {
   const [importingCsv, setImportingCsv] = useState(false);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
+  const getSalesRepresentativeName = (quote: Quote) => {
+    const assignedTo =
+      typeof quote.opportunityId === 'object' ? quote.opportunityId?.assignedTo : null;
+
+    if (!assignedTo) return 'Unassigned';
+    if (typeof assignedTo === 'string') return assignedTo;
+
+    return (
+      assignedTo.name ||
+      [assignedTo.firstName, assignedTo.lastName].filter(Boolean).join(' ').trim() ||
+      assignedTo.email ||
+      'Unassigned'
+    );
+  };
+
   const statusOptions = [
     { value: 'all', label: 'All Quotes' },
     { value: 'draft', label: 'Draft' },
@@ -531,11 +546,14 @@ export default function QuotesDashboard() {
                                 href={`/quotes/${quote.id}`}
                                 className="font-medium text-gray-900 hover:text-blue-600"
                               >
-                                {quote.quoteNumber}
+                                {(typeof quote.opportunityId === 'object' && quote.opportunityId.customer?.name) || quote.quoteNumber}
                               </Link>
-                              {quote.notes && (
-                                <p className="text-sm text-gray-600 truncate max-w-[160px] mt-1">{quote.notes}</p>
-                              )}
+                              <p className="text-sm text-gray-600 truncate max-w-[220px] mt-1">
+                                {getSalesRepresentativeName(quote)}
+                              </p>
+                              <p className="text-xs text-gray-500 truncate max-w-[220px] mt-1">
+                                {quote.quoteNumber}
+                              </p>
                             </div>
                           </div>
                         </td>

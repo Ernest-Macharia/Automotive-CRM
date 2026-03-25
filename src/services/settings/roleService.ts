@@ -480,6 +480,20 @@ class RoleService {
         active: true,
       },
       {
+        id: 'finance',
+        name: 'finance',
+        display_name: 'Finance',
+        description: 'Finance operations and reporting',
+        category: 'management',
+        employee_type: 'manager',
+        permissions: [
+          ...permissionMap.invoices,
+          ...permissionMap.quotes,
+          ...permissionMap.management,
+        ],
+        active: true,
+      },
+      {
         id: 'technician',
         name: 'technician',
         display_name: 'Technician',
@@ -633,5 +647,4 @@ export const createPermissionChecker = (userPermissions: string[]) => {
     },
   };
 };
-
 

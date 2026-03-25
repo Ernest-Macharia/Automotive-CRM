@@ -132,6 +132,22 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
     });
   };
 
+  const getSalesRepresentativeName = () => {
+    if (!quote || typeof quote.opportunityId !== 'object') return 'Unassigned';
+
+    const assignedTo = quote.opportunityId.assignedTo;
+    if (!assignedTo) return 'Unassigned';
+
+    if (typeof assignedTo === 'string') return assignedTo;
+
+    return (
+      assignedTo.name ||
+      [assignedTo.firstName, assignedTo.lastName].filter(Boolean).join(' ').trim() ||
+      assignedTo.email ||
+      'Unassigned'
+    );
+  };
+
   const getStatusBadge = (status: string) => {
     const config: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
       draft: { 
@@ -510,9 +526,7 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
                             <div>
                               <p className="text-sm font-medium text-gray-600">Customer</p>
                               <p className="font-medium text-gray-900">{quote.opportunityId.customer.name}</p>
-                              {quote.opportunityId.customer.companyName && (
-                                <p className="text-sm text-gray-600">{quote.opportunityId.customer.companyName}</p>
-                              )}
+                              <p className="text-sm text-gray-600">Sales Representative: {getSalesRepresentativeName()}</p>
                             </div>
                           </div>
                         )}
@@ -694,9 +708,7 @@ export default function QuoteDetailPage({ id }: QuoteDetailPageProps) {
                       </div>
                       <div>
                         <h3 className="font-medium text-gray-900">{quote.opportunityId.customer.name}</h3>
-                        {quote.opportunityId.customer.companyName && (
-                          <p className="text-sm text-gray-600">{quote.opportunityId.customer.companyName}</p>
-                        )}
+                        <p className="text-sm text-gray-600">{getSalesRepresentativeName()}</p>
                       </div>
                     </div>
                     

@@ -16,6 +16,7 @@ export interface OpportunityRef {
   id?: string;
   subject?: string;
   customer?: any;
+  assignedTo?: any;
 }
 
 export interface VehicleRef {
@@ -61,6 +62,7 @@ export interface CreateQuoteData {
   vehicleId?: string;
   items: Omit<QuoteItem, 'id' | 'total'>[];
   totalAmount: number;
+  status?: 'pending' | 'approved' | 'rejected' | 'draft';
   notes?: string;
 }
 

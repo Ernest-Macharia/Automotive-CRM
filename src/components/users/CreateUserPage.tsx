@@ -50,6 +50,7 @@ const CreateUserPage: React.FC<CreateUserPageProps> = ({
       const permissions = [
         'jobs.read', 'jobs.create', 'jobs.update', 'jobs.delete',
         'users.read', 'users.create', 'users.update', 'users.delete',
+        'quotes.read', 'quotes.create', 'quotes.update',
         'invoices.read', 'invoices.create', 'invoices.update',
         'opportunities.read', 'opportunities.create', 'opportunities.update',
         'vehicles.read', 'vehicles.create', 'vehicles.update',
