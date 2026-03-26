@@ -60,9 +60,8 @@ export default function HrPolicies({ policyId }: HrPoliciesProps) {
   const loadPolicyDetails = async () => {
     try {
       setLoading(true);
-      const allPolicies = await hrService.getPolicies();
-      const policy = allPolicies.find(p => p.id === policyId || p._id === policyId);
-      setSelectedPolicy(policy || null);
+      const policy = await hrService.getPolicy(policyId!);
+      setSelectedPolicy(policy);
     } catch (error) {
       console.error('Error loading policy details:', error);
       showToast('Failed to load policy details', 'error');
@@ -336,10 +335,35 @@ export default function HrPolicies({ policyId }: HrPoliciesProps) {
                   </button>
                 )}
                 <button
-                  onClick={() => router.push(`/hr-portal/policies/${selectedPolicy._id || selectedPolicy.id}/edit`)}
+                  onClick={async () => {
+                    try {
+                      const nextActive = !selectedPolicy.active;
+                      const response = await hrService.updatePolicy(selectedPolicy.id, { active: nextActive });
+                      setSelectedPolicy(response.policy);
+                      showToast(`Policy ${nextActive ? 'activated' : 'deactivated'} successfully`, 'success');
+                    } catch (error) {
+                      console.error('Error toggling policy:', error);
+                      showToast('Failed to update policy status', 'error');
+                    }
+                  }}
                   className="w-full px-3 py-2 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700"
                 >
-                  Edit Policy
+                  {selectedPolicy.active ? 'Deactivate Policy' : 'Activate Policy'}
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await hrService.deletePolicy(selectedPolicy.id);
+                      showToast('Policy archived successfully', 'success');
+                      router.push('/hr-portal');
+                    } catch (error) {
+                      console.error('Error deleting policy:', error);
+                      showToast('Failed to archive policy', 'error');
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-red-300 text-red-700 text-sm rounded-lg hover:bg-red-50"
+                >
+                  Archive Policy
                 </button>
               </div>
             </div>
@@ -546,12 +570,12 @@ export default function HrPolicies({ policyId }: HrPoliciesProps) {
                       <Download className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => router.push(`/hr-portal/policies/${policy._id || policy.id}/edit`)}
+                      onClick={() => router.push(`/hr-portal/policies/${policy._id || policy.id}`)}
                       className="p-1 text-green-600 hover:text-green-800"
-                      title="Edit Policy"
-                    >
-                      <FileText className="h-4 w-4" />
-                    </button>
+                      title="Manage Policy"
+                      >
+                        <FileText className="h-4 w-4" />
+                      </button>
                   </div>
                 </td>
               </tr>

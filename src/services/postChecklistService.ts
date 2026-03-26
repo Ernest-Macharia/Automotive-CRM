@@ -330,6 +330,58 @@ export interface PostChecklistStats {
   itemsByStatus: Record<ChecklistItemStatus, number>;
 }
 
+const normalizeObjectId = (value: unknown): string => {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (value && typeof value === 'object') {
+    const rawId = (value as Record<string, unknown>)._id ?? (value as Record<string, unknown>).id;
+    if (typeof rawId === 'string') {
+      return rawId.trim();
+    }
+  }
+
+  return '';
+};
+
+const normalizeOptionalEmail = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) ? trimmed : undefined;
+};
+
+const sanitizePostChecklistPayload = <T extends Record<string, any>>(payload: T): T => {
+  const customerEmail = normalizeOptionalEmail(payload.customerDetails?.email);
+
+  return {
+    ...payload,
+    opportunityId: normalizeObjectId(payload.opportunityId),
+    vehicleId: normalizeObjectId(payload.vehicleId),
+    ...(payload.jobCardId !== undefined ? { jobCardId: normalizeObjectId(payload.jobCardId) } : {}),
+    ...(payload.preChecklistId !== undefined
+      ? { preChecklistId: normalizeObjectId(payload.preChecklistId) }
+      : {}),
+    ...(payload.workOrderId !== undefined ? { workOrderId: normalizeObjectId(payload.workOrderId) } : {}),
+    ...(payload.inspectedBy !== undefined ? { inspectedBy: normalizeObjectId(payload.inspectedBy) } : {}),
+    ...(payload.customerDetails
+      ? {
+          customerDetails: {
+            ...payload.customerDetails,
+            ...(customerEmail ? { email: customerEmail } : { email: undefined }),
+          },
+        }
+      : {}),
+  };
+};
+
 // Extended ApiClient for post-checklist service
 class ExtendedApiClient {
   private getApiBaseUrl(): string {
@@ -521,7 +573,11 @@ class PostChecklistService {
         headers['X-User-Id'] = userId;
       }
       
-      return await extendedApiClient.post<CreatePostChecklistDto, PostChecklist>('/postchecklist', data, headers);
+      return await extendedApiClient.post<CreatePostChecklistDto, PostChecklist>(
+        '/postchecklist',
+        sanitizePostChecklistPayload(data as Record<string, any>) as CreatePostChecklistDto,
+        headers,
+      );
     } catch (error) {
       console.error('Error creating post-checklist:', error);
       throw error;
@@ -570,6 +626,8 @@ class PostChecklistService {
         headers['X-User-Id'] = userId;
       }
       
+      const sanitizedData = sanitizePostChecklistPayload(data as Record<string, any>) as UpdatePostChecklistDto;
+
       // Get current checklist first (like pre-checklist does)
       const currentChecklist = await this.getPostChecklistById(id);
       
@@ -578,7 +636,7 @@ class PostChecklistService {
         
         // Keep approval status
         const updateData: UpdatePostChecklistDto = {
-          ...data,
+          ...sanitizedData,
           approved: true,
           approvedBy: typeof currentChecklist.approvedBy === 'object' 
             ? currentChecklist.approvedBy._id 
@@ -595,7 +653,7 @@ class PostChecklistService {
       // Normal update
       return await extendedApiClient.patch<UpdatePostChecklistDto, PostChecklist>(
         `/postchecklist/${id}`, 
-        data, 
+        sanitizedData, 
         headers
       );
     } catch (error) {

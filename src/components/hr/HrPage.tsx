@@ -152,7 +152,7 @@ export default function HRDashboardPage() {
   const loadIncidents = async () => {
     try {
       const data = await hrService.getIncidentReports(
-        statusFilter !== 'all' ? statusFilter as any : undefined,
+        undefined,
         statusFilter !== 'all' ? statusFilter as any : undefined
       );
       setIncidents(data);

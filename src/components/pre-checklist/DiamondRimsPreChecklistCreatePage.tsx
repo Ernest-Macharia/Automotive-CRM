@@ -1551,11 +1551,45 @@ export default function DiamondRimsPreChecklistCreatePage({
       const requiredMustKnows = serviceMustKnows.filter(m => m.required);
       const allMustKnowsAcknowledged = requiredMustKnows.every(m => m.isAcknowledged);
 
+      const normalizeId = (value: unknown): string => {
+        if (typeof value === 'string') return value.trim();
+        if (value && typeof value === 'object') {
+          return String((value as any)._id || (value as any).id || '').trim();
+        }
+        return '';
+      };
+
+      const resolvedVehicleId =
+        normalizeId(formData.vehicleId) ||
+        normalizeId(vehicle) ||
+        normalizeId(existingChecklist?.vehicleId) ||
+        normalizeId(opportunity?.vehicles?.[0]);
+
+      if (!resolvedVehicleId) {
+        showToast('Vehicle information is missing. Reload the checklist and try again.', 'error');
+        setSubmitting(false);
+        return;
+      }
+
+      const customerEmail = formData.customerDetails.email.trim();
+      if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
+        showToast('Enter a valid customer email or leave it blank', 'error');
+        setSubmitting(false);
+        return;
+      }
+
+      const clientEmail = formData.clientEmail.trim();
+      if (clientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) {
+        showToast('Enter a valid client approval email or leave it blank', 'error');
+        setSubmitting(false);
+        return;
+      }
+
       // Create submission data with proper structure matching backend DTO
       const submissionData: CreatePreChecklistDto = {
         checklistType: 'diamond_rims',
         opportunityId: formData.opportunityId,
-        vehicleId: formData.vehicleId,
+        vehicleId: resolvedVehicleId,
         inspectedBy: sessionStorage.getItem('userId') || formData.inspectedBy,
         inspectorName: formData.inspectorName,
         remarks: formData.remarks,
@@ -1574,7 +1608,7 @@ export default function DiamondRimsPreChecklistCreatePage({
           firstName: formData.customerDetails.firstName,
           lastName: formData.customerDetails.lastName,
           mobile: formData.customerDetails.mobile,
-          email: formData.customerDetails.email,
+          email: customerEmail,
           name: `${formData.customerDetails.firstName} ${formData.customerDetails.lastName}`.trim()
         },
         
@@ -1631,7 +1665,7 @@ export default function DiamondRimsPreChecklistCreatePage({
         inspectorSignature: formData.inspectorSignature,
         uploadedImages: formData.uploadedImages,
         clientSigningMethod: formData.clientSigningMethod,
-        clientEmail: formData.clientEmail,
+        clientEmail,
         
         files: formData.files || []
       };

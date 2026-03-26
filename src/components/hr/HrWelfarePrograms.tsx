@@ -57,9 +57,8 @@ export default function HrWelfarePrograms({ programId }: HrWelfareProgramsProps)
   const loadProgramDetails = async () => {
     try {
       setLoading(true);
-      const allPrograms = await hrService.getWelfarePrograms();
-      const program = allPrograms.find(p => p.id === programId || p._id === programId);
-      setSelectedProgram(program || null);
+      const program = await hrService.getWelfareProgram(programId!);
+      setSelectedProgram(program);
     } catch (error) {
       console.error('Error loading program details:', error);
       showToast('Failed to load program details', 'error');
@@ -397,18 +396,26 @@ export default function HrWelfarePrograms({ programId }: HrWelfareProgramsProps)
                 </button>
                 <button
                   onClick={() => {
-                    // Toggle active status
-                    showToast(`Program ${selectedProgram.active ? 'deactivated' : 'activated'}`, 'success');
+                    hrService
+                      .updateWelfareProgram(selectedProgram.id, { active: !selectedProgram.active })
+                      .then((response) => {
+                        setSelectedProgram(response.program);
+                        showToast(`Program ${response.program.active ? 'activated' : 'deactivated'}`, 'success');
+                      })
+                      .catch((error) => {
+                        console.error('Error updating welfare program:', error);
+                        showToast('Failed to update welfare program', 'error');
+                      });
                   }}
                   className="w-full px-3 py-2 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700"
                 >
                   {selectedProgram.active ? 'Deactivate Program' : 'Activate Program'}
                 </button>
                 <button
-                  onClick={() => router.push(`/hr-portal/welfare/${selectedProgram._id || selectedProgram.id}/edit`)}
+                  onClick={() => router.push(`/hr-portal/welfare/${selectedProgram._id || selectedProgram.id}`)}
                   className="w-full px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
                 >
-                  Edit Program
+                  Manage Program
                 </button>
               </div>
             </div>
@@ -602,10 +609,10 @@ export default function HrWelfarePrograms({ programId }: HrWelfareProgramsProps)
                   View Details
                 </button>
                 <button
-                  onClick={() => router.push(`/hr-portal/welfare/${program._id || program.id}/edit`)}
+                  onClick={() => router.push(`/hr-portal/welfare/${program._id || program.id}`)}
                   className="px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
                 >
-                  Edit
+                  Manage
                 </button>
               </div>
             </div>

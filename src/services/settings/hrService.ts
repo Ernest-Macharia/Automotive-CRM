@@ -278,6 +278,38 @@ export interface CreateWelfareProgramData {
   registrationDeadline?: string;
 }
 
+export interface UpdatePerformancePlanData extends Partial<CreatePerformancePlanData> {
+  employeeFeedback?: string;
+  outcome?: 'improved' | 'terminated' | 'transferred' | 'extended' | 'pending';
+  completionDate?: string;
+}
+
+export interface UpdateIncidentReportData extends Partial<CreateIncidentReportData> {
+  status?: 'open' | 'investigating' | 'resolved' | 'closed';
+  investigationNotes?: string;
+  evidenceUrls?: string[];
+  followUpDate?: string;
+  resolutionDate?: string;
+}
+
+export interface UpdatePolicyData extends Partial<CreatePolicyData> {
+  reviewDate?: string;
+  active?: boolean;
+}
+
+export interface UpdateWelfareProgramData extends Partial<CreateWelfareProgramData> {
+  feedback?: string;
+  successMetrics?: string[];
+  active?: boolean;
+}
+
+export interface UpdateRecruitmentCandidateData extends Partial<CreateRecruitmentCandidateData> {
+  status?: RecruitmentCandidate['status'];
+  recruiterNotes?: string;
+  offerDetails?: string;
+  active?: boolean;
+}
+
 export interface CreateRecruitmentCandidateData {
   firstName: string;
   lastName: string;
@@ -561,6 +593,47 @@ class HrService {
     }
   }
 
+  async getPerformancePlan(planId: string): Promise<PerformancePlan> {
+    try {
+      const response = await apiClient.get<any>(`${this.basePath}/performance-plans/${planId}`);
+      return this.normalizePerformancePlan(response);
+    } catch (error) {
+      console.error('Error fetching performance plan:', error);
+      throw error;
+    }
+  }
+
+  async updatePerformancePlan(planId: string, data: UpdatePerformancePlanData): Promise<{ message: string; plan: PerformancePlan }> {
+    try {
+      const payload = {
+        ...data,
+        startDate: data.startDate ? new Date(data.startDate).toISOString() : undefined,
+        endDate: data.endDate ? new Date(data.endDate).toISOString() : undefined,
+        completionDate: data.completionDate ? new Date(data.completionDate).toISOString() : undefined,
+      };
+      const response = await apiClient.put<UpdatePerformancePlanData, any>(
+        `${this.basePath}/performance-plans/${planId}`,
+        payload,
+      );
+      return {
+        message: response.message,
+        plan: this.normalizePerformancePlan(response.plan),
+      };
+    } catch (error) {
+      console.error('Error updating performance plan:', error);
+      throw error;
+    }
+  }
+
+  async deletePerformancePlan(planId: string): Promise<{ message: string }> {
+    try {
+      return await apiClient.delete<{ message: string }>(`${this.basePath}/performance-plans/${planId}`);
+    } catch (error) {
+      console.error('Error deleting performance plan:', error);
+      throw error;
+    }
+  }
+
   async createIncidentReport(data: CreateIncidentReportData): Promise<{ message: string; report: IncidentReport }> {
     try {
       const payload = {
@@ -592,6 +665,47 @@ class HrService {
       return response.map(report => this.normalizeIncidentReport(report));
     } catch (error) {
       console.error('Error fetching incident reports:', error);
+      throw error;
+    }
+  }
+
+  async getIncidentReport(incidentId: string): Promise<IncidentReport> {
+    try {
+      const response = await apiClient.get<any>(`${this.basePath}/incidents/${incidentId}`);
+      return this.normalizeIncidentReport(response);
+    } catch (error) {
+      console.error('Error fetching incident report:', error);
+      throw error;
+    }
+  }
+
+  async updateIncidentReport(incidentId: string, data: UpdateIncidentReportData): Promise<{ message: string; report: IncidentReport }> {
+    try {
+      const payload = {
+        ...data,
+        incidentDate: data.incidentDate ? new Date(data.incidentDate).toISOString() : undefined,
+        followUpDate: data.followUpDate ? new Date(data.followUpDate).toISOString() : undefined,
+        resolutionDate: data.resolutionDate ? new Date(data.resolutionDate).toISOString() : undefined,
+      };
+      const response = await apiClient.put<UpdateIncidentReportData, any>(
+        `${this.basePath}/incidents/${incidentId}`,
+        payload,
+      );
+      return {
+        message: response.message,
+        report: this.normalizeIncidentReport(response.report),
+      };
+    } catch (error) {
+      console.error('Error updating incident report:', error);
+      throw error;
+    }
+  }
+
+  async deleteIncidentReport(incidentId: string): Promise<{ message: string }> {
+    try {
+      return await apiClient.delete<{ message: string }>(`${this.basePath}/incidents/${incidentId}`);
+    } catch (error) {
+      console.error('Error deleting incident report:', error);
       throw error;
     }
   }
@@ -631,6 +745,46 @@ class HrService {
     }
   }
 
+  async getPolicy(policyId: string): Promise<CompanyPolicy> {
+    try {
+      const response = await apiClient.get<any>(`${this.basePath}/policies/${policyId}`);
+      return this.normalizeCompanyPolicy(response);
+    } catch (error) {
+      console.error('Error fetching policy:', error);
+      throw error;
+    }
+  }
+
+  async updatePolicy(policyId: string, data: UpdatePolicyData): Promise<{ message: string; policy: CompanyPolicy }> {
+    try {
+      const payload = {
+        ...data,
+        effectiveDate: data.effectiveDate ? new Date(data.effectiveDate).toISOString() : undefined,
+        reviewDate: data.reviewDate ? new Date(data.reviewDate).toISOString() : undefined,
+        acknowledgementDeadline: data.acknowledgementDeadline
+          ? new Date(data.acknowledgementDeadline).toISOString()
+          : undefined,
+      };
+      const response = await apiClient.put<UpdatePolicyData, any>(`${this.basePath}/policies/${policyId}`, payload);
+      return {
+        message: response.message,
+        policy: this.normalizeCompanyPolicy(response.policy),
+      };
+    } catch (error) {
+      console.error('Error updating policy:', error);
+      throw error;
+    }
+  }
+
+  async deletePolicy(policyId: string): Promise<{ message: string }> {
+    try {
+      return await apiClient.delete<{ message: string }>(`${this.basePath}/policies/${policyId}`);
+    } catch (error) {
+      console.error('Error deleting policy:', error);
+      throw error;
+    }
+  }
+
   async createWelfareProgram(data: CreateWelfareProgramData): Promise<{ message: string; program: WelfareProgram }> {
     try {
       const payload = {
@@ -663,6 +817,44 @@ class HrService {
       return response.map(program => this.normalizeWelfareProgram(program));
     } catch (error) {
       console.error('Error fetching welfare programs:', error);
+      throw error;
+    }
+  }
+
+  async getWelfareProgram(programId: string): Promise<WelfareProgram> {
+    try {
+      const response = await apiClient.get<any>(`${this.basePath}/welfare/${programId}`);
+      return this.normalizeWelfareProgram(response);
+    } catch (error) {
+      console.error('Error fetching welfare program:', error);
+      throw error;
+    }
+  }
+
+  async updateWelfareProgram(programId: string, data: UpdateWelfareProgramData): Promise<{ message: string; program: WelfareProgram }> {
+    try {
+      const payload = {
+        ...data,
+        startDate: data.startDate ? new Date(data.startDate).toISOString() : undefined,
+        endDate: data.endDate ? new Date(data.endDate).toISOString() : undefined,
+        registrationDeadline: data.registrationDeadline ? new Date(data.registrationDeadline).toISOString() : undefined,
+      };
+      const response = await apiClient.put<UpdateWelfareProgramData, any>(`${this.basePath}/welfare/${programId}`, payload);
+      return {
+        message: response.message,
+        program: this.normalizeWelfareProgram(response.program),
+      };
+    } catch (error) {
+      console.error('Error updating welfare program:', error);
+      throw error;
+    }
+  }
+
+  async deleteWelfareProgram(programId: string): Promise<{ message: string }> {
+    try {
+      return await apiClient.delete<{ message: string }>(`${this.basePath}/welfare/${programId}`);
+    } catch (error) {
+      console.error('Error deleting welfare program:', error);
       throw error;
     }
   }
@@ -709,6 +901,41 @@ class HrService {
     }
   }
 
+  async getRecruitmentCandidate(candidateId: string): Promise<RecruitmentCandidate> {
+    try {
+      const response = await apiClient.get<any>(`${this.basePath}/recruitment/${candidateId}`);
+      return this.normalizeRecruitmentCandidate(response);
+    } catch (error) {
+      console.error('Error fetching recruitment candidate:', error);
+      throw error;
+    }
+  }
+
+  async updateRecruitmentCandidate(candidateId: string, data: UpdateRecruitmentCandidateData): Promise<{ message: string; candidate: RecruitmentCandidate }> {
+    try {
+      const response = await apiClient.put<UpdateRecruitmentCandidateData, any>(
+        `${this.basePath}/recruitment/${candidateId}`,
+        data,
+      );
+      return {
+        message: response.message,
+        candidate: this.normalizeRecruitmentCandidate(response.candidate),
+      };
+    } catch (error) {
+      console.error('Error updating recruitment candidate:', error);
+      throw error;
+    }
+  }
+
+  async deleteRecruitmentCandidate(candidateId: string): Promise<{ message: string }> {
+    try {
+      return await apiClient.delete<{ message: string }>(`${this.basePath}/recruitment/${candidateId}`);
+    } catch (error) {
+      console.error('Error deleting recruitment candidate:', error);
+      throw error;
+    }
+  }
+
   async getLeaveBalances(department?: string): Promise<LeaveBalance[]> {
     try {
       const params = new URLSearchParams();
@@ -748,7 +975,7 @@ class HrService {
     try {
       const params = new URLSearchParams();
       if (status) params.append('status', status);
-      if (employeeId) params.append('employeeId', employeeId);
+      if (employeeId) params.append('employeeUserId', employeeId);
 
       const url = `${this.basePath}/assets${params.toString() ? `?${params.toString()}` : ''}`;
       const response = await apiClient.get<any>(url);
@@ -1277,17 +1504,17 @@ class HrService {
     return {
       id: data?._id || data?.id,
       _id: data?._id,
-      employeeId: data?.employeeId,
-      profileId: data?.profileId,
+      employeeId: data?.employeeId || data?.employeeProfile?.employeeId || data?.employee?._id,
+      profileId: data?.profileId || data?.employeeProfile?._id,
       employeeName: data?.employeeName || data?.employee?.name,
       assetName: data?.assetName || data?.name || 'Unknown Asset',
       assetTag: data?.assetTag,
       assetType: data?.assetType || data?.type,
       serialNumber: data?.serialNumber,
-      assignedDate: data?.assignedDate,
+      assignedDate: data?.assignedDate || data?.dateTaken,
       expectedReturnDate: data?.expectedReturnDate,
-      actualReturnDate: data?.actualReturnDate,
-      condition: data?.condition,
+      actualReturnDate: data?.actualReturnDate || data?.dateReturned,
+      condition: data?.condition || data?.conditionOnIssue || data?.returnCondition,
       status: data?.status || 'assigned',
       notes: data?.notes,
       active: data?.active !== undefined ? data.active : true,

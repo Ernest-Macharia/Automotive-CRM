@@ -70,9 +70,8 @@ export default function HrRecruitment({ candidateId }: HrRecruitmentProps) {
   const loadCandidateDetails = async () => {
     try {
       setLoading(true);
-      const pipeline = await hrService.getRecruitmentPipeline();
-      const candidate = pipeline.candidates.find(c => c.id === candidateId || c._id === candidateId);
-      setSelectedCandidate(candidate || null);
+      const candidate = await hrService.getRecruitmentCandidate(candidateId!);
+      setSelectedCandidate(candidate);
     } catch (error) {
       console.error('Error loading candidate details:', error);
       showToast('Failed to load candidate details', 'error');
@@ -93,7 +92,15 @@ export default function HrRecruitment({ candidateId }: HrRecruitmentProps) {
     if (!selectedCandidate) return;
 
     try {
-      // In a real app, you would schedule interview via API
+      await hrService.updateRecruitmentCandidate(selectedCandidate.id, {
+        status: interviewData.type === 'phone_interview' ? 'phone_interview' : 'technical_interview',
+        recruiterNotes: [
+          selectedCandidate.recruiterNotes,
+          `Interview scheduled for ${interviewData.date} with ${interviewData.interviewer}. ${interviewData.notes}`.trim(),
+        ]
+          .filter(Boolean)
+          .join('\n\n'),
+      });
       showToast('Interview scheduled successfully', 'success');
       setShowInterviewModal(false);
       setInterviewData({
@@ -116,7 +123,10 @@ export default function HrRecruitment({ candidateId }: HrRecruitmentProps) {
     if (!selectedCandidate) return;
 
     try {
-      // In a real app, you would make offer via API
+      await hrService.updateRecruitmentCandidate(selectedCandidate.id, {
+        status: 'offered',
+        offerDetails: `Offer salary: KES ${offerData.salary.toLocaleString()}; start date: ${offerData.startDate}; notes: ${offerData.notes}`.trim(),
+      });
       showToast('Offer made successfully', 'success');
       setShowOfferModal(false);
       setOfferData({
@@ -202,6 +212,22 @@ export default function HrRecruitment({ candidateId }: HrRecruitmentProps) {
               disabled={!['technical_interview', 'final_interview'].includes(selectedCandidate.status)}
             >
               Make Offer
+            </button>
+            <button
+              onClick={async () => {
+                if (!selectedCandidate) return;
+                try {
+                  await hrService.deleteRecruitmentCandidate(selectedCandidate.id);
+                  showToast('Candidate archived', 'success');
+                  router.push('/hr-portal');
+                } catch (error) {
+                  console.error('Error deleting candidate:', error);
+                  showToast('Failed to archive candidate', 'error');
+                }
+              }}
+              className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50"
+            >
+              Archive
             </button>
           </div>
         </div>
@@ -482,8 +508,16 @@ export default function HrRecruitment({ candidateId }: HrRecruitmentProps) {
                 </button>
                 <button
                   onClick={() => {
-                    // Update status to rejected
-                    showToast('Candidate rejected', 'success');
+                    hrService
+                      .updateRecruitmentCandidate(selectedCandidate.id, { status: 'rejected' })
+                      .then(() => {
+                        showToast('Candidate rejected', 'success');
+                        loadCandidateDetails();
+                      })
+                      .catch((error) => {
+                        console.error('Error rejecting candidate:', error);
+                        showToast('Failed to reject candidate', 'error');
+                      });
                   }}
                   className="w-full px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"
                   disabled={selectedCandidate.status === 'rejected' || selectedCandidate.status === 'accepted'}
@@ -799,12 +833,12 @@ export default function HrRecruitment({ candidateId }: HrRecruitmentProps) {
                       <Eye className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => router.push(`/hr-portal/recruitment/${candidate._id || candidate.id}/edit`)}
+                      onClick={() => router.push(`/hr-portal/recruitment/${candidate._id || candidate.id}`)}
                       className="p-1 text-green-600 hover:text-green-800"
-                      title="Edit Candidate"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
+                      title="Manage Candidate"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
                     <button
                       onClick={() => {
                         setSelectedCandidate(candidate);

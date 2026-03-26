@@ -10,12 +10,14 @@ import {
   UpdateEmployeeAssetData,
   ReturnEmployeeAssetData,
 } from '@/services/settings/hrService';
+import { profileService, Profile } from '@/services/settings/profileService';
 
 interface HrAssetsProps {
   searchTerm: string;
 }
 
 const emptyCreateForm: AssignEmployeeAssetData = {
+  employeeUserId: '',
   employeeId: '',
   profileId: '',
   assetName: '',
@@ -32,11 +34,15 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [assets, setAssets] = useState<EmployeeAsset[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [createForm, setCreateForm] = useState<AssignEmployeeAssetData>(emptyCreateForm);
+  const [selectedAsset, setSelectedAsset] = useState<EmployeeAsset | null>(null);
+  const [editForm, setEditForm] = useState<UpdateEmployeeAssetData>({});
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
   const loadAssets = useCallback(async () => {
     try {
@@ -53,7 +59,7 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
 
   const loadEmployeeAssets = async () => {
     if (!employeeFilter.trim()) {
-      showToast('Enter employee ID to load employee assets', 'info');
+      showToast('Select an employee to load assigned assets', 'info');
       return;
     }
     try {
@@ -72,6 +78,15 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
     loadAssets();
   }, [loadAssets]);
 
+  useEffect(() => {
+    profileService
+      .getProfiles()
+      .then(setProfiles)
+      .catch((error) => {
+        console.error('Error loading profiles for assets:', error);
+      });
+  }, []);
+
   const filteredAssets = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     if (!q) return assets;
@@ -88,8 +103,8 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
       showToast('Asset name is required', 'error');
       return;
     }
-    if (!createForm.employeeId?.trim() && !createForm.profileId?.trim()) {
-      showToast('Employee ID or Profile ID is required', 'error');
+    if (!createForm.employeeUserId?.trim()) {
+      showToast('Select an employee before assigning an asset', 'error');
       return;
     }
 
@@ -97,6 +112,7 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
       setLoading(true);
       await hrService.assignAsset({
         ...createForm,
+        employeeUserId: createForm.employeeUserId?.trim(),
         assetName: createForm.assetName.trim(),
       });
       showToast('Asset assigned successfully', 'success');
@@ -132,6 +148,53 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
       setUpdatingId(null);
     }
   };
+
+  const openEditModal = (asset: EmployeeAsset) => {
+    setSelectedAsset(asset);
+    setEditForm({
+      assetName: asset.assetName,
+      assetType: asset.assetType,
+      expectedReturnDate: asset.expectedReturnDate?.slice(0, 10),
+      condition: asset.condition,
+      notes: asset.notes,
+      status: asset.status,
+    });
+    setShowEdit(true);
+  };
+
+  const onSaveAssetEdit = async (e: FormEvent) => {
+    e.preventDefault();
+    const assetId = selectedAsset?._id || selectedAsset?.id;
+    if (!assetId) return;
+
+    try {
+      setUpdatingId(assetId);
+      await hrService.updateAsset(assetId, editForm);
+      showToast('Asset updated successfully', 'success');
+      setShowEdit(false);
+      setSelectedAsset(null);
+      await loadAssets();
+    } catch (error) {
+      console.error('Error updating asset:', error);
+      showToast('Failed to update asset', 'error');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const employeeOptions = useMemo(
+    () =>
+      profiles
+        .filter((profile) => profile.active !== false)
+        .map((profile) => ({
+          value: typeof profile.user === 'object' ? (profile.user._id || profile.user.id || '') : '',
+          label: `${profile.firstName || ''} ${profile.lastName || ''}`.trim(),
+          employeeId: profile.employeeId || '',
+          profileId: profile.id,
+        }))
+        .filter((option) => option.value && option.label),
+    [profiles],
+  );
 
   const onReturnAsset = async (asset: EmployeeAsset) => {
     const assetId = asset._id || asset.id;
@@ -175,12 +238,18 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
           <option value="returned">Returned</option>
           <option value="maintenance">Maintenance</option>
         </select>
-        <input
+        <select
           value={employeeFilter}
           onChange={e => setEmployeeFilter(e.target.value)}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          placeholder="Employee ID"
-        />
+        >
+          <option value="">All employees</option>
+          {employeeOptions.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
         <button
           onClick={loadEmployeeAssets}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
@@ -201,18 +270,26 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
         <form onSubmit={onCreateAsset} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
           <h3 className="text-sm font-semibold text-gray-900">Assign Company Asset</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <input
+            <select
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              placeholder="Employee ID"
-              value={createForm.employeeId || ''}
-              onChange={e => setCreateForm(prev => ({ ...prev, employeeId: e.target.value }))}
-            />
-            <input
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              placeholder="Profile ID"
-              value={createForm.profileId || ''}
-              onChange={e => setCreateForm(prev => ({ ...prev, profileId: e.target.value }))}
-            />
+              value={createForm.employeeUserId || ''}
+              onChange={e => {
+                const selected = employeeOptions.find(option => option.value === e.target.value);
+                setCreateForm(prev => ({
+                  ...prev,
+                  employeeUserId: e.target.value,
+                  employeeId: selected?.employeeId || '',
+                  profileId: selected?.profileId || '',
+                }));
+              }}
+            >
+              <option value="">Select employee</option>
+              {employeeOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
             <input
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
               placeholder="Asset Name"
@@ -282,6 +359,7 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Employee</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Assigned</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Expected Return</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
             </tr>
           </thead>
@@ -307,7 +385,7 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-700">
-                    {asset.employeeName || asset.employeeId || asset.profileId || '-'}
+                    {asset.employeeName || '-'}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusClass}`}>
@@ -317,8 +395,17 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
                   <td className="px-4 py-3 text-sm text-gray-700">
                     {asset.assignedDate ? hrService.formatDate(asset.assignedDate) : '-'}
                   </td>
+                  <td className="px-4 py-3 text-sm text-gray-700">
+                    {asset.expectedReturnDate ? hrService.formatDate(asset.expectedReturnDate) : '-'}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => openEditModal(asset)}
+                        className="inline-flex items-center gap-1 px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-100"
+                      >
+                        Edit
+                      </button>
                       <button
                         onClick={() => onQuickUpdateAsset(asset)}
                         disabled={updatingId === id}
@@ -344,7 +431,7 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
             })}
             {filteredAssets.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-500 text-sm">
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500 text-sm">
                   {loading ? 'Loading assets...' : 'No assets found'}
                 </td>
               </tr>
@@ -352,6 +439,75 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
           </tbody>
         </table>
       </div>
+
+      {showEdit && selectedAsset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <form onSubmit={onSaveAssetEdit} className="bg-white rounded-xl p-6 w-full max-w-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Edit Asset</h3>
+              <button type="button" onClick={() => setShowEdit(false)} className="text-sm text-gray-500 hover:text-gray-700">
+                Close
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                value={editForm.assetName || ''}
+                onChange={e => setEditForm(prev => ({ ...prev, assetName: e.target.value }))}
+                placeholder="Asset name"
+              />
+              <input
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                value={editForm.assetType || ''}
+                onChange={e => setEditForm(prev => ({ ...prev, assetType: e.target.value }))}
+                placeholder="Asset type"
+              />
+              <input
+                type="date"
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                value={editForm.expectedReturnDate?.slice(0, 10) || ''}
+                onChange={e => setEditForm(prev => ({ ...prev, expectedReturnDate: e.target.value }))}
+              />
+              <select
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                value={editForm.status || 'assigned'}
+                onChange={e => setEditForm(prev => ({ ...prev, status: e.target.value }))}
+              >
+                <option value="assigned">Assigned</option>
+                <option value="returned">Returned</option>
+                <option value="maintenance">Maintenance</option>
+                <option value="lost">Lost</option>
+                <option value="damaged">Damaged</option>
+              </select>
+              <input
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm md:col-span-2"
+                value={editForm.condition || ''}
+                onChange={e => setEditForm(prev => ({ ...prev, condition: e.target.value }))}
+                placeholder="Condition"
+              />
+            </div>
+            <textarea
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              rows={3}
+              value={editForm.notes || ''}
+              onChange={e => setEditForm(prev => ({ ...prev, notes: e.target.value }))}
+              placeholder="Notes"
+            />
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowEdit(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm">
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={updatingId === (selectedAsset._id || selectedAsset.id)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-60"
+              >
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
