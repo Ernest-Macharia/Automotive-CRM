@@ -253,11 +253,17 @@ export default function QuotesDashboard() {
   };
 
   const filteredQuotes = quotes.filter(quote => {
+    const quoteNumber = String(quote?.quoteNumber || '').toLowerCase();
+    const notes = String(quote?.notes || '').toLowerCase();
+    const subject =
+      typeof quote?.opportunityId === 'object'
+        ? String(quote.opportunityId?.subject || '').toLowerCase()
+        : '';
+
     const matchesSearch = 
-      quote.quoteNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      quote.notes?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (typeof quote.opportunityId === 'object' && 
-       quote.opportunityId.subject?.toLowerCase().includes(searchTerm.toLowerCase()));
+      quoteNumber.includes(searchTerm.toLowerCase()) ||
+      notes.includes(searchTerm.toLowerCase()) ||
+      subject.includes(searchTerm.toLowerCase());
     
     const matchesStatus = filterStatus === 'all' || quote.status === filterStatus;
     
@@ -546,7 +552,7 @@ export default function QuotesDashboard() {
                                 href={`/quotes/${quote.id}`}
                                 className="font-medium text-gray-900 hover:text-blue-600"
                               >
-                                {quote.quoteNumber}
+                                {quote.quoteNumber || 'Untitled Quote'}
                               </Link>
                               <p className="text-sm text-gray-600 truncate max-w-[220px] mt-1">
                                 {(typeof quote.opportunityId === 'object' && quote.opportunityId.customer?.name) || 'Unknown customer'}
@@ -555,18 +561,18 @@ export default function QuotesDashboard() {
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <p className="font-semibold text-gray-900">{quoteService.formatCurrency(quote.totalAmount)}</p>
-                          <p className="text-sm text-gray-600 mt-1">{quote.items.length} item{quote.items.length !== 1 ? 's' : ''}</p>
+                          <p className="font-semibold text-gray-900">{quoteService.formatCurrency(Number(quote.totalAmount || 0))}</p>
+                          <p className="text-sm text-gray-600 mt-1">{quote.items?.length || 0} item{(quote.items?.length || 0) !== 1 ? 's' : ''}</p>
                         </td>
                         <td className="px-4 py-3">
                           <span className={`px-2.5 py-1 rounded-full text-xs font-medium text-white ${
                             statusColor.replace('bg-gradient-to-r from-', 'bg-').replace(' to-', ' ')
                           }`}>
-                            {quote.status.charAt(0).toUpperCase() + quote.status.slice(1)}
+                            {String(quote.status || 'draft').charAt(0).toUpperCase() + String(quote.status || 'draft').slice(1)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600">
-                          <div>Created: {new Date(quote.createdAt).toLocaleDateString()}</div>
+                          <div>Created: {quote.createdAt ? new Date(quote.createdAt).toLocaleDateString() : 'N/A'}</div>
                           {quote.updatedAt && (
                             <div className="text-xs mt-1">Updated: {new Date(quote.updatedAt).toLocaleDateString()}</div>
                           )}
