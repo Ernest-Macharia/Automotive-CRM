@@ -244,8 +244,11 @@ class QuoteService {
       const queryString = queryParams.toString();
       const endpoint = `/quotes${queryString ? `?${queryString}` : ''}`;
       
-      const response = await apiClient.get<any[]>(endpoint);
-      return response.map(quote => this.normalizeQuote(quote));
+      const response = await apiClient.get<any>(endpoint);
+      const rows = Array.isArray(response) ? response : Array.isArray(response?.data) ? response.data : [];
+      return rows
+        .map(quote => this.normalizeQuote(quote))
+        .filter((quote): quote is Quote => quote !== null);
     } catch (error) {
       console.error('Error fetching quotes:', error);
       throw error;
@@ -461,7 +464,11 @@ class QuoteService {
   /**
    * Normalize quote data from backend
    */
-  private normalizeQuote(data: any): Quote {
+  private normalizeQuote(data: any): Quote | null {
+    if (!data || typeof data !== 'object') {
+      return null;
+    }
+
     // Calculate item totals if not present
     const normalizedItems = (data.items || []).map((item: any) => ({
       id: item._id || item.id,
@@ -481,8 +488,8 @@ class QuoteService {
     return {
       id: data._id || data.id,
       _id: data._id,
-      quoteNumber: data.quoteNumber,
-      opportunityId: data.opportunityId,
+      quoteNumber: data.quoteNumber || 'Untitled Quote',
+      opportunityId: data.opportunityId || '',
       vehicleId: data.vehicleId,
       jobCardId: data.jobCardId,
       items: normalizedItems,
@@ -492,11 +499,11 @@ class QuoteService {
       total: data.total || totalAmount,
       status: data.status || 'pending',
       notes: data.notes,
-      createdBy: data.createdBy,
+      createdBy: data.createdBy || '',
       approvedBy: data.approvedBy,
       approvedAt: data.approvedAt,
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
+      createdAt: data.createdAt || new Date(0).toISOString(),
+      updatedAt: data.updatedAt || data.createdAt || new Date(0).toISOString(),
     };
   }
 
