@@ -1,7 +1,7 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { Package, RefreshCw, RotateCcw, Save, Plus } from 'lucide-react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Package, RefreshCw, RotateCcw, Save, Plus, Search, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import {
   hrService,
@@ -43,6 +43,12 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [showEmployeeFilterDropdown, setShowEmployeeFilterDropdown] = useState(false);
+  const [employeeFilterSearch, setEmployeeFilterSearch] = useState('');
+  const [showCreateEmployeeDropdown, setShowCreateEmployeeDropdown] = useState(false);
+  const [createEmployeeSearch, setCreateEmployeeSearch] = useState('');
+  const employeeFilterRef = useRef<HTMLDivElement>(null);
+  const createEmployeeRef = useRef<HTMLDivElement>(null);
 
   const loadAssets = useCallback(async () => {
     try {
@@ -85,6 +91,21 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
       .catch((error) => {
         console.error('Error loading profiles for assets:', error);
       });
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (employeeFilterRef.current && !employeeFilterRef.current.contains(event.target as Node)) {
+        setShowEmployeeFilterDropdown(false);
+      }
+
+      if (createEmployeeRef.current && !createEmployeeRef.current.contains(event.target as Node)) {
+        setShowCreateEmployeeDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const filteredAssets = useMemo(() => {
@@ -196,6 +217,28 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
     [profiles],
   );
 
+  const selectedEmployeeFilter = useMemo(
+    () => employeeOptions.find((option) => option.value === employeeFilter),
+    [employeeFilter, employeeOptions],
+  );
+
+  const selectedCreateEmployee = useMemo(
+    () => employeeOptions.find((option) => option.value === createForm.employeeUserId),
+    [createForm.employeeUserId, employeeOptions],
+  );
+
+  const filteredEmployeeOptions = useMemo(() => {
+    const query = employeeFilterSearch.trim().toLowerCase();
+    if (!query) return employeeOptions;
+    return employeeOptions.filter((option) => option.label.toLowerCase().includes(query));
+  }, [employeeFilterSearch, employeeOptions]);
+
+  const filteredCreateEmployeeOptions = useMemo(() => {
+    const query = createEmployeeSearch.trim().toLowerCase();
+    if (!query) return employeeOptions;
+    return employeeOptions.filter((option) => option.label.toLowerCase().includes(query));
+  }, [createEmployeeSearch, employeeOptions]);
+
   const onReturnAsset = async (asset: EmployeeAsset) => {
     const assetId = asset._id || asset.id;
     if (!assetId) return;
@@ -238,18 +281,82 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
           <option value="returned">Returned</option>
           <option value="maintenance">Maintenance</option>
         </select>
-        <select
-          value={employeeFilter}
-          onChange={e => setEmployeeFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-        >
-          <option value="">All employees</option>
-          {employeeOptions.map(option => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        <div className="relative min-w-[240px]" ref={employeeFilterRef}>
+          <div className="relative">
+            <input
+              value={
+                showEmployeeFilterDropdown
+                  ? employeeFilterSearch
+                  : selectedEmployeeFilter?.label || ''
+              }
+              onChange={(e) => {
+                setEmployeeFilterSearch(e.target.value);
+                if (!showEmployeeFilterDropdown) setShowEmployeeFilterDropdown(true);
+              }}
+              onFocus={() => setShowEmployeeFilterDropdown(true)}
+              placeholder="All employees"
+              className="w-full pl-9 pr-16 py-2 border border-gray-300 rounded-lg text-sm"
+            />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+              {employeeFilter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmployeeFilter('');
+                    setEmployeeFilterSearch('');
+                    loadAssets();
+                  }}
+                  className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowEmployeeFilterDropdown((prev) => !prev)}
+                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+              >
+                {showEmployeeFilterDropdown ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          {showEmployeeFilterDropdown && (
+            <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmployeeFilter('');
+                  setEmployeeFilterSearch('');
+                  setShowEmployeeFilterDropdown(false);
+                  loadAssets();
+                }}
+                className="block w-full border-b border-gray-100 px-3 py-2 text-left text-sm text-gray-600 hover:bg-gray-50"
+              >
+                All employees
+              </button>
+              <div className="max-h-64 overflow-y-auto">
+                {filteredEmployeeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      setEmployeeFilter(option.value);
+                      setEmployeeFilterSearch(option.label);
+                      setShowEmployeeFilterDropdown(false);
+                    }}
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+                {filteredEmployeeOptions.length === 0 && (
+                  <p className="px-3 py-2 text-sm text-gray-500">No employees found</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
         <button
           onClick={loadEmployeeAssets}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
@@ -270,26 +377,68 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
         <form onSubmit={onCreateAsset} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
           <h3 className="text-sm font-semibold text-gray-900">Assign Company Asset</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <select
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              value={createForm.employeeUserId || ''}
-              onChange={e => {
-                const selected = employeeOptions.find(option => option.value === e.target.value);
-                setCreateForm(prev => ({
-                  ...prev,
-                  employeeUserId: e.target.value,
-                  employeeId: selected?.employeeId || '',
-                  profileId: selected?.profileId || '',
-                }));
-              }}
-            >
-              <option value="">Select employee</option>
-              {employeeOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <div className="relative md:col-span-3" ref={createEmployeeRef}>
+              <div className="relative">
+                <input
+                  value={
+                    showCreateEmployeeDropdown
+                      ? createEmployeeSearch
+                      : selectedCreateEmployee?.label || ''
+                  }
+                  onChange={(e) => {
+                    setCreateEmployeeSearch(e.target.value);
+                    if (!showCreateEmployeeDropdown) setShowCreateEmployeeDropdown(true);
+                    if (createForm.employeeUserId) {
+                      setCreateForm((prev) => ({
+                        ...prev,
+                        employeeUserId: '',
+                        employeeId: '',
+                        profileId: '',
+                      }));
+                    }
+                  }}
+                  onFocus={() => setShowCreateEmployeeDropdown(true)}
+                  placeholder="Search employee by name"
+                  className="w-full pl-9 pr-10 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <button
+                  type="button"
+                  onClick={() => setShowCreateEmployeeDropdown((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showCreateEmployeeDropdown ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+              </div>
+              {showCreateEmployeeDropdown && (
+                <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+                  <div className="max-h-64 overflow-y-auto">
+                    {filteredCreateEmployeeOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          setCreateForm((prev) => ({
+                            ...prev,
+                            employeeUserId: option.value,
+                            employeeId: option.employeeId || '',
+                            profileId: option.profileId || '',
+                          }));
+                          setCreateEmployeeSearch(option.label);
+                          setShowCreateEmployeeDropdown(false);
+                        }}
+                        className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                    {filteredCreateEmployeeOptions.length === 0 && (
+                      <p className="px-3 py-2 text-sm text-gray-500">No employees found</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             <input
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
               placeholder="Asset Name"
