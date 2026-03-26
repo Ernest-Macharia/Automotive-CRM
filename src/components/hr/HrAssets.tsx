@@ -207,12 +207,26 @@ export default function HrAssets({ searchTerm }: HrAssetsProps) {
     () =>
       profiles
         .filter((profile) => profile.active !== false)
-        .map((profile) => ({
-          value: typeof profile.user === 'object' ? (profile.user._id || profile.user.id || '') : '',
-          label: `${profile.firstName || ''} ${profile.lastName || ''}`.trim(),
-          employeeId: profile.employeeId || '',
-          profileId: profile.id,
-        }))
+        .map((profile) => {
+          const userId =
+            typeof profile.user === 'string'
+              ? profile.user
+              : profile.user?._id || profile.user?.id || '';
+
+          const profileFirstName = (profile.firstName || '').trim();
+          const profileLastName = (profile.lastName || '').trim();
+          const userName =
+            typeof profile.user === 'object' ? String(profile.user?.name || '').trim() : '';
+          const [fallbackFirstName = '', ...fallbackLastNameParts] = userName.split(' ').filter(Boolean);
+          const fallbackLastName = fallbackLastNameParts.join(' ');
+
+          return {
+            value: userId,
+            label: `${profileFirstName || fallbackFirstName} ${profileLastName || fallbackLastName}`.trim(),
+            employeeId: profile.employeeId || '',
+            profileId: profile.id,
+          };
+        })
         .filter((option) => option.value && option.label),
     [profiles],
   );
