@@ -526,6 +526,58 @@ export interface SignedPreChecklist {
   updatedAt: string;
 }
 
+const normalizeObjectId = (value: unknown): string => {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (value && typeof value === 'object') {
+    const rawId = (value as Record<string, unknown>)._id ?? (value as Record<string, unknown>).id;
+    if (typeof rawId === 'string') {
+      return rawId.trim();
+    }
+  }
+
+  return '';
+};
+
+const normalizeOptionalEmail = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) ? trimmed : undefined;
+};
+
+const sanitizePreChecklistPayload = <T extends Record<string, any>>(payload: T): T => {
+  const vehicleId = normalizeObjectId(payload.vehicleId);
+  const opportunityId = normalizeObjectId(payload.opportunityId);
+  const inspectedBy = normalizeObjectId(payload.inspectedBy);
+  const customerEmail = normalizeOptionalEmail(payload.customerDetails?.email);
+  const clientEmail = normalizeOptionalEmail(payload.clientEmail);
+
+  return {
+    ...payload,
+    opportunityId,
+    vehicleId,
+    ...(inspectedBy ? { inspectedBy } : {}),
+    ...(payload.customerDetails
+      ? {
+          customerDetails: {
+            ...payload.customerDetails,
+            ...(customerEmail ? { email: customerEmail } : { email: undefined }),
+          },
+        }
+      : {}),
+    ...(clientEmail ? { clientEmail } : { clientEmail: undefined }),
+  };
+};
+
 // Extended ApiClient for pre-checklist service
 class ExtendedApiClient {
   private getApiBaseUrl(): string {
@@ -746,13 +798,15 @@ class PreChecklistService {
         headers['X-User-Id'] = userId;
       }
       
-      if (!data.checklistType && (data.services || data.carDetails)) {
-        data.checklistType = 'diamond_rims';
+      const sanitizedData = sanitizePreChecklistPayload(data);
+
+      if (!sanitizedData.checklistType && (sanitizedData.services || sanitizedData.carDetails)) {
+        sanitizedData.checklistType = 'diamond_rims';
       }
       
       const submissionData = {
-        ...data,
-        createdBy: userId || data.inspectedBy,
+        ...sanitizedData,
+        createdBy: userId || sanitizedData.inspectedBy,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -802,8 +856,8 @@ class PreChecklistService {
   // 5. Update a pre-checklist
   async updatePreChecklist(id: string, data: UpdatePreChecklistDto): Promise<PreChecklist> {
     try {
-      const updateData = {
-        ...data,
+      const updateData: UpdatePreChecklistDto & { updatedAt: string } = {
+        ...(sanitizePreChecklistPayload(data as Record<string, any>) as UpdatePreChecklistDto),
         updatedAt: new Date().toISOString()
       };
       

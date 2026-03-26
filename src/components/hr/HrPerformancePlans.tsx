@@ -52,9 +52,8 @@ export default function HRPerformancePlans({ planId }: HRPerformancePlansProps) 
   const loadPlanDetails = async () => {
     try {
       setLoading(true);
-      const allPlans = await hrService.getPerformancePlans();
-      const plan = allPlans.find(p => p.id === planId);
-      setSelectedPlan(plan || null);
+      const plan = await hrService.getPerformancePlan(planId!);
+      setSelectedPlan(plan);
     } catch (error) {
       console.error('Error loading plan details:', error);
       showToast('Failed to load plan details', 'error');
@@ -100,6 +99,9 @@ export default function HRPerformancePlans({ planId }: HRPerformancePlansProps) 
         completed: true,
       };
 
+      await hrService.updatePerformancePlan(selectedPlan.id, {
+        reviews: [...(selectedPlan.reviews || []), newReview],
+      });
       showToast('Performance review added successfully', 'success');
       setShowReviewModal(false);
       setReviewData({
@@ -182,6 +184,22 @@ export default function HRPerformancePlans({ planId }: HRPerformancePlansProps) 
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               Add Review
+            </button>
+            <button
+              onClick={async () => {
+                if (!selectedPlan) return;
+                try {
+                  await hrService.deletePerformancePlan(selectedPlan.id);
+                  showToast('Performance plan archived', 'success');
+                  router.push('/hr-portal');
+                } catch (error) {
+                  console.error('Error deleting performance plan:', error);
+                  showToast('Failed to archive performance plan', 'error');
+                }
+              }}
+              className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50"
+            >
+              Archive
             </button>
           </div>
         </div>
@@ -688,14 +706,14 @@ export default function HRPerformancePlans({ planId }: HRPerformancePlansProps) 
                         <Eye className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => router.push(`/hr-portal/performance/${plan.id}/edit`)}
+                        onClick={() => router.push(`/hr-portal/performance/${plan.id}`)}
                         className="p-1 text-green-600 hover:text-green-800"
-                        title="Edit Plan"
+                        title="Manage Plan"
                       >
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => router.push(`/hr-portal/performance/${plan.id}/reviews`)}
+                        onClick={() => router.push(`/hr-portal/performance/${plan.id}`)}
                         className="p-1 text-purple-600 hover:text-purple-800"
                         title="View Reviews"
                       >

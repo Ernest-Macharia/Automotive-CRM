@@ -1295,6 +1295,42 @@ export default function HeadlightPreChecklistCreatePage({
         return;
       }
 
+      const normalizeId = (value: unknown): string => {
+        if (typeof value === 'string') return value.trim();
+        if (value && typeof value === 'object') {
+          return String((value as any)._id || (value as any).id || '').trim();
+        }
+        return '';
+      };
+
+      const resolvedVehicleId =
+        normalizeId(formData.vehicleId) ||
+        normalizeId(vehicle) ||
+        normalizeId(existingChecklist?.vehicleId) ||
+        normalizeId(opportunity?.vehicles?.[0]);
+
+      if (!resolvedVehicleId) {
+        showToast('Vehicle information is missing. Reload the checklist and try again.', 'error');
+        setSubmitting(false);
+        return;
+      }
+
+      const customerEmail = formData.customerDetails.email.trim();
+      if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
+        showToast('Enter a valid customer email or leave it blank', 'error');
+        setCurrentStep(2);
+        setSubmitting(false);
+        return;
+      }
+
+      const clientEmail = formData.clientEmail.trim();
+      if (clientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) {
+        showToast('Enter a valid client approval email or leave it blank', 'error');
+        setCurrentStep(5);
+        setSubmitting(false);
+        return;
+      }
+
       // Convert unified headlight inspection to array format for API
       const inspectionItems = Object.entries(formData.headlightInspection).map(([key, value]: [string, any]) => {
         let itemName = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
@@ -1331,7 +1367,7 @@ export default function HeadlightPreChecklistCreatePage({
       // Prepare submission data
       const submissionData: CreatePreChecklistDto = {
         opportunityId: formData.opportunityId,
-        vehicleId: formData.vehicleId,
+        vehicleId: resolvedVehicleId,
         inspectionItems: inspectionItems as any,
         remarks: formData.remarks || '',
         approved: false,
@@ -1344,7 +1380,7 @@ export default function HeadlightPreChecklistCreatePage({
           firstName: formData.customerDetails.firstName,
           lastName: formData.customerDetails.lastName,
           mobile: formData.customerDetails.mobile,
-          email: formData.customerDetails.email,
+          email: customerEmail,
           name: `${formData.customerDetails.firstName} ${formData.customerDetails.lastName}`
         },
         
@@ -1380,7 +1416,7 @@ export default function HeadlightPreChecklistCreatePage({
         clientSignature: formData.clientSignature,
         inspectorSignature: formData.inspectorSignature,
         clientSigningMethod: formData.clientSigningMethod,
-        clientEmail: formData.clientEmail,
+        clientEmail,
         
         uploadedImages: formData.uploadedImages,
         files: formData.files

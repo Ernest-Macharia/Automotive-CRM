@@ -789,6 +789,13 @@ export default function DiamondRimsPostChecklistCreatePage({
         return;
       }
 
+      const customerEmail = formData.customerDetails.email.trim();
+      if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
+        showToast('Enter a valid customer email or leave it blank', 'error');
+        setSubmitting(false);
+        return;
+      }
+
       // Get jobCard ID from workOrder.jobCards (array of job cards)
       let jobCardId = '';
       
@@ -866,7 +873,7 @@ export default function DiamondRimsPostChecklistCreatePage({
           firstName: formData.customerDetails.firstName,
           lastName: formData.customerDetails.lastName,
           mobile: formData.customerDetails.mobile,
-          email: formData.customerDetails.email,
+          email: customerEmail,
         },
         carDetails: {
           carMake: formData.carDetails.carMake,

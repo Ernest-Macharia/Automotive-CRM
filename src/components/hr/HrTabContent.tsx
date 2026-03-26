@@ -64,7 +64,9 @@ export default function HRTabContent({
 
   const filteredPerformancePlans = performancePlans.filter(plan =>
     plan.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    plan.employee.toLowerCase().includes(searchTerm.toLowerCase())
+    String(plan.employee?.name || plan.employeeProfile?.name || plan.employee || '')
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase())
   );
 
   const filteredCandidates = candidates.filter(candidate =>

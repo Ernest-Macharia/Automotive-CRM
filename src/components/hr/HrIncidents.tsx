@@ -62,9 +62,8 @@ export default function HrIncidents({ incidentId }: HrIncidentsProps) {
   const loadIncidentDetails = async () => {
     try {
       setLoading(true);
-      const allIncidents = await hrService.getIncidentReports();
-      const incident = allIncidents.find(i => i.id === incidentId || i._id === incidentId);
-      setSelectedIncident(incident || null);
+      const incident = await hrService.getIncidentReport(incidentId!);
+      setSelectedIncident(incident);
     } catch (error) {
       console.error('Error loading incident details:', error);
       showToast('Failed to load incident details', 'error');
@@ -97,7 +96,10 @@ export default function HrIncidents({ incidentId }: HrIncidentsProps) {
     if (!selectedIncident) return;
 
     try {
-      // In a real app, you would update the incident status via API
+      await hrService.updateIncidentReport(selectedIncident.id, {
+        status: 'investigating',
+        investigationNotes,
+      });
       showToast('Investigation started', 'success');
       setShowInvestigationModal(false);
       setInvestigationNotes('');
@@ -112,7 +114,12 @@ export default function HrIncidents({ incidentId }: HrIncidentsProps) {
     if (!selectedIncident) return;
 
     try {
-      // In a real app, you would update the incident status via API
+      await hrService.updateIncidentReport(selectedIncident.id, {
+        status: resolutionDetails.status as 'resolved' | 'closed',
+        correctiveActions: resolutionDetails.correctiveActions.filter(Boolean),
+        investigationNotes: resolutionDetails.notes,
+        resolutionDate: new Date().toISOString(),
+      });
       showToast('Incident resolved', 'success');
       setShowResolutionModal(false);
       setResolutionDetails({
@@ -211,6 +218,22 @@ export default function HrIncidents({ incidentId }: HrIncidentsProps) {
               disabled={selectedIncident.status === 'closed'}
             >
               Resolve Incident
+            </button>
+            <button
+              onClick={async () => {
+                if (!selectedIncident) return;
+                try {
+                  await hrService.deleteIncidentReport(selectedIncident.id);
+                  showToast('Incident archived', 'success');
+                  router.push('/hr-portal');
+                } catch (error) {
+                  console.error('Error deleting incident:', error);
+                  showToast('Failed to archive incident', 'error');
+                }
+              }}
+              className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50"
+            >
+              Archive
             </button>
           </div>
         </div>
@@ -648,9 +671,9 @@ export default function HrIncidents({ incidentId }: HrIncidentsProps) {
                         <Eye className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => router.push(`/hr-portal/incidents/${incident._id || incident.id}/edit`)}
+                        onClick={() => router.push(`/hr-portal/incidents/${incident._id || incident.id}`)}
                         className="p-1 text-green-600 hover:text-green-800"
-                        title="Edit Incident"
+                        title="Manage Incident"
                       >
                         <Edit className="h-4 w-4" />
                       </button>
