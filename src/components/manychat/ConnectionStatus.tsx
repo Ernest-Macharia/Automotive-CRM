@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { 
   Wifi, WifiOff, RefreshCw, Settings, 
-  CheckCircle, XCircle, AlertTriangle, 
-  Users, MessageSquare, Bell
+  CheckCircle, AlertTriangle, 
+  Users, MessageSquare
 } from 'lucide-react';
 import { manychatService, ManyChatConnectionStatus } from '@/services/manychatService';
 import { useToast } from '@/contexts/ToastContext';
@@ -81,19 +81,6 @@ export default function ConnectionStatus({ onReconnect, onConfigure }: Connectio
     }
   };
 
-  const handleRunFullTest = async () => {
-    try {
-      setLoading(true);
-      await manychatService.getTestFull();
-      showToast('ManyChat full test completed', 'success');
-    } catch (error) {
-      console.error('Error running ManyChat full test:', error);
-      showToast('Failed to run ManyChat full test', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (!status) {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-4 animate-pulse">
@@ -152,14 +139,6 @@ export default function ConnectionStatus({ onReconnect, onConfigure }: Connectio
 	              title="Ping API"
 	            >
 	              Ping
-	            </button>
-	            <button
-	              onClick={handleRunFullTest}
-	              disabled={loading}
-	              className="px-2.5 py-1.5 text-xs font-medium border border-gray-300 hover:bg-white rounded-lg transition-colors disabled:opacity-50"
-	              title="Run Full Test"
-	            >
-	              Full Test
 	            </button>
 	          </div>
 	        </div>

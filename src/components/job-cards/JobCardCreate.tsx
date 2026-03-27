@@ -678,15 +678,14 @@ export default function JobCardCreate(mode = 'create',) {
     const newJobCard = await jobCardService.createJobCard(createData);
     showToast('Job card created successfully!', 'success');
     
-    // Update work order with job card ID and mark job card stage as completed
     if (workOrderId) {
       try {
-        await workOrderService.updateWorkOrder(workOrderId, {
-          updatedAt: new Date().toISOString(),
-          // Add job card to work order's jobCards array if not already
-        });
+        const jobCardId = newJobCard._id || newJobCard.id;
+        if (jobCardId) {
+          await workOrderService.addJobCardToWorkOrder(workOrderId, jobCardId);
+        }
       } catch (updateError) {
-        console.error('Error updating work order:', updateError);
+        console.error('Error linking job card to work order:', updateError);
       }
     }
     // We DO NOT auto-transition to Post-Checklist when a Job Card is created.
@@ -2162,3 +2161,4 @@ export default function JobCardCreate(mode = 'create',) {
     </div>
   );
 }
+

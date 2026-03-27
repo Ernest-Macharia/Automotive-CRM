@@ -148,7 +148,19 @@ export default function JobCardsTab({ workOrder, isTransitioning, onAction }: Jo
 
   const handleCreateJobCard = () => {
     setIsCreatingJobCard(true);
-    router.push(`/job-cards/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}&source=workflow`);
+    const opportunityId = typeof workOrder.opportunityId === 'string'
+      ? workOrder.opportunityId
+      : workOrder.opportunityId?._id || '';
+    const query = new URLSearchParams({
+      workOrderId: workOrder._id,
+      source: 'workflow'
+    });
+
+    if (opportunityId) {
+      query.set('opportunityId', opportunityId);
+    }
+
+    router.push(`/job-cards/create?${query.toString()}`);
   };
 
   const handleStartJob = async (jobCardId: string) => {
@@ -235,7 +247,11 @@ export default function JobCardsTab({ workOrder, isTransitioning, onAction }: Jo
         status: 'pending' as const
       };
       
-      await jobCardService.createJobCard(duplicateData);
+      const duplicatedJobCard = await jobCardService.createJobCard(duplicateData);
+      const duplicatedJobCardId = duplicatedJobCard._id || duplicatedJobCard.id;
+      if (workOrderId && duplicatedJobCardId) {
+        await workOrderService.addJobCardToWorkOrder(workOrderId, duplicatedJobCardId);
+      }
       showToast('Job card duplicated', 'success');
       await loadJobCards();
     } catch (error: any) {
@@ -960,3 +976,4 @@ export default function JobCardsTab({ workOrder, isTransitioning, onAction }: Jo
     </div>
   );
 }
+
