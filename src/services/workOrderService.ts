@@ -652,13 +652,12 @@ class WorkOrderService {
   // GET /api/v1/workorder/{id}
   async getWorkOrderById(id: string): Promise<WorkOrder> {
     try {
-        const response = await apiClient.get<WorkOrder>(`${this.basePath}/${id}`);
-        
-        return response;
-      } catch (error) {
-        return 
-      }
+      return await apiClient.get<WorkOrder>(`${this.basePath}/${id}`);
+    } catch (error) {
+      console.error(`Error fetching work order ${id}:`, error);
+      throw error;
     }
+  }
 
   // PATCH /api/v1/workorder/{id}
   async updateWorkOrder(id: string, data: UpdateWorkOrderData): Promise<WorkOrder> {
@@ -2145,42 +2144,36 @@ async createWorkOrderFromOpportunity(
   additionalData?: Omit<CreateWorkOrderData, 'opportunityId'>
 ): Promise<WorkOrder> {
   try {
-    // Fetch opportunity details
     const opportunity = await this.getFullOpportunityDetails(opportunityId);
-    
-    // Get the latest quote from opportunity
-    const latestQuote = opportunity.quotes && opportunity.quotes.length > 0 
-      ? opportunity.quotes[opportunity.quotes.length - 1] 
+    const latestQuote = opportunity.quotes && opportunity.quotes.length > 0
+      ? opportunity.quotes[opportunity.quotes.length - 1]
       : null;
-    
-    if (!latestQuote) {
-      throw new Error('No quote found for this opportunity');
-    }
-    
-    // Build work order data from opportunity
+
     const workOrderData: CreateWorkOrderData = {
       opportunityId,
-      quoteId: latestQuote._id || latestQuote.id,
-      // Get assignedTo from opportunity if available
       assignedTo: opportunity.assignedTo?._id || opportunity.assignedTo?.id,
       status: 'draft',
       currentStage: 'pre_checklist',
       startDate: new Date().toISOString(),
       laborCost: 0,
       partsCost: 0,
-      notes: `Created from opportunity: ${opportunity.subject}`,
+      notes: `Created from opportunity: ${opportunity.subject || opportunityId}`,
       ...additionalData
     };
-    
-    // Calculate estimated hours based on opportunity services
+
+    const resolvedQuoteId = additionalData?.quoteId || latestQuote?._id || latestQuote?.id;
+    if (resolvedQuoteId) {
+      workOrderData.quoteId = resolvedQuoteId;
+    }
+
     if (opportunity.servicesProducts && opportunity.servicesProducts.length > 0) {
       const totalHours = opportunity.servicesProducts
         .filter(item => item.type === 'SERVICE' || item.type === 'LABOR')
         .reduce((sum, item) => sum + (item.quantity || 1), 0);
-      
-      workOrderData.estimatedHours = Math.max(totalHours, 2); // Minimum 2 hours
+
+      workOrderData.estimatedHours = Math.max(totalHours, 2);
     }
-    
+
     return await this.createWorkOrder(workOrderData);
   } catch (error) {
     console.error('Error creating work order from opportunity:', error);
@@ -2457,3 +2450,5 @@ async syncOpportunityDataToWorkOrder(workOrderId: string): Promise<WorkOrder> {
 }
 
 export const workOrderService = new WorkOrderService();
+
+

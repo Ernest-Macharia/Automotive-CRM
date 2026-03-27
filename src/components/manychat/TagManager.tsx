@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Tag, Plus, Edit2, Trash2, Users, Loader2, Search } from 'lucide-react';
+import { Tag, Plus, Users, Loader2, Search } from 'lucide-react';
 import { manychatService, ManyChatTag } from '@/services/manychatService';
 import { useToast } from '@/contexts/ToastContext';
 
@@ -10,8 +10,9 @@ export default function TagManager() {
   const [tags, setTags] = useState<ManyChatTag[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editingTag, setEditingTag] = useState<ManyChatTag | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [tagName, setTagName] = useState('');
+  const [tagDescription, setTagDescription] = useState('');
 
   useEffect(() => {
     fetchTags();
@@ -39,19 +40,6 @@ export default function TagManager() {
     } catch (error) {
       console.error('Error creating tag:', error);
       showToast('Failed to create tag', 'error');
-    }
-  };
-
-  const handleDeleteTag = async (tagId: string) => {
-    if (!confirm('Are you sure you want to delete this tag?')) return;
-    
-    try {
-      // API endpoint for delete would need to be added
-      showToast('Tag deleted successfully', 'success');
-      fetchTags();
-    } catch (error) {
-      console.error('Error deleting tag:', error);
-      showToast('Failed to delete tag', 'error');
     }
   };
 
@@ -136,22 +124,6 @@ export default function TagManager() {
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setEditingTag(tag)}
-                    className="p-1 hover:bg-gray-100 rounded text-gray-600"
-                    title="Edit"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteTag(tag.id)}
-                    className="p-1 hover:bg-red-50 rounded text-red-500"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
               </div>
               
               <div className="flex items-center justify-between text-sm">
@@ -169,12 +141,10 @@ export default function TagManager() {
       )}
 
       {/* Create/Edit Modal */}
-      {(showCreateModal || editingTag) && (
+      {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="w-full max-w-md bg-white rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              {editingTag ? 'Edit Tag' : 'Create New Tag'}
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Create New Tag</h3>
             
             <div className="space-y-4">
               <div>
@@ -183,7 +153,8 @@ export default function TagManager() {
                 </label>
                 <input
                   type="text"
-                  defaultValue={editingTag?.name}
+                  value={tagName}
+                  onChange={(e) => setTagName(e.target.value)}
                   placeholder="Enter tag name"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -194,30 +165,12 @@ export default function TagManager() {
                   Description
                 </label>
                 <textarea
-                  defaultValue={editingTag?.description}
+                  value={tagDescription}
+                  onChange={(e) => setTagDescription(e.target.value)}
                   placeholder="Optional description"
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none"
                 />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Color
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', 
-                    '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'
-                  ].map(color => (
-                    <button
-                      key={color}
-                      type="button"
-                      className="w-8 h-8 rounded-full border-2 border-gray-300"
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
               </div>
             </div>
             
@@ -225,21 +178,31 @@ export default function TagManager() {
               <button
                 onClick={() => {
                   setShowCreateModal(false);
-                  setEditingTag(null);
+                  setTagName('');
+                  setTagDescription('');
                 }}
                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
               >
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  // Handle save logic
-                  setShowCreateModal(false);
-                  setEditingTag(null);
+                onClick={async () => {
+                  const name = tagName.trim();
+                  if (!name) {
+                    showToast('Tag name is required', 'error');
+                    return;
+                  }
+
+                  await handleCreateTag({
+                    name,
+                    description: tagDescription.trim() || undefined,
+                  });
+                  setTagName('');
+                  setTagDescription('');
                 }}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
-                {editingTag ? 'Update Tag' : 'Create Tag'}
+                Create Tag
               </button>
             </div>
           </div>

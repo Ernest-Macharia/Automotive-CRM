@@ -293,22 +293,18 @@ private filterJobCards(jobCards: any[], params: JobCardFilterParams): any[] {
    * Normalize job card data from backend
    */
   private normalizeJobCard(data: any): JobCard {
-    
-    // Extract ID
-     let jobCardData = data;
+    let jobCardData = data;
     if (data.data && (data.data._id || data.data.id)) {
       jobCardData = data.data;
     }
-    
-    // Extract ID
+
     const id = jobCardData._id || jobCardData.id;
-    
+
     if (!id) {
-      console.error('❌ Cannot find ID in job card data:', jobCardData);
+      console.error('Cannot find ID in job card data:', jobCardData);
       throw new Error('Job card data missing ID');
     }
-    
-    // Extract createdBy (handle both string and populated object)
+
     let createdBy: UserRef | string;
     if (typeof jobCardData.createdBy === 'string') {
       createdBy = jobCardData.createdBy;
@@ -318,95 +314,92 @@ private filterJobCards(jobCards: any[], params: JobCardFilterParams): any[] {
         id: jobCardData.createdBy._id,
         email: jobCardData.createdBy.email || '',
         role: jobCardData.createdBy.role || '',
-        name: jobCardData.createdBy.name || (jobCardData.createdBy.firstName && jobCardData.createdBy.lastName 
-          ? `${jobCardData.createdBy.firstName} ${jobCardData.createdBy.lastName}` 
+        name: jobCardData.createdBy.name || (jobCardData.createdBy.firstName && jobCardData.createdBy.lastName
+          ? `${jobCardData.createdBy.firstName} ${jobCardData.createdBy.lastName}`
           : '')
       };
     } else {
       createdBy = 'Unknown';
     }
-    
-    // Extract assignedTo (handle both string and populated object)
+
     let assignedTo: UserRef | string | undefined;
-    if (typeof data.assignedTo === 'string') {
-      assignedTo = data.assignedTo;
-    } else if (data.assignedTo?._id) {
+    if (typeof jobCardData.assignedTo === 'string') {
+      assignedTo = jobCardData.assignedTo;
+    } else if (jobCardData.assignedTo?._id) {
       assignedTo = {
-        _id: data.assignedTo._id,
-        id: data.assignedTo._id,
-        email: data.assignedTo.email || '',
-        role: data.assignedTo.role || '',
-        name: data.assignedTo.name || (data.assignedTo.firstName && data.assignedTo.lastName 
-          ? `${data.assignedTo.firstName} ${data.assignedTo.lastName}` 
+        _id: jobCardData.assignedTo._id,
+        id: jobCardData.assignedTo._id,
+        email: jobCardData.assignedTo.email || '',
+        role: jobCardData.assignedTo.role || '',
+        name: jobCardData.assignedTo.name || (jobCardData.assignedTo.firstName && jobCardData.assignedTo.lastName
+          ? `${jobCardData.assignedTo.firstName} ${jobCardData.assignedTo.lastName}`
           : '')
       };
-    } else if (data.assignedTo === null || data.assignedTo === undefined) {
+    } else if (jobCardData.assignedTo === null || jobCardData.assignedTo === undefined) {
       assignedTo = undefined;
     } else {
       assignedTo = 'Unknown';
     }
-    
-    // Extract vehicleId
+
     let vehicleId: VehicleRef | string;
-    if (typeof data.vehicleId === 'string') {
-      vehicleId = data.vehicleId;
-    } else if (data.vehicleId?._id) {
+    if (typeof jobCardData.vehicleId === 'string') {
+      vehicleId = jobCardData.vehicleId;
+    } else if (jobCardData.vehicleId?._id) {
       vehicleId = {
-        _id: data.vehicleId._id,
-        id: data.vehicleId._id,
-        registrationNumber: data.vehicleId.registrationNumber || '',
-        make: data.vehicleId.make || '',
-        model: data.vehicleId.model || '',
-        vin: data.vehicleId.vin || ''
+        _id: jobCardData.vehicleId._id,
+        id: jobCardData.vehicleId._id,
+        registrationNumber: jobCardData.vehicleId.registrationNumber || '',
+        make: jobCardData.vehicleId.make || '',
+        model: jobCardData.vehicleId.model || '',
+        vin: jobCardData.vehicleId.vin || ''
       };
     } else {
       vehicleId = 'Unknown';
     }
-    
-    // Extract opportunityId
+
     let opportunityId: OpportunityRef | string;
-    if (typeof data.opportunityId === 'string') {
-      opportunityId = data.opportunityId;
-    } else if (data.opportunityId?._id) {
+    if (typeof jobCardData.opportunityId === 'string') {
+      opportunityId = jobCardData.opportunityId;
+    } else if (jobCardData.opportunityId?._id) {
       opportunityId = {
-        _id: data.opportunityId._id,
-        id: data.opportunityId._id,
-        subject: data.opportunityId.subject || '',
-        type: data.opportunityId.type || '',
-        companyName: data.opportunityId.companyName || data.opportunityId.customer?.name || ''
+        _id: jobCardData.opportunityId._id,
+        id: jobCardData.opportunityId._id,
+        subject: jobCardData.opportunityId.subject || '',
+        type: jobCardData.opportunityId.type || '',
+        companyName: jobCardData.opportunityId.companyName || jobCardData.opportunityId.customer?.name || ''
       };
     } else {
       opportunityId = 'Unknown';
     }
-    
-    // Generate job number
-    const jobNumber = data.jobNumber || `JC-${(id || '').toString().slice(-6).toUpperCase()}`;
-    
+
+    const jobNumber = jobCardData.jobNumber || `JC-${id.toString().slice(-6).toUpperCase()}`;
+
     return {
-      id: id,
-      _id: data._id,
-      opportunityId: opportunityId,
-      vehicleId: vehicleId,
-      createdBy: createdBy,
-      assignedTo: assignedTo,
-      jobTitle: data.jobTitle || 'Untitled Job',
-      jobDescription: data.jobDescription || '',
-      status: data.status || 'pending',
-      startDate: data.startDate,
-      endDate: data.endDate,
-      active: data.active !== undefined ? data.active : true,
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
-      priority: data.priority || 'medium',
-      estimatedHours: data.estimatedHours || 0,
-      actualHours: data.actualHours || 0,
-      laborCost: data.laborCost || 0,
-      partsCost: data.partsCost || 0,
-      totalCost: data.totalCost || 0,
-      jobNumber: jobNumber,
-      notes: data.notes || [],
-      partsUsed: data.partsUsed || [],
-      completedDate: data.completedDate
+      id,
+      _id: jobCardData._id,
+      opportunityId,
+      vehicleId,
+      createdBy,
+      assignedTo,
+      jobTitle: jobCardData.jobTitle || 'Untitled Job',
+      jobDescription: jobCardData.jobDescription || '',
+      status: jobCardData.status || 'pending',
+      startDate: jobCardData.startDate,
+      endDate: jobCardData.endDate,
+      active: jobCardData.active !== undefined ? jobCardData.active : true,
+      createdAt: jobCardData.createdAt,
+      updatedAt: jobCardData.updatedAt,
+      priority: jobCardData.priority || 'medium',
+      estimatedHours: jobCardData.estimatedHours || 0,
+      actualHours: jobCardData.actualHours || 0,
+      laborCost: jobCardData.laborCost || 0,
+      partsCost: jobCardData.partsCost || 0,
+      totalCost: jobCardData.totalCost || 0,
+      jobNumber,
+      notes: jobCardData.notes || [],
+      partsUsed: jobCardData.partsUsed || [],
+      completedDate: jobCardData.completedDate,
+      pauseCount: jobCardData.pauseCount || 0
     };
   }
 

@@ -69,6 +69,7 @@ export interface ManyChatStats {
 
 export interface ManyChatConnectionStatus {
   connected: boolean;
+  configured?: boolean;
   pageName?: string;
   pageId?: string;
   token?: string;
@@ -159,8 +160,15 @@ class ManyChatService {
       const useToken = token || this.getToken();
       const params = useToken ? { token: useToken } : {};
       
-      const response = await apiClient.get<ManyChatConnectionStatus>(`${this.baseUrl}/health`, params);
-      return response;
+      const response = await apiClient.get<any>(`${this.baseUrl}/health`, params);
+      return {
+        connected: response?.connected ?? response?.success ?? false,
+        configured: response?.configured ?? response?.success ?? false,
+        pageName: response?.pageName || response?.data?.name || response?.data?.page_name,
+        pageId: response?.pageId || response?.data?.page_id || response?.data?.id,
+        lastSynced: response?.lastSynced || new Date().toISOString(),
+        error: response?.success === false ? response?.message : undefined,
+      };
     } catch (error) {
       console.error('Error checking ManyChat health:', error);
       throw error;
@@ -281,8 +289,11 @@ class ManyChatService {
   async getTags(token?: string): Promise<ManyChatTag[]> {
     try {
       const params = this.addTokenToParams(token ? { token } : undefined);
-      const response = await apiClient.get<ManyChatTag[]>(`${this.baseUrl}/tags`, params);
-      return Array.isArray(response) ? response : [];
+      const response = await apiClient.get<any>(`${this.baseUrl}/tags`, params);
+      if (Array.isArray(response)) return response;
+      if (Array.isArray(response?.tags)) return response.tags;
+      if (Array.isArray(response?.data)) return response.data;
+      return [];
     } catch (error) {
       console.error('Error fetching ManyChat tags:', error);
       throw error;
@@ -297,7 +308,8 @@ class ManyChatService {
     try {
       const dataWithToken = this.addTokenToData(tagData);
       const finalData = token ? { ...dataWithToken, token } : dataWithToken;
-      return await apiClient.post<typeof finalData, ManyChatTag>(`${this.baseUrl}/tags`, finalData);
+      const response = await apiClient.post<typeof finalData, any>(`${this.baseUrl}/tags`, finalData);
+      return response?.tag || response;
     } catch (error) {
       console.error('Error creating ManyChat tag:', error);
       throw error;
@@ -435,7 +447,15 @@ class ManyChatService {
   async getStats(token?: string): Promise<ManyChatStats> {
     try {
       const params = this.addTokenToParams(token ? { token } : undefined);
-      return await apiClient.get<ManyChatStats>(`${this.baseUrl}/stats`, params);
+      const response = await apiClient.get<any>(`${this.baseUrl}/stats`, params);
+      return response?.stats || response || {
+        totalSubscribers: 0,
+        activeSubscribers: 0,
+        messagesSent: 0,
+        messagesReceived: 0,
+        tagsCount: 0,
+        broadcastCount: 0,
+      };
     } catch (error) {
       console.error('Error fetching ManyChat stats:', error);
       throw error;
