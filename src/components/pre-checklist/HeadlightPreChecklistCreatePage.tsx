@@ -62,6 +62,7 @@ import {
   Search,
   ChevronRight,
   ExternalLink,
+  Tag,
   Circle,
   RotateCw,
   Hammer,
@@ -243,6 +244,7 @@ export default function HeadlightPreChecklistCreatePage({
     inspectedBy: sessionStorage.getItem('userId') || '',
     inspectorName: '',
     remarks: '',
+    tags: [] as string[],
     approved: false,
     
     // Service intake
@@ -467,6 +469,7 @@ export default function HeadlightPreChecklistCreatePage({
   const [showInspectorSignature, setShowInspectorSignature] = useState(false);
   const clientSigRef = useRef<SignatureCanvas>(null);
   const inspectorSigRef = useRef<SignatureCanvas>(null);
+  const [tagInput, setTagInput] = useState('');
 
   useEffect(() => {
     if (loading || mode === 'edit' || draftRestoredRef.current) {
@@ -554,6 +557,7 @@ export default function HeadlightPreChecklistCreatePage({
       inspectedBy: toId(checklist?.inspectedBy) || sessionStorage.getItem('userId') || '',
       inspectorName: checklist?.inspectorName || '',
       remarks: checklist?.remarks || '',
+      tags: Array.isArray(checklist?.tags) ? checklist.tags : [],
       approved: !!checklist?.approved,
       
       serviceIntake: {
@@ -770,6 +774,35 @@ export default function HeadlightPreChecklistCreatePage({
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleAddTag = (rawValue?: string) => {
+    const value = (rawValue ?? tagInput).trim();
+    if (!value) return;
+    setFormData(prev => {
+      if (prev.tags.includes(value)) {
+        return prev;
+      }
+      return {
+        ...prev,
+        tags: [...prev.tags, value]
+      };
+    });
+    setTagInput('');
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setFormData(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove)
+    }));
+  };
+
+  const handleTagKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' || event.key === ',') {
+      event.preventDefault();
+      handleAddTag();
+    }
   };
 
   const handleNestedInputChange = (section: string, field: string, value: any) => {
@@ -1295,13 +1328,27 @@ export default function HeadlightPreChecklistCreatePage({
         return;
       }
 
+      const isValidObjectId = (value: string): boolean => /^[a-fA-F0-9]{24}$/.test(value);
       const normalizeId = (value: unknown): string => {
-        if (typeof value === 'string') return value.trim();
-        if (value && typeof value === 'object') {
-          return String((value as any)._id || (value as any).id || '').trim();
+        let candidate = '';
+        if (typeof value === 'string') {
+          candidate = value.trim();
+        } else if (value && typeof value === 'object') {
+          candidate = String((value as any)._id || (value as any).id || '').trim();
         }
-        return '';
+        return candidate && isValidObjectId(candidate) ? candidate : '';
       };
+
+      const resolvedOpportunityId =
+        normalizeId(formData.opportunityId) ||
+        normalizeId(opportunityId) ||
+        normalizeId(opportunity);
+
+      if (!resolvedOpportunityId) {
+        showToast('Opportunity information is missing. Reload the checklist and try again.', 'error');
+        setSubmitting(false);
+        return;
+      }
 
       const resolvedVehicleId =
         normalizeId(formData.vehicleId) ||
@@ -1309,13 +1356,7 @@ export default function HeadlightPreChecklistCreatePage({
         normalizeId(existingChecklist?.vehicleId) ||
         normalizeId(opportunity?.vehicles?.[0]);
 
-      if (!resolvedVehicleId) {
-        showToast('Vehicle information is missing. Reload the checklist and try again.', 'error');
-        setSubmitting(false);
-        return;
-      }
-
-      const customerEmail = formData.customerDetails.email.trim();
+      const customerEmail = (formData.customerDetails.email || '').trim();
       if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
         showToast('Enter a valid customer email or leave it blank', 'error');
         setCurrentStep(2);
@@ -1323,13 +1364,15 @@ export default function HeadlightPreChecklistCreatePage({
         return;
       }
 
-      const clientEmail = formData.clientEmail.trim();
+      const clientEmail = (formData.clientEmail || '').trim();
       if (clientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) {
         showToast('Enter a valid client approval email or leave it blank', 'error');
         setCurrentStep(5);
         setSubmitting(false);
         return;
       }
+      const sanitizedCustomerEmail = customerEmail || undefined;
+      const sanitizedClientEmail = clientEmail || undefined;
 
       // Convert unified headlight inspection to array format for API
       const inspectionItems = Object.entries(formData.headlightInspection).map(([key, value]: [string, any]) => {
@@ -1366,11 +1409,12 @@ export default function HeadlightPreChecklistCreatePage({
 
       // Prepare submission data
       const submissionData: CreatePreChecklistDto = {
-        opportunityId: formData.opportunityId,
-        vehicleId: resolvedVehicleId,
+        opportunityId: resolvedOpportunityId,
+        vehicleId: resolvedVehicleId || '',
         inspectionItems: inspectionItems as any,
         remarks: formData.remarks || '',
         approved: false,
+        tags: formData.tags,
         
         checklistType: 'headlight',
         inspectedBy: formData.inspectedBy,
@@ -1380,7 +1424,7 @@ export default function HeadlightPreChecklistCreatePage({
           firstName: formData.customerDetails.firstName,
           lastName: formData.customerDetails.lastName,
           mobile: formData.customerDetails.mobile,
-          email: customerEmail,
+          email: sanitizedCustomerEmail,
           name: `${formData.customerDetails.firstName} ${formData.customerDetails.lastName}`
         },
         
@@ -1416,7 +1460,7 @@ export default function HeadlightPreChecklistCreatePage({
         clientSignature: formData.clientSignature,
         inspectorSignature: formData.inspectorSignature,
         clientSigningMethod: formData.clientSigningMethod,
-        clientEmail,
+        clientEmail: sanitizedClientEmail,
         
         uploadedImages: formData.uploadedImages,
         files: formData.files
@@ -3719,6 +3763,51 @@ export default function HeadlightPreChecklistCreatePage({
                   </div>
                 </div>
                 
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tags
+                  </label>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {formData.tags.length > 0 ? (
+                      formData.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700"
+                        >
+                          <Tag className="h-3.5 w-3.5" />
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTag(tag)}
+                            className="text-blue-700 hover:text-blue-900"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-400">No tags added yet</p>
+                    )}
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={handleTagKeyDown}
+                      placeholder="Add a tag and press Enter"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddTag()}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Add Tag
+                    </button>
+                  </div>
+                </div>
+
                 {/* Remarks */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Additional Remarks</label>

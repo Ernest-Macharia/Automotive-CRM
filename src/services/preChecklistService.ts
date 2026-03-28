@@ -92,10 +92,23 @@ export interface PreChecklist {
     mileage?: number;
   };
   checklistType?: string;
+  tags?: string[];
   inspectedBy?: string | null;
   inspectorName?: string;
   remarks?: string;
   approved?: boolean;
+  pricingSnapshot?: {
+    currency?: string;
+    items?: Array<{
+      name: string;
+      itemType: 'service' | 'product';
+      quantity: number;
+      unitPrice: number;
+      total: number;
+    }>;
+    subtotal?: number;
+    total?: number;
+  };
   
   serviceIntake?: {
     date: string;
@@ -285,7 +298,20 @@ export interface PreChecklist {
 
 export interface CreatePreChecklistDto {
   opportunityId: string;
-  vehicleId: string;
+  vehicleId?: string;
+  tags?: string[];
+  pricingSnapshot?: {
+    currency?: string;
+    items?: Array<{
+      name: string;
+      itemType: 'service' | 'product';
+      quantity: number;
+      unitPrice: number;
+      total: number;
+    }>;
+    subtotal?: number;
+    total?: number;
+  };
   inspectionItems?: InspectionItem[];
   remarks?: string;
   approved?: boolean;
@@ -445,6 +471,19 @@ export interface UpdatePreChecklistDto {
   autoApproved?: boolean;
   approvedBy?: string;
   approvedAt?: string;
+  tags?: string[];
+  pricingSnapshot?: {
+    currency?: string;
+    items?: Array<{
+      name: string;
+      itemType: 'service' | 'product';
+      quantity: number;
+      unitPrice: number;
+      total: number;
+    }>;
+    subtotal?: number;
+    total?: number;
+  };
   serviceType?: 'pickup_only' | 'workshop_installation' | 'mobile_service';
   inspectorName?: string;
   customerDetails?: {

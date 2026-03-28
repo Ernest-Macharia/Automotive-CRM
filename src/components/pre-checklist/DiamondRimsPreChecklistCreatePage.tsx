@@ -60,6 +60,7 @@ import {
   Download,
   Circle,
   Square,
+  Tag,
   RotateCw,
   ShieldOff,
   Award,
@@ -259,6 +260,7 @@ export default function DiamondRimsPreChecklistCreatePage({
     inspectedBy: sessionStorage.getItem('userId') || '',
     inspectorName: '',
     remarks: '',
+    tags: [] as string[],
     approved: false,
     
     serviceIntake: {
@@ -452,6 +454,7 @@ export default function DiamondRimsPreChecklistCreatePage({
   const [showInspectorSignature, setShowInspectorSignature] = useState(false);
   const clientSigRef = useRef<SignatureCanvas>(null);
   const inspectorSigRef = useRef<SignatureCanvas>(null);
+  const [tagInput, setTagInput] = useState('');
 
   // Condition options for Diamond Rims
   const conditionOptions = [
@@ -888,6 +891,7 @@ export default function DiamondRimsPreChecklistCreatePage({
         : (typeof checklist?.inspectedBy === 'string' ? checklist.inspectedBy : sessionStorage.getItem('userId') || ''),
       inspectorName: checklist?.inspectorName || '',
       remarks: checklist?.remarks || '',
+      tags: Array.isArray(checklist?.tags) ? checklist.tags : [],
       approved: !!checklist?.approved,
 
       serviceIntake: {
@@ -1256,6 +1260,35 @@ export default function DiamondRimsPreChecklistCreatePage({
     }));
   };
 
+  const handleAddTag = (rawValue?: string) => {
+    const value = (rawValue ?? tagInput).trim();
+    if (!value) return;
+    setFormData(prev => {
+      if (prev.tags.includes(value)) {
+        return prev;
+      }
+      return {
+        ...prev,
+        tags: [...prev.tags, value]
+      };
+    });
+    setTagInput('');
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setFormData(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove)
+    }));
+  };
+
+  const handleTagKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' || event.key === ',') {
+      event.preventDefault();
+      handleAddTag();
+    }
+  };
+
   const handleNestedInputChange = (section: string, field: string, value: any) => {
     setFormData(prev => ({
       ...prev,
@@ -1551,13 +1584,27 @@ export default function DiamondRimsPreChecklistCreatePage({
       const requiredMustKnows = serviceMustKnows.filter(m => m.required);
       const allMustKnowsAcknowledged = requiredMustKnows.every(m => m.isAcknowledged);
 
+      const isValidObjectId = (value: string): boolean => /^[a-fA-F0-9]{24}$/.test(value);
       const normalizeId = (value: unknown): string => {
-        if (typeof value === 'string') return value.trim();
-        if (value && typeof value === 'object') {
-          return String((value as any)._id || (value as any).id || '').trim();
+        let candidate = '';
+        if (typeof value === 'string') {
+          candidate = value.trim();
+        } else if (value && typeof value === 'object') {
+          candidate = String((value as any)._id || (value as any).id || '').trim();
         }
-        return '';
+        return candidate && isValidObjectId(candidate) ? candidate : '';
       };
+
+      const resolvedOpportunityId =
+        normalizeId(formData.opportunityId) ||
+        normalizeId(opportunityId) ||
+        normalizeId(opportunity);
+
+      if (!resolvedOpportunityId) {
+        showToast('Opportunity information is missing. Reload the checklist and try again.', 'error');
+        setSubmitting(false);
+        return;
+      }
 
       const resolvedVehicleId =
         normalizeId(formData.vehicleId) ||
@@ -1565,34 +1612,31 @@ export default function DiamondRimsPreChecklistCreatePage({
         normalizeId(existingChecklist?.vehicleId) ||
         normalizeId(opportunity?.vehicles?.[0]);
 
-      if (!resolvedVehicleId) {
-        showToast('Vehicle information is missing. Reload the checklist and try again.', 'error');
-        setSubmitting(false);
-        return;
-      }
-
-      const customerEmail = formData.customerDetails.email.trim();
+      const customerEmail = (formData.customerDetails.email || '').trim();
       if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
         showToast('Enter a valid customer email or leave it blank', 'error');
         setSubmitting(false);
         return;
       }
 
-      const clientEmail = formData.clientEmail.trim();
+      const clientEmail = (formData.clientEmail || '').trim();
       if (clientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) {
         showToast('Enter a valid client approval email or leave it blank', 'error');
         setSubmitting(false);
         return;
       }
+      const sanitizedCustomerEmail = customerEmail || undefined;
+      const sanitizedClientEmail = clientEmail || undefined;
 
       // Create submission data with proper structure matching backend DTO
       const submissionData: CreatePreChecklistDto = {
         checklistType: 'diamond_rims',
-        opportunityId: formData.opportunityId,
-        vehicleId: resolvedVehicleId,
+        opportunityId: resolvedOpportunityId,
+        vehicleId: resolvedVehicleId || '',
         inspectedBy: sessionStorage.getItem('userId') || formData.inspectedBy,
         inspectorName: formData.inspectorName,
         remarks: formData.remarks,
+        tags: formData.tags,
         approved: false,
         
         serviceIntake: {
@@ -1608,7 +1652,7 @@ export default function DiamondRimsPreChecklistCreatePage({
           firstName: formData.customerDetails.firstName,
           lastName: formData.customerDetails.lastName,
           mobile: formData.customerDetails.mobile,
-          email: customerEmail,
+          email: sanitizedCustomerEmail,
           name: `${formData.customerDetails.firstName} ${formData.customerDetails.lastName}`.trim()
         },
         
@@ -1665,7 +1709,7 @@ export default function DiamondRimsPreChecklistCreatePage({
         inspectorSignature: formData.inspectorSignature,
         uploadedImages: formData.uploadedImages,
         clientSigningMethod: formData.clientSigningMethod,
-        clientEmail,
+        clientEmail: sanitizedClientEmail,
         
         files: formData.files || []
       };
@@ -4527,6 +4571,52 @@ export default function DiamondRimsPreChecklistCreatePage({
                 </div>
               </div>
               
+              {/* Remarks */}
+              <div className="mt-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tags
+                </label>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {formData.tags.length > 0 ? (
+                    formData.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700"
+                      >
+                        <Tag className="h-3.5 w-3.5" />
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTag(tag)}
+                          className="text-purple-700 hover:text-purple-900"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-400">No tags added yet</p>
+                  )}
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={handleTagKeyDown}
+                    placeholder="Add a tag and press Enter"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAddTag()}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                  >
+                    Add Tag
+                  </button>
+                </div>
+              </div>
+
               {/* Remarks */}
               <div className="mt-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
