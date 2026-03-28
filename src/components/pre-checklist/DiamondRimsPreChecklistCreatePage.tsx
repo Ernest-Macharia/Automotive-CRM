@@ -262,6 +262,18 @@ export default function DiamondRimsPreChecklistCreatePage({
     remarks: '',
     tags: [] as string[],
     approved: false,
+    pricingSnapshot: {
+      currency: 'KES',
+      items: [] as Array<{
+        name: string;
+        itemType: 'service' | 'product';
+        quantity: number;
+        unitPrice: number;
+        total: number;
+      }>,
+      subtotal: 0,
+      total: 0
+    },
     
     serviceIntake: {
       date: new Date().toISOString().split('T')[0],
@@ -893,6 +905,19 @@ export default function DiamondRimsPreChecklistCreatePage({
       remarks: checklist?.remarks || '',
       tags: Array.isArray(checklist?.tags) ? checklist.tags : [],
       approved: !!checklist?.approved,
+      pricingSnapshot: checklist?.pricingSnapshot
+        ? {
+            currency: checklist.pricingSnapshot.currency || 'KES',
+            items: Array.isArray(checklist.pricingSnapshot.items) ? checklist.pricingSnapshot.items : [],
+            subtotal: checklist.pricingSnapshot.subtotal ?? 0,
+            total: checklist.pricingSnapshot.total ?? 0
+          }
+        : {
+            currency: 'KES',
+            items: [],
+            subtotal: 0,
+            total: 0
+          },
 
       serviceIntake: {
         date: checklist?.serviceIntake?.date || new Date().toISOString().split('T')[0],
@@ -1289,6 +1314,33 @@ export default function DiamondRimsPreChecklistCreatePage({
     }
   };
 
+  const handlePricingItemChange = (index: number, field: 'quantity' | 'unitPrice', rawValue: string) => {
+    const value = Number(rawValue);
+    if (Number.isNaN(value) || value < 0) return;
+    setFormData(prev => {
+      const snapshot = prev.pricingSnapshot;
+      if (!snapshot) return prev;
+      const items = Array.isArray(snapshot.items) ? [...snapshot.items] : [];
+      if (!items[index]) return prev;
+      const nextItem = {
+        ...items[index],
+        [field]: value
+      };
+      nextItem.total = Number((nextItem.quantity * nextItem.unitPrice).toFixed(2));
+      items[index] = nextItem;
+      const subtotal = items.reduce((sum, item) => sum + (item.total || 0), 0);
+      return {
+        ...prev,
+        pricingSnapshot: {
+          ...snapshot,
+          items,
+          subtotal,
+          total: subtotal
+        }
+      };
+    });
+  };
+
   const handleNestedInputChange = (section: string, field: string, value: any) => {
     setFormData(prev => ({
       ...prev,
@@ -1637,6 +1689,7 @@ export default function DiamondRimsPreChecklistCreatePage({
         inspectorName: formData.inspectorName,
         remarks: formData.remarks,
         tags: formData.tags,
+        pricingSnapshot: formData.pricingSnapshot,
         approved: false,
         
         serviceIntake: {
@@ -4384,6 +4437,73 @@ export default function DiamondRimsPreChecklistCreatePage({
                     )}
                   </div>
                 </div>
+
+                {mode === 'edit' && (
+                  <div className="bg-white rounded-lg p-5 border border-gray-200">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-amber-100 rounded-lg">
+                          <CreditCard className="h-5 w-5 text-amber-700" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">Pricing Snapshot</h3>
+                          <p className="text-xs text-gray-500">Edit prices captured at opportunity creation</p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-medium text-gray-600">
+                        {formData.pricingSnapshot?.currency || 'KES'}
+                      </span>
+                    </div>
+
+                    {formData.pricingSnapshot?.items?.length ? (
+                      <div className="space-y-3">
+                        {formData.pricingSnapshot.items.map((item, index) => (
+                          <div key={`${item.name}-${index}`} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
+                            <div className="md:col-span-2">
+                              <p className="text-sm font-medium text-gray-800">{item.name}</p>
+                              <p className="text-xs text-gray-500 capitalize">{item.itemType}</p>
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Qty</label>
+                              <input
+                                type="number"
+                                min={0}
+                                step="1"
+                                value={item.quantity}
+                                onChange={(e) => handlePricingItemChange(index, 'quantity', e.target.value)}
+                                className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Unit Price</label>
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                value={item.unitPrice}
+                                onChange={(e) => handlePricingItemChange(index, 'unitPrice', e.target.value)}
+                                className="w-full px-2.5 py-2 border border-gray-300 rounded-lg text-sm"
+                              />
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500 mb-1">Total</p>
+                              <p className="text-sm font-semibold text-gray-900">
+                                {item.total?.toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                        <div className="pt-2 border-t border-gray-200 flex justify-end">
+                          <div className="text-sm font-semibold text-gray-900">
+                            Total: {formData.pricingSnapshot.total?.toLocaleString('en-KE', { minimumFractionDigits: 2 })}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No pricing snapshot found for this checklist.</p>
+                    )}
+                  </div>
+                )}
 
                 {/* Client Signature Section */}
                 <div className="bg-gray-50 rounded-lg p-5 border border-gray-200">
