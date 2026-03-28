@@ -20,6 +20,7 @@ import {
   Calendar,
   User,
   Car,
+  Tag,
   ChevronDown,
   ChevronUp,
   MoreVertical,
@@ -97,6 +98,7 @@ export default function PreChecklistDashboard() {
       const searchLower = searchTerm.toLowerCase();
       const matchesSearch = 
         checklist.remarks?.toLowerCase().includes(searchLower) ||
+        (Array.isArray(checklist.tags) && checklist.tags.some(tag => tag.toLowerCase().includes(searchLower))) ||
         checklist.inspectionItems.some(item => 
           item.item.toLowerCase().includes(searchLower) ||
           item.remarks?.toLowerCase().includes(searchLower)
@@ -466,6 +468,24 @@ export default function PreChecklistDashboard() {
                                 {checklist.remarks?.substring(0, 50) || 'No remarks'}
                                 {checklist.remarks && checklist.remarks.length > 50 && '...'}
                               </div>
+                              {Array.isArray(checklist.tags) && checklist.tags.length > 0 && (
+                                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                  {checklist.tags.slice(0, 4).map((tag) => (
+                                    <span
+                                      key={tag}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700"
+                                    >
+                                      <Tag className="h-3 w-3" />
+                                      {tag}
+                                    </span>
+                                  ))}
+                                  {checklist.tags.length > 4 && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600">
+                                      +{checklist.tags.length - 4}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </td>
                           <td className="px-4 py-3">

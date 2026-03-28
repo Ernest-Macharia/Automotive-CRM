@@ -1287,6 +1287,19 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                 <p className="text-xs text-gray-600 truncate">
                   ID: {opportunity._id.slice(-8)} • {formatDate(opportunity.createdAt)}
                 </p>
+                {Array.isArray(opportunity.tags) && opportunity.tags.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {opportunity.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700"
+                      >
+                        <Tag className="h-3 w-3" />
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             
@@ -1385,6 +1398,19 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                   <span className="text-gray-400">•</span>
                   <span className="text-sm text-gray-600">Created {formatDate(opportunity.createdAt)}</span>
                 </div>
+                {Array.isArray(opportunity.tags) && opportunity.tags.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {opportunity.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700"
+                      >
+                        <Tag className="h-3.5 w-3.5" />
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             

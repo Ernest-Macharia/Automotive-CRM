@@ -378,6 +378,19 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
                 Pre-Service Checklist #{checklist._id.slice(-8)}
               </h1>
               <p className="text-sm text-gray-500">Vehicle Inspection Details</p>
+              {Array.isArray(checklist.tags) && checklist.tags.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {checklist.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700"
+                    >
+                      <Tag className="h-3.5 w-3.5" />
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
