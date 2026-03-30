@@ -176,6 +176,27 @@ class ReportService {
       const queryParams = this.buildQueryParams(params);
       return await apiClient.get<RoleDashboardResponse>('/reports/dashboard/role', queryParams);
     } catch (error) {
+      const status = (error as any)?.status ?? (error as any)?.response?.status;
+      if (status === 404) {
+        try {
+          const summary = await this.getSummary(params);
+          return {
+            role: 'unknown',
+            businessNumbers: {
+              totalOpportunities: summary.opportunitiesCount,
+              quotesCount: summary.quotesCount,
+              invoicesCount: summary.invoicesCount
+            },
+            financeNumbers: {
+              totalPayments: summary.totalPayments,
+              totalOutstanding: summary.totalOutstanding
+            },
+            recentActivities: []
+          };
+        } catch (fallbackError) {
+          console.error('Role dashboard fallback failed:', fallbackError);
+        }
+      }
       console.error('Error getting role dashboard:', error);
       throw error;
     }
