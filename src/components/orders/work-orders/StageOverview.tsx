@@ -241,7 +241,17 @@ export default function StageOverview({ workOrder, isTransitioning, setActiveTab
   };
 
   const handleCreateJobCard = () => {
-    router.push(`/job-cards/create?workOrderId=${workOrder._id}&opportunityId=${workOrder.opportunityId}&refresh=true`);
+    const opportunityId = getOpportunityId(workOrder);
+    const query = new URLSearchParams({
+      workOrderId: workOrder._id,
+      refresh: 'true',
+    });
+
+    if (opportunityId) {
+      query.set('opportunityId', opportunityId);
+    }
+
+    router.push(`/job-cards/create?${query.toString()}`);
   };
 
   const handleApprovePostChecklist = async () => {
