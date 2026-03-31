@@ -2691,7 +2691,7 @@ async autoTransitionOnPreChecklistComplete(
         
         const checklistData = {
           opportunityId,
-          vehicleId,
+          ...(vehicleId ? { vehicleId } : {}),
           inspectionItems: defaultItems,
           remarks: `Pre-service inspection for ${opportunity.subject}`,
           approved: false
@@ -4732,10 +4732,10 @@ async autoTransitionOnPreChecklistComplete(
       // Create job card with correct data structure
       const jobCardData = {
         opportunityId,
-        vehicleId: vehicleId || '',
+        ...(vehicleId ? { vehicleId } : {}),
         jobTitle: `Job Card for ${(opportunity as any).subject || 'Work Order'}`,
         jobDescription: (opportunity as any).notes || 'Service work required',
-        assignedTo: assignedTo || '',
+        ...(assignedTo ? { assignedTo } : {}),
         priority: ((workOrder as any).priority || 'medium') as 'low' | 'medium' | 'high' | 'urgent',
         estimatedHours: workOrder.estimatedHours || 0,
         status: 'pending' as const // Use valid status

@@ -1462,7 +1462,7 @@ export default function HeadlightPreChecklistCreatePage({
       // Prepare submission data
       const submissionData: CreatePreChecklistDto = {
         opportunityId: resolvedOpportunityId,
-        vehicleId: resolvedVehicleId || '',
+        ...(resolvedVehicleId ? { vehicleId: resolvedVehicleId } : {}),
         inspectionItems: inspectionItems as any,
         remarks: formData.remarks || '',
         approved: false,

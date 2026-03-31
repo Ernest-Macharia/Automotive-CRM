@@ -1684,7 +1684,7 @@ export default function DiamondRimsPreChecklistCreatePage({
       const submissionData: CreatePreChecklistDto = {
         checklistType: 'diamond_rims',
         opportunityId: resolvedOpportunityId,
-        vehicleId: resolvedVehicleId || '',
+        ...(resolvedVehicleId ? { vehicleId: resolvedVehicleId } : {}),
         inspectedBy: sessionStorage.getItem('userId') || formData.inspectedBy,
         inspectorName: formData.inspectorName,
         remarks: formData.remarks,
