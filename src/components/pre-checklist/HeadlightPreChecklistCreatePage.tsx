@@ -3653,8 +3653,9 @@ export default function HeadlightPreChecklistCreatePage({
                             <button
                               type="button"
                               onClick={() => saveSignature('inspector')}
-                              className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm"
+                              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center gap-2"
                             >
+                              <CheckCircle className="h-4 w-4" />
                               Save Signature
                             </button>
                           </div>
@@ -3662,17 +3663,21 @@ export default function HeadlightPreChecklistCreatePage({
                       ) : (
                         <div
                           onClick={() => setShowInspectorSignature(true)}
-                          className="cursor-pointer"
+                          className="cursor-pointer group"
                         >
                           {formData.inspectorSignature ? (
                             <div className="flex items-center justify-between">
                               <img src={formData.inspectorSignature} alt="Inspector Signature" className="h-16 object-contain" />
-                              <span className="text-sm text-purple-600">Change</span>
+                              <span className="text-sm text-purple-600 group-hover:text-purple-800 flex items-center gap-1">
+                                <FileSignature className="h-4 w-4" />
+                                Change
+                              </span>
                             </div>
                           ) : (
-                            <div className="flex flex-col items-center justify-center py-6 border-2 border-dashed rounded-lg hover:border-purple-400 hover:bg-purple-50">
-                              <FileSignature className="h-10 w-10 text-gray-400 mb-2" />
-                              <p className="text-sm font-medium">Click to sign as inspector</p>
+                            <div className="flex flex-col items-center justify-center py-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-purple-400 hover:bg-purple-50 transition-colors">
+                              <FileSignature className="h-10 w-10 text-gray-400 group-hover:text-purple-500 mb-2" />
+                              <p className="text-sm font-medium text-gray-700 group-hover:text-purple-700">Click to sign as inspector</p>
+                              <p className="text-xs text-gray-500 mt-1">Digital signature required</p>
                             </div>
                           )}
                         </div>
@@ -4010,3 +4015,4 @@ export default function HeadlightPreChecklistCreatePage({
     </div>
   );
 }
+
