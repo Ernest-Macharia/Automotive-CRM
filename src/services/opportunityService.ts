@@ -49,6 +49,7 @@ export interface Opportunity {
   updatedAt: string;
   isNurturing: boolean;
   notes?: string;
+  tags?: string[];
   leadScore?: {
     totalScore: number;
     tier: 'hot' | 'warm' | 'cold';
@@ -143,6 +144,7 @@ export interface CreateOpportunityData {
     bodyType?: string;
   }>;
   notes?: string;
+  tags?: string[];
   opportunityType: 'SERVICE' | 'SALE' | 'REPAIR' | 'MAINTENANCE' | 'INSPECTION';
   packageType?: 'sales_order' | 'work_order';
   servicesProducts?: Array<{
@@ -170,6 +172,7 @@ export interface UpdateOpportunityData {
   assignedTo?: string;
   isNurturing?: boolean;
   notes?: string;
+  tags?: string[];
   customer?: {
     name?: string;
     email?: string;
@@ -216,6 +219,23 @@ export interface UpdateOpportunityData {
   totalDiscount?: number;
   total?: number;
 }
+
+const normalizeOpportunityId = (value: unknown): string => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed && trimmed !== '[object Object]' ? trimmed : '';
+  }
+
+  if (value && typeof value === 'object') {
+    const rawId = (value as Record<string, unknown>)._id ?? (value as Record<string, unknown>).id;
+    if (typeof rawId === 'string') {
+      const trimmed = rawId.trim();
+      return trimmed && trimmed !== '[object Object]' ? trimmed : '';
+    }
+  }
+
+  return '';
+};
 
 export interface FilterParams {
   // Basic filters
@@ -1075,9 +1095,14 @@ class OpportunityService {
   }
 
   // Get opportunity by ID
-  async getOpportunityById(id: string, minimal: boolean = false): Promise<Opportunity> {
+  async getOpportunityById(id: string | { _id?: string; id?: string }, minimal: boolean = false): Promise<Opportunity> {
     try {
-      const endpoint = `/opportunities/${id}${minimal ? '?minimal=true' : ''}`;
+      const normalizedId = normalizeOpportunityId(id);
+      if (!normalizedId) {
+        throw new Error('Invalid opportunity ID');
+      }
+
+      const endpoint = `/opportunities/${normalizedId}${minimal ? '?minimal=true' : ''}`;
       return await extendedApiClient.get<Opportunity>(endpoint);
     } catch (error) {
       console.error(`Error fetching opportunity ${id}:`, error);
