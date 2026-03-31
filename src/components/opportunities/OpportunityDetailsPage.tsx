@@ -37,6 +37,7 @@ interface LeadScoreBreakdown {
 }
 
 interface OpportunityWithDetails extends Opportunity {
+  tags?: string[];
   invoices?: any[];
   payments?: any[];
   opportunityType?: 'SERVICE' | 'SALE' | 'REPAIR' | 'MAINTENANCE' | 'INSPECTION';
