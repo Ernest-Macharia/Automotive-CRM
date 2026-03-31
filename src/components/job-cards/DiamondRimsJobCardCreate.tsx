@@ -969,11 +969,24 @@ const mapPreChecklistServices = (services: string[]) => {
     
     try {
       setSubmitting(true);
+
+      const resolveId = (value: any): string => {
+        if (!value) return '';
+        if (typeof value === 'string') return value;
+        return value._id || value.id || '';
+      };
+      const resolvedVehicleId =
+        resolveId((preChecklist as any)?.vehicleId) ||
+        resolveId(vehicleDetails) ||
+        resolveId(opportunity?.vehicles?.[0]) ||
+        vehicleId ||
+        '';
       
       // Prepare job card data
       const createData: CreateJobCardData = {
         opportunityId: formData.opportunityId,
         workOrderId: workOrderId,
+        vehicleId: resolvedVehicleId || undefined,
         jobTitle: formData.jobTitle,
         jobDescription: getServiceDescription(), // Use concise service description
         assignedTo: formData.assignedTo, // Include technician assignment
