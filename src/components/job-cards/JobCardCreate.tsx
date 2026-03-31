@@ -662,10 +662,23 @@ export default function JobCardCreate(mode = 'create',) {
   try {
     setSubmitting(true);
     
+    const resolveId = (value: any): string => {
+      if (!value) return '';
+      if (typeof value === 'string') return value;
+      return value._id || value.id || '';
+    };
+
+    const resolvedVehicleId =
+      resolveId((preChecklist as any)?.vehicleId) ||
+      resolveId((opportunity as any)?.vehicles?.[0]) ||
+      vehicleId ||
+      '';
+
     // Prepare job card data
     const createData: CreateJobCardData = {
       opportunityId: formData.opportunityId,
       workOrderId: formData.workOrderId,
+      vehicleId: resolvedVehicleId || undefined,
       jobTitle: formData.jobTitle,
       jobDescription: formData.jobDescription,
       assignedTo: formData.assignedTo || undefined,
@@ -2161,4 +2174,3 @@ export default function JobCardCreate(mode = 'create',) {
     </div>
   );
 }
-

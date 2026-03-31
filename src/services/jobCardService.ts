@@ -56,7 +56,7 @@ export interface JobCard {
 export interface CreateJobCardData {
   opportunityId: string;
   workOrderId?: string;
-  // vehicleId: string;
+  vehicleId?: string;
   jobTitle: string;
   jobDescription?: string;
   assignedTo?: string;
