@@ -301,31 +301,44 @@ class UserService {
    */
   private normalizeUser(data: any): User {
     // Extract role name from role object or string
-    let roleName = 'unknown';
     let roleObject: UserRole | string = 'unknown';
+    const roleSource =
+      (data.role && typeof data.role === 'object' ? data.role : null) ||
+      data.roleData ||
+      data.roleDetails ||
+      null;
     
-    if (data.role) {
-      if (typeof data.role === 'object' && data.role !== null) {
-        roleName = data.role.name || 'unknown';
+    if (roleSource) {
+      if (typeof roleSource === 'object' && roleSource !== null) {
         roleObject = {
-          _id: data.role._id,
-          id: data.role._id || data.role.id,
-          name: data.role.name,
-          display_name: data.role.display_name || data.role.displayName,
-          permissions: data.role.permissions || []
+          _id: roleSource._id,
+          id: roleSource._id || roleSource.id,
+          name: roleSource.name || data.roleName,
+          display_name:
+            roleSource.display_name ||
+            roleSource.displayName ||
+            data.roleDisplayName ||
+            data.display_name ||
+            roleSource.name,
+          permissions: roleSource.permissions || data.rolePermissions || []
         };
-      } else if (typeof data.role === 'string') {
-        roleName = data.role;
-        roleObject = data.role;
       }
+    } else if (typeof data.role === 'string') {
+        roleObject = data.role;
     }
 
     // Calculate all permissions
-    const rolePermissions = (typeof data.role === 'object' && data.role !== null) 
-      ? (data.role.permissions || []) 
-      : [];
+    const rolePermissions = Array.isArray(roleSource?.permissions)
+      ? roleSource.permissions
+      : (data.rolePermissions || []);
     const additionalPermissions = data.additionalPermissions || [];
-    const allPermissions = [...new Set([...rolePermissions, ...additionalPermissions])];
+    const directPermissions = data.directPermissions || [];
+    const allPermissions = [...new Set([
+      ...rolePermissions,
+      ...additionalPermissions,
+      ...directPermissions,
+      ...(data.permissions || []),
+    ])];
 
     return {
       id: data._id || data.id,
@@ -334,7 +347,7 @@ class UserService {
       name: data.name,
       email: data.email,
       role: roleObject,
-      permissions: data.permissions || allPermissions,
+      permissions: allPermissions,
       additionalPermissions: data.additionalPermissions,
       canViewSummary: data.canViewSummary || false,
       active: data.active !== undefined ? data.active : true,

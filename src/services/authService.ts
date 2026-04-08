@@ -26,27 +26,88 @@ export class ValidationError extends Error {
   }
 }
 
+export interface AuthRole {
+  _id?: string;
+  id?: string;
+  name: string;
+  display_name?: string;
+  description?: string;
+  category?: string;
+  employee_type?: string;
+  permissions?: string[];
+  active?: boolean;
+  isSystem?: boolean;
+}
+
 export interface BackendUser {
-  sub: string;
+  sub?: string;
+  _id?: string;
+  id?: string;
   email: string;
-  role: 'admin' | 'manager' | 'user' | 'superadmin';
-  permissions: string[];
-  requiresPasswordChange: boolean;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  role?: AuthRole | string;
+  roleName?: string;
+  roleDisplayName?: string;
+  display_name?: string;
+  roleData?: AuthRole;
+  roleDetails?: AuthRole;
+  permissions?: string[];
+  rolePermissions?: string[];
+  additionalPermissions?: string[];
+  directPermissions?: string[];
+  requiresPasswordChange?: boolean;
+  isActive?: boolean;
+  active?: boolean;
+  companyId?: string;
+  organizationId?: string;
+  organizationName?: string;
+  organization?: {
+    _id?: string;
+    id?: string;
+    name?: string;
+    slug?: string;
+    logo?: string;
+    tier?: string;
+  };
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface FrontendUser {
   id: string;
+  _id?: string;
   email: string;
+  name?: string;
   firstName: string;
   lastName?: string;
-  role: 'admin' | 'manager' | 'user' | 'superadmin';
+  role: AuthRole | string;
+  roleName: string;
+  roleDisplayName: string;
+  display_name?: string;
+  roleData?: AuthRole;
+  roleDetails?: AuthRole;
+  rolePermissions: string[];
+  additionalPermissions: string[];
+  directPermissions: string[];
   avatar?: string;
   companyId?: string;
+  organizationId?: string;
+  organizationName?: string;
+  organization?: {
+    id?: string;
+    _id?: string;
+    name?: string;
+    slug?: string;
+    logo?: string;
+    tier?: string;
+  };
   isActive: boolean;
   lastLogin?: string;
   createdAt: string;
   updatedAt: string;
-  permissions?: string[];
+  permissions: string[];
   requiresPasswordChange?: boolean;
 }
 
@@ -107,7 +168,7 @@ export interface AuthResponse {
 }
 
 interface MeApiResponse {
-  user: FrontendUser;
+  user: BackendUser | FrontendUser;
 }
 
 interface RefreshTokenResponse {
@@ -183,17 +244,16 @@ class AuthService {
     if (typeof window === 'undefined') return;
     
     try {
-      if (rememberMe) {
-        // Store in localStorage for persistent login
-        localStorage.setItem(this.TOKEN_KEY, accessToken);
-        localStorage.setItem(this.REFRESH_TOKEN_KEY, refreshToken);
-        localStorage.setItem(this.USER_KEY, JSON.stringify(user));
-      } else {
-        // Store in sessionStorage for session-only
-        sessionStorage.setItem(this.TOKEN_KEY, accessToken);
-        sessionStorage.setItem(this.REFRESH_TOKEN_KEY, refreshToken);
-        sessionStorage.setItem(this.USER_KEY, JSON.stringify(user));
-      }
+      const primaryStorage = rememberMe ? localStorage : sessionStorage;
+      const secondaryStorage = rememberMe ? sessionStorage : localStorage;
+
+      secondaryStorage.removeItem(this.TOKEN_KEY);
+      secondaryStorage.removeItem(this.REFRESH_TOKEN_KEY);
+      secondaryStorage.removeItem(this.USER_KEY);
+
+      primaryStorage.setItem(this.TOKEN_KEY, accessToken);
+      primaryStorage.setItem(this.REFRESH_TOKEN_KEY, refreshToken);
+      primaryStorage.setItem(this.USER_KEY, JSON.stringify(user));
     } catch (error) {
       console.error('Error storing auth data:', error);
     }
@@ -208,23 +268,137 @@ class AuthService {
     clearStoredAuth();
   }
 
-  private mapBackendUserToFrontend(backendUser: BackendUser): FrontendUser {
-    const nameParts = backendUser.email.split('@')[0].split('.');
-    const firstName = nameParts[0] || backendUser.email.split('@')[0];
-    const lastName = nameParts.slice(1).join(' ') || '';
-    
+  private capitalizeNamePart(value: string): string {
+    return value ? value.charAt(0).toUpperCase() + value.slice(1) : '';
+  }
+
+  private humanizeRoleName(roleName: string): string {
+    return roleName
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  private toArray(value: unknown): string[] {
+    return Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      : [];
+  }
+
+  private getRoleCandidate(data: Partial<BackendUser | FrontendUser>): Partial<AuthRole> | null {
+    const candidates = [data.roleData, data.roleDetails, data.role];
+
+    for (const candidate of candidates) {
+      if (candidate && typeof candidate === 'object') {
+        return candidate as Partial<AuthRole>;
+      }
+    }
+
+    return null;
+  }
+
+  private normalizeUser(userData: Partial<BackendUser | FrontendUser>): FrontendUser {
+    const email = String(userData.email || '');
+    const emailLocalPart = email.split('@')[0] || '';
+    const roleCandidate = this.getRoleCandidate(userData);
+    const roleName =
+      roleCandidate?.name ||
+      userData.roleName ||
+      (typeof userData.role === 'string' ? userData.role : '') ||
+      'unknown';
+    const roleDisplayName =
+      roleCandidate?.display_name ||
+      userData.roleDisplayName ||
+      userData.display_name ||
+      this.humanizeRoleName(roleName);
+    const rolePermissions = this.toArray(roleCandidate?.permissions ?? userData.rolePermissions);
+    const additionalPermissions = this.toArray(userData.additionalPermissions);
+    const directPermissions = this.toArray(userData.directPermissions);
+    const permissions = [
+      ...new Set([
+        ...this.toArray(userData.permissions),
+        ...rolePermissions,
+        ...additionalPermissions,
+        ...directPermissions,
+      ]),
+    ];
+
+    const roleObject =
+      roleName && roleName !== 'unknown'
+        ? {
+            _id: roleCandidate?._id,
+            id: roleCandidate?._id || roleCandidate?.id,
+            name: roleName,
+            display_name: roleDisplayName,
+            description: roleCandidate?.description,
+            category: roleCandidate?.category,
+            employee_type: roleCandidate?.employee_type,
+            permissions: rolePermissions,
+            active: roleCandidate?.active,
+            isSystem: roleCandidate?.isSystem,
+          }
+        : null;
+
+    const fullName =
+      userData.name ||
+      [userData.firstName, userData.lastName].filter(Boolean).join(' ').trim() ||
+      emailLocalPart;
+    const [derivedFirstName, ...derivedLastParts] = fullName.split(' ').filter(Boolean);
+    const firstName = userData.firstName || derivedFirstName || emailLocalPart || 'User';
+    const lastName =
+      userData.lastName ||
+      (derivedLastParts.length > 0 ? derivedLastParts.join(' ') : undefined);
+    const nowIso = new Date().toISOString();
+
     return {
-      id: backendUser.sub,
-      email: backendUser.email,
-      firstName: firstName.charAt(0).toUpperCase() + firstName.slice(1),
-      lastName: lastName ? lastName.charAt(0).toUpperCase() + lastName.slice(1) : undefined,
-      role: backendUser.role,
-      permissions: backendUser.permissions,
-      requiresPasswordChange: backendUser.requiresPasswordChange,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      id: String(userData.id || userData._id || userData.sub || ''),
+      _id: userData._id || userData.id || userData.sub,
+      email,
+      name: fullName,
+      firstName: this.capitalizeNamePart(firstName),
+      lastName: lastName ? this.capitalizeNamePart(lastName) : undefined,
+      role: roleObject || roleName,
+      roleName,
+      roleDisplayName,
+      display_name: roleDisplayName,
+      roleData: roleObject || undefined,
+      roleDetails: roleObject || undefined,
+      permissions,
+      rolePermissions,
+      additionalPermissions,
+      directPermissions,
+      requiresPasswordChange: Boolean(userData.requiresPasswordChange),
+      isActive: userData.isActive ?? userData.active ?? true,
+      companyId: userData.companyId,
+      organizationId: userData.organizationId || userData.organization?._id || userData.organization?.id,
+      organizationName: userData.organizationName || userData.organization?.name,
+      organization: userData.organization
+        ? {
+            id: userData.organization.id || userData.organization._id,
+            _id: userData.organization._id || userData.organization.id,
+            name: userData.organization.name,
+            slug: userData.organization.slug,
+            logo: userData.organization.logo,
+            tier: userData.organization.tier,
+          }
+        : undefined,
+      createdAt: userData.createdAt || nowIso,
+      updatedAt: userData.updatedAt || nowIso,
+      lastLogin: userData.updatedAt,
     };
+  }
+
+  private persistUser(user: FrontendUser): void {
+    if (typeof window === 'undefined') return;
+
+    const primaryStorage = this.shouldPersistSession() ? localStorage : sessionStorage;
+    const secondaryStorage = this.shouldPersistSession() ? sessionStorage : localStorage;
+
+    secondaryStorage.removeItem(this.USER_KEY);
+    primaryStorage.setItem(this.USER_KEY, JSON.stringify(user));
+  }
+
+  private mapBackendUserToFrontend(backendUser: BackendUser): FrontendUser {
+    return this.normalizeUser(backendUser);
   }
 
   async validateCurrentUser(): Promise<boolean> {
@@ -269,11 +443,10 @@ class AuthService {
   async refreshUserData(): Promise<FrontendUser | null> {
     try {
       const response = await apiClient.get<MeApiResponse | FrontendUser>('/auth/me');
-      const user = 'user' in response ? response.user : response;
-      if (user) {
-        const userStr = JSON.stringify(user);
-        sessionStorage.setItem(this.USER_KEY, userStr);
-        localStorage.setItem(this.USER_KEY, userStr);
+      const rawUser = 'user' in response ? response.user : response;
+      if (rawUser) {
+        const user = this.normalizeUser(rawUser);
+        this.persistUser(user);
         return user;
       }
       return null;
@@ -300,27 +473,26 @@ class AuthService {
         });
 
         const currentUser = this.getUser();
-        const backendUser = currentUser ? {
-          sub: currentUser.id,
-          email: currentUser.email,
-          role: currentUser.role,
-          permissions: currentUser.permissions || [],
-          requiresPasswordChange: currentUser.requiresPasswordChange || false
-        } : {
+        const frontendUser = currentUser || this.normalizeUser({
           sub: '',
           email: '',
-          role: 'user' as const,
+          role: 'user',
           permissions: [],
-          requiresPasswordChange: false
-        };
-
-        const frontendUser = this.mapBackendUserToFrontend(backendUser);
+          requiresPasswordChange: false,
+        });
         
         this.storeAuthData(
           response.accessToken,
           response.refreshToken,
-          frontendUser
+          frontendUser,
+          this.shouldPersistSession(),
         );
+
+        try {
+          await this.refreshUserData();
+        } catch (refreshUserError) {
+          console.warn('Token refreshed but user refresh failed, keeping cached user data', refreshUserError);
+        }
 
         return response.accessToken;
       } catch (error: any) {
@@ -345,7 +517,16 @@ class AuthService {
   getUser(): FrontendUser | null {
     if (typeof window !== 'undefined') {
       const userStr = localStorage.getItem(this.USER_KEY) || sessionStorage.getItem(this.USER_KEY);
-      return userStr ? JSON.parse(userStr) : null;
+      if (!userStr) return null;
+
+      try {
+        const normalizedUser = this.normalizeUser(JSON.parse(userStr));
+        this.persistUser(normalizedUser);
+        return normalizedUser;
+      } catch (error) {
+        console.error('Error parsing stored user:', error);
+        this.clearAuthData();
+      }
     }
     return null;
   }
@@ -545,13 +726,9 @@ class AuthService {
   async getCurrentUser(): Promise<FrontendUser> {
     try {
       const response = await apiClient.get<MeApiResponse | FrontendUser>('/auth/me');
-      const user = 'user' in response ? response.user : response;
-      
-      // Update stored user data
-      const userStr = JSON.stringify(user);
-      sessionStorage.setItem(this.USER_KEY, userStr);
-      localStorage.setItem(this.USER_KEY, userStr);
-      
+      const rawUser = 'user' in response ? response.user : response;
+      const user = this.normalizeUser(rawUser);
+      this.persistUser(user);
       return user;
     } catch (error: any) {
       if (error.status === 401) {

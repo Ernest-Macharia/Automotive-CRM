@@ -1,7 +1,8 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { authService } from '@/services/authService';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { userService } from '@/services/settings/userService';
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -45,17 +46,17 @@ const DefaultDashboard = dynamic(() => import('@/components/dashboards/DefaultDa
 });
 
 export default function DashboardPage() {
-  const user = authService.getUser();
+  const { user, isLoading } = useCurrentUser();
+
+  if (isLoading) {
+    return <LoadingFallback />;
+  }
 
   if (!user) {
     return <DefaultDashboard />;
   }
 
-  const roleValue = (user as { role?: unknown }).role;
-  const userRole =
-    typeof roleValue === 'object' && roleValue !== null && 'name' in roleValue
-      ? String((roleValue as { name?: string }).name || '')
-      : String(roleValue || '');
+  const userRole = userService.getUserRoleName(user);
   
   switch (userRole) {
     case 'admin':

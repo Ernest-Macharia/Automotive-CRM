@@ -52,7 +52,7 @@ export class NavigationService {
       return ALL_NAV_ITEMS.filter(item => item.href === '/dashboard');
     }
     
-    const rawRole = user.role?.name || user.role || '';
+    const rawRole = user.roleName || user.role?.name || user.role || '';
     const normalizedRole = String(rawRole).toLowerCase().replace(/[\s_]+/g, '');
     
     if (normalizedRole === 'admin' || normalizedRole === 'superadmin' || normalizedRole === 'superadministrator') {
@@ -73,9 +73,19 @@ export class NavigationService {
   }
  
   static userHasPermission(user: any, permission: string): boolean {
-    if (!user || !user.permissions) return false;
+    const effectivePermissions = Array.from(
+      new Set([
+        ...(Array.isArray(user?.permissions) ? user.permissions : []),
+        ...(Array.isArray(user?.allPermissions) ? user.allPermissions : []),
+        ...(Array.isArray(user?.rolePermissions) ? user.rolePermissions : []),
+        ...(Array.isArray(user?.additionalPermissions) ? user.additionalPermissions : []),
+        ...(Array.isArray(user?.directPermissions) ? user.directPermissions : []),
+      ]),
+    );
+
+    if (!user || effectivePermissions.length === 0) return false;
     
-    if (user.permissions.includes(permission)) {
+    if (effectivePermissions.includes(permission)) {
       return true;
     }
     
@@ -84,12 +94,12 @@ export class NavigationService {
       const module = parts[0];
       const wildcardPermission = `${module}.*`;
       
-      if (user.permissions.includes(wildcardPermission)) {
+      if (effectivePermissions.includes(wildcardPermission)) {
         return true;
       }
     }
     
-    const userRole = String(user.role?.name || user.role || '').toLowerCase();
+    const userRole = String(user.roleName || user.role?.name || user.role || '').toLowerCase();
     
     if (permission === 'reports.generate' || permission === 'dashboard.view') {
       return ['management', 'branch_manager', 'fleet_manager', 'finance'].includes(userRole);
