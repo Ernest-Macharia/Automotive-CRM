@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { authService } from '@/services/authService';
-import { userService } from '@/services/settings/userService';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -48,7 +47,10 @@ export default function ProtectedRoute({
           return;
         }
         
-        const userRole = user.roleName || userService.getUserRoleName(user);
+        const userRole =
+          user.roleName ||
+          (typeof user.role === 'object' && user.role !== null ? user.role.name : user.role) ||
+          '';
         const effectivePermissions = Array.from(
           new Set([
             ...(Array.isArray(user.permissions) ? user.permissions : []),
