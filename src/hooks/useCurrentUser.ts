@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { authService } from '@/services/authService';
 import { userService, User, createUserPermissionChecker } from '@/services/settings/userService';
-import { roleService, ROLES } from '@/services/settings/roleService';
+import { ROLES } from '@/services/settings/roleService';
 
 interface UseCurrentUserReturn {
   user: User | null;
@@ -26,20 +26,23 @@ export function useCurrentUser(): UseCurrentUserReturn {
       setIsLoading(true);
       setError(null);
       
-      // Get frontend user from auth service
-      const authUser = authService.getUser();
+      const storedUser = authService.getUser();
       
+      if (!storedUser && !authService.getToken()) {
+        setUser(null);
+        return;
+      }
+
+      const authUser = await authService.refreshUserData().catch(() => storedUser);
+
       if (!authUser) {
         setUser(null);
         return;
       }
 
-      // Transform auth user to match our User interface
-      // First try to get full user data from userService
       let fullUser: User | null = null;
       
       try {
-        // Try to fetch the complete user data from userService
         fullUser = await userService.getUserById(authUser.id);
       } catch (err) {
         console.warn('Could not fetch full user data, using auth user data', err);
@@ -48,15 +51,18 @@ export function useCurrentUser(): UseCurrentUserReturn {
       if (fullUser) {
         setUser(fullUser);
       } else {
-        // Create a minimal user object from auth data
         const minimalUser: User = {
           id: authUser.id,
           email: authUser.email,
-          name: `${authUser.firstName} ${authUser.lastName || ''}`.trim(),
-          role: authUser.role,
+          name: authUser.name || `${authUser.firstName} ${authUser.lastName || ''}`.trim(),
+          role: authUser.roleData || authUser.role,
           permissions: authUser.permissions || [],
+          additionalPermissions: authUser.additionalPermissions || [],
           active: authUser.isActive,
-        //   requiresPasswordChange: authUser.requiresPasswordChange || false,
+          requiresPasswordChange: authUser.requiresPasswordChange || false,
+          organizationId: authUser.organizationId,
+          organizationName: authUser.organizationName,
+          organization: authUser.organization,
           createdAt: authUser.createdAt,
           updatedAt: authUser.updatedAt,
         };
