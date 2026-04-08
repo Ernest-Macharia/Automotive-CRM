@@ -16,6 +16,9 @@ export interface User {
   name: string;
   email: string;
   role: UserRole | string;
+  roleName?: string;
+  roleDisplayName?: string;
+  display_name?: string;
   permissions: string[];
   additionalPermissions?: string[];
   canViewSummary?: boolean;
@@ -302,6 +305,8 @@ class UserService {
   private normalizeUser(data: any): User {
     // Extract role name from role object or string
     let roleObject: UserRole | string = 'unknown';
+    let normalizedRoleName = data.roleName || 'unknown';
+    let normalizedRoleDisplayName = data.roleDisplayName || data.display_name;
     const roleSource =
       (data.role && typeof data.role === 'object' ? data.role : null) ||
       data.roleData ||
@@ -310,20 +315,27 @@ class UserService {
     
     if (roleSource) {
       if (typeof roleSource === 'object' && roleSource !== null) {
+        normalizedRoleName = roleSource.name || data.roleName || 'unknown';
+        normalizedRoleDisplayName =
+          roleSource.display_name ||
+          roleSource.displayName ||
+          data.roleDisplayName ||
+          data.display_name ||
+          normalizedRoleName;
         roleObject = {
           _id: roleSource._id,
           id: roleSource._id || roleSource.id,
-          name: roleSource.name || data.roleName,
-          display_name:
-            roleSource.display_name ||
-            roleSource.displayName ||
-            data.roleDisplayName ||
-            data.display_name ||
-            roleSource.name,
+          name: normalizedRoleName,
+          display_name: normalizedRoleDisplayName,
           permissions: roleSource.permissions || data.rolePermissions || []
         };
       }
     } else if (typeof data.role === 'string') {
+        normalizedRoleName = data.role;
+        normalizedRoleDisplayName =
+          data.roleDisplayName ||
+          data.display_name ||
+          data.role;
         roleObject = data.role;
     }
 
@@ -347,6 +359,9 @@ class UserService {
       name: data.name,
       email: data.email,
       role: roleObject,
+      roleName: normalizedRoleName,
+      roleDisplayName: normalizedRoleDisplayName || normalizedRoleName,
+      display_name: normalizedRoleDisplayName || normalizedRoleName,
       permissions: allPermissions,
       additionalPermissions: data.additionalPermissions,
       canViewSummary: data.canViewSummary || false,
@@ -586,6 +601,10 @@ class UserService {
    */
   getUserRoleName(user: User): string {
     if (!user) return 'unknown';
+
+    if (typeof user.roleName === 'string' && user.roleName.trim()) {
+      return user.roleName;
+    }
     
     if (typeof user.role === 'object' && user.role !== null) {
       return user.role.name || 'unknown';
@@ -603,6 +622,14 @@ class UserService {
    */
   getUserRoleDisplayName(user: User): string {
     if (!user) return 'Unknown Role';
+
+    if (typeof user.roleDisplayName === 'string' && user.roleDisplayName.trim()) {
+      return user.roleDisplayName;
+    }
+
+    if (typeof user.display_name === 'string' && user.display_name.trim()) {
+      return user.display_name;
+    }
     
     if (typeof user.role === 'object' && user.role !== null) {
       return user.role.display_name || this.getUserRoleName(user);
