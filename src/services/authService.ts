@@ -297,6 +297,9 @@ class AuthService {
   }
 
   private normalizeUser(userData: Partial<BackendUser | FrontendUser>): FrontendUser {
+    const mixedUserData = userData as Partial<BackendUser> & Partial<FrontendUser> & {
+      active?: boolean;
+    };
     const email = String(userData.email || '');
     const emailLocalPart = email.split('@')[0] || '';
     const roleCandidate = this.getRoleCandidate(userData);
@@ -350,8 +353,8 @@ class AuthService {
     const nowIso = new Date().toISOString();
 
     return {
-      id: String(userData.id || userData._id || userData.sub || ''),
-      _id: userData._id || userData.id || userData.sub,
+      id: String(userData.id || userData._id || mixedUserData.sub || ''),
+      _id: userData._id || userData.id || mixedUserData.sub,
       email,
       name: fullName,
       firstName: this.capitalizeNamePart(firstName),
@@ -367,7 +370,7 @@ class AuthService {
       additionalPermissions,
       directPermissions,
       requiresPasswordChange: Boolean(userData.requiresPasswordChange),
-      isActive: userData.isActive ?? userData.active ?? true,
+      isActive: userData.isActive ?? mixedUserData.active ?? true,
       companyId: userData.companyId,
       organizationId: userData.organizationId || userData.organization?._id || userData.organization?.id,
       organizationName: userData.organizationName || userData.organization?.name,

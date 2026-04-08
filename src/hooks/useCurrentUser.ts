@@ -84,7 +84,18 @@ export function useCurrentUser(): UseCurrentUserReturn {
           requiresPasswordChange: authUser.requiresPasswordChange || false,
           organizationId: authUser.organizationId,
           organizationName: authUser.organizationName,
-          organization: authUser.organization,
+          organization:
+            authUser.organization &&
+            (authUser.organization.id || authUser.organization._id) &&
+            authUser.organization.name
+              ? {
+                  id: authUser.organization.id || authUser.organization._id || '',
+                  name: authUser.organization.name,
+                  slug: authUser.organization.slug,
+                  logo: authUser.organization.logo,
+                  tier: authUser.organization.tier,
+                }
+              : undefined,
           createdAt: authUser.createdAt,
           updatedAt: authUser.updatedAt,
         };
