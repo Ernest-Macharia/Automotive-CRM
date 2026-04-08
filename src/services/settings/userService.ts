@@ -124,6 +124,68 @@ export interface UserPermissionsResponse {
 }
 
 class UserService {
+  private getEffectivePermissions(user: User): string[] {
+    return [...new Set([
+      ...(Array.isArray(user.permissions) ? user.permissions : []),
+      ...(Array.isArray(user.additionalPermissions) ? user.additionalPermissions : []),
+      ...(Array.isArray(user.allPermissions) ? user.allPermissions : []),
+      ...(typeof user.role === 'object' && Array.isArray(user.role.permissions) ? user.role.permissions : []),
+    ])];
+  }
+
+  private inferRoleNameFromPermissions(user: User): string | null {
+    const permissions = this.getEffectivePermissions(user);
+    if (permissions.length === 0) return null;
+
+    const hasAny = (...targets: string[]) => targets.some((target) => permissions.includes(target));
+
+    if (hasAny('*', 'system.*')) return 'superadmin';
+    if (hasAny('organization.manage', 'settings.manage.organization', 'users.create.organization', 'users.read.organization', 'dashboard.view.organization')) {
+      return 'admin';
+    }
+    if (hasAny('hr.dashboard.view', 'employees.manage', 'recruitment.manage')) {
+      return 'hr_manager';
+    }
+    if (hasAny('reports.generate', 'analytics.view', 'targets.set', 'performance.view')) {
+      return 'management';
+    }
+    if (hasAny('invoices.approve', 'invoices.pay', 'quotes.approve')) {
+      return 'finance';
+    }
+    if (hasAny('sales.dashboard.view', 'opportunities.create', 'opportunities.update', 'quotes.create')) {
+      return 'sales_representative';
+    }
+    if (hasAny('jobs.create', 'jobs.update', 'vehicles.manage', 'maintenance.schedule')) {
+      return 'technician';
+    }
+    if (hasAny('tickets.create', 'tickets.close', 'customer.feedback')) {
+      return 'support';
+    }
+    if (hasAny('customer.orders.view', 'customer.profile.read', 'customer.payments.read')) {
+      return 'customer';
+    }
+
+    return null;
+  }
+
+  private getRoleDisplayNameFromRoleName(roleName: string): string {
+    const roleDisplayMap: Record<string, string> = {
+      superadmin: 'Super Administrator',
+      admin: 'Organization Administrator',
+      management: 'Management',
+      hr_manager: 'HR Manager',
+      finance: 'Finance Manager',
+      sales_representative: 'Sales Representative',
+      technician: 'Technician',
+      support: 'Support Agent',
+      customer: 'Customer',
+      user: 'User',
+      unknown: 'Unknown Role',
+    };
+
+    return roleDisplayMap[roleName] || roleName.replace(/[_-]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
   /**
    * Register a new user (Admin only)
    * POST /api/v1/users/register
@@ -603,17 +665,38 @@ class UserService {
     if (!user) return 'unknown';
 
     if (typeof user.roleName === 'string' && user.roleName.trim()) {
-      return user.roleName;
+      const directRoleName = user.roleName.trim();
+      if (!['user', 'unknown'].includes(directRoleName)) {
+        return directRoleName;
+      }
     }
     
     if (typeof user.role === 'object' && user.role !== null) {
-      return user.role.name || 'unknown';
+      const objectRoleName = user.role.name || 'unknown';
+      if (!['user', 'unknown'].includes(objectRoleName)) {
+        return objectRoleName;
+      }
     }
     
     if (typeof user.role === 'string') {
-      return user.role;
+      if (!['user', 'unknown'].includes(user.role)) {
+        return user.role;
+      }
+    }
+
+    const inferredRole = this.inferRoleNameFromPermissions(user);
+    if (inferredRole) {
+      return inferredRole;
     }
     
+    if (typeof user.roleName === 'string' && user.roleName.trim()) {
+      return user.roleName.trim();
+    }
+
+    if (typeof user.role === 'string') {
+      return user.role;
+    }
+
     return 'unknown';
   }
 
@@ -624,18 +707,27 @@ class UserService {
     if (!user) return 'Unknown Role';
 
     if (typeof user.roleDisplayName === 'string' && user.roleDisplayName.trim()) {
-      return user.roleDisplayName;
+      const directDisplayName = user.roleDisplayName.trim();
+      if (!['user', 'unknown'].includes(directDisplayName.toLowerCase())) {
+        return directDisplayName;
+      }
     }
 
     if (typeof user.display_name === 'string' && user.display_name.trim()) {
-      return user.display_name;
+      const displayName = user.display_name.trim();
+      if (!['user', 'unknown'].includes(displayName.toLowerCase())) {
+        return displayName;
+      }
     }
     
     if (typeof user.role === 'object' && user.role !== null) {
-      return user.role.display_name || this.getUserRoleName(user);
+      const roleDisplayName = user.role.display_name || '';
+      if (roleDisplayName && !['user', 'unknown'].includes(roleDisplayName.toLowerCase())) {
+        return roleDisplayName;
+      }
     }
-    
-    return this.getUserRoleName(user);
+
+    return this.getRoleDisplayNameFromRoleName(this.getUserRoleName(user));
   }
 
   /**
