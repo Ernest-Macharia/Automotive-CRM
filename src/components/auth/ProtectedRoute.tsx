@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { authService } from '@/services/authService';
+import { userService } from '@/services/settings/userService';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -47,16 +48,26 @@ export default function ProtectedRoute({
           return;
         }
         
+        const userRole = user.roleName || userService.getUserRoleName(user);
+        const effectivePermissions = Array.from(
+          new Set([
+            ...(Array.isArray(user.permissions) ? user.permissions : []),
+            ...(Array.isArray(user.rolePermissions) ? user.rolePermissions : []),
+            ...(Array.isArray(user.additionalPermissions) ? user.additionalPermissions : []),
+            ...(Array.isArray(user.directPermissions) ? user.directPermissions : []),
+          ]),
+        );
+
         // Check role if required
-        if (requiredRole && !requiredRole.includes(user.role)) {
+        if (requiredRole && !requiredRole.includes(userRole)) {
           router.push('/unauthorized');
           return;
         }
         
         // Check permissions if required
-        if (requiredPermissions && user.permissions) {
+        if (requiredPermissions && requiredPermissions.length > 0) {
           const hasPermission = requiredPermissions.some(permission => 
-            user?.permissions?.includes(permission)
+            effectivePermissions.includes(permission)
           );
           
           if (!hasPermission) {
