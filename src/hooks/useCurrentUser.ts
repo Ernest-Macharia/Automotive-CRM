@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { authService } from '@/services/authService';
-import { userService, User, createUserPermissionChecker } from '@/services/settings/userService';
+import { authService, type AuthRole } from '@/services/authService';
+import { userService, User, type UserRole, createUserPermissionChecker } from '@/services/settings/userService';
 import { ROLES } from '@/services/settings/roleService';
 
 interface UseCurrentUserReturn {
@@ -20,6 +20,24 @@ export function useCurrentUser(): UseCurrentUserReturn {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  const normalizeRole = (role: AuthRole | string | undefined, roleName?: string, roleDisplayName?: string): UserRole | string => {
+    if (!role) {
+      return roleName || 'unknown';
+    }
+
+    if (typeof role === 'string') {
+      return role;
+    }
+
+    return {
+      _id: role._id,
+      id: role.id || role._id,
+      name: role.name || roleName || 'unknown',
+      display_name: role.display_name || roleDisplayName || role.name || roleName || 'Unknown',
+      permissions: Array.isArray(role.permissions) ? role.permissions : [],
+    };
+  };
 
   const loadUser = async () => {
     try {
@@ -55,7 +73,11 @@ export function useCurrentUser(): UseCurrentUserReturn {
           id: authUser.id,
           email: authUser.email,
           name: authUser.name || `${authUser.firstName} ${authUser.lastName || ''}`.trim(),
-          role: authUser.roleData || authUser.role,
+          role: normalizeRole(
+            authUser.roleData || authUser.role,
+            authUser.roleName,
+            authUser.roleDisplayName || authUser.display_name,
+          ),
           permissions: authUser.permissions || [],
           additionalPermissions: authUser.additionalPermissions || [],
           active: authUser.isActive,
