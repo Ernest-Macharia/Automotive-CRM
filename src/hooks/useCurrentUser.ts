@@ -39,6 +39,40 @@ export function useCurrentUser(): UseCurrentUserReturn {
     };
   };
 
+  const buildAuthFallbackUser = (authUser: Awaited<ReturnType<typeof authService.getCurrentUser>>): User => ({
+    id: authUser.id,
+    email: authUser.email,
+    name: authUser.name || `${authUser.firstName} ${authUser.lastName || ''}`.trim(),
+    role: normalizeRole(
+      authUser.roleData || authUser.role,
+      authUser.roleName,
+      authUser.roleDisplayName || authUser.display_name,
+    ),
+    roleName: authUser.roleName,
+    roleDisplayName: authUser.roleDisplayName || authUser.display_name,
+    display_name: authUser.roleDisplayName || authUser.display_name,
+    permissions: authUser.permissions || [],
+    additionalPermissions: authUser.additionalPermissions || [],
+    active: authUser.isActive,
+    requiresPasswordChange: authUser.requiresPasswordChange || false,
+    organizationId: authUser.organizationId,
+    organizationName: authUser.organizationName,
+    organization:
+      authUser.organization &&
+      (authUser.organization.id || authUser.organization._id) &&
+      authUser.organization.name
+        ? {
+            id: authUser.organization.id || authUser.organization._id || '',
+            name: authUser.organization.name,
+            slug: authUser.organization.slug,
+            logo: authUser.organization.logo,
+            tier: authUser.organization.tier,
+          }
+        : undefined,
+    createdAt: authUser.createdAt,
+    updatedAt: authUser.updatedAt,
+  });
+
   const loadUser = async () => {
     try {
       setIsLoading(true);
@@ -67,42 +101,32 @@ export function useCurrentUser(): UseCurrentUserReturn {
       }
 
       if (fullUser) {
-        setUser(fullUser);
+        const resolvedRoleName = userService.getUserRoleName(fullUser);
+        if (resolvedRoleName && resolvedRoleName !== 'unknown') {
+          setUser(fullUser);
+        } else {
+          const authFallbackUser = buildAuthFallbackUser(authUser);
+          setUser({
+            ...fullUser,
+            ...authFallbackUser,
+            id: fullUser.id || authUser.id,
+            _id: fullUser._id,
+            customId: fullUser.customId,
+            name: fullUser.name || authFallbackUser.name,
+            email: fullUser.email || authFallbackUser.email,
+            organization: fullUser.organization || authFallbackUser.organization,
+            organizationId: fullUser.organizationId || authFallbackUser.organizationId,
+            organizationName: fullUser.organizationName || authFallbackUser.organizationName,
+            active: fullUser.active,
+            canViewSummary: fullUser.canViewSummary,
+            isFirstLogin: fullUser.isFirstLogin,
+            allPermissions: fullUser.allPermissions,
+            createdAt: fullUser.createdAt || authFallbackUser.createdAt,
+            updatedAt: fullUser.updatedAt || authFallbackUser.updatedAt,
+          });
+        }
       } else {
-        const minimalUser: User = {
-          id: authUser.id,
-          email: authUser.email,
-          name: authUser.name || `${authUser.firstName} ${authUser.lastName || ''}`.trim(),
-          role: normalizeRole(
-            authUser.roleData || authUser.role,
-            authUser.roleName,
-            authUser.roleDisplayName || authUser.display_name,
-          ),
-          roleName: authUser.roleName,
-          roleDisplayName: authUser.roleDisplayName || authUser.display_name,
-          display_name: authUser.roleDisplayName || authUser.display_name,
-          permissions: authUser.permissions || [],
-          additionalPermissions: authUser.additionalPermissions || [],
-          active: authUser.isActive,
-          requiresPasswordChange: authUser.requiresPasswordChange || false,
-          organizationId: authUser.organizationId,
-          organizationName: authUser.organizationName,
-          organization:
-            authUser.organization &&
-            (authUser.organization.id || authUser.organization._id) &&
-            authUser.organization.name
-              ? {
-                  id: authUser.organization.id || authUser.organization._id || '',
-                  name: authUser.organization.name,
-                  slug: authUser.organization.slug,
-                  logo: authUser.organization.logo,
-                  tier: authUser.organization.tier,
-                }
-              : undefined,
-          createdAt: authUser.createdAt,
-          updatedAt: authUser.updatedAt,
-        };
-        setUser(minimalUser);
+        setUser(buildAuthFallbackUser(authUser));
       }
     } catch (err) {
       console.error('Error loading current user:', err);
