@@ -47,10 +47,11 @@ export default function ProtectedRoute({
           return;
         }
         
-        const userRole =
+        const userRole: string =
           user.roleName ||
-          (typeof user.role === 'object' && user.role !== null ? user.role.name : user.role) ||
-          '';
+          (typeof user.role === 'object' && user.role !== null
+            ? String(user.role.name || '')
+            : String(user.role || ''));
         const effectivePermissions = Array.from(
           new Set([
             ...(Array.isArray(user.permissions) ? user.permissions : []),
