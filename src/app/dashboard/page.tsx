@@ -56,10 +56,18 @@ export default function DashboardPage() {
     return <DefaultDashboard />;
   }
 
-  const userRole = userService.getUserRoleName(user);
+  const normalizeRoleKey = (value: string) =>
+    value.toLowerCase().trim().replace(/[\s-]+/g, '_');
+
+  const userRole = normalizeRoleKey(userService.getUserRoleName(user));
+  const userRoleDisplay = normalizeRoleKey(userService.getUserRoleDisplayName(user));
+  const effectiveRole = userRole !== 'unknown' ? userRole : userRoleDisplay;
   
-  switch (userRole) {
+  switch (effectiveRole) {
     case 'admin':
+    case 'organization_administrator':
+    case 'enterprise_admin':
+    case 'enterprise_administrator':
       return <AdminDashboard user={user} />;
     
     case 'management':
@@ -91,7 +99,7 @@ export default function DashboardPage() {
     case 'support':
     case 'customer_service':
     case 'customer_experience':
-      return userRole === 'customer_experience' 
+      return effectiveRole === 'customer_experience' 
         ? <CustomerExperienceDashboard user={user} />
         : <CustomerServiceDashboard user={user} />;
     
