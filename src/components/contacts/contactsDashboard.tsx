@@ -86,14 +86,14 @@ interface OpportunityContactStats extends ContactStats {
 
 const getMetricValueClassName = (value: string, baseColor: string) => {
   const length = value.length;
-  const sharedClasses = `font-bold leading-none tracking-tight whitespace-nowrap overflow-hidden text-ellipsis ${baseColor}`;
+  const sharedClasses = `block w-full max-w-full font-bold leading-none tracking-tight whitespace-nowrap ${baseColor}`;
 
   if (length >= 14) {
-    return `text-lg sm:text-xl lg:text-2xl ${sharedClasses}`;
+    return `text-lg sm:text-xl lg:text-[1.65rem] ${sharedClasses}`;
   }
 
   if (length >= 10) {
-    return `text-xl sm:text-2xl lg:text-[1.75rem] ${sharedClasses}`;
+    return `text-xl sm:text-[1.6rem] lg:text-[1.85rem] ${sharedClasses}`;
   }
 
   if (length >= 7) {
@@ -1216,19 +1216,19 @@ export default function ContactsDashboard() {
           {statsLoading ? (
             <SkeletonStats />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-8">
               <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200 min-w-0 h-full">
-                <div className="flex items-start justify-between gap-4 min-w-0">
-                  <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
                     <p className="text-sm text-gray-600">Total Contacts</p>
-                    <p className={`${getMetricValueClassName(String(stats?.totalContacts || 0), 'text-gray-900')} mt-2`}>
-                      {stats?.totalContacts || 0}
-                    </p>
                   </div>
                   <div className="p-3 rounded-xl bg-gradient-to-r from-blue-100 to-blue-200 shrink-0">
                     <Users className="h-6 w-6 text-blue-600" />
                   </div>
                 </div>
+                <p className={`${getMetricValueClassName(String(stats?.totalContacts || 0), 'text-gray-900')} mt-4`}>
+                  {stats?.totalContacts || 0}
+                </p>
                 <div className="mt-4 pt-4 border-t border-gray-100">
                   <div className="text-xs text-gray-500 break-words">
                     From {stats?.opportunityStats?.totalOpportunities || 0} opportunities
@@ -1237,24 +1237,24 @@ export default function ContactsDashboard() {
               </div>
 
               <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200 min-w-0 h-full">
-                <div className="flex items-start justify-between gap-4 min-w-0">
-                  <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
                     <p className="text-sm text-gray-600">Opportunity Value</p>
-                    <p
-                      className={`${
-                        getMetricValueClassName(
-                          `$${Number(stats?.opportunityStats?.totalValue || 0).toLocaleString()}`,
-                          'text-green-600'
-                        )
-                      } mt-2`}
-                    >
-                      ${Number(stats?.opportunityStats?.totalValue || 0).toLocaleString()}
-                    </p>
                   </div>
                   <div className="p-3 rounded-xl bg-gradient-to-r from-green-100 to-green-200 shrink-0">
                     <TrendingUp className="h-6 w-6 text-green-600" />
                   </div>
                 </div>
+                <p
+                  className={`${
+                    getMetricValueClassName(
+                      `$${Number(stats?.opportunityStats?.totalValue || 0).toLocaleString()}`,
+                      'text-green-600'
+                    )
+                  } mt-4`}
+                >
+                  ${Number(stats?.opportunityStats?.totalValue || 0).toLocaleString()}
+                </p>
                 <div className="mt-4 pt-4 border-t border-gray-100">
                   <div className="text-xs text-gray-500 break-words">
                     Avg: ${(stats?.opportunityStats?.averageDealSize || 0).toFixed(0)}
@@ -1263,17 +1263,17 @@ export default function ContactsDashboard() {
               </div>
 
               <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200 min-w-0 h-full">
-                <div className="flex items-start justify-between gap-4 min-w-0">
-                  <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
                     <p className="text-sm text-gray-600">Hot Leads</p>
-                    <p className={`${getMetricValueClassName(String(stats?.opportunityStats?.byLeadTier?.hot || 0), 'text-red-600')} mt-2`}>
-                      {stats?.opportunityStats?.byLeadTier?.hot || 0}
-                    </p>
                   </div>
                   <div className="p-3 rounded-xl bg-gradient-to-r from-red-100 to-red-200 shrink-0">
                     <Target className="h-6 w-6 text-red-600" />
                   </div>
                 </div>
+                <p className={`${getMetricValueClassName(String(stats?.opportunityStats?.byLeadTier?.hot || 0), 'text-red-600')} mt-4`}>
+                  {stats?.opportunityStats?.byLeadTier?.hot || 0}
+                </p>
                 <div className="mt-4 pt-4 border-t border-gray-100">
                   <div className="text-xs text-gray-500 break-words">
                     {stats?.opportunityStats?.byLeadTier?.warm || 0} warm, {stats?.opportunityStats?.byLeadTier?.cold || 0} cold
@@ -1282,17 +1282,17 @@ export default function ContactsDashboard() {
               </div>
 
               <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200 min-w-0 h-full">
-                <div className="flex items-start justify-between gap-4 min-w-0">
-                  <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
                     <p className="text-sm text-gray-600">Active Opportunities</p>
-                    <p className={`${getMetricValueClassName(String(stats?.opportunityStats?.activeOpportunities || 0), 'text-purple-600')} mt-2`}>
-                      {stats?.opportunityStats?.activeOpportunities || 0}
-                    </p>
                   </div>
                   <div className="p-3 rounded-xl bg-gradient-to-r from-purple-100 to-purple-200 shrink-0">
                     <Briefcase className="h-6 w-6 text-purple-600" />
                   </div>
                 </div>
+                <p className={`${getMetricValueClassName(String(stats?.opportunityStats?.activeOpportunities || 0), 'text-purple-600')} mt-4`}>
+                  {stats?.opportunityStats?.activeOpportunities || 0}
+                </p>
                 <div className="mt-4 pt-4 border-t border-gray-100">
                   <div className="text-xs text-gray-500 break-words">
                     {((stats?.opportunityStats?.conversionRate || 0)).toFixed(1)}% conversion
@@ -1301,28 +1301,28 @@ export default function ContactsDashboard() {
               </div>
 
               <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl p-6 shadow-lg min-w-0 h-full">
-                <div className="flex items-start justify-between gap-4 min-w-0">
-                  <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
                     <p className="text-sm text-blue-100">Engagement Rate</p>
-                    <p
-                      className={`${
-                        getMetricValueClassName(
-                          `${contacts.length > 0
-                            ? Math.round(contacts.reduce((sum, c) => sum + getEngagementScore(c), 0) / contacts.length)
-                            : 0}%`,
-                          'text-white'
-                        )
-                      } mt-2`}
-                    >
-                      {contacts.length > 0 
-                        ? Math.round(contacts.reduce((sum, c) => sum + getEngagementScore(c), 0) / contacts.length)
-                        : 0}%
-                    </p>
                   </div>
                   <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm shrink-0">
                     <TrendingUp className="h-6 w-6 text-white" />
                   </div>
                 </div>
+                <p
+                  className={`${
+                    getMetricValueClassName(
+                      `${contacts.length > 0
+                        ? Math.round(contacts.reduce((sum, c) => sum + getEngagementScore(c), 0) / contacts.length)
+                        : 0}%`,
+                      'text-white'
+                    )
+                  } mt-4`}
+                >
+                  {contacts.length > 0 
+                    ? Math.round(contacts.reduce((sum, c) => sum + getEngagementScore(c), 0) / contacts.length)
+                    : 0}%
+                </p>
                 <div className="mt-4 pt-4 border-t border-white/20">
                   <div className="text-xs text-blue-100 break-words">
                     Based on {contacts.length} contacts
