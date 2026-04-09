@@ -102,10 +102,19 @@ export function useCurrentUser(): UseCurrentUserReturn {
 
       if (fullUser) {
         const resolvedRoleName = userService.getUserRoleName(fullUser);
-        if (resolvedRoleName && resolvedRoleName !== 'unknown') {
+        const authFallbackUser = buildAuthFallbackUser(authUser);
+        const authResolvedRoleName = userService.getUserRoleName(authFallbackUser);
+        const fullUserPermissions = Array.isArray(fullUser.allPermissions)
+          ? fullUser.allPermissions
+          : fullUser.permissions || [];
+        const shouldPreferAuthRole =
+          (!resolvedRoleName || ['unknown', 'user'].includes(resolvedRoleName)) &&
+          authResolvedRoleName &&
+          !['unknown', 'user'].includes(authResolvedRoleName);
+
+        if (resolvedRoleName && resolvedRoleName !== 'unknown' && resolvedRoleName !== 'user' && fullUserPermissions.length > 0) {
           setUser(fullUser);
         } else {
-          const authFallbackUser = buildAuthFallbackUser(authUser);
           setUser({
             ...fullUser,
             ...authFallbackUser,
@@ -120,7 +129,43 @@ export function useCurrentUser(): UseCurrentUserReturn {
             active: fullUser.active,
             canViewSummary: fullUser.canViewSummary,
             isFirstLogin: fullUser.isFirstLogin,
-            allPermissions: fullUser.allPermissions,
+            role: shouldPreferAuthRole ? authFallbackUser.role : fullUser.role || authFallbackUser.role,
+            roleName: shouldPreferAuthRole ? authFallbackUser.roleName : userService.getUserRoleName({
+              ...fullUser,
+              ...authFallbackUser,
+            } as User),
+            roleDisplayName: shouldPreferAuthRole
+              ? authFallbackUser.roleDisplayName
+              : userService.getUserRoleDisplayName({
+                  ...fullUser,
+                  ...authFallbackUser,
+                } as User),
+            display_name: shouldPreferAuthRole
+              ? authFallbackUser.display_name
+              : userService.getUserRoleDisplayName({
+                  ...fullUser,
+                  ...authFallbackUser,
+                } as User),
+            permissions: Array.from(
+              new Set([
+                ...(Array.isArray(fullUser.permissions) ? fullUser.permissions : []),
+                ...(Array.isArray(authFallbackUser.permissions) ? authFallbackUser.permissions : []),
+              ]),
+            ),
+            additionalPermissions: Array.from(
+              new Set([
+                ...(Array.isArray(fullUser.additionalPermissions) ? fullUser.additionalPermissions : []),
+                ...(Array.isArray(authFallbackUser.additionalPermissions) ? authFallbackUser.additionalPermissions : []),
+              ]),
+            ),
+            allPermissions: Array.from(
+              new Set([
+                ...(Array.isArray(fullUser.allPermissions) ? fullUser.allPermissions : []),
+                ...(Array.isArray(authFallbackUser.allPermissions) ? authFallbackUser.allPermissions : []),
+                ...(Array.isArray(fullUser.permissions) ? fullUser.permissions : []),
+                ...(Array.isArray(authFallbackUser.permissions) ? authFallbackUser.permissions : []),
+              ]),
+            ),
             createdAt: fullUser.createdAt || authFallbackUser.createdAt,
             updatedAt: fullUser.updatedAt || authFallbackUser.updatedAt,
           });

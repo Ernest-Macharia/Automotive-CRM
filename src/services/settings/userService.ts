@@ -172,6 +172,10 @@ class UserService {
     const roleDisplayMap: Record<string, string> = {
       superadmin: 'Super Administrator',
       admin: 'Organization Administrator',
+      organization_admin: 'Organization Administrator',
+      organization_administrator: 'Organization Administrator',
+      enterprise_admin: 'Enterprise Admin',
+      enterprise_administrator: 'Enterprise Administrator',
       management: 'Management',
       hr_manager: 'HR Manager',
       finance: 'Finance Manager',
@@ -413,6 +417,42 @@ class UserService {
       ...directPermissions,
       ...(data.permissions || []),
     ])];
+
+    const permissionBackedRoleCandidate = this.inferRoleNameFromPermissions({
+      permissions: allPermissions,
+      additionalPermissions,
+      allPermissions,
+      role: roleObject,
+      roleName: normalizedRoleName,
+      roleDisplayName: normalizedRoleDisplayName,
+      display_name: normalizedRoleDisplayName,
+    } as User);
+
+    if ((!normalizedRoleName || ['user', 'unknown'].includes(String(normalizedRoleName).toLowerCase())) && permissionBackedRoleCandidate) {
+      normalizedRoleName = permissionBackedRoleCandidate;
+    }
+
+    if (
+      (!normalizedRoleDisplayName || ['user', 'unknown'].includes(String(normalizedRoleDisplayName).toLowerCase())) &&
+      normalizedRoleName
+    ) {
+      normalizedRoleDisplayName = this.getRoleDisplayNameFromRoleName(normalizedRoleName);
+    }
+
+    if (typeof roleObject === 'object' && roleObject !== null) {
+      roleObject = {
+        ...roleObject,
+        name: normalizedRoleName,
+        display_name: normalizedRoleDisplayName,
+        permissions: roleObject.permissions || rolePermissions,
+      };
+    } else if (normalizedRoleName && normalizedRoleName !== 'unknown') {
+      roleObject = {
+        name: normalizedRoleName,
+        display_name: normalizedRoleDisplayName,
+        permissions: rolePermissions,
+      };
+    }
 
     return {
       id: data._id || data.id,
