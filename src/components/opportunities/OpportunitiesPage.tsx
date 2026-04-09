@@ -1572,6 +1572,12 @@ export default function OpportunitiesContent() {
     const useFilteredStats = hasActiveFilters && !!filteredStats;
     const byTier = (useFilteredStats ? filteredStats?.byTier : undefined) || {};
     const byStatus = (useFilteredStats ? filteredStats?.byStatus : undefined) || {};
+    const totalFromStageCounts = Object.values(stageCounts).reduce((sum, count) => sum + Number(count || 0), 0);
+    const loadedHotLeads = opportunities.filter((opp) => opp.leadScore?.tier === 'hot').length;
+    const activeDealsFromStageCounts = Math.max(
+      totalFromStageCounts - Number(stageCounts.won || 0) - Number(stageCounts.lost || 0),
+      0,
+    );
 
     const totalFromStats =
       typeof stats?.totalopportunities === 'number'
@@ -1591,17 +1597,17 @@ export default function OpportunitiesContent() {
         : undefined;
 
     const total = useFilteredStats
-      ? (filteredStats?.total ?? pagination?.total ?? opportunities.length)
-      : (totalFromStats ?? pagination?.total ?? opportunities.length);
+      ? Math.max(filteredStats?.total ?? 0, pagination?.total ?? 0, opportunities.length, totalFromStageCounts)
+      : Math.max(totalFromStats ?? 0, pagination?.total ?? 0, opportunities.length, totalFromStageCounts);
 
     const hotLeads = useFilteredStats
-      ? (byTier.hot ?? byTier.HOT ?? 0)
-      : (hotFromStats ?? 0);
+      ? Math.max(byTier.hot ?? byTier.HOT ?? 0, loadedHotLeads)
+      : Math.max(hotFromStats ?? 0, loadedHotLeads);
     const wonCount = byStatus.won ?? 0;
     const lostCount = byStatus.lost ?? 0;
     const activeDeals = useFilteredStats
-      ? Math.max(total - wonCount - lostCount, 0)
-      : (openFromStats ?? Math.max(total - wonCount - lostCount, 0));
+      ? Math.max(total - wonCount - lostCount, activeDealsFromStageCounts, 0)
+      : Math.max(openFromStats ?? 0, total - wonCount - lostCount, activeDealsFromStageCounts, 0);
     const winRate = total > 0 ? Math.round((wonCount / total) * 100) : 0;
 
     return {
@@ -1610,7 +1616,7 @@ export default function OpportunitiesContent() {
       activeDeals,
       winRate,
     };
-  }, [hasActiveFilters, filteredStats, stats, pagination?.total, opportunities.length]);
+  }, [hasActiveFilters, filteredStats, stats, pagination?.total, opportunities, stageCounts]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -2720,4 +2726,3 @@ export default function OpportunitiesContent() {
     </div>
   );
 }
-
