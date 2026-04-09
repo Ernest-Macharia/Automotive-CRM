@@ -86,16 +86,21 @@ interface OpportunityContactStats extends ContactStats {
 
 const getMetricValueClassName = (value: string, baseColor: string) => {
   const length = value.length;
+  const sharedClasses = `font-bold leading-none tracking-tight whitespace-nowrap overflow-hidden text-ellipsis ${baseColor}`;
 
   if (length >= 14) {
-    return `text-xl sm:text-2xl lg:text-[2rem] font-bold leading-none break-all ${baseColor}`;
+    return `text-lg sm:text-xl lg:text-2xl ${sharedClasses}`;
   }
 
   if (length >= 10) {
-    return `text-2xl sm:text-[1.75rem] lg:text-[2rem] font-bold leading-none break-all ${baseColor}`;
+    return `text-xl sm:text-2xl lg:text-[1.75rem] ${sharedClasses}`;
   }
 
-  return `text-3xl font-bold leading-none break-all ${baseColor}`;
+  if (length >= 7) {
+    return `text-2xl sm:text-[1.75rem] lg:text-[2rem] ${sharedClasses}`;
+  }
+
+  return `text-3xl ${sharedClasses}`;
 };
 
 // Pagination interface
