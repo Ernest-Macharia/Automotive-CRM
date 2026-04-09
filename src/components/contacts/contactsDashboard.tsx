@@ -1222,8 +1222,8 @@ export default function ContactsDashboard() {
                   <div className="min-w-0">
                     <p className="text-sm text-gray-600">Total Contacts</p>
                   </div>
-                  <div className="p-3 rounded-xl bg-gradient-to-r from-blue-100 to-blue-200 shrink-0">
-                    <Users className="h-6 w-6 text-blue-600" />
+                  <div className="p-2.5 rounded-xl bg-gradient-to-r from-blue-100 to-blue-200 shrink-0">
+                    <Users className="h-5 w-5 text-blue-600" />
                   </div>
                 </div>
                 <p className={`${getMetricValueClassName(String(stats?.totalContacts || 0), 'text-gray-900')} mt-4`}>
@@ -1241,8 +1241,8 @@ export default function ContactsDashboard() {
                   <div className="min-w-0">
                     <p className="text-sm text-gray-600">Opportunity Value</p>
                   </div>
-                  <div className="p-3 rounded-xl bg-gradient-to-r from-green-100 to-green-200 shrink-0">
-                    <TrendingUp className="h-6 w-6 text-green-600" />
+                  <div className="p-2.5 rounded-xl bg-gradient-to-r from-green-100 to-green-200 shrink-0">
+                    <TrendingUp className="h-5 w-5 text-green-600" />
                   </div>
                 </div>
                 <p
@@ -1267,8 +1267,8 @@ export default function ContactsDashboard() {
                   <div className="min-w-0">
                     <p className="text-sm text-gray-600">Hot Leads</p>
                   </div>
-                  <div className="p-3 rounded-xl bg-gradient-to-r from-red-100 to-red-200 shrink-0">
-                    <Target className="h-6 w-6 text-red-600" />
+                  <div className="p-2.5 rounded-xl bg-gradient-to-r from-red-100 to-red-200 shrink-0">
+                    <Target className="h-5 w-5 text-red-600" />
                   </div>
                 </div>
                 <p className={`${getMetricValueClassName(String(stats?.opportunityStats?.byLeadTier?.hot || 0), 'text-red-600')} mt-4`}>
@@ -1286,8 +1286,8 @@ export default function ContactsDashboard() {
                   <div className="min-w-0">
                     <p className="text-sm text-gray-600">Active Opportunities</p>
                   </div>
-                  <div className="p-3 rounded-xl bg-gradient-to-r from-purple-100 to-purple-200 shrink-0">
-                    <Briefcase className="h-6 w-6 text-purple-600" />
+                  <div className="p-2.5 rounded-xl bg-gradient-to-r from-purple-100 to-purple-200 shrink-0">
+                    <Briefcase className="h-5 w-5 text-purple-600" />
                   </div>
                 </div>
                 <p className={`${getMetricValueClassName(String(stats?.opportunityStats?.activeOpportunities || 0), 'text-purple-600')} mt-4`}>
@@ -1305,8 +1305,8 @@ export default function ContactsDashboard() {
                   <div className="min-w-0">
                     <p className="text-sm text-blue-100">Engagement Rate</p>
                   </div>
-                  <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm shrink-0">
-                    <TrendingUp className="h-6 w-6 text-white" />
+                  <div className="p-2.5 rounded-xl bg-white/20 backdrop-blur-sm shrink-0">
+                    <TrendingUp className="h-5 w-5 text-white" />
                   </div>
                 </div>
                 <p
