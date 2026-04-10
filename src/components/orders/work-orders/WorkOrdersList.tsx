@@ -48,7 +48,7 @@ export default function WorkOrdersList() {
 
   const normalizePagination = useCallback(
     (
-      incoming: { page?: number; limit?: number; total?: number; totalPages?: number } | undefined,
+      incoming: { page?: number; limit?: number; total?: number; totalPages?: number; pages?: number } | undefined,
       fallbackPage: number,
       fallbackLimit: number,
       dataLength: number
@@ -56,7 +56,7 @@ export default function WorkOrdersList() {
       const page = incoming?.page || fallbackPage;
       const limit = incoming?.limit || fallbackLimit;
       const total = incoming?.total || dataLength;
-      const apiTotalPages = incoming?.totalPages || 0;
+      const apiTotalPages = incoming?.totalPages || incoming?.pages || 0;
       const totalPages = apiTotalPages > 0 ? apiTotalPages : Math.max(1, Math.ceil(total / limit));
 
       return { page, limit, total, totalPages };
@@ -275,6 +275,17 @@ export default function WorkOrdersList() {
   const effectiveTotalPages = pagination.totalPages > 0
     ? pagination.totalPages
     : Math.max(1, Math.ceil((pagination.total || 0) / (pagination.limit || 10)));
+
+  const visiblePageNumbers = useMemo(() => {
+    if (effectiveTotalPages <= 1) return [];
+
+    const current = pagination.page;
+    const pages = new Set<number>([1, effectiveTotalPages, current, current - 1, current + 1]);
+
+    return Array.from(pages)
+      .filter((page) => page >= 1 && page <= effectiveTotalPages)
+      .sort((a, b) => a - b);
+  }, [effectiveTotalPages, pagination.page]);
 
   // Memoized getters
   const getCustomerName = useCallback((workOrder: any) => {
@@ -938,7 +949,7 @@ export default function WorkOrdersList() {
           {/* Pagination */}
           {!loading && workOrders.length > 0 && effectiveTotalPages > 1 && (
             <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-gray-700">
                   Showing{' '}
                   <span className="font-medium">
@@ -953,7 +964,7 @@ export default function WorkOrdersList() {
                   {' '}results
                 </p>
                 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => handlePageChange(pagination.page - 1)}
                     disabled={pagination.page === 1}
@@ -961,6 +972,31 @@ export default function WorkOrdersList() {
                   >
                     <ChevronLeft className="h-5 w-5" />
                   </button>
+                  
+                  <div className="flex items-center gap-1">
+                    {visiblePageNumbers.map((pageNumber, index) => {
+                      const previousPage = visiblePageNumbers[index - 1];
+                      const showEllipsis = previousPage && pageNumber - previousPage > 1;
+
+                      return (
+                        <div key={pageNumber} className="flex items-center gap-1">
+                          {showEllipsis && (
+                            <span className="px-2 text-sm text-gray-400">...</span>
+                          )}
+                          <button
+                            onClick={() => handlePageChange(pageNumber)}
+                            className={`min-w-9 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                              pageNumber === pagination.page
+                                ? 'border-indigo-600 bg-indigo-600 text-white'
+                                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            {pageNumber}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                   
                   <span className="text-sm text-gray-700">
                     Page {pagination.page} of {effectiveTotalPages}
