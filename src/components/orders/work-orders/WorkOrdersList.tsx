@@ -268,24 +268,23 @@ export default function WorkOrdersList() {
       : Math.max(1, Math.ceil((pagination.total || 0) / (pagination.limit || 10)));
     if (newPage === pagination.page || newPage < 1 || newPage > maxPages) return;
     setPagination(prev => ({ ...prev, page: newPage }));
+    setExpandedRow(null);
     // Scroll to top of table
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleLimitChange = (newLimit: number) => {
+    setPagination(prev => ({
+      ...prev,
+      page: 1,
+      limit: newLimit
+    }));
+    setExpandedRow(null);
   };
 
   const effectiveTotalPages = pagination.totalPages > 0
     ? pagination.totalPages
     : Math.max(1, Math.ceil((pagination.total || 0) / (pagination.limit || 10)));
-
-  const visiblePageNumbers = useMemo(() => {
-    if (effectiveTotalPages <= 1) return [];
-
-    const current = pagination.page;
-    const pages = new Set<number>([1, effectiveTotalPages, current, current - 1, current + 1]);
-
-    return Array.from(pages)
-      .filter((page) => page >= 1 && page <= effectiveTotalPages)
-      .sort((a, b) => a - b);
-  }, [effectiveTotalPages, pagination.page]);
 
   // Memoized getters
   const getCustomerName = useCallback((workOrder: any) => {
@@ -947,9 +946,9 @@ export default function WorkOrdersList() {
           </div>
 
           {/* Pagination */}
-          {!loading && workOrders.length > 0 && effectiveTotalPages > 1 && (
+          {!loading && workOrders.length > 0 && (
             <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-gray-700">
                   Showing{' '}
                   <span className="font-medium">
@@ -963,51 +962,41 @@ export default function WorkOrdersList() {
                   <span className="font-medium">{pagination.total}</span>
                   {' '}results
                 </p>
-                
-                <div className="flex flex-wrap items-center gap-2">
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={pagination.limit}
+                    onChange={(e) => handleLimitChange(Number(e.target.value))}
+                    className="px-2 py-1.5 rounded-md border border-gray-300 bg-white text-sm"
+                    aria-label="Rows per page"
+                  >
+                    {[10, 20, 50].map((size) => (
+                      <option key={size} value={size}>
+                        {size}/page
+                      </option>
+                    ))}
+                  </select>
+
                   <button
                     onClick={() => handlePageChange(pagination.page - 1)}
-                    disabled={pagination.page === 1}
+                    disabled={pagination.page <= 1}
                     className="p-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Previous page"
                   >
-                    <ChevronLeft className="h-5 w-5" />
+                    <ChevronLeft className="h-4 w-4" />
                   </button>
-                  
-                  <div className="flex items-center gap-1">
-                    {visiblePageNumbers.map((pageNumber, index) => {
-                      const previousPage = visiblePageNumbers[index - 1];
-                      const showEllipsis = previousPage && pageNumber - previousPage > 1;
 
-                      return (
-                        <div key={pageNumber} className="flex items-center gap-1">
-                          {showEllipsis && (
-                            <span className="px-2 text-sm text-gray-400">...</span>
-                          )}
-                          <button
-                            onClick={() => handlePageChange(pageNumber)}
-                            className={`min-w-9 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                              pageNumber === pagination.page
-                                ? 'border-indigo-600 bg-indigo-600 text-white'
-                                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                            }`}
-                          >
-                            {pageNumber}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  
-                  <span className="text-sm text-gray-700">
-                    Page {pagination.page} of {effectiveTotalPages}
+                  <span className="text-sm text-gray-700 min-w-[90px] text-center">
+                    Page {pagination.page} of {Math.max(effectiveTotalPages, 1)}
                   </span>
-                  
+
                   <button
                     onClick={() => handlePageChange(pagination.page + 1)}
                     disabled={pagination.page === effectiveTotalPages}
                     className="p-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Next page"
                   >
-                    <ChevronRight className="h-5 w-5" />
+                    <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
               </div>
