@@ -94,14 +94,101 @@ class ManyChatService {
   private testBaseUrl = '/manychat-test';
   private token: string | null = null;
 
+  private normalizeConnectionErrorMessage(message?: string): string {
+    if (!message) {
+      return 'ManyChat is not connected. Add a valid API token to continue.';
+    }
+
+    const lowerMessage = message.toLowerCase();
+
+    if (
+      lowerMessage.includes('401') ||
+      lowerMessage.includes('unauthorized') ||
+      lowerMessage.includes('invalid api key') ||
+      lowerMessage.includes('invalid token') ||
+      lowerMessage.includes('access token')
+    ) {
+      return 'The ManyChat API token is missing, invalid, or expired. Open Settings and connect with a valid token.';
+    }
+
+    return message;
+  }
+
+  private extractErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) {
+      return this.normalizeConnectionErrorMessage(error.message);
+    }
+
+    if (typeof error === 'object' && error !== null) {
+      const maybeError = error as {
+        message?: string;
+        response?: { data?: unknown; status?: number; statusText?: string };
+      };
+
+      if (typeof maybeError.message === 'string' && maybeError.message) {
+        return this.normalizeConnectionErrorMessage(maybeError.message);
+      }
+
+      if (typeof maybeError.response?.data === 'string' && maybeError.response.data) {
+        return this.normalizeConnectionErrorMessage(maybeError.response.data);
+      }
+
+      if (maybeError.response?.status) {
+        return this.normalizeConnectionErrorMessage(
+          `Request failed with status code ${maybeError.response.status}`
+        );
+      }
+    }
+
+    return 'Unable to reach ManyChat. Check your token and try again.';
+  }
+
+  private normalizeConnectionStatus(response: any, token?: string): ManyChatConnectionStatus {
+    const configured = Boolean(
+      response?.configured ??
+      response?.tokenConfigured ??
+      response?.token_present ??
+      token ??
+      this.getToken()
+    );
+    const connected = Boolean(
+      response?.connected ??
+      response?.success ??
+      response?.data?.connected ??
+      false
+    );
+    const errorMessage = response?.success === false || response?.connected === false
+      ? this.normalizeConnectionErrorMessage(response?.message || response?.error)
+      : undefined;
+
+    return {
+      connected,
+      configured,
+      pageName:
+        response?.pageName ||
+        response?.page_name ||
+        response?.data?.name ||
+        response?.data?.page_name,
+      pageId:
+        response?.pageId ||
+        response?.page_id ||
+        response?.data?.page_id ||
+        response?.data?.id,
+      token: token || this.getToken() || undefined,
+      lastSynced: response?.lastSynced || response?.data?.lastSynced || new Date().toISOString(),
+      error: connected ? undefined : errorMessage,
+    };
+  }
+
   /**
    * Initialize ManyChat service with token
    */
   initialize(token: string) {
-    this.token = token;
+    const trimmedToken = token.trim();
+    this.token = trimmedToken;
     // Store token in sessionStorage for persistence
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem('manychat_token', token);
+      sessionStorage.setItem('manychat_token', trimmedToken);
     }
   }
 
@@ -116,6 +203,14 @@ class ManyChatService {
     }
     
     return null;
+  }
+
+  getStoredToken(): string | null {
+    return this.getToken();
+  }
+
+  hasStoredToken(): boolean {
+    return !!this.getToken();
   }
 
   /**
@@ -157,21 +252,19 @@ class ManyChatService {
    */
   async checkHealth(token?: string): Promise<ManyChatConnectionStatus> {
     try {
-      const useToken = token || this.getToken();
+      const useToken = token?.trim() || this.getToken();
       const params = useToken ? { token: useToken } : {};
-      
+
       const response = await apiClient.get<any>(`${this.baseUrl}/health`, params);
-      return {
-        connected: response?.connected ?? response?.success ?? false,
-        configured: response?.configured ?? response?.success ?? false,
-        pageName: response?.pageName || response?.data?.name || response?.data?.page_name,
-        pageId: response?.pageId || response?.data?.page_id || response?.data?.id,
-        lastSynced: response?.lastSynced || new Date().toISOString(),
-        error: response?.success === false ? response?.message : undefined,
-      };
+      return this.normalizeConnectionStatus(response, useToken || undefined);
     } catch (error) {
       console.error('Error checking ManyChat health:', error);
-      throw error;
+      return {
+        connected: false,
+        configured: Boolean(token?.trim() || this.getToken()),
+        token: token?.trim() || this.getToken() || undefined,
+        error: this.extractErrorMessage(error),
+      };
     }
   }
 
@@ -577,11 +670,12 @@ class ManyChatService {
    */
   async testConnection(token: string): Promise<ManyChatConnectionStatus> {
     try {
-      const result = await this.checkHealth(token);
+      const trimmedToken = token.trim();
+      const result = await this.checkHealth(trimmedToken);
       
       if (result.connected) {
         // If successful, store the token
-        this.initialize(token);
+        this.initialize(trimmedToken);
       }
       
       return result;

@@ -1,47 +1,70 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Wifi, WifiOff, RefreshCw, Settings, 
   CheckCircle, AlertTriangle, 
   Users, MessageSquare
 } from 'lucide-react';
-import { manychatService, ManyChatConnectionStatus } from '@/services/manychatService';
+import { manychatService, ManyChatConnectionStatus, ManyChatStats } from '@/services/manychatService';
 import { useToast } from '@/contexts/ToastContext';
 
 interface ConnectionStatusProps {
   onReconnect?: () => void;
   onConfigure?: () => void;
+  onStatusChange?: (status: ManyChatConnectionStatus) => void;
+  refreshKey?: number;
 }
 
-export default function ConnectionStatus({ onReconnect, onConfigure }: ConnectionStatusProps) {
+export default function ConnectionStatus({
+  onReconnect,
+  onConfigure,
+  onStatusChange,
+  refreshKey = 0,
+}: ConnectionStatusProps) {
   const { showToast } = useToast();
   const [status, setStatus] = useState<ManyChatConnectionStatus | null>(null);
   const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<ManyChatStats | null>(null);
   const [pingStatus, setPingStatus] = useState<string | null>(null);
 
-  useEffect(() => {
-    checkStatus();
-  }, []);
-
-  const checkStatus = async () => {
+  const checkStatus = useCallback(async () => {
     try {
       setLoading(true);
       const result = await manychatService.checkHealth();
       setStatus(result);
+      onStatusChange?.(result);
       
       if (result.connected) {
-        const statsData = await manychatService.getStats();
-        setStats(statsData);
+        try {
+          const statsData = await manychatService.getStats();
+          setStats(statsData);
+        } catch (error) {
+          console.error('Error fetching ManyChat stats:', error);
+          setStats(null);
+        }
+      } else {
+        setStats(null);
       }
     } catch (error) {
       console.error('Error checking connection:', error);
+      const fallbackStatus = {
+        connected: false,
+        configured: manychatService.hasStoredToken(),
+        error: 'Unable to check ManyChat connection right now.',
+      };
+      setStatus(fallbackStatus);
+      setStats(null);
+      onStatusChange?.(fallbackStatus);
       showToast('Failed to check connection status', 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [onStatusChange, showToast]);
+
+  useEffect(() => {
+    void checkStatus();
+  }, [checkStatus, refreshKey]);
 
   const handleReconnect = async () => {
     try {
