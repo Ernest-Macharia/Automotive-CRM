@@ -7,21 +7,34 @@ import MessageComposer from '@/components/manychat/MessageComposer';
 import TagManager from '@/components/manychat/TagManager';
 import StatsDashboard from '@/components/manychat/StatsDashboard';
 import {
+  type LucideIcon,
   MessageSquare, BarChart3, Tag, Send, Download,
-  Settings
+  Settings, AlertTriangle, KeyRound, Loader2
 } from 'lucide-react';
-import { manychatService, ManyChatContact, ManyChatStats } from '@/services/manychatService';
+import {
+  manychatService,
+  ManyChatContact,
+  ManyChatConnectionStatus,
+  ManyChatStats
+} from '@/services/manychatService';
 import { useToast } from '@/contexts/ToastContext';
+
+type ManyChatTab = 'messages' | 'tags' | 'stats' | 'settings';
 
 export default function ManyChatPage() {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<'messages' | 'tags' | 'stats' | 'settings'>('messages');
+  const [activeTab, setActiveTab] = useState<ManyChatTab>('messages');
   const [selectedContact, setSelectedContact] = useState<ManyChatContact | null>(null);
   const [showMessageComposer, setShowMessageComposer] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [stats, setStats] = useState<ManyChatStats | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<ManyChatConnectionStatus | null>(null);
+  const [connectionRefreshKey, setConnectionRefreshKey] = useState(0);
+  const [settingsToken, setSettingsToken] = useState('');
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
 
-  const tabs = [
+  const tabs: Array<{ id: ManyChatTab; label: string; icon: LucideIcon }> = [
     { id: 'messages', label: 'Messages', icon: MessageSquare },
     { id: 'tags', label: 'Tags', icon: Tag },
     { id: 'stats', label: 'Analytics', icon: BarChart3 },
@@ -29,10 +42,84 @@ export default function ManyChatPage() {
   ];
 
   useEffect(() => {
+    if (!connectionStatus?.connected) {
+      setStats(null);
+      return;
+    }
+
     manychatService.getStats().then(setStats).catch(() => setStats(null));
-  }, []);
+  }, [connectionStatus?.connected, connectionRefreshKey]);
+
+  const openSettingsModal = () => {
+    setSettingsToken(manychatService.getStoredToken() || '');
+    setSettingsError(null);
+    setShowSettingsModal(true);
+  };
+
+  const refreshConnection = () => {
+    setConnectionRefreshKey((prev) => prev + 1);
+  };
+
+  const handleSaveSettings = async () => {
+    const trimmedToken = settingsToken.trim();
+
+    if (!trimmedToken) {
+      setSettingsError('Enter a valid ManyChat API token before saving.');
+      return;
+    }
+
+    try {
+      setSavingSettings(true);
+      setSettingsError(null);
+
+      const result = await manychatService.testConnection(trimmedToken);
+      setConnectionStatus(result);
+      refreshConnection();
+
+      if (!result.connected) {
+        const message = result.error || 'Unable to connect to ManyChat with that token.';
+        setSettingsError(message);
+        showToast(message, 'error');
+        return;
+      }
+
+      setShowSettingsModal(false);
+      showToast('ManyChat connected successfully', 'success');
+    } catch (error) {
+      console.error('Error saving ManyChat settings:', error);
+      const message = error instanceof Error
+        ? error.message
+        : 'Failed to save ManyChat settings';
+      setSettingsError(message);
+      showToast(message, 'error');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleDisconnect = () => {
+    manychatService.disconnect();
+    setStats(null);
+    setShowMessageComposer(false);
+    setSettingsToken('');
+    setSettingsError(null);
+    setConnectionStatus({
+      connected: false,
+      configured: false,
+      error: 'ManyChat is disconnected. Add a valid API token to reconnect.',
+    });
+    setShowSettingsModal(false);
+    refreshConnection();
+    showToast('ManyChat token cleared', 'success');
+  };
 
   const handleSendMessage = (contact?: ManyChatContact) => {
+    if (!connectionStatus?.connected) {
+      openSettingsModal();
+      showToast('Connect ManyChat before sending messages', 'info');
+      return;
+    }
+
     if (contact) {
       setSelectedContact(contact);
     }
@@ -47,6 +134,53 @@ export default function ManyChatPage() {
       showToast('Failed to prepare export', 'error');
     }
   };
+
+  const renderConnectionRequired = () => (
+    <div className="bg-white rounded-xl border border-gray-200 p-8">
+      <div className="max-w-xl">
+        <div className="inline-flex p-3 rounded-2xl bg-amber-50 text-amber-600 mb-4">
+          <AlertTriangle className="h-6 w-6" />
+        </div>
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">Connect ManyChat to continue</h3>
+        <p className="text-gray-600 mb-5">
+          The portal is ready, but your ManyChat API token is not connected yet. Once you save a valid token,
+          messaging, tags, and analytics will load normally.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
+            onClick={openSettingsModal}
+            className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center justify-center gap-2"
+          >
+            <KeyRound className="h-4 w-4" />
+            Connect ManyChat
+          </button>
+          <button
+            onClick={refreshConnection}
+            className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+          >
+            Refresh Status
+          </button>
+        </div>
+        {connectionStatus?.error && (
+          <div className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {connectionStatus.error}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderConnectionLoading = () => (
+    <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+      <Loader2 className="h-8 w-8 animate-spin text-blue-500 mx-auto mb-3" />
+      <h3 className="text-lg font-semibold text-gray-900 mb-2">Checking ManyChat connection</h3>
+      <p className="text-gray-600">Verifying your current ManyChat configuration.</p>
+    </div>
+  );
+
+  const isConnected = connectionStatus?.connected ?? false;
+  const isCheckingConnection = connectionStatus === null;
+  const isConfigured = connectionStatus?.configured ?? manychatService.hasStoredToken();
 
   return (
     <ProtectedRoute>
@@ -82,8 +216,10 @@ export default function ManyChatPage() {
           {/* Connection Status */}
           <div className="mb-6">
             <ConnectionStatus 
-              onReconnect={() => setShowSettingsModal(true)}
-              onConfigure={() => setShowSettingsModal(true)}
+              onReconnect={openSettingsModal}
+              onConfigure={openSettingsModal}
+              onStatusChange={setConnectionStatus}
+              refreshKey={connectionRefreshKey}
             />
           </div>
 
@@ -102,7 +238,7 @@ export default function ManyChatPage() {
                     Send Message
                   </button>
                   <button
-                    onClick={() => setShowSettingsModal(true)}
+                    onClick={openSettingsModal}
                     className="w-full px-4 py-3 border border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 flex items-center justify-center gap-2"
                   >
                     <Settings className="h-4 w-4" />
@@ -117,7 +253,7 @@ export default function ManyChatPage() {
                     return (
                       <button
                         key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
+                        onClick={() => setActiveTab(tab.id)}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl mb-1 transition-colors ${
                           activeTab === tab.id
                             ? 'bg-blue-50 text-blue-700 border border-blue-200'
@@ -159,9 +295,11 @@ export default function ManyChatPage() {
                       <div className="p-1.5 bg-purple-100 rounded">
                         <Tag className="h-4 w-4 text-purple-600" />
                       </div>
-                      <span className="text-sm text-gray-600">Configured</span>
+                      <span className="text-sm text-gray-600">Connected</span>
                     </div>
-                    <span className="font-semibold">{stats ? 'Yes' : 'No'}</span>
+                    <span className="font-semibold">
+                      {isCheckingConnection ? 'Checking...' : isConfigured ? 'Yes' : 'No'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -169,22 +307,25 @@ export default function ManyChatPage() {
 
             {/* Main Content Area */}
             <div className="lg:col-span-3">
-              {activeTab === 'messages' && (
+              {isCheckingConnection && renderConnectionLoading()}
+              {!isCheckingConnection && !isConnected && renderConnectionRequired()}
+
+              {isConnected && activeTab === 'messages' && (
                 <div className="bg-white rounded-xl border border-gray-200 p-6">
                   <MessageComposer onSent={() => setShowMessageComposer(false)} />
                 </div>
               )}
 
-              {activeTab === 'tags' && <TagManager />}
-              {activeTab === 'stats' && <StatsDashboard />}
-              {activeTab === 'settings' && (
+              {isConnected && activeTab === 'tags' && <TagManager />}
+              {isConnected && activeTab === 'stats' && <StatsDashboard />}
+              {isConnected && activeTab === 'settings' && (
                 <div className="bg-white rounded-xl border border-gray-200 p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">ManyChat Settings</h3>
                   <p className="text-gray-600 mb-4">
                     Configure your ManyChat integration settings, webhooks, and preferences.
                   </p>
                   <button
-                    onClick={() => setShowSettingsModal(true)}
+                    onClick={openSettingsModal}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                   >
                     Open Settings
@@ -196,7 +337,7 @@ export default function ManyChatPage() {
         </div>
 
         {/* Modals */}
-        {showMessageComposer && (
+        {showMessageComposer && isConnected && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="w-full max-w-2xl">
               <MessageComposer
@@ -214,16 +355,56 @@ export default function ManyChatPage() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="w-full max-w-2xl bg-white rounded-xl p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">ManyChat Configuration</h3>
-              {/* Settings form would go here */}
+              <div className="space-y-4">
+                <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                  Paste your ManyChat API token below, then save to test the connection immediately.
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ManyChat API Token
+                  </label>
+                  <input
+                    type="password"
+                    value={settingsToken}
+                    onChange={(e) => setSettingsToken(e.target.value)}
+                    placeholder="mc_..."
+                    autoComplete="off"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                  <p className="mt-2 text-xs text-gray-500">
+                    The token is stored in this browser session and used for ManyChat requests from this portal.
+                  </p>
+                </div>
+
+                {settingsError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {settingsError}
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-end gap-2 mt-6">
                 <button
+                  onClick={handleDisconnect}
+                  className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
+                >
+                  Clear Token
+                </button>
+                <button
                   onClick={() => setShowSettingsModal(false)}
+                  disabled={savingSettings}
                   className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
                 >
                   Cancel
                 </button>
-                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  Save Settings
+                <button
+                  onClick={handleSaveSettings}
+                  disabled={savingSettings}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 inline-flex items-center gap-2"
+                >
+                  {savingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                  Save and Connect
                 </button>
               </div>
             </div>
