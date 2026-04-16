@@ -53,6 +53,13 @@ const toNumber = (...values: unknown[]): number => {
   return 0;
 };
 
+const toArray = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  return [];
+};
+
 const defaultLeaveForm: EmployeeLeaveApplicationData = {
   leaveType: 'annual',
   startDate: '',
@@ -153,10 +160,18 @@ export default function EmployeePortalPage() {
     const leave = toRecord(dashboardData.leave);
     const kpi = toRecord(dashboardData.kpi);
     const incident = toRecord(dashboardData.incidents);
+    const assets = toRecord(dashboardData.assets);
+    const assetItems = toArray(assets.items).map(item => toRecord(item));
 
     const firstName = toText(profile.firstName, profile.givenName);
     const lastName = toText(profile.lastName, profile.surname);
     const fullNameFromParts = [firstName, lastName].filter(Boolean).join(' ').trim();
+    const openIncidents = toNumber(incident.open, incident.pending, incidentStats.pending);
+    const acknowledgedIncidents = toNumber(
+      incident.acknowledged,
+      incident.closed,
+      Math.max(toNumber(incident.total, incident.count, incidentStats.total) - openIncidents, 0)
+    );
 
     return {
       profile: {
@@ -179,11 +194,17 @@ export default function EmployeePortalPage() {
       },
       incidents: {
         total: toNumber(incident.total, incident.count, incidentStats.total),
-        pending: toNumber(incident.pending, incident.open, incidentStats.pending),
-        acknowledged: toNumber(incident.acknowledged, incident.closed, incidentStats.acknowledged),
+        open: openIncidents,
+        acknowledged: acknowledgedIncidents,
+      },
+      assets: {
+        total: toNumber(assets.total),
+        assigned: toNumber(assets.assigned),
+        returned: toNumber(assets.returned),
+        items: assetItems,
       },
     };
-  }, [dashboard, incidentStats.acknowledged, incidentStats.pending, incidentStats.total, kpiStats.averageScore, kpiStats.completed, kpiStats.inProgress, kpiStats.total, leaveStats.pending]);
+  }, [dashboard, incidentStats.pending, incidentStats.total, kpiStats.averageScore, kpiStats.completed, kpiStats.inProgress, kpiStats.total, leaveStats.pending]);
 
   const onApplyLeave = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -243,114 +264,156 @@ export default function EmployeePortalPage() {
     }
   };
 
-  const renderOverview = () => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-xs text-gray-500">My Leave Requests</p>
-          <p className="text-2xl font-semibold text-gray-900 mt-1">{leaveStats.total}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-xs text-gray-500">Approved Leaves</p>
-          <p className="text-2xl font-semibold text-green-700 mt-1">{leaveStats.approved}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-xs text-gray-500">KPI Reports</p>
-          <p className="text-2xl font-semibold text-blue-700 mt-1">{dashboardOverview.kpi.total}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-xs text-gray-500">Pending Incidents</p>
-          <p className="text-2xl font-semibold text-amber-700 mt-1">{dashboardOverview.incidents.pending}</p>
-        </div>
-      </div>
+  const renderOverview = () => {
+    const assetPreview = dashboardOverview.assets.items.slice(0, 4);
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-gray-900">Employee Profile</h3>
-          <div className="mt-3 space-y-2">
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="text-gray-500">Name</span>
-              <span className="font-medium text-gray-900">{dashboardOverview.profile.fullName}</span>
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <p className="text-xs text-gray-500">Current Leave Balance</p>
+            <p className="text-2xl font-semibold text-indigo-700 mt-1">{dashboardOverview.leave.balance}</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <p className="text-xs text-gray-500">KPI In Progress</p>
+            <p className="text-2xl font-semibold text-amber-700 mt-1">{dashboardOverview.kpi.inProgress}</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <p className="text-xs text-gray-500">Open Incidents</p>
+            <p className="text-2xl font-semibold text-rose-700 mt-1">{dashboardOverview.incidents.open}</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <p className="text-xs text-gray-500">Assigned Assets</p>
+            <p className="text-2xl font-semibold text-blue-700 mt-1">{dashboardOverview.assets.assigned}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-gray-900">Employee Profile</h3>
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span className="text-gray-500">Name</span>
+                <span className="font-medium text-gray-900">{dashboardOverview.profile.fullName}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span className="text-gray-500">Employee ID</span>
+                <span className="font-medium text-gray-900">{dashboardOverview.profile.employeeId || 'Not provided'}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span className="text-gray-500">Department</span>
+                <span className="font-medium text-gray-900">{dashboardOverview.profile.department || 'Not set'}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span className="text-gray-500">Position</span>
+                <span className="font-medium text-gray-900">{dashboardOverview.profile.position || 'Not set'}</span>
+              </div>
             </div>
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="text-gray-500">Employee ID</span>
-              <span className="font-medium text-gray-900">{dashboardOverview.profile.employeeId || 'Not provided'}</span>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-gray-900">Leave Summary</h3>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-gray-200 p-3 bg-emerald-50/60">
+                <p className="text-xs text-gray-500">Total Leave Accrued</p>
+                <p className="text-lg font-semibold text-emerald-700">{dashboardOverview.leave.accrued}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3 bg-blue-50/60">
+                <p className="text-xs text-gray-500">Total Leave Used</p>
+                <p className="text-lg font-semibold text-blue-700">{dashboardOverview.leave.used}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3 bg-indigo-50/60">
+                <p className="text-xs text-gray-500">Current Leave Balance</p>
+                <p className="text-lg font-semibold text-indigo-700">{dashboardOverview.leave.balance}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3 bg-amber-50/60">
+                <p className="text-xs text-gray-500">Pending Requests</p>
+                <p className="text-lg font-semibold text-amber-700">{dashboardOverview.leave.pending}</p>
+              </div>
             </div>
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="text-gray-500">Department</span>
-              <span className="font-medium text-gray-900">{dashboardOverview.profile.department || 'Not set'}</span>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-gray-900">KPI Summary</h3>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-gray-200 p-3 bg-blue-50/60">
+                <p className="text-xs text-gray-500">Total</p>
+                <p className="text-lg font-semibold text-blue-700">{dashboardOverview.kpi.total}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3 bg-green-50/60">
+                <p className="text-xs text-gray-500">Completed</p>
+                <p className="text-lg font-semibold text-green-700">{dashboardOverview.kpi.completed}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3 bg-amber-50/60">
+                <p className="text-xs text-gray-500">In Progress</p>
+                <p className="text-lg font-semibold text-amber-700">{dashboardOverview.kpi.inProgress}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3 bg-cyan-50/60">
+                <p className="text-xs text-gray-500">Average Score</p>
+                <p className="text-lg font-semibold text-cyan-700">{dashboardOverview.kpi.averageScore}</p>
+              </div>
             </div>
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="text-gray-500">Position</span>
-              <span className="font-medium text-gray-900">{dashboardOverview.profile.position || 'Not set'}</span>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-gray-900">Incident Summary</h3>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-gray-200 p-3 bg-slate-50">
+                <p className="text-xs text-gray-500">Total Incidents</p>
+                <p className="text-lg font-semibold text-gray-900">{dashboardOverview.incidents.total}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3 bg-rose-50/60">
+                <p className="text-xs text-gray-500">Open</p>
+                <p className="text-lg font-semibold text-rose-700">{dashboardOverview.incidents.open}</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3 bg-green-50/60 col-span-2">
+                <p className="text-xs text-gray-500">Acknowledged</p>
+                <p className="text-lg font-semibold text-green-700">{dashboardOverview.incidents.acknowledged}</p>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-gray-900">Leave Summary</h3>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <div className="rounded-lg border border-gray-200 p-3 bg-emerald-50/60">
-              <p className="text-xs text-gray-500">Accrued</p>
-              <p className="text-lg font-semibold text-emerald-700">{dashboardOverview.leave.accrued}</p>
-            </div>
-            <div className="rounded-lg border border-gray-200 p-3 bg-blue-50/60">
-              <p className="text-xs text-gray-500">Used</p>
-              <p className="text-lg font-semibold text-blue-700">{dashboardOverview.leave.used}</p>
-            </div>
-            <div className="rounded-lg border border-gray-200 p-3 bg-indigo-50/60">
-              <p className="text-xs text-gray-500">Balance</p>
-              <p className="text-lg font-semibold text-indigo-700">{dashboardOverview.leave.balance}</p>
-            </div>
-            <div className="rounded-lg border border-gray-200 p-3 bg-amber-50/60">
-              <p className="text-xs text-gray-500">Pending</p>
-              <p className="text-lg font-semibold text-amber-700">{dashboardOverview.leave.pending}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-gray-900">KPI Summary</h3>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <div className="rounded-lg border border-gray-200 p-3 bg-blue-50/60">
+          <h3 className="text-sm font-semibold text-gray-900">Asset Summary</h3>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-lg border border-gray-200 p-3 bg-slate-50">
               <p className="text-xs text-gray-500">Total</p>
-              <p className="text-lg font-semibold text-blue-700">{dashboardOverview.kpi.total}</p>
+              <p className="text-lg font-semibold text-gray-900">{dashboardOverview.assets.total}</p>
             </div>
-            <div className="rounded-lg border border-gray-200 p-3 bg-green-50/60">
-              <p className="text-xs text-gray-500">Completed</p>
-              <p className="text-lg font-semibold text-green-700">{dashboardOverview.kpi.completed}</p>
+            <div className="rounded-lg border border-gray-200 p-3 bg-blue-50/60">
+              <p className="text-xs text-gray-500">Assigned</p>
+              <p className="text-lg font-semibold text-blue-700">{dashboardOverview.assets.assigned}</p>
             </div>
-            <div className="rounded-lg border border-gray-200 p-3 bg-amber-50/60">
-              <p className="text-xs text-gray-500">In Progress</p>
-              <p className="text-lg font-semibold text-amber-700">{dashboardOverview.kpi.inProgress}</p>
-            </div>
-            <div className="rounded-lg border border-gray-200 p-3 bg-cyan-50/60">
-              <p className="text-xs text-gray-500">Average Score</p>
-              <p className="text-lg font-semibold text-cyan-700">{dashboardOverview.kpi.averageScore}</p>
+            <div className="rounded-lg border border-gray-200 p-3 bg-emerald-50/60">
+              <p className="text-xs text-gray-500">Returned</p>
+              <p className="text-lg font-semibold text-emerald-700">{dashboardOverview.assets.returned}</p>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl p-4">
-        <h3 className="text-sm font-semibold text-gray-900">Incident Summary</h3>
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="rounded-lg border border-gray-200 p-3 bg-slate-50">
-            <p className="text-xs text-gray-500">Total Incidents</p>
-            <p className="text-lg font-semibold text-gray-900">{dashboardOverview.incidents.total}</p>
-          </div>
-          <div className="rounded-lg border border-gray-200 p-3 bg-amber-50/60">
-            <p className="text-xs text-gray-500">Pending Acknowledgement</p>
-            <p className="text-lg font-semibold text-amber-700">{dashboardOverview.incidents.pending}</p>
-          </div>
-          <div className="rounded-lg border border-gray-200 p-3 bg-green-50/60">
-            <p className="text-xs text-gray-500">Acknowledged</p>
-            <p className="text-lg font-semibold text-green-700">{dashboardOverview.incidents.acknowledged}</p>
-          </div>
+          {assetPreview.length > 0 ? (
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              {assetPreview.map((item, index) => {
+                const label = toText(item.assetName, item.name, item.title, item.code) || `Asset ${index + 1}`;
+                const identifier = toText(item.assetId, item.serialNumber, item.tag, item.id);
+                const status = toText(item.status, item.condition);
+
+                return (
+                  <div key={`${label}-${index}`} className="rounded-lg border border-gray-200 p-3 bg-gray-50">
+                    <p className="text-sm font-medium text-gray-900">{label}</p>
+                    <p className="text-xs text-gray-600 mt-1">{identifier || 'No identifier'}</p>
+                    <p className="text-xs text-gray-600 mt-1">{status || 'Status not available'}</p>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-gray-500">No asset items listed.</p>
+          )}
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderLeaves = () => (
     <div className="space-y-5">
