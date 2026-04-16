@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Briefcase, Calendar, CheckCircle2, ClipboardList, MessageSquare, RefreshCw, Send, ShieldAlert } from 'lucide-react';
+import { Briefcase, Calendar, CheckCircle2, ClipboardList, MessageSquare, RefreshCw, Send, TrendingUp } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import {
   employeeService,
@@ -447,7 +447,7 @@ export default function EmployeePortalPage() {
             onClick={() => setActiveTab('kpis')}
             className={`inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm ${activeTab === 'kpis' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-700'}`}
           >
-            <ShieldAlert className="h-4 w-4" />
+            <TrendingUp className="h-4 w-4" />
             KPIs
           </button>
           <button
