@@ -63,7 +63,17 @@ interface CountryCode {
 
 interface OpportunityFormData {
   accountType: 'individual' | 'organization';
-  source?: 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner';
+  source?:
+    | 'web'
+    | 'website'
+    | 'email'
+    | 'call'
+    | 'phone'
+    | 'walk_in'
+    | 'referral'
+    | 'partner'
+    | 'manual'
+    | 'social_media';
   firstName: string;
   lastName: string;
   companyName: string;
@@ -138,6 +148,19 @@ const fallbackVehicleModels: Record<string, string[]> = {
   'Nissan': ['Navara', 'X-Trail', 'Qashqai', 'Sunny', 'Patrol', 'Other'],
   'Mazda': ['CX-5', 'CX-30', 'Mazda3', 'Mazda6', 'CX-9', 'Other'],
   'Other': ['Custom Model']
+};
+
+const normalizeSourceForApi = (value?: OpportunityFormData['source']): CreateOpportunityData['source'] => {
+  if (value === 'phone') return 'call';
+  if (value === 'website') return 'web';
+  return (value || 'walk_in') as CreateOpportunityData['source'];
+};
+
+const normalizeSourceForForm = (value?: string): OpportunityFormData['source'] => {
+  if (!value) return 'walk_in';
+  if (value === 'call') return 'phone';
+  if (value === 'web') return 'website';
+  return value as OpportunityFormData['source'];
 };
 
 const vehicleColorCodes = [
@@ -894,7 +917,7 @@ export default function CreateOpportunityPage() {
 
       const apiFormData: CreateOpportunityData = {
         type: formData.accountType,
-        source: formData.source,
+        source: normalizeSourceForApi(formData.source),
         subject,
         status: 'new',
         opportunityType: formData.opportunityType,
@@ -1229,7 +1252,11 @@ export default function CreateOpportunityPage() {
   useEffect(() => {
     const savedDraft = localStorage.getItem('opportunityDraft');
     if (savedDraft) {
-      setFormData(JSON.parse(savedDraft));
+      const parsedDraft = JSON.parse(savedDraft);
+      setFormData({
+        ...parsedDraft,
+        source: normalizeSourceForForm(parsedDraft?.source),
+      });
     }
   }, []);
 

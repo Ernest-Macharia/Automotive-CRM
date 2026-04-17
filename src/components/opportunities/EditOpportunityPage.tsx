@@ -58,9 +58,36 @@ interface UserPreferences {
   useDropdowns: boolean;
 }
 
+type OpportunitySourceFormValue =
+  | 'web'
+  | 'website'
+  | 'email'
+  | 'call'
+  | 'phone'
+  | 'walk_in'
+  | 'referral'
+  | 'partner'
+  | 'manual'
+  | 'social_media';
+
+type OpportunitySourceApiValue =
+  | 'web'
+  | 'website'
+  | 'email'
+  | 'call'
+  | 'walk_in'
+  | 'referral'
+  | 'partner'
+  | 'manual'
+  | 'social_media';
+
 const getSafeCustomerField = (customer: any, field: string): string => {
   if (!customer || typeof customer !== 'object') return '';
   return customer[field as keyof typeof customer] || '';
+};
+
+const sanitizePhoneDigits = (value: string): string => {
+  return value.replace(/\D+/g, '');
 };
 
 const normalizePhoneForInput = (value: string, phoneCode: string): string => {
@@ -68,15 +95,47 @@ const normalizePhoneForInput = (value: string, phoneCode: string): string => {
 
   const compact = value.replace(/\s+/g, '');
   if (compact.startsWith(phoneCode)) {
-    return compact.slice(phoneCode.length);
+    return sanitizePhoneDigits(compact.slice(phoneCode.length));
   }
 
   const numericCode = phoneCode.replace('+', '');
   if (compact.startsWith(numericCode)) {
-    return compact.slice(numericCode.length);
+    return sanitizePhoneDigits(compact.slice(numericCode.length));
   }
 
-  return compact.startsWith('+') ? compact.replace(/^\+\d{1,4}/, '') : compact;
+  return sanitizePhoneDigits(compact.startsWith('+') ? compact.replace(/^\+\d{1,4}/, '') : compact);
+};
+
+const formatPhoneForApi = (value: string, phoneCode: string): string | undefined => {
+  let digits = sanitizePhoneDigits(value);
+  const countryCodeDigits = sanitizePhoneDigits(phoneCode);
+
+  if (!digits || !countryCodeDigits) {
+    return undefined;
+  }
+
+  if (digits.startsWith(countryCodeDigits)) {
+    digits = digits.slice(countryCodeDigits.length);
+  }
+
+  digits = digits.replace(/^0+/, '');
+  if (!digits) {
+    return undefined;
+  }
+
+  return `+${countryCodeDigits}${digits}`;
+};
+
+const normalizeSourceForForm = (value?: string): OpportunitySourceFormValue => {
+  if (!value) return 'walk_in';
+  if (value === 'call') return 'phone';
+  return value as OpportunitySourceFormValue;
+};
+
+const normalizeSourceForApi = (value: OpportunitySourceFormValue): OpportunitySourceApiValue => {
+  if (value === 'phone') return 'call';
+  if (value === 'website') return 'web';
+  return value;
 };
 
 const vehicleMakes = [
@@ -213,7 +272,7 @@ export default function EditOpportunityPage() {
   
   const [formData, setFormData] = useState({
     type: 'individual' as 'individual' | 'organization',
-      source: 'walk_in' as 'web' | 'email' | 'call' | 'walk_in' | 'referral' | 'partner',
+      source: 'walk_in' as OpportunitySourceFormValue,
       opportunityType: 'SERVICE' as 'SERVICE' | 'SALE',
       phoneCode: '+254',
       customer: {
@@ -309,6 +368,7 @@ export default function EditOpportunityPage() {
           }
         }
       }
+      phoneNumber = sanitizePhoneDigits(phoneNumber);
       
       // Prepare vehicles data - safely handle the API response
       const vehicles: VehicleForm[] = (data.vehicles || []).map((v: any) => ({
@@ -361,7 +421,7 @@ export default function EditOpportunityPage() {
       
       setFormData({
         type: data.type || 'individual',
-        source: (data.source as any) || 'walk_in',
+        source: normalizeSourceForForm(data.source as string | undefined),
         opportunityType: mappedOpportunityType,
         phoneCode,
         customer: {
@@ -407,11 +467,16 @@ export default function EditOpportunityPage() {
   };
 
   const handleCustomerChange = (field: keyof CustomerForm, value: string) => {
+    const phoneFields: Array<keyof CustomerForm> = ['phone', 'secondaryPhone', 'contactPersonPhone'];
+    const normalizedValue = phoneFields.includes(field)
+      ? sanitizePhoneDigits(value)
+      : value;
+
     setFormData(prev => ({
       ...prev,
       customer: {
         ...prev.customer,
-        [field]: value
+        [field]: normalizedValue
       }
     }));
   };
@@ -594,28 +659,25 @@ export default function EditOpportunityPage() {
       const subject = formData.type === 'individual'
         ? `${firstName} ${lastName}'s ${formData.opportunityType.toLowerCase()} request`
         : `${formData.customer.companyName}'s ${formData.opportunityType.toLowerCase()} request`;
+      const normalizedSource = normalizeSourceForApi(formData.source);
 
       // Prepare update data according to UpdateOpportunityData interface
       const updateData: UpdateOpportunityData = {
         type: formData.type,
-        source: formData.source as 'walk_in' | 'web' | 'email' | 'call' | 'referral' | 'partner',
+        source: normalizedSource as UpdateOpportunityData['source'],
         subject,
         opportunityType: formData.opportunityType,
         packageType: formData.opportunityType === 'SERVICE' ? 'work_order' : 'sales_order',
         customer: {
           name: customerName,
           email: formData.customer.email || undefined,
-          phone: formData.customer.phone ? `${formData.phoneCode}${formData.customer.phone}` : undefined,
-          secondaryPhone: formData.customer.secondaryPhone
-            ? `${formData.phoneCode}${formData.customer.secondaryPhone}`
-            : undefined,
+          phone: formatPhoneForApi(formData.customer.phone, formData.phoneCode),
+          secondaryPhone: formatPhoneForApi(formData.customer.secondaryPhone, formData.phoneCode),
           ...(formData.type === 'organization' && {
             companyName: formData.customer.companyName,
             contactPersonName: formData.customer.contactPersonName || undefined,
             contactPersonEmail: formData.customer.contactPersonEmail || undefined,
-            contactPersonPhone: formData.customer.contactPersonPhone
-              ? `${formData.phoneCode}${formData.customer.contactPersonPhone}`
-              : undefined,
+            contactPersonPhone: formatPhoneForApi(formData.customer.contactPersonPhone || '', formData.phoneCode),
             contactPersonTitle: formData.customer.contactPersonTitle || undefined
           })
         },

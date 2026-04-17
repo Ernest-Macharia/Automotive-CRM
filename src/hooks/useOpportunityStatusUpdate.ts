@@ -3,6 +3,10 @@
 import { useState } from 'react';
 import { opportunityService } from '@/services/opportunityService';
 
+type StatusUpdateOptions = {
+  eventSource?: string;
+};
+
 export function useOpportunityStatusUpdate() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [showGenericConfirm, setShowGenericConfirm] = useState(false);
@@ -10,6 +14,7 @@ export function useOpportunityStatusUpdate() {
   const [targetStatus, setTargetStatus] = useState<string>('');
   const [callback, setCallback] = useState<((success: boolean) => void) | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [eventSource, setEventSource] = useState<string>('opportunity-status-update');
 
   // Helper: get readable status label
   const getStatusLabel = (status: string) => {
@@ -45,7 +50,8 @@ export function useOpportunityStatusUpdate() {
   const handleStatusUpdate = async (
     opportunity: any,
     newStatus: string,
-    onComplete?: (success: boolean) => void
+    onComplete?: (success: boolean) => void,
+    options?: StatusUpdateOptions
   ): Promise<{ success: boolean; needsLead?: boolean }> => {
     if (!opportunity || updatingStatus || opportunity.status === newStatus) {
       if (onComplete) onComplete(false);
@@ -56,6 +62,7 @@ export function useOpportunityStatusUpdate() {
     setPendingOpportunity(opportunity);
     setTargetStatus(newStatus);
     setCallback(() => onComplete || null);
+    setEventSource(options?.eventSource || 'opportunity-status-update');
     setShowGenericConfirm(true);
     return { success: false }; // Wait for user confirmation
   };
@@ -82,6 +89,7 @@ export function useOpportunityStatusUpdate() {
               opportunityId: pendingOpportunity._id,
               newStatus: targetStatus,
               updatedAt: new Date().toISOString(),
+              source: eventSource,
             },
           })
         );
@@ -111,6 +119,7 @@ export function useOpportunityStatusUpdate() {
     setPendingOpportunity(null);
     setTargetStatus('');
     setCallback(null);
+    setEventSource('opportunity-status-update');
   };
 
   const updateOpportunityStatus = async (opportunityId: string, newStatus: string) => {
