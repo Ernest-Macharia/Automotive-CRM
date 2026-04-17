@@ -88,6 +88,7 @@ import { userService } from '@/services/userService';
 import { workOrderService } from '@/services/workOrderService';
 import { salesOrderService } from '@/services/salesOrderService';
 import { reportService } from '@/services/reportService';
+import { createPermissionChecker } from '@/services/settings/roleService';
 
 interface AdminDashboardProps {
   user: any;
@@ -303,6 +304,26 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     return ((current - previous) / previous) * 100;
   };
 
+  const canFetchSLAStatusSummary = useCallback(() => {
+    const effectivePermissions = Array.from(
+      new Set(
+        [
+          ...(Array.isArray(user?.permissions) ? user.permissions : []),
+          ...(Array.isArray(user?.additionalPermissions) ? user.additionalPermissions : []),
+          ...(Array.isArray(user?.allPermissions) ? user.allPermissions : []),
+          ...(Array.isArray(user?.role?.permissions) ? user.role.permissions : []),
+        ].filter((permission): permission is string => typeof permission === 'string' && permission.trim().length > 0)
+      )
+    );
+
+    if (effectivePermissions.length === 0) {
+      return false;
+    }
+
+    const permissionChecker = createPermissionChecker(effectivePermissions);
+    return permissionChecker.hasAnyPermission(['sla.view', 'sla.*', 'system.*']);
+  }, [user]);
+
   const fetchAdminStats = useCallback(async (isRefresh = false) => {
     try {
       if (!isRefresh) {
@@ -321,6 +342,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       const previousPeriodStart = firstDayOfLastMonth.toISOString().split('T')[0];
       const previousPeriodEnd = lastDayOfLastMonth.toISOString().split('T')[0];
       const todayStr = today.toISOString().split('T')[0];
+      const slaSummaryRequest = canFetchSLAStatusSummary()
+        ? withTimeout(opportunityService.getSLAStatusSummary().catch(() => null))
+        : Promise.resolve(null);
 
       // Fetch multiple data sources in parallel
       const [
@@ -351,7 +375,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
           fromDate: previousPeriodStart, 
           toDate: previousPeriodEnd 
         })),
-        withTimeout(opportunityService.getSLAStatusSummary().catch(() => null)),
+        slaSummaryRequest,
         withTimeout(opportunityService.getLISSLADashboardStats().catch(() => null))
       ]);
 
@@ -682,7 +706,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [canFetchSLAStatusSummary, withTimeout]);
 
   useEffect(() => {
     fetchAdminStats();
