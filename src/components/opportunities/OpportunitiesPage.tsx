@@ -25,6 +25,7 @@ type OpportunityStatusUpdateDetail = {
   opportunityId: string;
   newStatus: string;
   updatedAt?: string;
+  source?: string;
 };
 
 const stages: { id: StageId; label: string; pastelClass: string; borderColor: string }[] = [
@@ -911,6 +912,7 @@ export default function OpportunitiesContent() {
 
   // Create cache instance
   const cacheRef = useRef(createCache());
+  const statusSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentRoleName = useMemo(() => {
     const rawRole = (currentUser as any)?.role;
     if (typeof rawRole === 'string') return rawRole.toLowerCase();
@@ -1162,13 +1164,13 @@ export default function OpportunitiesContent() {
           // FORCE clear ALL cache entries related to opportunities
           cacheRef.current.clear();
 
-          // Refresh quietly in background (avoid blocking drop UX with full-page loading overlay).
-          void fetchOpportunities(true, true);
+          // Debounce background sync so rapid stage moves do not trigger duplicate heavy refreshes.
+          scheduleStatusSync();
         } else {
           // If modal was cancelled, clear dragging state
           setIsDragging(false);
         }
-      });
+      }, { eventSource: 'opportunities-page' });
 
       return result;
     } catch (error) {
@@ -1471,6 +1473,25 @@ export default function OpportunitiesContent() {
       console.error('Error fetching overview:', err);
     }
   }, []);
+
+  const scheduleStatusSync = useCallback(() => {
+    if (statusSyncTimerRef.current) {
+      clearTimeout(statusSyncTimerRef.current);
+    }
+
+    statusSyncTimerRef.current = setTimeout(() => {
+      void fetchOpportunities(true, true);
+      statusSyncTimerRef.current = null;
+    }, 1200);
+  }, [fetchOpportunities]);
+
+  useEffect(() => {
+    return () => {
+      if (statusSyncTimerRef.current) {
+        clearTimeout(statusSyncTimerRef.current);
+      }
+    };
+  }, []);
   const handleOrganizationAction = async (action: () => Promise<any>, errorMessage: string) => {
     try {
       setOrganizationError(null);
@@ -1498,17 +1519,18 @@ export default function OpportunitiesContent() {
       const detail = customEvent.detail;
 
       if (!detail?.opportunityId || !detail?.newStatus) return;
+      if (detail.source === 'opportunities-page') return;
 
       applyLocalStatusUpdate(detail.opportunityId, detail.newStatus);
       cacheRef.current.clear();
-      void fetchOpportunities(true, true);
+      scheduleStatusSync();
     };
 
     window.addEventListener('opportunity-status-updated', handleOpportunityStatusUpdated as EventListener);
     return () => {
       window.removeEventListener('opportunity-status-updated', handleOpportunityStatusUpdated as EventListener);
     };
-  }, [applyLocalStatusUpdate, fetchOpportunities]);
+  }, [applyLocalStatusUpdate, scheduleStatusSync]);
 
   useEffect(() => {
     if (!statusUpdateError) return;
