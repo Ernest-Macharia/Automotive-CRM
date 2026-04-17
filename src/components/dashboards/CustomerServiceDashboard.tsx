@@ -102,7 +102,6 @@ export default function CustomerServiceDashboard({ user }: CustomerServiceDashbo
   const [assignedOpportunities, setAssignedOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [permissionChecker, setPermissionChecker] = useState<any>(null);
 
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
@@ -171,6 +170,26 @@ export default function CustomerServiceDashboard({ user }: CustomerServiceDashbo
     return Math.floor((responded - created) / (1000 * 60)); // minutes
   };
 
+  const canFetchSLAStatusSummary = useCallback(() => {
+    const effectivePermissions = Array.from(
+      new Set(
+        [
+          ...(Array.isArray(user?.permissions) ? user.permissions : []),
+          ...(Array.isArray(user?.additionalPermissions) ? user.additionalPermissions : []),
+          ...(Array.isArray(user?.allPermissions) ? user.allPermissions : []),
+          ...(Array.isArray(user?.role?.permissions) ? user.role.permissions : []),
+        ].filter((permission): permission is string => typeof permission === 'string' && permission.trim().length > 0)
+      )
+    );
+
+    if (effectivePermissions.length === 0) {
+      return false;
+    }
+
+    const permissionChecker = createPermissionChecker(effectivePermissions);
+    return permissionChecker.hasAnyPermission(['sla.view', 'sla.*', 'system.*']);
+  }, [user]);
+
   const fetchServiceData = useCallback(async (isRefresh = false) => {
     try {
       if (!isRefresh) {
@@ -181,6 +200,9 @@ export default function CustomerServiceDashboard({ user }: CustomerServiceDashbo
 
       const userId = user?._id || user?.id;
       const today = new Date().toISOString().split('T')[0];
+      const slaSummaryRequest = canFetchSLAStatusSummary()
+        ? opportunityService.getSLAStatusSummary().catch(() => null)
+        : Promise.resolve(null);
 
       // Fetch multiple data sources
       const [
@@ -232,7 +254,7 @@ export default function CustomerServiceDashboard({ user }: CustomerServiceDashbo
         }),
         
         // SLA stats
-        opportunityService.getSLAStatusSummary().catch(() => null),
+        slaSummaryRequest,
         
         // Work orders for service tracking
         workOrderService.getAllWorkOrders({ 
@@ -449,7 +471,7 @@ export default function CustomerServiceDashboard({ user }: CustomerServiceDashbo
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user]);
+  }, [canFetchSLAStatusSummary, user]);
 
   useEffect(() => {
     fetchServiceData();

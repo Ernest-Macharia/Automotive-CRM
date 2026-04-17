@@ -632,13 +632,23 @@ class ExtendedApiClient {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('API Error Response:', errorText);
+      const suppressLog = response.status === 403 && endpoint.startsWith('/opportunities/sla/status-summary');
+      if (!suppressLog) {
+        console.error('API Error Response:', errorText);
+      }
       
       if (response.status === 401) {
         handleUnauthorizedRedirect();
       }
-      
-      throw new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
+
+      const error = new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
+      (error as any).status = response.status;
+      (error as any).response = {
+        status: response.status,
+        statusText: response.statusText,
+        data: errorText,
+      };
+      throw error;
     }
     
     const contentType = response.headers.get('content-type');
@@ -726,6 +736,24 @@ function normalizeNoteAuthor(rawNote: any): { _id: string; name: string; email: 
 }
 
 class OpportunityService {
+  private slaStatusSummaryForbidden = false;
+
+  private getErrorStatus(error: unknown): number | null {
+    const directStatus = (error as any)?.status;
+    if (typeof directStatus === 'number') {
+      return directStatus;
+    }
+
+    if (error instanceof Error) {
+      const match = error.message.match(/API Error \((\d+)\)/);
+      if (match && match[1]) {
+        return Number(match[1]);
+      }
+    }
+
+    return null;
+  }
+
   private async uploadCsvFile<T>(
     endpoint: string,
     file: File,
@@ -1844,10 +1872,19 @@ class OpportunityService {
    * Get SLA status summary
    * GET /api/v1/opportunities/sla/status-summary
    */
-  async getSLAStatusSummary(): Promise<any> {
+  async getSLAStatusSummary(): Promise<any | null> {
+    if (this.slaStatusSummaryForbidden) {
+      return null;
+    }
+
     try {
       return await extendedApiClient.get('/opportunities/sla/status-summary');
     } catch (error) {
+      if (this.getErrorStatus(error) === 403) {
+        this.slaStatusSummaryForbidden = true;
+        return null;
+      }
+
       console.error('Error fetching SLA status summary:', error);
       throw error;
     }
