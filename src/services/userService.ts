@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api/client';
+import { API_BASE_URL } from '@/lib/api/config';
 import { handleUnauthorizedRedirect } from '@/lib/auth/unauthorized';
 
 export interface Role {
@@ -572,7 +573,7 @@ class UserService {
       // Note: This endpoint might not exist, you'll need to implement it in your backend
       const endpoint = `/users/export/${format}${query ? `?${query}` : ''}`;
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: this.getHeaders(),
       });
       

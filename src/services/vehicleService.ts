@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api/client';
+import { API_BASE_URL } from '@/lib/api/config';
 import { handleUnauthorizedRedirect } from '@/lib/auth/unauthorized';
 
 export interface VehicleImage {
@@ -164,7 +165,7 @@ class VehicleService {
 
   // Helper method to handle FormData uploads
   private async uploadFormData<T>(endpoint: string, formData: FormData): Promise<T> {
-    const url = `${process.env.NEXT_PUBLIC_API_URL || ''}${endpoint}`;
+    const url = `${API_BASE_URL}${endpoint}`;
     const token = sessionStorage.getItem('accessToken');
     
     const headers: Record<string, string> = {};
