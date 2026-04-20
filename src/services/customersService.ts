@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api/client';
+import { API_BASE_URL } from '@/lib/api/config';
 import { handleUnauthorizedRedirect } from '@/lib/auth/unauthorized';
 
 export interface Customer {
@@ -134,7 +135,7 @@ export interface CustomerCreateData {
 class CustomerService {
   // Use the singleton apiClient instance directly
   private apiClient = apiClient;
-  private baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  private baseUrl = API_BASE_URL;
 
   constructor() {
     // No need to instantiate apiClient as it's already a singleton
