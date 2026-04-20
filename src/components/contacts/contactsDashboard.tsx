@@ -280,7 +280,16 @@ const ActionMenu = ({
 // Helper function to convert opportunities to contacts
 const convertOpportunitiesToContacts = (opportunities: Opportunity[]): OpportunityContact[] => {
   return opportunities.map((opportunity): OpportunityContact => {
-    const customer = opportunity.customer;
+    const customer = opportunity.customer || {
+      name: 'Unknown Customer',
+      email: '',
+      phone: '',
+      companyName: '',
+      companyAddress: '',
+      companyPhone: '',
+      _id: '',
+      id: ''
+    };
     const opportunityType = opportunity.opportunityType || 'SERVICE';
     
     // Determine contact type based on opportunity type
@@ -673,23 +682,78 @@ export default function ContactsDashboard() {
     try {
       setLoading(true);
       setError(null);
-      
-      // Load opportunities with their customers
-      const response = await opportunityService.getAllOpportunities({
-        limit: limit || 1000, // Load more for filtering
-        sort: 'createdAt:desc'
+
+      const requestedLimit = Math.max(1, limit || 1000);
+      const pageSize = Math.min(requestedLimit, 100);
+      const maxPages = Math.max(1, Math.ceil(requestedLimit / pageSize));
+      const maxAllowedPages = Math.min(maxPages, 50);
+
+      const opportunitiesData: Opportunity[] = [];
+      let currentPage = Math.max(1, page || 1);
+      let hasMore = true;
+      let pagesLoaded = 0;
+
+      while (hasMore && pagesLoaded < maxAllowedPages) {
+        const response = await opportunityService.getAllOpportunities({
+          page: currentPage,
+          limit: pageSize,
+          sort: 'createdAt:desc'
+        });
+
+        const batch = Array.isArray(response.data) ? response.data : [];
+        if (batch.length === 0) {
+          break;
+        }
+
+        opportunitiesData.push(...batch);
+        pagesLoaded += 1;
+
+        if (opportunitiesData.length >= requestedLimit) {
+          break;
+        }
+
+        const totalPages = response.pagination?.totalPages;
+        hasMore = typeof totalPages === 'number'
+          ? currentPage < totalPages
+          : batch.length >= pageSize;
+        currentPage += 1;
+      }
+
+      const seenOpportunityIds = new Set<string>();
+      const uniqueOpportunities = opportunitiesData.filter((opportunity) => {
+        const candidateId = String(opportunity._id || opportunity.id || '').trim();
+        if (!candidateId) {
+          return true;
+        }
+        if (seenOpportunityIds.has(candidateId)) {
+          return false;
+        }
+        seenOpportunityIds.add(candidateId);
+        return true;
       });
       
-      const opportunitiesData = response.data || [];
-      
-      setOpportunities(opportunitiesData);
+      setOpportunities(uniqueOpportunities);
       
       // Convert opportunities to contacts
-      const contactsData = convertOpportunitiesToContacts(opportunitiesData);
+      const contactsData = convertOpportunitiesToContacts(uniqueOpportunities);
       setContacts(contactsData);
       
       // Initialize filtered contacts
       setFilteredContacts(contactsData);
+
+      const itemsPerPage = pagination.itemsPerPage;
+      const totalItems = contactsData.length;
+      const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+
+      setPagination(prev => ({
+        ...prev,
+        currentPage: 1,
+        totalItems,
+        totalPages,
+        hasNextPage: totalPages > 1,
+        hasPreviousPage: false
+      }));
+      setPaginatedContacts(contactsData.slice(0, itemsPerPage));
       
       return contactsData;
       
@@ -699,12 +763,21 @@ export default function ContactsDashboard() {
       showToast('Failed to load contacts', 'error');
       setContacts([]);
       setFilteredContacts([]);
+      setPaginatedContacts([]);
       setOpportunities([]);
+      setPagination(prev => ({
+        ...prev,
+        currentPage: 1,
+        totalItems: 0,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false
+      }));
       return [];
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, pagination.itemsPerPage]);
 
   // Apply filters and update pagination
   const applyFilters = useCallback(() => {
@@ -739,18 +812,20 @@ export default function ContactsDashboard() {
     
     // Update pagination
     const totalItems = filtered.length;
-    const totalPages = Math.ceil(totalItems / pagination.itemsPerPage);
+    const totalPages = Math.max(1, Math.ceil(totalItems / pagination.itemsPerPage));
+    const currentPage = Math.min(Math.max(1, pagination.currentPage), totalPages);
     
     setPagination(prev => ({
       ...prev,
+      currentPage,
       totalItems,
       totalPages,
-      hasNextPage: prev.currentPage < totalPages,
-      hasPreviousPage: prev.currentPage > 1
+      hasNextPage: currentPage < totalPages,
+      hasPreviousPage: currentPage > 1
     }));
     
     // Update paginated contacts
-    const startIndex = (pagination.currentPage - 1) * pagination.itemsPerPage;
+    const startIndex = (currentPage - 1) * pagination.itemsPerPage;
     const endIndex = startIndex + pagination.itemsPerPage;
     setPaginatedContacts(filtered.slice(startIndex, endIndex));
   }, [contacts, searchTerm, filterType, filterWhatsApp, filterOpportunityType, filterLeadTier, pagination.currentPage, pagination.itemsPerPage]);
@@ -776,9 +851,7 @@ export default function ContactsDashboard() {
 
   // Apply filters when dependencies change
   useEffect(() => {
-    if (contacts.length > 0) {
-      applyFilters();
-    }
+    applyFilters();
   }, [contacts, searchTerm, filterType, filterWhatsApp, filterOpportunityType, filterLeadTier, applyFilters]);
 
   const loadStats = useCallback(async () => {
