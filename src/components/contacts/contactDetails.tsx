@@ -138,7 +138,16 @@ export default function ContactDetails({ contactId }: ContactDetailsProps) {
       setOpportunity(opportunityData);
       
       // Convert opportunity to contact
-      const customer = opportunityData.customer;
+      const customer = opportunityData.customer || {
+        name: 'Unknown Customer',
+        email: '',
+        phone: '',
+        companyName: '',
+        companyAddress: '',
+        companyPhone: '',
+        _id: '',
+        id: ''
+      };
       const opportunityType = opportunityData.opportunityType || 'SERVICE';
       
       let contactType = 'lead';
