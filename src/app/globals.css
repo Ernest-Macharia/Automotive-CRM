@@ -87,7 +87,7 @@ html, body {
 }
 
 body {
-  @apply bg-gradient-to-br from-gray-50 to-gray-100/30 text-gray-700;
+  @apply bg-gradient-to-br from-gray-50 to-gray-100/30 text-gray-700 dark:from-gray-950 dark:to-gray-900 dark:text-gray-200;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
@@ -172,6 +172,18 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-400;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background-color: #111827;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: #374151;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #4b5563;
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -315,6 +327,33 @@ body {
   .tablet-w-full {
     width: 100% !important;
   }
+}
+
+/* Admin Dashboard dark-mode fallbacks for legacy light-only utility classes */
+.dark .admin-dashboard .bg-white\/90 {
+  background-color: rgba(17, 24, 39, 0.9) !important;
+}
+
+.dark .admin-dashboard .bg-white\/80 {
+  background-color: rgba(31, 41, 55, 0.8) !important;
+}
+
+.dark .admin-dashboard .border-white\/30 {
+  border-color: rgba(55, 65, 81, 0.75) !important;
+}
+
+.dark .admin-dashboard .border-gray-200\/50,
+.dark .admin-dashboard .border-gray-200\/30 {
+  border-color: rgba(75, 85, 99, 0.5) !important;
+}
+
+.dark .admin-dashboard .text-gray-900 {
+  color: #f3f4f6 !important;
+}
+
+.dark .admin-dashboard .text-gray-600,
+.dark .admin-dashboard .text-gray-500 {
+  color: #9ca3af !important;
 }
 
 /* Optional: Add these styles for better toast positioning */

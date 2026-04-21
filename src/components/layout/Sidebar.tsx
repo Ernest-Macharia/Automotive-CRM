@@ -23,8 +23,37 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const [organization, setOrganization] = useState<any>(null);
   const [isLoadingOrg, setIsLoadingOrg] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   
   const { user, isLoading: userLoading } = useCurrentUser();
+
+  const applyTheme = useCallback((darkModeEnabled: boolean) => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.classList.toggle('dark', darkModeEnabled);
+    document.documentElement.style.colorScheme = darkModeEnabled ? 'dark' : 'light';
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const storedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const shouldUseDark = storedTheme ? storedTheme === 'dark' : prefersDark;
+
+    setIsDarkMode(shouldUseDark);
+    applyTheme(shouldUseDark);
+  }, [applyTheme]);
+
+  const toggleTheme = useCallback(() => {
+    setIsDarkMode((previous) => {
+      const next = !previous;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('theme', next ? 'dark' : 'light');
+      }
+      applyTheme(next);
+      return next;
+    });
+  }, [applyTheme]);
 
   useEffect(() => {
     if (user) {
@@ -135,8 +164,8 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
 
   if (userLoading) {
     return (
-      <div className="h-full flex flex-col bg-white border-r border-gray-200 shadow-sm">
-        <div className="flex-shrink-0 h-16 px-4 border-b border-gray-200 bg-white flex items-center">
+      <div className="h-full flex flex-col bg-white border-r border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-800">
+        <div className="flex-shrink-0 h-16 px-4 border-b border-gray-200 bg-white flex items-center dark:bg-gray-900 dark:border-gray-800">
           <div className="animate-pulse flex items-center gap-3">
             <div className="w-8 h-8 bg-gray-200 rounded"></div>
             <div>
@@ -157,9 +186,9 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   }
 
   return (
-    <div className="h-full flex flex-col bg-white border-r border-gray-200 shadow-sm">
+    <div className="h-full flex flex-col bg-white border-r border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-800">
       {/* Header with Organization Name */}
-      <div className="flex-shrink-0 flex items-center justify-between h-16 px-4 border-b border-gray-200 bg-white">
+      <div className="flex-shrink-0 flex items-center justify-between h-16 px-4 border-b border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-800">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
             {organization?.logo ? (
@@ -182,9 +211,9 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
             )}
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg font-bold text-gray-800 truncate flex items-center gap-2">
+            <h1 className="text-lg font-bold text-gray-800 truncate flex items-center gap-2 dark:text-gray-100">
               {isLoadingOrg ? (
-                <span className="text-gray-400">Loading...</span>
+                <span className="text-gray-400 dark:text-gray-500">Loading...</span>
               ) : (
                 organization?.name || 'VIN17x CRM'
               )}
@@ -194,14 +223,14 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                 </span>
               )}
             </h1>
-            <p className="text-xs text-gray-500 truncate">
+            <p className="text-xs text-gray-500 truncate dark:text-gray-400">
               {organization?.slug ? `${organization.slug}.vin17x.com` : 'v1.0.0'}
             </p>
           </div>
         </div>
         <button 
           onClick={() => setSidebarOpen(false)} 
-          className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0"
+          className="lg:hidden p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0 dark:text-gray-500 dark:hover:text-gray-200 dark:hover:bg-gray-800"
         >
           <Icons.X className="w-4 h-4" />
         </button>
@@ -210,7 +239,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
       {/* Navigation Items - takes all available space */}
       <div className="flex-1 overflow-y-auto py-4 px-2">
         <div className="mb-4 px-3">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">MAIN MENU</h3>
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 dark:text-gray-400">MAIN MENU</h3>
         </div>
         <ul className="space-y-1">
           {navItems.map((item) => {
@@ -227,17 +256,17 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                   className={`
                     group flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
                     ${active 
-                      ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 border border-blue-200 shadow-sm' 
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800 hover:border hover:border-gray-200'
+                      ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 border border-blue-200 shadow-sm dark:from-blue-950 dark:to-blue-900 dark:text-blue-300 dark:border-blue-800' 
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800 hover:border hover:border-gray-200 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white dark:hover:border-gray-700'
                     }
                   `}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <Icon className={`w-4 h-4 flex-shrink-0 ${active ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                    <Icon className={`w-4 h-4 flex-shrink-0 ${active ? 'text-blue-500 dark:text-blue-300' : 'text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300'}`} />
                     <span className="truncate">{item.label}</span>
                   </div>
                   <Icons.ChevronRight className={`w-3 h-3 flex-shrink-0 transition-transform ${
-                    active ? 'translate-x-0 opacity-100 text-blue-500' : '-translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-60 text-gray-400'
+                    active ? 'translate-x-0 opacity-100 text-blue-500 dark:text-blue-300' : '-translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-60 text-gray-400 dark:text-gray-500'
                   }`} />
                 </Link>
               </li>
@@ -248,7 +277,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
 
       {/* User Profile Section - Fixed at bottom */}
       {user && (
-        <div className="flex-shrink-0 border-t border-gray-200 bg-white">
+        <div className="flex-shrink-0 border-t border-gray-200 bg-white dark:bg-gray-900 dark:border-gray-800">
           <div className="relative p-4">
             {/* Main user info - clickable to toggle menu */}
             <button
@@ -259,30 +288,30 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                 {getUserInitial()}
               </div>
               <div className="flex-1 min-w-0 text-left">
-                <p className="text-sm font-medium text-gray-800 truncate group-hover:text-gray-900">
+                <p className="text-sm font-medium text-gray-800 truncate group-hover:text-gray-900 dark:text-gray-100 dark:group-hover:text-white">
                   {getUserDisplayName()}
                 </p>
-                <p className="text-xs text-gray-500 truncate">
+                <p className="text-xs text-gray-500 truncate dark:text-gray-400">
                   {getUserRoleDisplayName()}
                 </p>
               </div>
-              <Icons.ChevronUp className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
+              <Icons.ChevronUp className={`w-4 h-4 text-gray-400 transition-transform duration-200 dark:text-gray-500 ${
                 showUserMenu ? 'rotate-180' : ''
               }`} />
             </button>
 
             {/* User Menu Dropdown - appears above the user section */}
             {showUserMenu && (
-              <div className="absolute bottom-full left-4 right-4 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+              <div className="absolute bottom-full left-4 right-4 mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 dark:bg-gray-800 dark:border-gray-700">
                 <Link
                   href="/my-profile"
                   onClick={() => {
                     setShowUserMenu(false);
                     if (window.innerWidth < 1024) setSidebarOpen(false);
                   }}
-                  className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-gray-700"
                 >
-                  <Icons.User className="w-4 h-4 text-gray-400" />
+                  <Icons.User className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                   <span>My Profile</span>
                 </Link>
                 
@@ -292,11 +321,23 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                     setShowUserMenu(false);
                     if (window.innerWidth < 1024) setSidebarOpen(false);
                   }}
-                  className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-gray-700"
                 >
-                  <Icons.Settings className="w-4 h-4 text-gray-400" />
+                  <Icons.Settings className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                   <span>Settings</span>
                 </Link>
+
+                <button
+                  onClick={toggleTheme}
+                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                  {isDarkMode ? (
+                    <Icons.Sun className="w-4 h-4 text-amber-500" />
+                  ) : (
+                    <Icons.Moon className="w-4 h-4 text-indigo-500" />
+                  )}
+                  <span>{isDarkMode ? 'Light mode' : 'Dark mode'}</span>
+                </button>
 
                 <Link
                   href="/help"
@@ -304,20 +345,20 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                     setShowUserMenu(false);
                     if (window.innerWidth < 1024) setSidebarOpen(false);
                   }}
-                  className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-gray-700"
                 >
-                  <Icons.HelpCircle className="w-4 h-4 text-gray-400" />
+                  <Icons.HelpCircle className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                   <span>Help & Support</span>
                 </Link>
 
-                <div className="border-t border-gray-100 my-1"></div>
+                <div className="border-t border-gray-100 my-1 dark:border-gray-700"></div>
 
                 <button
                   onClick={async () => {
                     setShowUserMenu(false);
                     await handleLogout();
                   }}
-                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors dark:text-red-400 dark:hover:bg-red-900/30"
                 >
                   <Icons.LogOut className="w-4 h-4" />
                   <span>Logout</span>
@@ -328,7 +369,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
             {/* Online status indicator */}
             <div className="mt-2 flex items-center gap-2 px-1">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-xs text-gray-500">Online</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Online</span>
             </div>
           </div>
         </div>

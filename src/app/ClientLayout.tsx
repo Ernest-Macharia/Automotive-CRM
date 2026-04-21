@@ -90,7 +90,7 @@ export default function ClientLayout({
   ----------------------------*/
   if (isCheckingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100/30">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100/30 dark:from-gray-950 dark:to-gray-900">
         <div className="text-center">
           <LoadingSpinner />
         </div>
@@ -109,11 +109,11 @@ export default function ClientLayout({
      MAIN APP LAYOUT
   ----------------------------*/
   return (
-    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100/30">
+    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100/30 dark:from-gray-950 dark:to-gray-900">
       {/* Overlay for mobile */}
       {sidebarOpen && isMobile && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-30 transition-opacity duration-300 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-30 transition-opacity duration-300 lg:hidden"
           onClick={closeSidebar}
         />
       )}
@@ -138,10 +138,10 @@ export default function ClientLayout({
         {isMobile && !sidebarOpen && (
           <button
             onClick={toggleSidebar}
-            className="fixed top-4 left-4 z-20 w-10 h-10 bg-white border border-gray-200 rounded-xl shadow-md flex items-center justify-center hover:bg-gray-50 transition-all duration-200"
+            className="fixed top-4 left-4 z-20 w-10 h-10 bg-white border border-gray-200 rounded-xl shadow-md flex items-center justify-center hover:bg-gray-50 transition-all duration-200 dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800"
           >
             <svg
-              className="w-5 h-5 text-gray-600"
+              className="w-5 h-5 text-gray-600 dark:text-gray-200"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
