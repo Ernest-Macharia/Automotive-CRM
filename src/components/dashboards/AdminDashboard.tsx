@@ -82,7 +82,9 @@ import {
   Wrench as WrenchIcon,
   Settings as SettingsIcon,
   RotateCw,
-  Award as AwardIcon
+  Award as AwardIcon,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { authService } from '@/services/authService';
 import { opportunityService } from '@/services/opportunityService';
@@ -249,6 +251,53 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'quarter'>('month');
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  const applyTheme = useCallback((darkModeEnabled: boolean) => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.classList.toggle('dark', darkModeEnabled);
+    document.documentElement.style.colorScheme = darkModeEnabled ? 'dark' : 'light';
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setIsDarkMode((previous) => {
+      const next = !previous;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('theme', next ? 'dark' : 'light');
+      }
+      applyTheme(next);
+      return next;
+    });
+  }, [applyTheme]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const storedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const shouldUseDark = storedTheme ? storedTheme === 'dark' : prefersDark;
+
+    setIsDarkMode(shouldUseDark);
+    applyTheme(shouldUseDark);
+  }, [applyTheme]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const syncThemeFromDocument = () => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    };
+
+    syncThemeFromDocument();
+
+    const observer = new MutationObserver(syncThemeFromDocument);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   const formatNumber = (num: number) => {
     return new Intl.NumberFormat('en-US').format(num);
@@ -977,6 +1026,21 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                 </button>
               ))}
             </div>
+
+            {/* Theme toggle button */}
+            <button
+              onClick={toggleTheme}
+              title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors bg-white/10 hover:bg-white/20 text-white"
+            >
+              {isDarkMode ? (
+                <Moon className="h-4 w-4" />
+              ) : (
+                <Sun className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline">{isDarkMode ? 'Dark mode' : 'Light mode'}</span>
+            </button>
 
             {/* Refresh button */}
             <button 
