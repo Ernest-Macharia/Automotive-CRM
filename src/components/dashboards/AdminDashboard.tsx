@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { 
   Users, 
   Shield, 
@@ -179,6 +181,7 @@ interface PerformanceMetric {
 }
 
 export default function AdminDashboard({ user }: AdminDashboardProps) {
+  const pathname = usePathname();
   const [stats, setStats] = useState<Stats>({
     totalUsers: 0,
     activeUsers: 0,
@@ -245,7 +248,6 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'system' | 'analytics'>('overview');
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'quarter'>('month');
 
   const formatNumber = (num: number) => {
@@ -844,6 +846,37 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     return source.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
+  const dashboardTabs = [
+    {
+      id: 'overview',
+      label: 'Overview',
+      icon: <Gauge className="h-4 w-4" />,
+      href: '/dashboard',
+      isActive: pathname === '/dashboard',
+    },
+    {
+      id: 'users',
+      label: 'Users',
+      icon: <Users className="h-4 w-4" />,
+      href: '/settings/users',
+      isActive: pathname.startsWith('/settings/users'),
+    },
+    {
+      id: 'system',
+      label: 'System',
+      icon: <Server className="h-4 w-4" />,
+      href: '/settings',
+      isActive: pathname === '/settings',
+    },
+    {
+      id: 'analytics',
+      label: 'Analytics',
+      icon: <LineChart className="h-4 w-4" />,
+      href: '/reports',
+      isActive: pathname.startsWith('/reports'),
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-50 overflow-hidden">
       {/* VIN17X Gradient Header - Automotive Blue Theme */}
@@ -916,24 +949,20 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       {/* Navigation Tabs */}
       <div className="px-6 pt-4">
         <div className="flex items-center gap-1 border-b border-gray-200">
-          {[
-            { id: 'overview', label: 'Overview', icon: <Gauge className="h-4 w-4" /> },
-            { id: 'users', label: 'Users', icon: <Users className="h-4 w-4" /> },
-            { id: 'system', label: 'System', icon: <Server className="h-4 w-4" /> },
-            { id: 'analytics', label: 'Analytics', icon: <LineChart className="h-4 w-4" /> },
-          ].map((tab) => (
-            <button
+          {dashboardTabs.map((tab) => (
+            <Link
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              href={tab.href}
+              prefetch
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
-                activeTab === tab.id
+                tab.isActive
                   ? 'border-blue-600 text-blue-700 bg-blue-50/50'
                   : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100/50'
               }`}
             >
               {tab.icon}
               {tab.label}
-            </button>
+            </Link>
           ))}
         </div>
       </div>
