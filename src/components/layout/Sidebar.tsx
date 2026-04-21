@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
@@ -10,6 +10,7 @@ import { organizationService } from '@/services/settings/organizationService';
 import { userService } from '@/services/settings/userService';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { authService } from '@/services/authService';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface SidebarProps {
   sidebarOpen: boolean;
@@ -19,41 +20,14 @@ interface SidebarProps {
 export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { isDarkMode, toggleTheme } = useTheme();
   const [navItems, setNavItems] = useState<any[]>([]);
   const [organization, setOrganization] = useState<any>(null);
   const [isLoadingOrg, setIsLoadingOrg] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const fetchedOrganizationIdRef = useRef<string | null>(null);
   
   const { user, isLoading: userLoading } = useCurrentUser();
-
-  const applyTheme = useCallback((darkModeEnabled: boolean) => {
-    if (typeof document === 'undefined') return;
-    document.documentElement.classList.toggle('dark', darkModeEnabled);
-    document.documentElement.style.colorScheme = darkModeEnabled ? 'dark' : 'light';
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const storedTheme = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const shouldUseDark = storedTheme ? storedTheme === 'dark' : prefersDark;
-
-    setIsDarkMode(shouldUseDark);
-    applyTheme(shouldUseDark);
-  }, [applyTheme]);
-
-  const toggleTheme = useCallback(() => {
-    setIsDarkMode((previous) => {
-      const next = !previous;
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('theme', next ? 'dark' : 'light');
-      }
-      applyTheme(next);
-      return next;
-    });
-  }, [applyTheme]);
 
   useEffect(() => {
     if (user) {
@@ -90,11 +64,26 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         }));
       }
 
-      if (organizationId) {
+      if (organizationId && fetchedOrganizationIdRef.current !== organizationId) {
+        fetchedOrganizationIdRef.current = organizationId;
         fetchOrganization(organizationId);
       }
     }
   }, [user]);
+
+  useEffect(() => {
+    if (navItems.length === 0) return;
+
+    const timer = window.setTimeout(() => {
+      navItems.slice(0, 8).forEach((item) => {
+        if (typeof item?.href === 'string') {
+          router.prefetch(item.href);
+        }
+      });
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [navItems, router]);
 
   const fetchOrganization = async (organizationId: string) => {
     setIsLoadingOrg(true);
@@ -126,7 +115,11 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     }
   };
 
-  const handleNavigation = useCallback((e: React.MouseEvent) => {
+  const prefetchRoute = useCallback((href: string) => {
+    router.prefetch(href);
+  }, [router]);
+
+  const handleNavigation = useCallback(() => {
     if (window.innerWidth < 1024) {
       setSidebarOpen(false);
     }
@@ -253,6 +246,8 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                 <Link
                   href={item.href}
                   onClick={handleNavigation}
+                  onMouseEnter={() => prefetchRoute(item.href)}
+                  onFocus={() => prefetchRoute(item.href)}
                   className={`
                     group flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
                     ${active 
@@ -309,6 +304,8 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                     setShowUserMenu(false);
                     if (window.innerWidth < 1024) setSidebarOpen(false);
                   }}
+                  onMouseEnter={() => prefetchRoute('/my-profile')}
+                  onFocus={() => prefetchRoute('/my-profile')}
                   className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-gray-700"
                 >
                   <Icons.User className="w-4 h-4 text-gray-400 dark:text-gray-500" />
@@ -321,6 +318,8 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                     setShowUserMenu(false);
                     if (window.innerWidth < 1024) setSidebarOpen(false);
                   }}
+                  onMouseEnter={() => prefetchRoute('/settings')}
+                  onFocus={() => prefetchRoute('/settings')}
                   className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-gray-700"
                 >
                   <Icons.Settings className="w-4 h-4 text-gray-400 dark:text-gray-500" />
@@ -345,6 +344,8 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                     setShowUserMenu(false);
                     if (window.innerWidth < 1024) setSidebarOpen(false);
                   }}
+                  onMouseEnter={() => prefetchRoute('/help')}
+                  onFocus={() => prefetchRoute('/help')}
                   className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors dark:text-gray-200 dark:hover:bg-gray-700"
                 >
                   <Icons.HelpCircle className="w-4 h-4 text-gray-400 dark:text-gray-500" />
@@ -377,4 +378,3 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     </div>
   );
 }
-

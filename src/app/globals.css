@@ -195,8 +195,13 @@ body {
   scrollbar-width: none;
 }
 
-/* Smooth transitions */
-* {
+/* Smooth transitions on interactive elements only (avoids whole-page repaint lag) */
+a,
+button,
+input,
+select,
+textarea,
+[role="button"] {
   @apply transition-colors duration-150;
 }
 
