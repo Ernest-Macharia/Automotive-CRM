@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { authService, type AuthRole } from '@/services/authService';
 import { userService, User, type UserRole, createUserPermissionChecker } from '@/services/settings/userService';
 import { ROLES } from '@/services/settings/roleService';
@@ -15,6 +15,22 @@ interface UseCurrentUserReturn {
   hasAllPermissions: (permissions: string[]) => boolean;
   refreshUser: () => Promise<void>;
 }
+
+const USER_CACHE_TTL_MS = 2 * 60 * 1000;
+const NO_TOKEN_SIGNATURE = '__no_token__';
+
+let cachedCurrentUser: User | null | undefined;
+let cachedUserAt = 0;
+let cachedTokenSignature = NO_TOKEN_SIGNATURE;
+let pendingUserRequest: Promise<User | null> | null = null;
+
+const getTokenSignature = (token: string | null | undefined): string => {
+  if (!token) {
+    return NO_TOKEN_SIGNATURE;
+  }
+
+  return token.length <= 24 ? token : token.slice(-24);
+};
 
 export function useCurrentUser(): UseCurrentUserReturn {
   const [user, setUser] = useState<User | null>(null);
@@ -73,122 +89,161 @@ export function useCurrentUser(): UseCurrentUserReturn {
     updatedAt: authUser.updatedAt,
   });
 
-  const loadUser = async () => {
+  const resolveUser = useCallback(async (): Promise<User | null> => {
+    const storedUser = authService.getUser();
+    const token = authService.getToken();
+
+    if (!storedUser && !token) {
+      return null;
+    }
+
+    const authUser = await authService.refreshUserData().catch(() => storedUser);
+
+    if (!authUser) {
+      return null;
+    }
+
+    let fullUser: User | null = null;
+
+    try {
+      fullUser = await userService.getUserById(authUser.id);
+    } catch (err) {
+      console.warn('Could not fetch full user data, using auth user data', err);
+    }
+
+    if (!fullUser) {
+      return buildAuthFallbackUser(authUser);
+    }
+
+    const resolvedRoleName = userService.getUserRoleName(fullUser);
+    const authFallbackUser = buildAuthFallbackUser(authUser);
+    const authResolvedRoleName = userService.getUserRoleName(authFallbackUser);
+    const fullUserPermissions = Array.isArray(fullUser.allPermissions)
+      ? fullUser.allPermissions
+      : fullUser.permissions || [];
+    const shouldPreferAuthRole =
+      (!resolvedRoleName || ['unknown', 'user'].includes(resolvedRoleName)) &&
+      authResolvedRoleName &&
+      !['unknown', 'user'].includes(authResolvedRoleName);
+
+    if (resolvedRoleName && resolvedRoleName !== 'unknown' && resolvedRoleName !== 'user' && fullUserPermissions.length > 0) {
+      return fullUser;
+    }
+
+    return {
+      ...fullUser,
+      ...authFallbackUser,
+      id: fullUser.id || authUser.id,
+      _id: fullUser._id,
+      customId: fullUser.customId,
+      name: fullUser.name || authFallbackUser.name,
+      email: fullUser.email || authFallbackUser.email,
+      organization: fullUser.organization || authFallbackUser.organization,
+      organizationId: fullUser.organizationId || authFallbackUser.organizationId,
+      organizationName: fullUser.organizationName || authFallbackUser.organizationName,
+      active: fullUser.active,
+      canViewSummary: fullUser.canViewSummary,
+      isFirstLogin: fullUser.isFirstLogin,
+      role: shouldPreferAuthRole ? authFallbackUser.role : fullUser.role || authFallbackUser.role,
+      roleName: shouldPreferAuthRole
+        ? authFallbackUser.roleName
+        : userService.getUserRoleName({
+            ...fullUser,
+            ...authFallbackUser,
+          } as User),
+      roleDisplayName: shouldPreferAuthRole
+        ? authFallbackUser.roleDisplayName
+        : userService.getUserRoleDisplayName({
+            ...fullUser,
+            ...authFallbackUser,
+          } as User),
+      display_name: shouldPreferAuthRole
+        ? authFallbackUser.display_name
+        : userService.getUserRoleDisplayName({
+            ...fullUser,
+            ...authFallbackUser,
+          } as User),
+      permissions: Array.from(
+        new Set([
+          ...(Array.isArray(fullUser.permissions) ? fullUser.permissions : []),
+          ...(Array.isArray(authFallbackUser.permissions) ? authFallbackUser.permissions : []),
+        ])
+      ),
+      additionalPermissions: Array.from(
+        new Set([
+          ...(Array.isArray(fullUser.additionalPermissions) ? fullUser.additionalPermissions : []),
+          ...(Array.isArray(authFallbackUser.additionalPermissions) ? authFallbackUser.additionalPermissions : []),
+        ])
+      ),
+      allPermissions: Array.from(
+        new Set([
+          ...(Array.isArray(fullUser.allPermissions) ? fullUser.allPermissions : []),
+          ...(Array.isArray(authFallbackUser.allPermissions) ? authFallbackUser.allPermissions : []),
+          ...(Array.isArray(fullUser.permissions) ? fullUser.permissions : []),
+          ...(Array.isArray(authFallbackUser.permissions) ? authFallbackUser.permissions : []),
+        ])
+      ),
+      createdAt: fullUser.createdAt || authFallbackUser.createdAt,
+      updatedAt: fullUser.updatedAt || authFallbackUser.updatedAt,
+    };
+  }, []);
+
+  const loadUser = useCallback(async (forceRefresh = false) => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      const storedUser = authService.getUser();
-      
-      if (!storedUser && !authService.getToken()) {
-        setUser(null);
+
+      const currentTokenSignature = getTokenSignature(authService.getToken());
+      const cacheIsFresh =
+        !forceRefresh &&
+        cachedCurrentUser !== undefined &&
+        cachedTokenSignature === currentTokenSignature &&
+        Date.now() - cachedUserAt < USER_CACHE_TTL_MS;
+
+      if (cacheIsFresh) {
+        setUser(cachedCurrentUser);
         return;
       }
 
-      const authUser = await authService.refreshUserData().catch(() => storedUser);
-
-      if (!authUser) {
-        setUser(null);
+      if (!forceRefresh && pendingUserRequest) {
+        setUser(await pendingUserRequest);
         return;
       }
 
-      let fullUser: User | null = null;
-      
-      try {
-        fullUser = await userService.getUserById(authUser.id);
-      } catch (err) {
-        console.warn('Could not fetch full user data, using auth user data', err);
-      }
+      pendingUserRequest = resolveUser()
+        .then((resolvedUser) => {
+          cachedCurrentUser = resolvedUser;
+          cachedUserAt = Date.now();
+          cachedTokenSignature = currentTokenSignature;
+          return resolvedUser;
+        })
+        .finally(() => {
+          pendingUserRequest = null;
+        });
 
-      if (fullUser) {
-        const resolvedRoleName = userService.getUserRoleName(fullUser);
-        const authFallbackUser = buildAuthFallbackUser(authUser);
-        const authResolvedRoleName = userService.getUserRoleName(authFallbackUser);
-        const fullUserPermissions = Array.isArray(fullUser.allPermissions)
-          ? fullUser.allPermissions
-          : fullUser.permissions || [];
-        const shouldPreferAuthRole =
-          (!resolvedRoleName || ['unknown', 'user'].includes(resolvedRoleName)) &&
-          authResolvedRoleName &&
-          !['unknown', 'user'].includes(authResolvedRoleName);
-
-        if (resolvedRoleName && resolvedRoleName !== 'unknown' && resolvedRoleName !== 'user' && fullUserPermissions.length > 0) {
-          setUser(fullUser);
-        } else {
-          setUser({
-            ...fullUser,
-            ...authFallbackUser,
-            id: fullUser.id || authUser.id,
-            _id: fullUser._id,
-            customId: fullUser.customId,
-            name: fullUser.name || authFallbackUser.name,
-            email: fullUser.email || authFallbackUser.email,
-            organization: fullUser.organization || authFallbackUser.organization,
-            organizationId: fullUser.organizationId || authFallbackUser.organizationId,
-            organizationName: fullUser.organizationName || authFallbackUser.organizationName,
-            active: fullUser.active,
-            canViewSummary: fullUser.canViewSummary,
-            isFirstLogin: fullUser.isFirstLogin,
-            role: shouldPreferAuthRole ? authFallbackUser.role : fullUser.role || authFallbackUser.role,
-            roleName: shouldPreferAuthRole ? authFallbackUser.roleName : userService.getUserRoleName({
-              ...fullUser,
-              ...authFallbackUser,
-            } as User),
-            roleDisplayName: shouldPreferAuthRole
-              ? authFallbackUser.roleDisplayName
-              : userService.getUserRoleDisplayName({
-                  ...fullUser,
-                  ...authFallbackUser,
-                } as User),
-            display_name: shouldPreferAuthRole
-              ? authFallbackUser.display_name
-              : userService.getUserRoleDisplayName({
-                  ...fullUser,
-                  ...authFallbackUser,
-                } as User),
-            permissions: Array.from(
-              new Set([
-                ...(Array.isArray(fullUser.permissions) ? fullUser.permissions : []),
-                ...(Array.isArray(authFallbackUser.permissions) ? authFallbackUser.permissions : []),
-              ]),
-            ),
-            additionalPermissions: Array.from(
-              new Set([
-                ...(Array.isArray(fullUser.additionalPermissions) ? fullUser.additionalPermissions : []),
-                ...(Array.isArray(authFallbackUser.additionalPermissions) ? authFallbackUser.additionalPermissions : []),
-              ]),
-            ),
-            allPermissions: Array.from(
-              new Set([
-                ...(Array.isArray(fullUser.allPermissions) ? fullUser.allPermissions : []),
-                ...(Array.isArray(authFallbackUser.allPermissions) ? authFallbackUser.allPermissions : []),
-                ...(Array.isArray(fullUser.permissions) ? fullUser.permissions : []),
-                ...(Array.isArray(authFallbackUser.permissions) ? authFallbackUser.permissions : []),
-              ]),
-            ),
-            createdAt: fullUser.createdAt || authFallbackUser.createdAt,
-            updatedAt: fullUser.updatedAt || authFallbackUser.updatedAt,
-          });
-        }
-      } else {
-        setUser(buildAuthFallbackUser(authUser));
-      }
+      setUser(await pendingUserRequest);
     } catch (err) {
       console.error('Error loading current user:', err);
       setError(err instanceof Error ? err : new Error('Failed to load user'));
-      setUser(null);
+
+      const fallbackTokenSignature = getTokenSignature(authService.getToken());
+      if (cachedCurrentUser !== undefined && cachedTokenSignature === fallbackTokenSignature) {
+        setUser(cachedCurrentUser);
+      } else {
+        setUser(null);
+      }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [resolveUser]);
 
   useEffect(() => {
     loadUser();
-  }, []);
+  }, [loadUser]);
 
-  const refreshUser = async () => {
-    await loadUser();
-  };
+  const refreshUser = useCallback(async () => {
+    await loadUser(true);
+  }, [loadUser]);
 
   // Role checks using userService
   const isTechnician = user ? userService.getUserRoleName(user) === ROLES.TECHNICIAN : false;

@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import ClientLayout from './ClientLayout';
 import { ToastProvider } from '@/contexts/ToastContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 
 const inter = Inter({ subsets: ['latin'] });
 const themeInitializer = `
@@ -28,7 +29,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       >
         <script dangerouslySetInnerHTML={{ __html: themeInitializer }} />
         <ToastProvider>
-          <ClientLayout>{children}</ClientLayout>
+          <ThemeProvider>
+            <ClientLayout>{children}</ClientLayout>
+          </ThemeProvider>
         </ToastProvider>
       </body>
     </html>
