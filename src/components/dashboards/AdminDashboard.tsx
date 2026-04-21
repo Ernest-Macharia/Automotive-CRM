@@ -306,6 +306,61 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     return ((current - previous) / previous) * 100;
   };
 
+  const getDateOnly = (date: Date): string => date.toISOString().split('T')[0];
+
+  const getPeriodBounds = (
+    range: 'today' | 'week' | 'month' | 'quarter'
+  ): {
+    currentPeriodStart: string;
+    currentPeriodEnd: string;
+    previousPeriodStart: string;
+    previousPeriodEnd: string;
+  } => {
+    const now = new Date();
+    let currentStart = new Date(now);
+    let currentEnd = new Date(now);
+    let previousStart = new Date(now);
+    let previousEnd = new Date(now);
+
+    if (range === 'today') {
+      currentStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      currentEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      previousStart = new Date(currentStart);
+      previousStart.setDate(previousStart.getDate() - 1);
+      previousEnd = new Date(previousStart);
+    } else if (range === 'week') {
+      currentStart = new Date(now);
+      currentStart.setDate(currentStart.getDate() - 6);
+      currentStart.setHours(0, 0, 0, 0);
+      currentEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      previousStart = new Date(currentStart);
+      previousStart.setDate(previousStart.getDate() - 7);
+      previousEnd = new Date(currentStart);
+      previousEnd.setDate(previousEnd.getDate() - 1);
+    } else if (range === 'month') {
+      currentStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      currentEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      previousStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      previousEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+    } else {
+      const currentQuarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+      currentStart = new Date(now.getFullYear(), currentQuarterStartMonth, 1);
+      currentEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      previousStart = new Date(now.getFullYear(), currentQuarterStartMonth - 3, 1);
+      previousEnd = new Date(now.getFullYear(), currentQuarterStartMonth, 0);
+    }
+
+    return {
+      currentPeriodStart: getDateOnly(currentStart),
+      currentPeriodEnd: getDateOnly(currentEnd),
+      previousPeriodStart: getDateOnly(previousStart),
+      previousPeriodEnd: getDateOnly(previousEnd),
+    };
+  };
+
   const canFetchSLAStatusSummary = useCallback(() => {
     const effectivePermissions = Array.from(
       new Set(
@@ -334,16 +389,12 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         setRefreshing(true);
       }
 
-      // Get date range for previous period (for growth calculations)
-      const today = new Date();
-      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      const firstDayOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-      const lastDayOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
-      
-      const currentPeriodStart = firstDayOfMonth.toISOString().split('T')[0];
-      const previousPeriodStart = firstDayOfLastMonth.toISOString().split('T')[0];
-      const previousPeriodEnd = lastDayOfLastMonth.toISOString().split('T')[0];
-      const todayStr = today.toISOString().split('T')[0];
+      const {
+        currentPeriodStart,
+        currentPeriodEnd,
+        previousPeriodStart,
+        previousPeriodEnd,
+      } = getPeriodBounds(timeRange);
       const slaSummaryRequest = canFetchSLAStatusSummary()
         ? withTimeout(opportunityService.getSLAStatusSummary().catch(() => null))
         : Promise.resolve(null);
@@ -362,7 +413,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         slaStats,
         lisSlaStats
       ] = await Promise.allSettled([
-        withTimeout(reportService.getRoleDashboard({ from: currentPeriodStart, to: todayStr })),
+        withTimeout(reportService.getRoleDashboard({ from: currentPeriodStart, to: currentPeriodEnd })),
         withTimeout(userService.getAllUsers()),
         withTimeout(opportunityService.getFilteredStats({})),
         withTimeout(opportunityService.getAllOpportunities({ sort: 'updatedAt:desc', limit: 5 })),
@@ -371,7 +422,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         withTimeout(salesOrderService.getSalesOrderStats()),
         withTimeout(opportunityService.filterOpportunities({ 
           fromDate: currentPeriodStart, 
-          toDate: todayStr 
+          toDate: currentPeriodEnd 
         })),
         withTimeout(opportunityService.filterOpportunities({ 
           fromDate: previousPeriodStart, 
@@ -587,8 +638,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
       // Calculate growth percentages
       const userGrowth = calculateGrowth(totalUsers, previousUsers);
-      const weeklyGrowth = calculateGrowth(currentPeriodTotal, previousPeriodTotal / 4); // Approx weekly
-      const monthlyGrowth = calculateGrowth(currentPeriodTotal, previousPeriodTotal);
+      const periodGrowth = calculateGrowth(currentPeriodTotal, previousPeriodTotal);
+      const weeklyGrowth = periodGrowth;
+      const monthlyGrowth = periodGrowth;
 
       // Update performance metrics with real data
       setPerformanceMetrics([
@@ -708,7 +760,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [canFetchSLAStatusSummary, withTimeout]);
+  }, [canFetchSLAStatusSummary, timeRange, withTimeout]);
 
   useEffect(() => {
     fetchAdminStats();
@@ -770,7 +822,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
   if (loading) {
     return (
-      <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 overflow-hidden">
+      <div className="admin-dashboard h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 overflow-hidden dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
         <div className="h-16 bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 shadow-lg" />
         <div className="h-[calc(100vh-64px)] p-4 md:p-6 space-y-6 overflow-auto">
           <div className="animate-pulse space-y-6">
@@ -876,9 +928,15 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       isActive: pathname.startsWith('/reports'),
     },
   ];
+  const timeRangeOptions: Array<'today' | 'week' | 'month' | 'quarter'> = [
+    'today',
+    'week',
+    'month',
+    'quarter',
+  ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-50 overflow-hidden">
+    <div className="admin-dashboard min-h-screen bg-gradient-to-br from-blue-50 to-blue-50 overflow-hidden dark:from-gray-950 dark:to-gray-900">
       {/* VIN17X Gradient Header - Automotive Blue Theme */}
       <div className="h-16 bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 shadow-lg flex items-center px-6">
         <div className="flex items-center justify-between w-full">
@@ -905,10 +963,10 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
           <div className="flex items-center gap-3">
             {/* Time range selector */}
             <div className="hidden md:flex items-center gap-1 bg-white/10 backdrop-blur-sm rounded-xl p-1">
-              {['today', 'week', 'month', 'quarter'].map((range) => (
+              {timeRangeOptions.map((range) => (
                 <button
                   key={range}
-                  onClick={() => setTimeRange(range as any)}
+                  onClick={() => setTimeRange(range)}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                     timeRange === range
                       ? 'bg-white/20 text-white'
@@ -948,7 +1006,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
       {/* Navigation Tabs */}
       <div className="px-6 pt-4">
-        <div className="flex items-center gap-1 border-b border-gray-200">
+        <div className="flex items-center gap-1 border-b border-gray-200 dark:border-gray-700">
           {dashboardTabs.map((tab) => (
             <Link
               key={tab.id}
@@ -956,8 +1014,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
               prefetch
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
                 tab.isActive
-                  ? 'border-blue-600 text-blue-700 bg-blue-50/50'
-                  : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100/50'
+                  ? 'border-blue-600 text-blue-700 bg-blue-50/50 dark:text-blue-300 dark:bg-blue-900/30'
+                  : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100/50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800/60'
               }`}
             >
               {tab.icon}
