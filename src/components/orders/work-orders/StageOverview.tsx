@@ -245,10 +245,15 @@ export default function StageOverview({ workOrder, isTransitioning, setActiveTab
     const query = new URLSearchParams({
       workOrderId: workOrder._id,
       refresh: 'true',
+      source: 'workflow'
     });
 
     if (opportunityId) {
       query.set('opportunityId', opportunityId);
+    }
+
+    if (workOrder.preChecklistId) {
+      query.set('preChecklistId', workOrder.preChecklistId);
     }
 
     router.push(`/job-cards/create?${query.toString()}`);

@@ -43,12 +43,27 @@ export default function WorkOrderDetail({ orderId }: WorkOrderDetailProps) {
   const [workOrder, setWorkOrder] = useState<WorkOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('pre-checklist');
   const [showMobileTabs, setShowMobileTabs] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const tabInitializedRef = useRef(false);
+
+  const getStageTab = (order: WorkOrder): string => {
+    switch (order.currentStage) {
+      case 'job_card':
+        return 'job-cards';
+      case 'post_checklist':
+        return 'post-checklist';
+      case 'invoice':
+        return 'invoice';
+      case 'pre_checklist':
+      default:
+        return 'pre-checklist';
+    }
+  };
 
   // Close mobile menu when clicking outside
   useEffect(() => {
@@ -66,6 +81,10 @@ export default function WorkOrderDetail({ orderId }: WorkOrderDetailProps) {
       if (showLoadingState) setLoading(true);
       const data = await workOrderService.getWorkOrderById(orderId);
       setWorkOrder(data);
+      if (!tabInitializedRef.current) {
+        setActiveTab(getStageTab(data));
+        tabInitializedRef.current = true;
+      }
     } catch (error) {
       console.error('Error fetching work order:', error);
       showToast('Failed to load work order details', 'error');
@@ -77,6 +96,7 @@ export default function WorkOrderDetail({ orderId }: WorkOrderDetailProps) {
   };
 
   useEffect(() => {
+    tabInitializedRef.current = false;
     fetchWorkOrder();
   }, [orderId]);
 

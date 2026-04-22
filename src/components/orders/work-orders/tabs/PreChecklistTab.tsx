@@ -41,12 +41,12 @@ export default function PreChecklistTab({
 
   useEffect(() => {
     loadStatus();
-    // Poll every 10 seconds if pending approval
+    // Poll every 20 seconds if pending approval
     const interval = setInterval(() => {
       if (status.isPending && !refreshing) {
         loadStatus();
       }
-    }, 10000);
+    }, 20000);
     
     return () => clearInterval(interval);
   }, [workOrder._id]);
@@ -117,6 +117,24 @@ export default function PreChecklistTab({
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const handleProceedToJobCard = () => {
+    const query = new URLSearchParams({
+      workOrderId: workOrder._id,
+      source: 'workflow'
+    });
+
+    const opportunityId = getOpportunityId(workOrder);
+    if (opportunityId) {
+      query.set('opportunityId', opportunityId);
+    }
+
+    if (status.preChecklistId) {
+      query.set('preChecklistId', status.preChecklistId);
+    }
+
+    router.push(`/job-cards/create?${query.toString()}`);
+  };
+
   const StatusCard = () => {
     if (status.hasPreChecklist) {
       if (status.isApproved) {
@@ -162,7 +180,7 @@ export default function PreChecklistTab({
               <div className="flex items-center gap-3 mt-3">
                 <div className="flex items-center gap-2 text-sm text-amber-600">
                   <RefreshCw className="h-3 w-3 animate-spin" />
-                  <span>Auto-refreshing every 10s</span>
+                  <span>Auto-refreshing every 20s</span>
                 </div>
               </div>
             </div>
@@ -221,7 +239,7 @@ export default function PreChecklistTab({
 
         {status.isApproved ? (
           <button
-            onClick={() => router.push(`/job-cards/create?workOrderId=${workOrder._id}`)}
+            onClick={handleProceedToJobCard}
             disabled={isTransitioning}
             className="p-4 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl hover:from-emerald-600 hover:to-green-700 disabled:opacity-50 transition-all group"
           >

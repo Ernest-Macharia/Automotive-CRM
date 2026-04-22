@@ -1352,6 +1352,46 @@ export default function HeadlightPreChecklistCreatePage({
     }
   };
 
+  const syncOpportunityFromChecklist = async (targetOpportunityId: string, customerEmail?: string) => {
+    if (!targetOpportunityId) {
+      return;
+    }
+
+    const existingCustomer = opportunity?.customer || {};
+    const existingVehicle = opportunity?.vehicles?.[0] || vehicle || {};
+    const fullName = `${formData.customerDetails.firstName} ${formData.customerDetails.lastName}`.trim();
+
+    await opportunityService.updateOpportunity(targetOpportunityId, {
+      customer: {
+        name: fullName || existingCustomer.name || 'Client',
+        phone: formData.customerDetails.mobile || existingCustomer.phone,
+        email: customerEmail || existingCustomer.email,
+        companyName: existingCustomer.companyName
+      },
+      vehicles: [
+        {
+          make: formData.carDetails.carMake || existingVehicle.make || 'Unknown',
+          model: formData.carDetails.carModel || existingVehicle.model || 'Unknown',
+          registrationNumber:
+            formData.carDetails.licensePlate ||
+            existingVehicle.registrationNumber ||
+            existingVehicle.licensePlate ||
+            '',
+          licensePlate:
+            formData.carDetails.licensePlate ||
+            existingVehicle.licensePlate ||
+            existingVehicle.registrationNumber ||
+            '',
+          year: formData.carDetails.yearOfManufacture || existingVehicle.year,
+          color: formData.carDetails.color || existingVehicle.color,
+          engineSize: formData.carDetails.engineSize || existingVehicle.engineSize,
+          fuelType: formData.carDetails.fuelType || existingVehicle.fuelType,
+          mileage: formData.carDetails.mileage || existingVehicle.mileage
+        }
+      ]
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -1540,6 +1580,12 @@ export default function HeadlightPreChecklistCreatePage({
             console.error('Error updating work order:', updateError);
           }
         }
+      }
+
+      try {
+        await syncOpportunityFromChecklist(resolvedOpportunityId, sanitizedCustomerEmail);
+      } catch (syncError) {
+        console.error('Error syncing headlight checklist details to opportunity:', syncError);
       }
 
       // Navigate back
@@ -4015,4 +4061,3 @@ export default function HeadlightPreChecklistCreatePage({
     </div>
   );
 }
-

@@ -159,6 +159,7 @@ export default function JobCardCreate(mode = 'create',) {
   const vehicleId = searchParams.get('vehicleId');
   const source = searchParams.get('source');
   const preChecklistId = searchParams.get('preChecklistId');
+  const [resolvedOpportunityId, setResolvedOpportunityId] = useState(opportunityId || '');
   
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -177,7 +178,7 @@ export default function JobCardCreate(mode = 'create',) {
   const technicianSigRef = useRef<SignatureCanvas>(null);
   
   const [formData, setFormData] = useState<FormData>({
-    opportunityId: opportunityId || '',
+    opportunityId: resolvedOpportunityId || '',
     jobTitle: '',
     jobDescription: '',
     assignedTo: '',
@@ -303,13 +304,57 @@ export default function JobCardCreate(mode = 'create',) {
 
   // Load related data on component mount
   useEffect(() => {
-    if (opportunityId) {
-      loadRelatedData();
-    } else {
-      showToast('No opportunity specified in URL', 'error');
-      router.push('/job-cards');
+    let isMounted = true;
+
+    const resolveOpportunityContext = async () => {
+      if (opportunityId) {
+        if (isMounted) {
+          setResolvedOpportunityId(opportunityId);
+          setFormData(prev => ({ ...prev, opportunityId }));
+        }
+        return;
+      }
+
+      if (workOrderId) {
+        try {
+          const workOrderFromRoute = await workOrderService.getWorkOrderById(workOrderId);
+          const workOrderOpportunityId = typeof workOrderFromRoute.opportunityId === 'string'
+            ? workOrderFromRoute.opportunityId
+            : workOrderFromRoute.opportunityId?._id || '';
+
+          if (workOrderOpportunityId && isMounted) {
+            setWorkOrder(workOrderFromRoute);
+            setResolvedOpportunityId(workOrderOpportunityId);
+            setFormData(prev => ({
+              ...prev,
+              opportunityId: workOrderOpportunityId,
+              workOrderId: prev.workOrderId || workOrderId || undefined
+            }));
+            return;
+          }
+        } catch (error) {
+          console.error('Error resolving opportunity from work order:', error);
+        }
+      }
+
+      if (isMounted) {
+        showToast('No opportunity specified in URL', 'error');
+        router.push('/job-cards');
+      }
+    };
+
+    void resolveOpportunityContext();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [opportunityId, workOrderId, router, showToast]);
+
+  useEffect(() => {
+    if (resolvedOpportunityId) {
+      void loadRelatedData(resolvedOpportunityId);
     }
-  }, [opportunityId]);
+  }, [resolvedOpportunityId, workOrderId, vehicleId, preChecklistId]);
 
   // Auto-populate form when opportunity is loaded
   useEffect(() => {
@@ -318,13 +363,13 @@ export default function JobCardCreate(mode = 'create',) {
     }
   }, [opportunity]);
 
-  const loadRelatedData = async () => {
+  const loadRelatedData = async (targetOpportunityId: string) => {
     try {
       setLoading(true);
 
       // Load opportunity
-      if (opportunityId) {
-        const opp = await opportunityService.getOpportunityById(opportunityId, false);
+      if (targetOpportunityId) {
+        const opp = await opportunityService.getOpportunityById(targetOpportunityId, false);
         setOpportunity(opp);
         
         // Get vehicle from opportunity
@@ -427,7 +472,7 @@ export default function JobCardCreate(mode = 'create',) {
       
       // Update form data with opportunity information
       const updatedFormData: Partial<FormData> = {
-        opportunityId: opportunity._id || opportunityId || '',
+        opportunityId: opportunity._id || resolvedOpportunityId || '',
         customerName: customerName,
         customerPhone: customerPhone,
         customerEmail: customerEmail,
@@ -709,9 +754,10 @@ export default function JobCardCreate(mode = 'create',) {
     if (workOrderId) {
       // Redirect back to work order details
       router.push(`/orders/work-orders/${workOrderId}`);
-    } else if (source === 'workflow' && opportunityId) {
+    } else if (source === 'workflow' && (formData.opportunityId || resolvedOpportunityId)) {
+      const fallbackOpportunityId = formData.opportunityId || resolvedOpportunityId;
       // If no workOrderId but have opportunityId, try to get work order
-      const workOrders = await workOrderService.getWorkOrdersByOpportunity(opportunityId);
+      const workOrders = await workOrderService.getWorkOrdersByOpportunity(fallbackOpportunityId);
       if (workOrders.length > 0) {
         router.push(`/orders/work-orders/${workOrders[0]._id}`);
       } else if (newJobCard._id || newJobCard.id) {
@@ -750,8 +796,8 @@ export default function JobCardCreate(mode = 'create',) {
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">Loading job card form...</p>
-          {opportunityId && (
-            <p className="text-sm text-gray-500 mt-2">Fetching opportunity: {opportunityId}</p>
+          {(resolvedOpportunityId || opportunityId) && (
+            <p className="text-sm text-gray-500 mt-2">Fetching opportunity: {resolvedOpportunityId || opportunityId}</p>
           )}
         </div>
       </div>
@@ -764,8 +810,8 @@ export default function JobCardCreate(mode = 'create',) {
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">Loading job card form...</p>
-          {opportunityId && (
-            <p className="text-sm text-gray-500 mt-2">Fetching opportunity: {opportunityId}</p>
+          {(resolvedOpportunityId || opportunityId) && (
+            <p className="text-sm text-gray-500 mt-2">Fetching opportunity: {resolvedOpportunityId || opportunityId}</p>
           )}
         </div>
       </div>
@@ -794,9 +840,9 @@ export default function JobCardCreate(mode = 'create',) {
                 <p className="text-blue-100 text-sm">
                   {opportunity ? `For: ${opportunity.subject}` : 'Create a new work order for service tasks'}
                 </p>
-                {opportunityId && (
+                {(resolvedOpportunityId || opportunityId) && (
                   <p className="text-blue-200 text-xs mt-1">
-                    Opportunity ID: {opportunityId.slice(-8)}
+                    Opportunity ID: {(resolvedOpportunityId || opportunityId || '').slice(-8)}
                   </p>
                 )}
               </div>
