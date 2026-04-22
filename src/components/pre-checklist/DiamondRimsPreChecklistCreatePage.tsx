@@ -75,7 +75,8 @@ import {
   ExternalLink,
   Search,
   Edit,
-  Mail as MailIcon
+  Mail as MailIcon,
+  GripVertical
 } from 'lucide-react';
 import { CreatePreChecklistDto, PreChecklist, preChecklistService } from '@/services/preChecklistService';
 import { workOrderService } from '@/services/workOrderService';
@@ -260,6 +261,8 @@ export default function DiamondRimsPreChecklistCreatePage({
   const [serviceSearch, setServiceSearch] = useState('');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
   const serviceDropdownRef = useRef<HTMLDivElement>(null);
+  const [draggedServiceName, setDraggedServiceName] = useState<string | null>(null);
+  const [dragOverServiceIndex, setDragOverServiceIndex] = useState<number | null>(null);
 
   // Add state for service must-knows and risks
   const [serviceMustKnows, setServiceMustKnows] = useState<ServiceMustKnow[]>([]);
@@ -2183,7 +2186,9 @@ export default function DiamondRimsPreChecklistCreatePage({
         ...prev,
         services: {
           ...prev.services,
-          actualService: [...prev.services.actualService, serviceName]
+          actualService: prev.services.actualService.includes(serviceName)
+            ? prev.services.actualService
+            : [...prev.services.actualService, serviceName]
         }
       }));
     } else {
@@ -2196,6 +2201,52 @@ export default function DiamondRimsPreChecklistCreatePage({
         }
       }));
     }
+  };
+
+  const reorderSelectedServices = (fromIndex: number, toIndex: number) => {
+    setFormData((prev) => {
+      const current = [...prev.services.actualService];
+      if (fromIndex < 0 || toIndex < 0 || fromIndex >= current.length || toIndex >= current.length) {
+        return prev;
+      }
+
+      const [moved] = current.splice(fromIndex, 1);
+      current.splice(toIndex, 0, moved);
+
+      return {
+        ...prev,
+        services: {
+          ...prev.services,
+          actualService: current
+        }
+      };
+    });
+  };
+
+  const moveServiceToTemplateStack = (serviceName: string, targetIndex?: number) => {
+    setFormData((prev) => {
+      const current = [...prev.services.actualService];
+      const existingIndex = current.findIndex((name) => name === serviceName);
+
+      if (existingIndex === -1) {
+        if (typeof targetIndex === 'number' && targetIndex >= 0 && targetIndex <= current.length) {
+          current.splice(targetIndex, 0, serviceName);
+        } else {
+          current.push(serviceName);
+        }
+      } else if (typeof targetIndex === 'number' && targetIndex >= 0 && targetIndex < current.length) {
+        const [moved] = current.splice(existingIndex, 1);
+        current.splice(targetIndex, 0, moved);
+      }
+
+      return {
+        ...prev,
+        services: {
+          ...prev.services,
+          actualService: current
+        }
+      };
+    });
   };
 
   // Handle must-know acknowledgment
@@ -2838,6 +2889,16 @@ export default function DiamondRimsPreChecklistCreatePage({
                               <button
                                 key={service.id}
                                 type="button"
+                                draggable
+                                onDragStart={(event) => {
+                                  setDraggedServiceName(service.name);
+                                  event.dataTransfer.setData('text/plain', service.name);
+                                  event.dataTransfer.effectAllowed = 'move';
+                                }}
+                                onDragEnd={() => {
+                                  setDraggedServiceName(null);
+                                  setDragOverServiceIndex(null);
+                                }}
                                 onClick={() => handleServiceSelect(service.name, !isSelected)}
                                 className={`w-full px-3 py-3 text-left border-b border-gray-100 last:border-b-0 hover:bg-purple-50 transition-colors ${
                                   isSelected ? 'bg-purple-50' : ''
@@ -2910,57 +2971,108 @@ export default function DiamondRimsPreChecklistCreatePage({
                       </div>
                     </div>
                     
-                    {/* Selected Services Preview */}
-                    {formData.services.actualService.length > 0 && (
-                      <div className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                        <h4 className="text-sm font-medium text-purple-800 mb-3 flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4" />
-                          Selected Services ({formData.services.actualService.length})
-                        </h4>
-                        <div className="flex flex-wrap gap-2">
+                    {/* Main Template Stack */}
+                    <div
+                      className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-lg"
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = 'move';
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        const droppedServiceName = event.dataTransfer.getData('text/plain') || draggedServiceName || '';
+                        if (!droppedServiceName) return;
+
+                        const currentIndex = formData.services.actualService.findIndex((name) => name === droppedServiceName);
+                        if (currentIndex === -1) {
+                          moveServiceToTemplateStack(droppedServiceName);
+                        } else if (currentIndex !== formData.services.actualService.length - 1) {
+                          reorderSelectedServices(currentIndex, formData.services.actualService.length - 1);
+                        }
+
+                        setDraggedServiceName(null);
+                        setDragOverServiceIndex(null);
+                      }}
+                    >
+                      <h4 className="text-sm font-medium text-purple-800 mb-3 flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4" />
+                        Main Form Template Stack ({formData.services.actualService.length})
+                      </h4>
+                      <p className="text-xs text-purple-700 mb-3">
+                        Drag services from the dropdown into this template stack. Drag inside the stack to reorder.
+                      </p>
+
+                      {formData.services.actualService.length === 0 ? (
+                        <div className="border-2 border-dashed border-purple-300 rounded-lg bg-white/70 p-4 text-sm text-purple-700">
+                          Drop services here to build the checklist template
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
                           {formData.services.actualService.map((serviceName, index) => {
                             const service = availableServices.find(s => s.name === serviceName);
+                            const isDropTarget = dragOverServiceIndex === index;
                             return (
-                              <div 
-                                key={index} 
-                                className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-purple-300 rounded-lg"
+                              <div
+                                key={`${serviceName}-${index}`}
+                                draggable
+                                onDragStart={(event) => {
+                                  setDraggedServiceName(serviceName);
+                                  event.dataTransfer.setData('text/plain', serviceName);
+                                  event.dataTransfer.effectAllowed = 'move';
+                                }}
+                                onDragEnd={() => {
+                                  setDraggedServiceName(null);
+                                  setDragOverServiceIndex(null);
+                                }}
+                                onDragOver={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setDragOverServiceIndex(index);
+                                  event.dataTransfer.dropEffect = 'move';
+                                }}
+                                onDrop={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  const droppedServiceName = event.dataTransfer.getData('text/plain') || draggedServiceName || '';
+                                  if (!droppedServiceName) return;
+
+                                  const fromIndex = formData.services.actualService.findIndex((name) => name === droppedServiceName);
+                                  if (fromIndex === -1) {
+                                    moveServiceToTemplateStack(droppedServiceName, index);
+                                  } else if (fromIndex !== index) {
+                                    reorderSelectedServices(fromIndex, index);
+                                  }
+
+                                  setDraggedServiceName(null);
+                                  setDragOverServiceIndex(null);
+                                }}
+                                className={`flex items-center gap-3 px-3 py-2 bg-white border rounded-lg ${
+                                  isDropTarget ? 'border-purple-500 shadow-sm' : 'border-purple-300'
+                                }`}
                               >
-                                {service ? (
-                                  <>
-                                    {getServiceIcon(service.name)}
-                                    <span className="text-sm font-medium text-purple-700">{service.name}</span>
-                                    {service.internalNotes && (
-                                      <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded ml-2">
-                                        Has Notes
-                                      </span>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => handleServiceSelect(serviceName, false)}
-                                      className="text-red-500 hover:text-red-700 ml-2"
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Settings className="h-4 w-4 text-gray-400" />
-                                    <span className="text-sm font-medium text-gray-700">{serviceName}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleServiceSelect(serviceName, false)}
-                                      className="text-red-500 hover:text-red-700 ml-2"
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </button>
-                                  </>
+                                <GripVertical className="h-4 w-4 text-purple-400 flex-shrink-0" />
+                                {service ? getServiceIcon(service.name) : <Settings className="h-4 w-4 text-gray-400" />}
+                                <span className={`text-sm font-medium ${service ? 'text-purple-700' : 'text-gray-700'}`}>
+                                  {serviceName}
+                                </span>
+                                {service?.internalNotes && (
+                                  <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded ml-auto">
+                                    Has Notes
+                                  </span>
                                 )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleServiceSelect(serviceName, false)}
+                                  className="text-red-500 hover:text-red-700 ml-1"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
                               </div>
                             );
                           })}
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </>
                 )}
                 
