@@ -114,6 +114,14 @@ interface ServiceRisk {
   riskLevel: 'high' | 'medium' | 'low';
 }
 
+type SuitabilityFieldKey = 'skimming' | 'powderCoating' | 'straightening' | 'welding' | 'diamondCutting';
+
+interface SuitabilityFieldConfig {
+  key: SuitabilityFieldKey;
+  label: string;
+  keywords: string[];
+}
+
 const PRE_CHECKLIST_DRAFT_KEY = 'diamondRimsPreChecklistDraft';
 const PRE_CHECKLIST_DRAFT_EXCLUDED_FIELDS = ['uploadedImages', 'files', 'clientSignature', 'inspectorSignature'] as const;
 
@@ -238,8 +246,11 @@ export default function DiamondRimsPreChecklistCreatePage({
   const [showCustomerServiceDropdown, setShowCustomerServiceDropdown] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const customerServiceDropdownRef = useRef<HTMLDivElement>(null);
-  const [showCustomerEdit, setShowCustomerEdit] = useState(false);
-  const [showVehicleEdit, setShowVehicleEdit] = useState(false);
+  const [showCustomerEdit, setShowCustomerEdit] = useState(mode === 'create');
+  const [showVehicleEdit, setShowVehicleEdit] = useState(mode === 'create');
+  const [showConditionDropdown, setShowConditionDropdown] = useState(false);
+  const [conditionSearch, setConditionSearch] = useState('');
+  const conditionDropdownRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftRestoredRef = useRef(false);
 
@@ -247,6 +258,8 @@ export default function DiamondRimsPreChecklistCreatePage({
   const [availableServices, setAvailableServices] = useState<Service[]>([]);
   const [loadingServices, setLoadingServices] = useState(false);
   const [serviceSearch, setServiceSearch] = useState('');
+  const [showServiceDropdown, setShowServiceDropdown] = useState(false);
+  const serviceDropdownRef = useRef<HTMLDivElement>(null);
 
   // Add state for service must-knows and risks
   const [serviceMustKnows, setServiceMustKnows] = useState<ServiceMustKnow[]>([]);
@@ -481,6 +494,42 @@ export default function DiamondRimsPreChecklistCreatePage({
     { id: 'uneven_finish', label: 'Uneven Finish', severity: 'medium' },
     { id: 'normal', label: 'Normal', severity: 'none' }
   ];
+
+  const suitabilityFields: SuitabilityFieldConfig[] = [
+    {
+      key: 'skimming',
+      label: 'Suitable For Skimming',
+      keywords: ['skim', 'skimming', 'brake disc', 'disc']
+    },
+    {
+      key: 'powderCoating',
+      label: 'Suitable For Powder Coating',
+      keywords: ['powder', 'coating', 'paint']
+    },
+    {
+      key: 'straightening',
+      label: 'Suitable For Straightening',
+      keywords: ['straight', 'straightening', 'bend']
+    },
+    {
+      key: 'welding',
+      label: 'Suitable For Welding',
+      keywords: ['weld', 'crack repair']
+    },
+    {
+      key: 'diamondCutting',
+      label: 'Suitable For Diamond Cutting',
+      keywords: ['diamond', 'cut']
+    }
+  ];
+
+  const tireDotPositions = [
+    { key: 'fr', label: 'FR (Front Right)' },
+    { key: 'fl', label: 'FL (Front Left)' },
+    { key: 'br', label: 'BR (Back Right)' },
+    { key: 'bl', label: 'BL (Back Left)' },
+    { key: 'spare', label: 'Spare' }
+  ] as const;
 
   // Delivery mode options
   const deliveryModeOptions = [
@@ -825,6 +874,12 @@ export default function DiamondRimsPreChecklistCreatePage({
       if (customerServiceDropdownRef.current && !customerServiceDropdownRef.current.contains(event.target as Node)) {
         setShowCustomerServiceDropdown(false);
         setUserSearch('');
+      }
+      if (conditionDropdownRef.current && !conditionDropdownRef.current.contains(event.target as Node)) {
+        setShowConditionDropdown(false);
+      }
+      if (serviceDropdownRef.current && !serviceDropdownRef.current.contains(event.target as Node)) {
+        setShowServiceDropdown(false);
       }
     };
 
@@ -1626,6 +1681,58 @@ export default function DiamondRimsPreChecklistCreatePage({
     clearOnResize: false, // Don't clear on resize
   }), [canvasProps]);
 
+  const syncOpportunityFromChecklist = async (targetOpportunityId: string, customerEmail?: string) => {
+    if (!targetOpportunityId) {
+      return;
+    }
+
+    const existingCustomer = opportunity?.customer || {};
+    const existingPrimaryVehicle = opportunity?.vehicles?.[0] || vehicle || {};
+    const fullName = `${formData.customerDetails.firstName} ${formData.customerDetails.lastName}`.trim();
+
+    const customerPayload = {
+      name: fullName || existingCustomer.name || 'Client',
+      phone: formData.customerDetails.mobile || existingCustomer.phone,
+      email: customerEmail || existingCustomer.email,
+      companyName: existingCustomer.companyName
+    };
+
+    const primaryVehiclePayload = {
+      make: formData.carDetails.carMake || existingPrimaryVehicle.make || 'Unknown',
+      model: formData.carDetails.carModel || existingPrimaryVehicle.model || 'Unknown',
+      registrationNumber:
+        formData.carDetails.licensePlate ||
+        existingPrimaryVehicle.registrationNumber ||
+        existingPrimaryVehicle.licensePlate ||
+        '',
+      licensePlate:
+        formData.carDetails.licensePlate ||
+        existingPrimaryVehicle.licensePlate ||
+        existingPrimaryVehicle.registrationNumber ||
+        '',
+      year: formData.carDetails.yearOfManufacture || existingPrimaryVehicle.year,
+      color: formData.carDetails.color || existingPrimaryVehicle.color,
+      engineSize: formData.carDetails.engineSize || existingPrimaryVehicle.engineSize,
+      fuelType: formData.carDetails.fuelType || existingPrimaryVehicle.fuelType,
+      mileage: formData.carDetails.mileage || existingPrimaryVehicle.mileage,
+      vin: existingPrimaryVehicle.vin,
+      transmission: existingPrimaryVehicle.transmission,
+      chassisNumber: existingPrimaryVehicle.chassisNumber,
+      bodyType: existingPrimaryVehicle.bodyType
+    };
+
+    const selectedServices = formData.services.actualService.filter(Boolean);
+    const serviceNotes = selectedServices.length > 0
+      ? `Selected services: ${selectedServices.join(', ')}`
+      : '';
+
+    await opportunityService.updateOpportunity(targetOpportunityId, {
+      customer: customerPayload,
+      vehicles: [primaryVehiclePayload],
+      notes: serviceNotes || opportunity?.notes
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -1728,7 +1835,6 @@ export default function DiamondRimsPreChecklistCreatePage({
         preServiceInspection: {
           condition: formData.preServiceInspection.condition,
           inspectorAccessNotes: formData.preServiceInspection.inspectorAccessNotes,
-          inspectionNotes: formData.preServiceInspection.inspectionNotes,
           photosRequired: formData.preServiceInspection.photosRequired,
           videoRequired: formData.preServiceInspection.videoRequired
         },
@@ -1749,7 +1855,13 @@ export default function DiamondRimsPreChecklistCreatePage({
         rimsDetails: formData.rimsDetails,
         tiresDetails: formData.tiresDetails,
         tireBrands: formData.tireBrands,
-        tireDOT: formData.tireDOT,
+        tireDOT: {
+          fr: { code: formData.tireDOT.fr.code },
+          fl: { code: formData.tireDOT.fl.code },
+          br: { code: formData.tireDOT.br.code },
+          bl: { code: formData.tireDOT.bl.code },
+          spare: { code: formData.tireDOT.spare.code }
+        },
         suitability: formData.suitability,
         declaredValuable: formData.declaredValuable,
         additionalInformation: formData.additionalInformation,
@@ -1785,6 +1897,12 @@ export default function DiamondRimsPreChecklistCreatePage({
           preChecklistStatus: 'pending'
         });
         showToast('Pre-checklist created and linked to work order', 'success');
+      }
+
+      try {
+        await syncOpportunityFromChecklist(resolvedOpportunityId, sanitizedCustomerEmail);
+      } catch (syncError) {
+        console.error('Error syncing checklist details to opportunity:', syncError);
       }
 
       if (workOrderId) {
@@ -2199,6 +2317,66 @@ export default function DiamondRimsPreChecklistCreatePage({
     }));
   }, [serviceMustKnows, serviceRisks, formData.services.actualService]);
 
+  const getApplicableSuitabilityFields = (selectedServices: string[]) => {
+    if (selectedServices.length === 0) {
+      return [] as SuitabilityFieldConfig[];
+    }
+
+    const selectedText = selectedServices.map(service => service.toLowerCase());
+    return suitabilityFields.filter((field) =>
+      selectedText.some((serviceText) =>
+        field.keywords.some((keyword) => serviceText.includes(keyword))
+      )
+    );
+  };
+
+  const applicableSuitabilityFields = getApplicableSuitabilityFields(formData.services.actualService);
+
+  useEffect(() => {
+    if (formData.services.actualService.length === 0) {
+      return;
+    }
+
+    const activeFieldKeys = new Set(applicableSuitabilityFields.map((field) => field.key));
+
+    setFormData((prev) => {
+      const nextSuitability = { ...prev.suitability };
+      let changed = false;
+
+      suitabilityFields.forEach((field) => {
+        if (activeFieldKeys.has(field.key)) {
+          if (!nextSuitability[field.key]) {
+            nextSuitability[field.key] = 'yes';
+            changed = true;
+          }
+          return;
+        }
+
+        if (nextSuitability[field.key]) {
+          nextSuitability[field.key] = '';
+          changed = true;
+        }
+      });
+
+      if (!changed) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        suitability: nextSuitability
+      };
+    });
+  }, [formData.services.actualService, applicableSuitabilityFields]);
+
+  const filteredConditionOptions = conditionOptions.filter((condition) => {
+    if (!conditionSearch.trim()) {
+      return true;
+    }
+
+    return condition.label.toLowerCase().includes(conditionSearch.trim().toLowerCase());
+  });
+
   // Filter services based on search
   const filteredServices = availableServices.filter(service => {
     if (!serviceSearch.trim()) return true;
@@ -2211,6 +2389,10 @@ export default function DiamondRimsPreChecklistCreatePage({
       service.tags?.some(tag => tag.toLowerCase().includes(searchLower))
     );
   });
+
+  const dropdownServices = serviceSearch.trim()
+    ? filteredServices
+    : filteredServices.slice(0, 20);
 
   // Get risks for selected services
   const getSelectedServiceRisks = () => {
@@ -2601,26 +2783,98 @@ export default function DiamondRimsPreChecklistCreatePage({
                 </div>
                 
                 {/* Service Search */}
-                <div className="mb-4">
+                <div className="relative mb-4" ref={serviceDropdownRef}>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
                       type="text"
                       value={serviceSearch}
-                      onChange={(e) => setServiceSearch(e.target.value)}
+                      onChange={(e) => {
+                        setServiceSearch(e.target.value);
+                        setShowServiceDropdown(true);
+                      }}
+                      onFocus={() => setShowServiceDropdown(true)}
                       placeholder="Search services by name, code, or description..."
                       className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                     />
                     {serviceSearch && (
                       <button
                         type="button"
-                        onClick={() => setServiceSearch('')}
+                        onClick={() => {
+                          setServiceSearch('');
+                          setShowServiceDropdown(true);
+                        }}
                         className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                       >
                         <X className="h-4 w-4" />
                       </button>
                     )}
                   </div>
+
+                  {showServiceDropdown && !loadingServices && availableServices.length > 0 && (
+                    <div className="absolute z-30 mt-2 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                      <div className="px-3 py-2 text-xs text-gray-600 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                        <span>
+                          Showing {dropdownServices.length} of {filteredServices.length} service
+                          {filteredServices.length !== 1 ? 's' : ''}
+                          {serviceSearch && ` for "${serviceSearch}"`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowServiceDropdown(false)}
+                          className="text-gray-500 hover:text-gray-700"
+                        >
+                          Close
+                        </button>
+                      </div>
+
+                      <div className="max-h-72 overflow-y-auto">
+                        {dropdownServices.length === 0 ? (
+                          <p className="p-3 text-sm text-gray-500">No matching services found</p>
+                        ) : (
+                          dropdownServices.map((service) => {
+                            const isSelected = formData.services.actualService.includes(service.name);
+                            return (
+                              <button
+                                key={service.id}
+                                type="button"
+                                onClick={() => handleServiceSelect(service.name, !isSelected)}
+                                className={`w-full px-3 py-3 text-left border-b border-gray-100 last:border-b-0 hover:bg-purple-50 transition-colors ${
+                                  isSelected ? 'bg-purple-50' : ''
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div className={`h-4 w-4 rounded border flex items-center justify-center ${
+                                      isSelected ? 'bg-purple-600 border-purple-600 text-white' : 'border-gray-300'
+                                    }`}>
+                                      {isSelected && <Check className="h-3 w-3" />}
+                                    </div>
+                                    {getServiceIcon(service.name)}
+                                    <span className="text-sm font-medium text-gray-800 truncate">{service.name}</span>
+                                  </div>
+                                  <span className="text-xs px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 flex-shrink-0">
+                                    {service.type}
+                                  </span>
+                                </div>
+                                <div className="mt-1 text-xs text-gray-500 flex items-center justify-between">
+                                  <span>{service.serviceCode || 'No Code'}</span>
+                                  {service.isActive ? (
+                                    <span className="text-green-600 flex items-center gap-1">
+                                      <Circle className="h-2 w-2 fill-current" />
+                                      Active
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400">Inactive</span>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 {loadingServices ? (
@@ -2646,7 +2900,7 @@ export default function DiamondRimsPreChecklistCreatePage({
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-gray-500">
                           {filteredServices.length} service{filteredServices.length !== 1 ? 's' : ''} found
-                          {serviceSearch && ` matching "${serviceSearch}"`}
+                          {serviceSearch && ` matching "${serviceSearch}"`} - use the dropdown to select
                         </span>
                         {formData.services.actualService.length > 0 && (
                           <span className="text-sm text-purple-600">
@@ -2654,82 +2908,6 @@ export default function DiamondRimsPreChecklistCreatePage({
                           </span>
                         )}
                       </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                      {filteredServices.map((service) => {
-                        const isSelected = formData.services.actualService.includes(service.name);
-                        
-                        return (
-                          <div 
-                            key={service.id} 
-                            className={`flex items-center p-3 border rounded-lg transition-all cursor-pointer ${
-                              isSelected 
-                                ? 'border-purple-500 bg-purple-50' 
-                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                            }`}
-                            onClick={() => handleServiceSelect(service.name, !isSelected)}
-                          >
-                            <div className={`flex-shrink-0 h-5 w-5 border rounded flex items-center justify-center mr-3 ${
-                              isSelected 
-                                ? 'border-purple-500 bg-purple-500 text-white' 
-                                : 'border-gray-300'
-                            }`}>
-                              {isSelected && <Check className="h-3 w-3" />}
-                            </div>
-                            
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between">
-                                <div className="flex items-center gap-2 mb-1">
-                                  {getServiceIcon(service.name)}
-                                  <span className={`font-medium ${isSelected ? 'text-purple-700' : 'text-gray-700'}`}>
-                                    {service.name}
-                                  </span>
-                                </div>
-                                <span className={`text-xs px-2 py-1 rounded ${
-                                  service.type === 'repair' ? 'bg-orange-100 text-orange-800' :
-                                  service.type === 'maintenance' ? 'bg-blue-100 text-blue-800' :
-                                  service.type === 'inspection' ? 'bg-purple-100 text-purple-800' :
-                                  service.type === 'installation' ? 'bg-green-100 text-green-800' :
-                                  'bg-indigo-100 text-indigo-800'
-                                }`}>
-                                  {service.type}
-                                </span>
-                              </div>
-                              
-                              <div className="flex items-center justify-between mt-1">
-                                <p className="text-xs text-gray-500 truncate">
-                                  {service.serviceCode || 'No Code'}
-                                </p>
-                                {service.isActive ? (
-                                  <span className="text-xs text-green-600 flex items-center gap-1">
-                                    <Circle className="h-2 w-2 fill-current" />
-                                    Active
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-gray-400">Inactive</span>
-                                )}
-                              </div>
-                              
-                              {service.description && (
-                                <p className="text-xs text-gray-600 mt-2 line-clamp-2">
-                                  {service.description}
-                                </p>
-                              )}
-                              
-                              {/* Show if service has must-know notes */}
-                              {service.internalNotes && (
-                                <div className="mt-2 flex items-center gap-1">
-                                  <ClipboardCheck className="h-3 w-3 text-yellow-500" />
-                                  <span className="text-xs text-yellow-600">
-                                    Has must-know notes
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
                     </div>
                     
                     {/* Selected Services Preview */}
@@ -3122,38 +3300,102 @@ export default function DiamondRimsPreChecklistCreatePage({
               </h2>
               
               {/* Condition Assessment */}
-              <div className="mb-8">
+              <div className="mb-8" ref={conditionDropdownRef}>
                 <label className="block text-sm font-medium text-gray-700 mb-4">
                   Condition <RequiredField />
                 </label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {conditionOptions.map((condition) => {
-                    const severityColor = {
-                      high: 'bg-red-100 border-red-300 text-red-800',
-                      medium: 'bg-yellow-100 border-yellow-300 text-yellow-800',
-                      low: 'bg-blue-100 border-blue-300 text-blue-800',
-                      none: 'bg-gray-100 border-gray-300 text-gray-800'
-                    }[condition.severity];
-                    
-                    return (
-                      <div key={condition.id} className={`flex items-center p-3 border rounded-lg ${severityColor} transition-colors`}>
-                        <input
-                          type="checkbox"
-                          id={`condition-${condition.id}`}
-                          checked={formData.preServiceInspection.condition.includes(condition.label)}
-                          onChange={(e) => handleConditionSelect(condition.id, e.target.checked)}
-                          className="h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-                        />
-                        <label
-                          htmlFor={`condition-${condition.id}`}
-                          className="ml-3 text-gray-700 cursor-pointer flex-1"
-                        >
-                          {condition.label}
-                        </label>
+
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowConditionDropdown((prev) => !prev)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between hover:border-purple-400 transition-colors"
+                  >
+                    <span className={formData.preServiceInspection.condition.length > 0 ? 'text-gray-800' : 'text-gray-500'}>
+                      {formData.preServiceInspection.condition.length > 0
+                        ? `${formData.preServiceInspection.condition.length} condition(s) selected`
+                        : 'Search and select condition records'}
+                    </span>
+                    <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${showConditionDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {showConditionDropdown && (
+                    <div className="absolute z-20 mt-2 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+                      <div className="p-3 border-b border-gray-200">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <input
+                            type="text"
+                            value={conditionSearch}
+                            onChange={(e) => setConditionSearch(e.target.value)}
+                            placeholder="Search condition..."
+                            className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          />
+                          {conditionSearch && (
+                            <button
+                              type="button"
+                              onClick={() => setConditionSearch('')}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    );
-                  })}
+
+                      <div className="max-h-64 overflow-y-auto p-2">
+                        {filteredConditionOptions.length === 0 ? (
+                          <p className="p-3 text-sm text-gray-500">No condition matches your search.</p>
+                        ) : (
+                          filteredConditionOptions.map((condition) => {
+                            const severityColor = {
+                              high: 'bg-red-100 text-red-800',
+                              medium: 'bg-yellow-100 text-yellow-800',
+                              low: 'bg-blue-100 text-blue-800',
+                              none: 'bg-gray-100 text-gray-800'
+                            }[condition.severity];
+
+                            const checked = formData.preServiceInspection.condition.includes(condition.label);
+                            return (
+                              <label
+                                key={condition.id}
+                                htmlFor={`condition-${condition.id}`}
+                                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer"
+                              >
+                                <input
+                                  id={`condition-${condition.id}`}
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => handleConditionSelect(condition.id, e.target.checked)}
+                                  className="h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                                />
+                                <span className="flex-1 text-sm text-gray-700">{condition.label}</span>
+                                <span className={`text-xs px-2 py-1 rounded ${severityColor}`}>
+                                  {condition.severity}
+                                </span>
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
+
+                {formData.preServiceInspection.condition.length === 0 ? (
+                  <p className="mt-2 text-sm text-red-600">Please select at least one condition</p>
+                ) : (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {formData.preServiceInspection.condition.map((conditionLabel) => (
+                      <span
+                        key={conditionLabel}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full"
+                      >
+                        {conditionLabel}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               
               {/* Inspector Access Notes Section */}
@@ -3190,18 +3432,9 @@ export default function DiamondRimsPreChecklistCreatePage({
                   </div>
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-medium text-blue-700 mb-2">
-                    Additional Inspection Notes
-                  </label>
-                  <textarea
-                    value={formData.preServiceInspection.inspectionNotes}
-                    onChange={(e) => handleNestedInputChange('preServiceInspection', 'inspectionNotes', e.target.value)}
-                    placeholder="Additional notes for inspector access..."
-                    className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    rows={3}
-                  />
-                </div>
+                <p className="text-sm text-blue-700">
+                  Inspection notes are now captured directly from selected conditions and service must-knows.
+                </p>
               </div>
               
               {/* Rim & Tire Details */}
@@ -3368,18 +3601,6 @@ export default function DiamondRimsPreChecklistCreatePage({
                     )}
                   </div>
                   
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Center Caps Notes
-                    </label>
-                    <textarea
-                      value={formData.centerCaps.notes}
-                      onChange={(e) => handleNestedInputChange('centerCaps', 'notes', e.target.value)}
-                      placeholder="Additional notes about center caps..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      rows={2}
-                    />
-                  </div>
                 </div>
                 
                 {/* Wheel Nuts, Nozzle Caps, Lock Nuts */}
@@ -3507,243 +3728,25 @@ export default function DiamondRimsPreChecklistCreatePage({
                 </div>
               </div>
               
-              {/* Tire DOT Section - Full implementation */}
+              {/* Tire DOT Section - Simplified */}
               <div className="mt-8">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Tire DOT Numbers (Full Details)</h3>
-                
-                {/* FR DOT */}
-                <div className="mb-4 p-4 border border-gray-200 rounded-lg">
-                  <h4 className="font-medium text-gray-700 mb-3">FR (Front Right)</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">DOT Code</label>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Tire DOT Numbers</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Enter DOT code only for each tire position.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {tireDotPositions.map((position) => (
+                    <div key={position.key} className="p-4 border border-gray-200 rounded-lg">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">{position.label}</label>
                       <input
                         type="text"
-                        value={formData.tireDOT.fr.code}
-                        onChange={(e) => handleNestedInputChange('tireDOT.fr', 'code', e.target.value)}
-                        placeholder="XXXX"
+                        value={formData.tireDOT[position.key].code || ''}
+                        onChange={(e) => handleNestedInputChange(`tireDOT.${position.key}`, 'code', e.target.value)}
+                        placeholder="DOT code"
                         className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Week</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.fr.week}
-                        onChange={(e) => handleNestedInputChange('tireDOT.fr', 'week', e.target.value)}
-                        placeholder="01-52"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Year</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.fr.year}
-                        onChange={(e) => handleNestedInputChange('tireDOT.fr', 'year', e.target.value)}
-                        placeholder="2023"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Plant Code</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.fr.plant}
-                        onChange={(e) => handleNestedInputChange('tireDOT.fr', 'plant', e.target.value)}
-                        placeholder="Plant"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                {/* FL DOT */}
-                <div className="mb-4 p-4 border border-gray-200 rounded-lg">
-                  <h4 className="font-medium text-gray-700 mb-3">FL (Front Left)</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">DOT Code</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.fl.code}
-                        onChange={(e) => handleNestedInputChange('tireDOT.fl', 'code', e.target.value)}
-                        placeholder="XXXX"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Week</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.fl.week}
-                        onChange={(e) => handleNestedInputChange('tireDOT.fl', 'week', e.target.value)}
-                        placeholder="01-52"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Year</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.fl.year}
-                        onChange={(e) => handleNestedInputChange('tireDOT.fl', 'year', e.target.value)}
-                        placeholder="2023"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Plant Code</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.fl.plant}
-                        onChange={(e) => handleNestedInputChange('tireDOT.fl', 'plant', e.target.value)}
-                        placeholder="Plant"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                {/* BR DOT */}
-                <div className="mb-4 p-4 border border-gray-200 rounded-lg">
-                  <h4 className="font-medium text-gray-700 mb-3">BR (Back Right)</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">DOT Code</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.br.code}
-                        onChange={(e) => handleNestedInputChange('tireDOT.br', 'code', e.target.value)}
-                        placeholder="XXXX"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Week</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.br.week}
-                        onChange={(e) => handleNestedInputChange('tireDOT.br', 'week', e.target.value)}
-                        placeholder="01-52"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Year</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.br.year}
-                        onChange={(e) => handleNestedInputChange('tireDOT.br', 'year', e.target.value)}
-                        placeholder="2023"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Plant Code</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.br.plant}
-                        onChange={(e) => handleNestedInputChange('tireDOT.br', 'plant', e.target.value)}
-                        placeholder="Plant"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                {/* BL DOT */}
-                <div className="mb-4 p-4 border border-gray-200 rounded-lg">
-                  <h4 className="font-medium text-gray-700 mb-3">BL (Back Left)</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">DOT Code</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.bl.code}
-                        onChange={(e) => handleNestedInputChange('tireDOT.bl', 'code', e.target.value)}
-                        placeholder="XXXX"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Week</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.bl.week}
-                        onChange={(e) => handleNestedInputChange('tireDOT.bl', 'week', e.target.value)}
-                        placeholder="01-52"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Year</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.bl.year}
-                        onChange={(e) => handleNestedInputChange('tireDOT.bl', 'year', e.target.value)}
-                        placeholder="2023"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Plant Code</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.bl.plant}
-                        onChange={(e) => handleNestedInputChange('tireDOT.bl', 'plant', e.target.value)}
-                        placeholder="Plant"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Spare DOT */}
-                <div className="p-4 border border-gray-200 rounded-lg">
-                  <h4 className="font-medium text-gray-700 mb-3">Spare</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">DOT Code</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.spare.code}
-                        onChange={(e) => handleNestedInputChange('tireDOT.spare', 'code', e.target.value)}
-                        placeholder="XXXX"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Week</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.spare.week}
-                        onChange={(e) => handleNestedInputChange('tireDOT.spare', 'week', e.target.value)}
-                        placeholder="01-52"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Year</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.spare.year}
-                        onChange={(e) => handleNestedInputChange('tireDOT.spare', 'year', e.target.value)}
-                        placeholder="2023"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Plant Code</label>
-                      <input
-                        type="text"
-                        value={formData.tireDOT.spare.plant}
-                        onChange={(e) => handleNestedInputChange('tireDOT.spare', 'plant', e.target.value)}
-                        placeholder="Plant"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      />
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
               
@@ -3751,91 +3754,32 @@ export default function DiamondRimsPreChecklistCreatePage({
               <div className="mt-8">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">SUITABILITY ASSESSMENT</h3>
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Suitable For Skimming
-                      </label>
-                      <select
-                        value={formData.suitability.skimming}
-                        onChange={(e) => handleNestedInputChange('suitability', 'skimming', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                      >
-                        <option value="">Select</option>
-                        <option value="yes">Yes</option>
-                        <option value="no">No</option>
-                        <option value="maybe">Maybe</option>
-                        <option value="not-applicable">Not Applicable</option>
-                      </select>
+                  {applicableSuitabilityFields.length === 0 ? (
+                    <p className="text-sm text-gray-600">
+                      Select actual services first. Matching suitability checks will auto-appear here.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {applicableSuitabilityFields.map((field) => (
+                        <div key={field.key}>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            {field.label}
+                          </label>
+                          <select
+                            value={formData.suitability[field.key]}
+                            onChange={(e) => handleNestedInputChange('suitability', field.key, e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          >
+                            <option value="">Select</option>
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                            <option value="maybe">Maybe</option>
+                            <option value="not-applicable">Not Applicable</option>
+                          </select>
+                        </div>
+                      ))}
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Suitable For Powder Coating
-                      </label>
-                      <select
-                        value={formData.suitability.powderCoating}
-                        onChange={(e) => handleNestedInputChange('suitability', 'powderCoating', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                      >
-                        <option value="">Select</option>
-                        <option value="yes">Yes</option>
-                        <option value="no">No</option>
-                        <option value="maybe">Maybe</option>
-                        <option value="not-applicable">Not Applicable</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Suitable For Straightening
-                      </label>
-                      <select
-                        value={formData.suitability.straightening}
-                        onChange={(e) => handleNestedInputChange('suitability', 'straightening', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                      >
-                        <option value="">Select</option>
-                        <option value="yes">Yes</option>
-                        <option value="no">No</option>
-                        <option value="maybe">Maybe</option>
-                        <option value="not-applicable">Not Applicable</option>
-                      </select>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Suitable For Welding
-                      </label>
-                      <select
-                        value={formData.suitability.welding}
-                        onChange={(e) => handleNestedInputChange('suitability', 'welding', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                      >
-                        <option value="">Select</option>
-                        <option value="yes">Yes</option>
-                        <option value="no">No</option>
-                        <option value="maybe">Maybe</option>
-                        <option value="not-applicable">Not Applicable</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Suitable For Diamond Cutting
-                      </label>
-                      <select
-                        value={formData.suitability.diamondCutting}
-                        onChange={(e) => handleNestedInputChange('suitability', 'diamondCutting', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                      >
-                        <option value="">Select</option>
-                        <option value="yes">Yes</option>
-                        <option value="no">No</option>
-                        <option value="maybe">Maybe</option>
-                        <option value="not-applicable">Not Applicable</option>
-                      </select>
-                    </div>
-                  </div>
+                  )}
                   
                   {/* Additional Notes Section */}
                   <div className="mt-6">

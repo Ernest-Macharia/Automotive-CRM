@@ -160,6 +160,10 @@ export default function JobCardsTab({ workOrder, isTransitioning, onAction }: Jo
       query.set('opportunityId', opportunityId);
     }
 
+    if (workOrder.preChecklistId) {
+      query.set('preChecklistId', workOrder.preChecklistId);
+    }
+
     router.push(`/job-cards/create?${query.toString()}`);
   };
 
@@ -976,4 +980,3 @@ export default function JobCardsTab({ workOrder, isTransitioning, onAction }: Jo
     </div>
   );
 }
-
