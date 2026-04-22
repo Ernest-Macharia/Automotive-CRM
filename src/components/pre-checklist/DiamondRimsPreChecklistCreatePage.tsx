@@ -168,6 +168,28 @@ function isCompatiblePreChecklistDraft(
   );
 }
 
+function normalizeEntityId(value: unknown): string {
+  let candidate = '';
+
+  if (typeof value === 'string') {
+    candidate = value.trim();
+  } else if (value && typeof value === 'object') {
+    candidate = String((value as any)._id || (value as any).id || '').trim();
+  }
+
+  if (!candidate) return '';
+  const invalidTokens = new Set(['undefined', 'null', '[object Object]', 'NaN']);
+  return invalidTokens.has(candidate) ? '' : candidate;
+}
+
+function hasOpportunityShape(value: unknown): value is Record<string, any> {
+  return !!(
+    value &&
+    typeof value === 'object' &&
+    ((value as any).customer || (value as any).subject || (value as any)._id || (value as any).id)
+  );
+}
+
 function buildPreChecklistDraftPayload<T extends Record<string, any>>(value: T): T {
   const cloned = JSON.parse(JSON.stringify(value));
 
@@ -229,6 +251,9 @@ export default function DiamondRimsPreChecklistCreatePage({
   const workOrderId = searchParams.get('workOrderId');
   const vehicleId = searchParams.get('vehicleId');
   const source = searchParams.get('source');
+  const normalizedOpportunityId = normalizeEntityId(opportunityId);
+  const normalizedWorkOrderId = normalizeEntityId(workOrderId);
+  const normalizedVehicleId = normalizeEntityId(vehicleId);
 
   const [loading, setLoading] = useState(mode === 'create');
   const [submitting, setSubmitting] = useState(false);
@@ -271,8 +296,8 @@ export default function DiamondRimsPreChecklistCreatePage({
   // DIAMOND RIMS FORM STATE
   const [formData, setFormData] = useState({
     checklistType: 'diamond_rims',
-    opportunityId: opportunityId || '',
-    vehicleId: vehicleId || '',
+    opportunityId: normalizedOpportunityId || '',
+    vehicleId: normalizedVehicleId || '',
     inspectedBy: sessionStorage.getItem('userId') || '',
     inspectorName: '',
     remarks: '',
@@ -864,7 +889,7 @@ export default function DiamondRimsPreChecklistCreatePage({
 
   useEffect(() => {
     loadRelatedData();
-  }, [opportunityId, workOrderId, vehicleId, checklistId, mode]);
+  }, [normalizedOpportunityId, normalizedWorkOrderId, normalizedVehicleId, checklistId, mode]);
 
   useEffect(() => {
     if (opportunity && !autoPopulated) {
@@ -905,7 +930,7 @@ export default function DiamondRimsPreChecklistCreatePage({
       }
 
       const parsedDraft = JSON.parse(savedDraft);
-      if (!isCompatiblePreChecklistDraft(parsedDraft, opportunityId, workOrderId, vehicleId)) {
+      if (!isCompatiblePreChecklistDraft(parsedDraft, normalizedOpportunityId, normalizedWorkOrderId, normalizedVehicleId)) {
         draftRestoredRef.current = true;
         return;
       }
@@ -917,7 +942,7 @@ export default function DiamondRimsPreChecklistCreatePage({
       console.error('Failed to restore pre-checklist draft:', error);
       draftRestoredRef.current = true;
     }
-  }, [loading, mode, opportunityId, workOrderId, vehicleId, showToast]);
+  }, [loading, mode, normalizedOpportunityId, normalizedWorkOrderId, normalizedVehicleId, showToast]);
 
   useEffect(() => {
     if (loading || mode === 'edit') {
@@ -1153,9 +1178,13 @@ export default function DiamondRimsPreChecklistCreatePage({
       setLoading(true);
       const [checklistResult, opportunityResult, workOrderResult] = await Promise.allSettled([
         mode === 'edit' && checklistId ? preChecklistService.getPreChecklistById(checklistId) : Promise.resolve(null),
-        opportunityId ? opportunityService.getOpportunityById(opportunityId, false) : Promise.resolve(null),
-        workOrderId ? workOrderService.getWorkOrderById(workOrderId) : Promise.resolve(null),
+        normalizedOpportunityId ? opportunityService.getOpportunityById(normalizedOpportunityId, false) : Promise.resolve(null),
+        normalizedWorkOrderId ? workOrderService.getWorkOrderById(normalizedWorkOrderId) : Promise.resolve(null),
       ]);
+
+      let resolvedOpportunity: any =
+        opportunityResult.status === 'fulfilled' ? opportunityResult.value : null;
+      let shouldWarnOpportunityLoad = false;
 
       if (checklistResult.status === 'fulfilled' && checklistResult.value) {
         const checklist = checklistResult.value;
@@ -1167,6 +1196,9 @@ export default function DiamondRimsPreChecklistCreatePage({
 
         if (typeof checklist.opportunityId === 'object') {
           setOpportunity(checklist.opportunityId);
+          if (!resolvedOpportunity && hasOpportunityShape(checklist.opportunityId)) {
+            resolvedOpportunity = checklist.opportunityId;
+          }
         }
         if (typeof checklist.vehicleId === 'object') {
           setVehicle(checklist.vehicleId);
@@ -1175,12 +1207,9 @@ export default function DiamondRimsPreChecklistCreatePage({
         console.error('Error loading existing pre-checklist:', checklistResult.reason);
       }
 
-      let resolvedOpportunity =
-        opportunityResult.status === 'fulfilled' ? opportunityResult.value : null;
-
       if (opportunityResult.status === 'rejected') {
         console.error('Error loading opportunity:', opportunityResult.reason);
-        showToast('Could not load opportunity details', 'warning');
+        shouldWarnOpportunityLoad = true;
       }
 
       if (workOrderResult.status === 'fulfilled' && workOrderResult.value) {
@@ -1188,13 +1217,17 @@ export default function DiamondRimsPreChecklistCreatePage({
         setWorkOrder(wo);
 
         if (wo.opportunityId && !resolvedOpportunity) {
-          const oppId = typeof wo.opportunityId === 'object' ? wo.opportunityId._id : wo.opportunityId;
-          if (oppId) {
+          if (hasOpportunityShape(wo.opportunityId)) {
+            resolvedOpportunity = wo.opportunityId;
+          }
+
+          const oppId = normalizeEntityId(wo.opportunityId);
+          if (!resolvedOpportunity && oppId) {
             try {
               resolvedOpportunity = await opportunityService.getOpportunityById(oppId, false);
             } catch (error) {
               console.error('Error loading work order opportunity:', error);
-              showToast('Could not load related opportunity details', 'warning');
+              shouldWarnOpportunityLoad = true;
             }
           }
         }
@@ -1203,11 +1236,15 @@ export default function DiamondRimsPreChecklistCreatePage({
         showToast('Could not load work order details', 'warning');
       }
 
+      if (shouldWarnOpportunityLoad && !resolvedOpportunity && (normalizedOpportunityId || normalizedWorkOrderId)) {
+        showToast('Could not load opportunity details. You can still continue with draft/manual data.', 'warning');
+      }
+
       if (resolvedOpportunity) {
         setOpportunity(resolvedOpportunity);
 
         const primaryVehicle = resolvedOpportunity.vehicles?.[0];
-        const resolvedVehicleId = primaryVehicle?._id || vehicleId || '';
+        const resolvedVehicleId = primaryVehicle?._id || normalizedVehicleId || '';
 
         if (primaryVehicle?._id) {
           try {
@@ -1217,9 +1254,9 @@ export default function DiamondRimsPreChecklistCreatePage({
             console.error('Error loading detailed vehicle:', vehError);
             setVehicle(primaryVehicle);
           }
-        } else if (vehicleId) {
+        } else if (normalizedVehicleId) {
           try {
-            const veh = await vehicleService.getVehicleById(vehicleId);
+            const veh = await vehicleService.getVehicleById(normalizedVehicleId);
             setVehicle(veh);
           } catch (vehError) {
             console.error('Error loading vehicle:', vehError);
@@ -1228,7 +1265,7 @@ export default function DiamondRimsPreChecklistCreatePage({
 
         setFormData(prev => ({
           ...prev,
-          opportunityId: resolvedOpportunity._id || opportunityId || prev.opportunityId,
+          opportunityId: normalizeEntityId(resolvedOpportunity) || normalizedOpportunityId || prev.opportunityId,
           vehicleId: resolvedVehicleId || prev.vehicleId,
         }));
       }

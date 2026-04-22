@@ -138,6 +138,28 @@ function isCompatiblePreChecklistDraft(
   );
 }
 
+function normalizeEntityId(value: unknown): string {
+  let candidate = '';
+
+  if (typeof value === 'string') {
+    candidate = value.trim();
+  } else if (value && typeof value === 'object') {
+    candidate = String((value as any)._id || (value as any).id || '').trim();
+  }
+
+  if (!candidate) return '';
+  const invalidTokens = new Set(['undefined', 'null', '[object Object]', 'NaN']);
+  return invalidTokens.has(candidate) ? '' : candidate;
+}
+
+function hasOpportunityShape(value: unknown): value is Record<string, any> {
+  return !!(
+    value &&
+    typeof value === 'object' &&
+    ((value as any).customer || (value as any).subject || (value as any)._id || (value as any).id)
+  );
+}
+
 function buildPreChecklistDraftPayload<T extends Record<string, any>>(value: T): T {
   const cloned = JSON.parse(JSON.stringify(value));
 
@@ -199,6 +221,9 @@ export default function HeadlightPreChecklistCreatePage({
   const workOrderId = searchParams.get('workOrderId');
   const vehicleId = searchParams.get('vehicleId');
   const source = searchParams.get('source');
+  const normalizedOpportunityId = normalizeEntityId(opportunityId);
+  const normalizedWorkOrderId = normalizeEntityId(workOrderId);
+  const normalizedVehicleId = normalizeEntityId(vehicleId);
 
   const [loading, setLoading] = useState(mode === 'create');
   const [submitting, setSubmitting] = useState(false);
@@ -239,8 +264,8 @@ export default function HeadlightPreChecklistCreatePage({
 
   // Form state - UNIFIED HEADLIGHT INSPECTION FORM (like Diamond Rimz)
   const [formData, setFormData] = useState({
-    opportunityId: opportunityId || '',
-    vehicleId: vehicleId || '',
+    opportunityId: normalizedOpportunityId || '',
+    vehicleId: normalizedVehicleId || '',
     inspectedBy: sessionStorage.getItem('userId') || '',
     inspectorName: '',
     remarks: '',
@@ -496,7 +521,7 @@ export default function HeadlightPreChecklistCreatePage({
       }
 
       const parsedDraft = JSON.parse(savedDraft);
-      if (!isCompatiblePreChecklistDraft(parsedDraft, opportunityId, workOrderId, vehicleId)) {
+      if (!isCompatiblePreChecklistDraft(parsedDraft, normalizedOpportunityId, normalizedWorkOrderId, normalizedVehicleId)) {
         draftRestoredRef.current = true;
         return;
       }
@@ -508,7 +533,7 @@ export default function HeadlightPreChecklistCreatePage({
       console.error('Failed to restore headlight pre-checklist draft:', error);
       draftRestoredRef.current = true;
     }
-  }, [loading, mode, opportunityId, workOrderId, vehicleId, showToast]);
+  }, [loading, mode, normalizedOpportunityId, normalizedWorkOrderId, normalizedVehicleId, showToast]);
 
   useEffect(() => {
     if (loading || mode === 'edit') {
@@ -535,7 +560,7 @@ export default function HeadlightPreChecklistCreatePage({
   // Load related data
   useEffect(() => {
     loadRelatedData();
-  }, [opportunityId, workOrderId, vehicleId, checklistId, mode]);
+  }, [normalizedOpportunityId, normalizedWorkOrderId, normalizedVehicleId, checklistId, mode]);
 
   useEffect(() => {
     if (opportunity && !autoPopulated) {
@@ -645,6 +670,8 @@ export default function HeadlightPreChecklistCreatePage({
   const loadRelatedData = async () => {
     try {
       setLoading(true);
+      let resolvedOpportunity: any = null;
+      let shouldWarnOpportunityLoad = false;
 
       // Load existing checklist if in edit mode
       if (mode === 'edit' && checklistId) {
@@ -656,6 +683,9 @@ export default function HeadlightPreChecklistCreatePage({
         
         if (typeof checklist.opportunityId === 'object') {
           setOpportunity(checklist.opportunityId);
+          if (hasOpportunityShape(checklist.opportunityId)) {
+            resolvedOpportunity = checklist.opportunityId;
+          }
         }
         if (typeof checklist.vehicleId === 'object') {
           setVehicle(checklist.vehicleId);
@@ -663,28 +693,28 @@ export default function HeadlightPreChecklistCreatePage({
       }
 
       // Load opportunity if provided
-      if (opportunityId) {
+      if (normalizedOpportunityId) {
         try {
-          const opp = await opportunityService.getOpportunityById(opportunityId, false);
-          setOpportunity(opp);
+          resolvedOpportunity = await opportunityService.getOpportunityById(normalizedOpportunityId, false);
+          setOpportunity(resolvedOpportunity);
           
-          if (opp.vehicles && opp.vehicles.length > 0) {
-            const primaryVehicle = opp.vehicles[0];
+          if (resolvedOpportunity.vehicles && resolvedOpportunity.vehicles.length > 0) {
+            const primaryVehicle = resolvedOpportunity.vehicles[0];
             setVehicle(primaryVehicle);
             
             setFormData(prev => ({
               ...prev,
-              opportunityId,
-              vehicleId: primaryVehicle._id || vehicleId || ''
+              opportunityId: normalizedOpportunityId,
+              vehicleId: primaryVehicle._id || normalizedVehicleId || ''
             }));
-          } else if (vehicleId) {
+          } else if (normalizedVehicleId) {
             try {
-              const veh = await vehicleService.getVehicleById(vehicleId);
+              const veh = await vehicleService.getVehicleById(normalizedVehicleId);
               setVehicle(veh);
               setFormData(prev => ({
                 ...prev,
-                opportunityId,
-                vehicleId
+                opportunityId: normalizedOpportunityId,
+                vehicleId: normalizedVehicleId
               }));
             } catch (vehError) {
               console.error('Error loading vehicle:', vehError);
@@ -692,19 +722,69 @@ export default function HeadlightPreChecklistCreatePage({
           }
         } catch (error) {
           console.error('Error loading opportunity:', error);
-          showToast('Could not load opportunity details', 'warning');
+          shouldWarnOpportunityLoad = true;
         }
       }
 
       // Load work order if provided
-      if (workOrderId) {
+      if (normalizedWorkOrderId) {
         try {
-          const wo = await workOrderService.getWorkOrderById(workOrderId);
+          const wo = await workOrderService.getWorkOrderById(normalizedWorkOrderId);
           setWorkOrder(wo);
+
+          if (!resolvedOpportunity && wo.opportunityId) {
+            if (hasOpportunityShape(wo.opportunityId)) {
+              resolvedOpportunity = wo.opportunityId;
+            }
+
+            const workOrderOpportunityId = normalizeEntityId(wo.opportunityId);
+            if (!resolvedOpportunity && workOrderOpportunityId) {
+              try {
+                resolvedOpportunity = await opportunityService.getOpportunityById(workOrderOpportunityId, false);
+              } catch (error) {
+                console.error('Error loading work order opportunity:', error);
+                shouldWarnOpportunityLoad = true;
+              }
+            }
+          }
         } catch (error) {
           console.error('Error loading work order:', error);
           showToast('Could not load work order details', 'warning');
         }
+      }
+
+      if (resolvedOpportunity) {
+        setOpportunity(resolvedOpportunity);
+
+        const primaryVehicle = resolvedOpportunity.vehicles?.[0];
+        const resolvedVehicleId = normalizeEntityId(primaryVehicle) || normalizedVehicleId;
+
+        if (normalizeEntityId(primaryVehicle)) {
+          try {
+            const detailedVehicle = await vehicleService.getVehicleById(normalizeEntityId(primaryVehicle));
+            setVehicle(detailedVehicle);
+          } catch (vehError) {
+            console.error('Error loading detailed vehicle:', vehError);
+            setVehicle(primaryVehicle);
+          }
+        } else if (normalizedVehicleId) {
+          try {
+            const veh = await vehicleService.getVehicleById(normalizedVehicleId);
+            setVehicle(veh);
+          } catch (vehError) {
+            console.error('Error loading vehicle:', vehError);
+          }
+        }
+
+        setFormData(prev => ({
+          ...prev,
+          opportunityId: normalizeEntityId(resolvedOpportunity) || normalizedOpportunityId || prev.opportunityId,
+          vehicleId: resolvedVehicleId || prev.vehicleId
+        }));
+      }
+
+      if (shouldWarnOpportunityLoad && !resolvedOpportunity && (normalizedOpportunityId || normalizedWorkOrderId)) {
+        showToast('Could not load opportunity details. You can still continue with draft/manual data.', 'warning');
       }
 
     } catch (error) {
