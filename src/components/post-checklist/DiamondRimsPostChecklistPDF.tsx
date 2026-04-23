@@ -235,6 +235,11 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
     return value ? 'Yes' : 'No';
   };
 
+  const formatKES = (amount: number) => {
+    const numericAmount = Number(amount || 0);
+    return `KES ${numericAmount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
   // Check if array has items
   const hasItems = (array: any[]) => {
     return array && Array.isArray(array) && array.length > 0;
@@ -412,6 +417,24 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
             <Text style={styles.multiLineValue}>{formData.additionalInformation}</Text>
           </View>
         )}
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>CLIENT CHARGE DETAILS</Text>
+          <View style={styles.row}>
+            <View style={styles.col}>
+              <Text style={styles.label}>Amount Charged</Text>
+              <Text style={styles.value}>{formatKES(formData.agreedAmount?.total || 0)}</Text>
+            </View>
+          </View>
+          {formData.agreedAmount?.breakdown ? (
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>Breakdown</Text>
+                <Text style={styles.multiLineValue}>{formData.agreedAmount.breakdown}</Text>
+              </View>
+            </View>
+          ) : null}
+        </View>
 
         {/* Quality Assurance */}
         <View style={styles.section}>

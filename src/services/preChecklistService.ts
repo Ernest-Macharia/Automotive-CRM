@@ -252,6 +252,11 @@ export interface PreChecklist {
     notes?: string;
   };
   
+  agreedAmount?: {
+    total?: number;
+    breakdown?: string;
+  };
+  
   additionalInformation?: string;
   mustKnowAccepted?: boolean;
   
@@ -430,6 +435,11 @@ export interface CreatePreChecklistDto {
     notes?: string;
   };
   
+  agreedAmount?: {
+    total?: number;
+    breakdown?: string;
+  };
+  
   additionalInformation?: string;
   mustKnowAccepted?: boolean;
   
@@ -502,6 +512,10 @@ export interface UpdatePreChecklistDto {
   productServiceNeeded?: string;
   productPrice?: number;
   servicePrice?: number;
+  agreedAmount?: {
+    total?: number;
+    breakdown?: string;
+  };
   additionalInformation?: string;
   installationDetails?: {
     estimatedTime: 'less_1_hour' | '1_2_hours' | '3_hours' | 'more_3_hours';

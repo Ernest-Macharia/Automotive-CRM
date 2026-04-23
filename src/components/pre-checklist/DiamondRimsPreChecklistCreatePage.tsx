@@ -123,6 +123,11 @@ interface SuitabilityFieldConfig {
   keywords: string[];
 }
 
+type ServiceDisclosureSource = Pick<
+  Service,
+  'id' | 'name' | 'description' | 'internalNotes' | 'serviceNotes'
+>;
+
 const PRE_CHECKLIST_DRAFT_KEY = 'diamondRimsPreChecklistDraft';
 const PRE_CHECKLIST_DRAFT_EXCLUDED_FIELDS = ['uploadedImages', 'files', 'clientSignature', 'inspectorSignature'] as const;
 
@@ -199,6 +204,10 @@ function buildPreChecklistDraftPayload<T extends Record<string, any>>(value: T):
   }
 
   return cloned;
+}
+
+function normalizeServiceLabel(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
 async function readFileAsDataUrl(file: File): Promise<string> {
@@ -314,6 +323,10 @@ export default function DiamondRimsPreChecklistCreatePage({
       }>,
       subtotal: 0,
       total: 0
+    },
+    agreedAmount: {
+      total: 0,
+      breakdown: ''
     },
     
     serviceIntake: {
@@ -651,8 +664,8 @@ export default function DiamondRimsPreChecklistCreatePage({
     }
   };
 
-  // Generate must-knows from services using internalNotes
-  const generateServiceMustKnowsFromServices = useCallback((services: Service[]) => {
+  // Generate must-knows from selected services using internal notes and service notes
+  const generateServiceMustKnowsFromServices = useCallback((services: ServiceDisclosureSource[]) => {
     const mustKnows: ServiceMustKnow[] = [];
     
     // First, add general must-knows that always apply
@@ -722,32 +735,39 @@ export default function DiamondRimsPreChecklistCreatePage({
       });
     });
     
-    // Now add service-specific must-knows from internalNotes
+    // Now add service-specific must-knows
     services.forEach(service => {
-      if (service.internalNotes) {
-        // Split by newlines and process each line
-        const notes = service.internalNotes.split('\n').filter(note => note.trim());
-        
-        notes.forEach((note, index) => {
-          // Remove numbering if present (e.g., "1. " or "1) ")
-          const cleanNote = note.replace(/^\d+[\.\)]\s*/, '').trim();
-          
-          if (cleanNote) {
-            // Determine risk level based on content
-            const riskLevel = determineRiskLevel(cleanNote, service.name);
-            
-            mustKnows.push({
-              id: `${service.id}_mustknow_${index}`,
-              serviceId: service.id,
-              serviceName: service.name,
-              description: cleanNote,
-              isAcknowledged: false,
-              required: true,
-              riskLevel: riskLevel
-            });
-          }
+      const notesFromInternal = (service.internalNotes || '')
+        .split('\n')
+        .map(note => note.trim())
+        .filter(Boolean);
+      const notesFromArray = Array.isArray(service.serviceNotes)
+        ? service.serviceNotes.map(note => note.trim()).filter(Boolean)
+        : [];
+      const dedupedNotes = Array.from(new Set([...notesFromInternal, ...notesFromArray]));
+      const notes = dedupedNotes.length
+        ? dedupedNotes
+        : [
+            `Service-specific process, quality limits, and risks for ${service.name} have been explained to the client.`
+          ];
+
+      notes.forEach((note, index) => {
+        const cleanNote = note.replace(/^\d+[\.\)]\s*/, '').trim();
+        if (!cleanNote) {
+          return;
+        }
+
+        const riskLevel = determineRiskLevel(cleanNote, service.name);
+        mustKnows.push({
+          id: `${service.id}_mustknow_${index}`,
+          serviceId: service.id,
+          serviceName: service.name,
+          description: cleanNote,
+          isAcknowledged: false,
+          required: true,
+          riskLevel
         });
-      }
+      });
     });
     
     return mustKnows;
@@ -775,6 +795,49 @@ export default function DiamondRimsPreChecklistCreatePage({
     
     return risks;
   }, []);
+
+  const resolveSelectedServiceSources = useCallback((selectedServiceNames: string[]): ServiceDisclosureSource[] => {
+    if (!selectedServiceNames.length) {
+      return [];
+    }
+
+    const usedServiceIds = new Set<string>();
+
+    return selectedServiceNames.map((serviceName, index) => {
+      const normalizedSelected = normalizeServiceLabel(serviceName);
+      const matchedService = availableServices.find((service) => {
+        if (usedServiceIds.has(service.id)) {
+          return false;
+        }
+
+        const normalizedServiceName = normalizeServiceLabel(service.name);
+        return (
+          normalizedServiceName === normalizedSelected ||
+          normalizedServiceName.includes(normalizedSelected) ||
+          normalizedSelected.includes(normalizedServiceName)
+        );
+      });
+
+      if (matchedService) {
+        usedServiceIds.add(matchedService.id);
+        return {
+          id: matchedService.id,
+          name: matchedService.name,
+          description: matchedService.description,
+          internalNotes: matchedService.internalNotes,
+          serviceNotes: matchedService.serviceNotes
+        };
+      }
+
+      return {
+        id: `custom-service-${index}-${normalizedSelected || 'manual'}`,
+        name: serviceName,
+        description: '',
+        internalNotes: '',
+        serviceNotes: []
+      };
+    });
+  }, [availableServices]);
 
   // Fetch services on component mount
   useEffect(() => {
@@ -851,18 +914,7 @@ export default function DiamondRimsPreChecklistCreatePage({
   useEffect(() => {
     const updateMustKnowsForSelectedServices = () => {
       const selectedServiceNames = formData.services.actualService;
-      const selectedServices = availableServices.filter(service => 
-        selectedServiceNames.includes(service.name)
-      );
-      
-      if (selectedServices.length === 0) {
-        // If no services selected, only show general must-knows
-        const generalOnly = serviceMustKnows.filter(m => m.serviceId === 'general');
-        setServiceMustKnows(generalOnly);
-        return;
-      }
-      
-      // Generate must-knows for selected services
+      const selectedServices = resolveSelectedServiceSources(selectedServiceNames);
       const selectedMustKnows = generateServiceMustKnowsFromServices(selectedServices);
       
       // Merge with existing acknowledgments (preserve checked state for existing items)
@@ -885,7 +937,7 @@ export default function DiamondRimsPreChecklistCreatePage({
     };
     
     updateMustKnowsForSelectedServices();
-  }, [formData.services.actualService, availableServices, generateServiceMustKnowsFromServices]);
+  }, [formData.services.actualService, generateServiceMustKnowsFromServices, resolveSelectedServiceSources]);
 
   useEffect(() => {
     loadRelatedData();
@@ -1001,6 +1053,10 @@ export default function DiamondRimsPreChecklistCreatePage({
             subtotal: 0,
             total: 0
           },
+      agreedAmount: {
+        total: checklist?.agreedAmount?.total ?? 0,
+        breakdown: checklist?.agreedAmount?.breakdown || ''
+      },
 
       serviceIntake: {
         date: checklist?.serviceIntake?.date || new Date().toISOString().split('T')[0],
@@ -1837,6 +1893,7 @@ export default function DiamondRimsPreChecklistCreatePage({
         remarks: formData.remarks,
         tags: formData.tags,
         pricingSnapshot: formData.pricingSnapshot,
+        agreedAmount: formData.agreedAmount,
         approved: false,
         
         serviceIntake: {
@@ -2107,6 +2164,10 @@ export default function DiamondRimsPreChecklistCreatePage({
         ['ADDITIONAL INFORMATION', '', '', '', '', '', ''],
         [formData.additionalInformation, '', '', '', '', '', ''],
         ['', '', '', '', '', '', ''],
+        ['CLIENT CHARGE', '', '', '', '', '', ''],
+        ['Amount Charged (KES):', formData.agreedAmount.total, '', '', '', '', ''],
+        ['Breakdown:', formData.agreedAmount.breakdown, '', '', '', '', ''],
+        ['', '', '', '', '', '', ''],
         ['TERMS ACCEPTANCE', '', '', '', '', '', ''],
         ['Must Know Accepted:', formData.mustKnowAccepted ? 'YES' : 'NO', '', 'Terms Accepted:', formData.acceptTerms ? 'YES' : 'NO', '', ''],
         ['Client Signature:', formData.clientSignature ? 'SIGNED' : 'NOT SIGNED', '', 'Inspector Signature:', formData.inspectorSignature ? 'SIGNED' : 'NOT SIGNED', '', ''],
@@ -2317,9 +2378,7 @@ export default function DiamondRimsPreChecklistCreatePage({
 
   // Check if all required risks are acknowledged for selected services
   const allRequiredRisksAcknowledged = () => {
-    const selectedServiceNames = formData.services.actualService;
-    const selectedServiceIds = availableServices
-      .filter(service => selectedServiceNames.includes(service.name))
+    const selectedServiceIds = resolveSelectedServiceSources(formData.services.actualService)
       .map(service => service.id);
     
     // Include general risks and risks for selected services
@@ -2484,9 +2543,7 @@ export default function DiamondRimsPreChecklistCreatePage({
 
   // Get risks for selected services
   const getSelectedServiceRisks = () => {
-    const selectedServiceNames = formData.services.actualService;
-    const selectedServiceIds = availableServices
-      .filter(service => selectedServiceNames.includes(service.name))
+    const selectedServiceIds = resolveSelectedServiceSources(formData.services.actualService)
       .map(service => service.id);
     
     return serviceRisks.filter(risk => 
@@ -3890,7 +3947,18 @@ export default function DiamondRimsPreChecklistCreatePage({
                       <input
                         type="text"
                         value={formData.tireDOT[position.key].code || ''}
-                        onChange={(e) => handleNestedInputChange(`tireDOT.${position.key}`, 'code', e.target.value)}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            tireDOT: {
+                              ...prev.tireDOT,
+                              [position.key]: {
+                                ...prev.tireDOT[position.key],
+                                code: e.target.value
+                              }
+                            }
+                          }))
+                        }
                         placeholder="DOT code"
                         className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
                       />
@@ -4094,81 +4162,6 @@ export default function DiamondRimsPreChecklistCreatePage({
                 Terms & Conditions
               </h2>
               
-              {/* MUST KNOW Section with individual checkboxes */}
-              <div className="mb-8">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium text-gray-900">MUST KNOW</h3>
-                  {formData.services.actualService.length > 0 && (
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                      Must-knows from {formData.services.actualService.length} selected service(s)
-                    </span>
-                  )}
-                </div>
-                
-                {serviceMustKnows.length === 0 ? (
-                  <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
-                    <ClipboardCheck className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-sm text-gray-600">No must-know items to display</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Select services above to see their must-know requirements
-                    </p>
-                  </div>
-                ) : (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                    <div className="space-y-4">
-                      {serviceMustKnows.map((mustKnow) => (
-                        <div key={mustKnow.id} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-100">
-                          <input
-                            type="checkbox"
-                            id={`mustknow-${mustKnow.id}`}
-                            checked={mustKnow.isAcknowledged}
-                            onChange={(e) => handleMustKnowAcknowledgment(mustKnow.id, e.target.checked)}
-                            className="mt-1 h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-                            required={mustKnow.required}
-                          />
-                          <div className="flex-1">
-                            <label htmlFor={`mustknow-${mustKnow.id}`} className="text-sm font-medium text-gray-700">
-                              {mustKnow.description}
-                              {mustKnow.required && <span className="text-red-500 ml-1">*</span>}
-                            </label>
-                            {mustKnow.serviceName !== 'General' && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                Applies to: {mustKnow.serviceName}
-                              </p>
-                            )}
-                          </div>
-                          <span className={`text-xs px-2 py-1 rounded-full ${
-                            mustKnow.riskLevel === 'high' ? 'bg-red-100 text-red-800' :
-                            mustKnow.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
-                            {mustKnow.riskLevel === 'high' ? 'High Risk' :
-                            mustKnow.riskLevel === 'medium' ? 'Medium Risk' : 'Low Risk'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {/* Summary */}
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm">
-                          <span className="text-gray-600">Must-knows acknowledged: </span>
-                          <span className="font-medium">
-                            {serviceMustKnows.filter(m => m.isAcknowledged).length} of {serviceMustKnows.length}
-                          </span>
-                        </div>
-                        {!allMustKnowsAcknowledged() && (
-                          <div className="text-xs text-red-600">
-                            All required must-knows must be acknowledged
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-              
               {/* Service-specific Risks with individual checkboxes */}
               <div className="mb-8">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">ASSOCIATED RISKS</h3>
@@ -4305,6 +4298,112 @@ export default function DiamondRimsPreChecklistCreatePage({
                           <span>Customer accepts inherent risks of rim services</span>
                         </li>
                       </ul>
+
+                      <div className="mt-5 pt-4 border-t border-gray-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <h5 className="font-medium text-gray-900">Must Know (Continuation of Key Points):</h5>
+                          {formData.services.actualService.length > 0 && (
+                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                              {formData.services.actualService.length} selected service(s)
+                            </span>
+                          )}
+                        </div>
+
+                        {serviceMustKnows.length === 0 ? (
+                          <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-lg">
+                            <ClipboardCheck className="h-10 w-10 text-gray-400 mx-auto mb-2" />
+                            <p className="text-sm text-gray-600">No must-know items to display</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {serviceMustKnows.map((mustKnow) => (
+                              <div key={mustKnow.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                <input
+                                  type="checkbox"
+                                  id={`mustknow-${mustKnow.id}`}
+                                  checked={mustKnow.isAcknowledged}
+                                  onChange={(e) => handleMustKnowAcknowledgment(mustKnow.id, e.target.checked)}
+                                  className="mt-1 h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                                  required={mustKnow.required}
+                                />
+                                <div className="flex-1">
+                                  <label htmlFor={`mustknow-${mustKnow.id}`} className="text-sm font-medium text-gray-700">
+                                    {mustKnow.description}
+                                    {mustKnow.required && <span className="text-red-500 ml-1">*</span>}
+                                  </label>
+                                  {mustKnow.serviceName !== 'General' && (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      Applies to: {mustKnow.serviceName}
+                                    </p>
+                                  )}
+                                </div>
+                                <span className={`text-xs px-2 py-1 rounded-full ${
+                                  mustKnow.riskLevel === 'high' ? 'bg-red-100 text-red-800' :
+                                  mustKnow.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-blue-100 text-blue-800'
+                                }`}>
+                                  {mustKnow.riskLevel === 'high' ? 'High Risk' :
+                                  mustKnow.riskLevel === 'medium' ? 'Medium Risk' : 'Low Risk'}
+                                </span>
+                              </div>
+                            ))}
+
+                            <div className="pt-2">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-gray-600">Must-knows acknowledged:</span>
+                                <span className="font-medium">
+                                  {serviceMustKnows.filter(m => m.isAcknowledged).length} of {serviceMustKnows.length}
+                                </span>
+                              </div>
+                              {!allMustKnowsAcknowledged() && (
+                                <div className="text-xs text-red-600 mt-1">
+                                  All required must-knows must be acknowledged
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <h5 className="font-medium text-gray-900 mb-3">Client Charge Details</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Amount Charged (KES)
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={formData.agreedAmount.total}
+                            onChange={(e) => handleNestedInputChange('agreedAmount', 'total', parseFloat(e.target.value) || 0)}
+                            placeholder="0.00"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Total (Formatted)
+                          </label>
+                          <div className="px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm font-medium text-gray-700">
+                            KES {Number(formData.agreedAmount.total || 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Breakdown
+                        </label>
+                        <textarea
+                          value={formData.agreedAmount.breakdown}
+                          onChange={(e) => handleNestedInputChange('agreedAmount', 'breakdown', e.target.value)}
+                          placeholder="Example: Diamond cutting KES 8,000; Straightening KES 4,000; TPMS service KES 1,500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          rows={3}
+                        />
+                      </div>
                     </div>
                   </div>
                   

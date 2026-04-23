@@ -207,6 +207,10 @@ export interface PostChecklist {
   diagnosticChargesAccepted?: boolean;
   serviceRating?: number;
   serviceComments?: string;
+  agreedAmount?: {
+    total?: number;
+    breakdown?: string;
+  };
   checklistType?: string;
   remarks?: string;
   qualityScore?: number;
@@ -253,6 +257,10 @@ export interface CreatePostChecklistDto {
   diagnosticChargesAccepted?: boolean;
   serviceRating?: number;
   serviceComments?: string;
+  agreedAmount?: {
+    total?: number;
+    breakdown?: string;
+  };
   
   // Added for signatures
   signatures?: Array<{
@@ -290,6 +298,10 @@ export interface UpdatePostChecklistDto {
   serviceRating?: number;
   status?: string;
   serviceComments?: string;
+  agreedAmount?: {
+    total?: number;
+    breakdown?: string;
+  };
   remarks?: string;
   
   // Added for signatures
