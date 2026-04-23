@@ -247,6 +247,10 @@ export default function DiamondRimsPostChecklistCreatePage({
     // Uploads
     uploadedImages: [] as string[],
     remarks: '',
+    agreedAmount: {
+      total: 0,
+      breakdown: '',
+    },
     
     // Status
     approved: false,
@@ -467,6 +471,10 @@ export default function DiamondRimsPostChecklistCreatePage({
         const acceptTerms = (checklist as any).acceptTerms || false;
         const remarks = (checklist as any).remarks || (checklist as any).notes || '';
         const files = (checklist as any).files || [];
+        const agreedAmount = {
+          total: Number((checklist as any).agreedAmount?.total) || 0,
+          breakdown: (checklist as any).agreedAmount?.breakdown || '',
+        };
 
         setFormData(prev => ({
           ...prev,
@@ -475,7 +483,8 @@ export default function DiamondRimsPostChecklistCreatePage({
           clientSignature,
           acceptTerms,
           remarks,
-          files
+          files,
+          agreedAmount
         }));
 
         if (clientSignature) {
@@ -681,6 +690,12 @@ export default function DiamondRimsPostChecklistCreatePage({
         deliveryMode = preChecklist.deliveryMode;
       }
 
+      const agreedTotal = Number(preChecklist?.agreedAmount?.total)
+        || Number(opportunity?.amount)
+        || Number(opportunity?.productPrice)
+        || 0;
+      const agreedBreakdown = preChecklist?.agreedAmount?.breakdown || '';
+
       setFormData(prev => ({
         ...prev,
         vehicleId: extractedVehicleId || prev.vehicleId, // Set the vehicle ID
@@ -710,6 +725,10 @@ export default function DiamondRimsPostChecklistCreatePage({
         },
         deliveryInformation: {
           mode: deliveryMode || prev.deliveryInformation.mode,
+        },
+        agreedAmount: {
+          total: agreedTotal || prev.agreedAmount.total,
+          breakdown: agreedBreakdown || prev.agreedAmount.breakdown,
         },
         files: preChecklist?.files ? [...preChecklist.files] : prev.files
       }));
@@ -885,6 +904,7 @@ export default function DiamondRimsPostChecklistCreatePage({
         services: {
           actualService: formData.services.actualService,
         },
+        agreedAmount: formData.agreedAmount,
         qualityChecks: formData.qualityChecks,
         serviceCompletion: formData.serviceCompletion,
         remarks: formData.remarks,
@@ -1016,6 +1036,10 @@ export default function DiamondRimsPostChecklistCreatePage({
         ['', '', '', '', ''],
         ['ADDITIONAL INFORMATION', '', '', '', ''],
         [formData.remarks, '', '', '', ''],
+        ['', '', '', '', ''],
+        ['CLIENT CHARGE DETAILS', '', '', '', ''],
+        ['Amount Charged (KES):', formData.agreedAmount.total, '', '', ''],
+        ['Breakdown:', formData.agreedAmount.breakdown, '', '', ''],
         ['', '', '', '', ''],
         ['SIGNATURES', '', '', '', ''],
         ['Client Signature:', formData.clientSignature ? '✓ Signed' : 'Not Signed', '', '', ''],
@@ -1794,6 +1818,53 @@ export default function DiamondRimsPostChecklistCreatePage({
                   value={formData.remarks}
                   onChange={(e) => handleInputChange('remarks', e.target.value)}
                   placeholder="Any additional notes or observations..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            {/* Client Charge Details */}
+            <div className="border-b pb-8">
+              <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                <FileCheck className="h-5 w-5 text-purple-600" />
+                Client Charge Details
+              </h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Amount Charged (KES)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={formData.agreedAmount.total}
+                    onChange={(e) => handleNestedInputChange('agreedAmount', 'total', parseFloat(e.target.value) || 0)}
+                    placeholder="0.00"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Total (Formatted)
+                  </label>
+                  <div className="w-full px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm font-medium text-gray-700">
+                    KES {Number(formData.agreedAmount.total || 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Breakdown
+                </label>
+                <textarea
+                  value={formData.agreedAmount.breakdown}
+                  onChange={(e) => handleNestedInputChange('agreedAmount', 'breakdown', e.target.value)}
+                  placeholder="Example: Straightening KES 5,000; Diamond Cutting KES 9,000; Balancing KES 1,500"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                   rows={3}
                 />

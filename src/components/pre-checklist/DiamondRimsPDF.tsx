@@ -543,29 +543,29 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>TIRE DOT - FR (FRONT RIGHT)</Text>
-              <Text style={styles.value}>{formData.tireDOT?.fr || '—'}</Text>
+              <Text style={styles.value}>{formData.tireDOT?.fr?.code || '—'}</Text>
             </View>
             <View style={styles.col}>
               <Text style={styles.label}>TIRE DOT - FL (FRONT LEFT)</Text>
-              <Text style={styles.value}>{formData.tireDOT?.fl || '—'}</Text>
+              <Text style={styles.value}>{formData.tireDOT?.fl?.code || '—'}</Text>
             </View>
           </View>
 
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>TIRE DOT - BR (BACK RIGHT)</Text>
-              <Text style={styles.value}>{formData.tireDOT?.br || '—'}</Text>
+              <Text style={styles.value}>{formData.tireDOT?.br?.code || '—'}</Text>
             </View>
             <View style={styles.col}>
               <Text style={styles.label}>TIRE DOT - BL (BACK LEFT)</Text>
-              <Text style={styles.value}>{formData.tireDOT?.bl || '—'}</Text>
+              <Text style={styles.value}>{formData.tireDOT?.bl?.code || '—'}</Text>
             </View>
           </View>
 
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>TIRE DOT - SPARE</Text>
-              <Text style={styles.value}>{formData.tireDOT?.spare || '—'}</Text>
+              <Text style={styles.value}>{formData.tireDOT?.spare?.code || '—'}</Text>
             </View>
           </View>
         </View>
