@@ -4137,6 +4137,7 @@ export default function HeadlightPreChecklistCreatePage({
       <TermsModal 
         isOpen={showTermsModal} 
         onClose={() => setShowTermsModal(false)} 
+        mode="headlight"
       />
     </div>
   );

@@ -4901,6 +4901,8 @@ export default function DiamondRimsPreChecklistCreatePage({
       <TermsModal 
         isOpen={showTermsModal} 
         onClose={() => setShowTermsModal(false)} 
+        mode="diamond-rims"
+        selectedServices={formData.services.actualService}
       />
     </div>
   );
