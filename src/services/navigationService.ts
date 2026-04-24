@@ -14,7 +14,19 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/opportunities', label: 'Opportunities', icon: 'Target', permission: 'opportunities.read' },
   // { href: '/customers', label: 'Customers', icon: 'Users', permission: 'clients.read' },
   { href: '/orders/sales-orders', label: 'Sales Orders', icon: 'ShoppingBag', permission: 'orders.read' },
-  { href: '/orders/work-orders', label: 'Work Orders', icon: 'Wrench', permission: 'jobs.read' },
+  {
+    href: '/orders/work-orders',
+    label: 'Work Orders',
+    icon: 'Wrench',
+    permission: 'jobs.read',
+    children: [
+      {
+        href: '/pre-checklist/create?clientType=diamond-rims&source=sidebar',
+        label: 'Checklist',
+        permission: 'jobs.read',
+      },
+    ],
+  },
   { href: '/manychat', label: 'ManyChat', icon: 'MessageSquare', permission: 'manychat.access' },
   { href: '/tickets', label: 'Tickets', icon: 'Ticket' },
   { href: '/employee', label: 'Employee Portal', icon: 'Briefcase' },
