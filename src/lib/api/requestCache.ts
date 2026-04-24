@@ -6,7 +6,7 @@ type CacheEntry = {
 const responseCache = new Map<string, CacheEntry>();
 const pendingRequests = new Map<string, Promise<unknown>>();
 
-const DEFAULT_TTL_MS = 5000;
+const DEFAULT_TTL_MS = 30_000;
 
 export function buildRequestCacheKey(
   method: string,

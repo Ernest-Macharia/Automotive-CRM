@@ -26,8 +26,28 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const [isLoadingOrg, setIsLoadingOrg] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const fetchedOrganizationIdRef = useRef<string | null>(null);
+  const prefetchedRoutesRef = useRef<Set<string>>(new Set());
   
   const { user, isLoading: userLoading } = useCurrentUser();
+  const prefetchRoute = useCallback((href: string) => {
+    if (typeof href !== 'string') return;
+
+    const normalizedHref = href.trim();
+    if (!normalizedHref || !normalizedHref.startsWith('/')) return;
+
+    const routesToPrefetch = new Set<string>([normalizedHref]);
+    const baseRoute = normalizedHref.split('?')[0];
+
+    if (baseRoute && baseRoute !== normalizedHref) {
+      routesToPrefetch.add(baseRoute);
+    }
+
+    routesToPrefetch.forEach((route) => {
+      if (prefetchedRoutesRef.current.has(route)) return;
+      prefetchedRoutesRef.current.add(route);
+      router.prefetch(route);
+    });
+  }, [router]);
 
   useEffect(() => {
     if (user) {
@@ -74,16 +94,60 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   useEffect(() => {
     if (navItems.length === 0) return;
 
-    const timer = window.setTimeout(() => {
-      navItems.slice(0, 8).forEach((item) => {
-        if (typeof item?.href === 'string') {
-          router.prefetch(item.href);
-        }
-      });
-    }, 300);
+    const routes = navItems.flatMap((item) => {
+      const allRoutes: string[] = [];
 
-    return () => window.clearTimeout(timer);
-  }, [navItems, router]);
+      if (typeof item?.href === 'string') {
+        allRoutes.push(item.href);
+      }
+
+      if (Array.isArray(item?.children)) {
+        const allowedChildren = item.children.filter((child: any) => (
+          !child?.permission || NavigationService.userHasPermission(user, child.permission)
+        ));
+
+        allowedChildren.forEach((child: any) => {
+          if (typeof child?.href === 'string') {
+            allRoutes.push(child.href);
+          }
+        });
+      }
+
+      return allRoutes;
+    });
+
+    const uniqueRoutes = Array.from(new Set(routes));
+    let currentIndex = 0;
+    let warmupTimer = 0;
+    let chunkTimer = 0;
+    let cancelled = false;
+
+    const prefetchChunk = () => {
+      if (cancelled) return;
+
+      for (let i = 0; i < 4 && currentIndex < uniqueRoutes.length; i += 1) {
+        const route = uniqueRoutes[currentIndex];
+        currentIndex += 1;
+        if (route) {
+          prefetchRoute(route);
+        }
+      }
+
+      if (currentIndex < uniqueRoutes.length) {
+        chunkTimer = window.setTimeout(prefetchChunk, 80);
+      }
+    };
+
+    warmupTimer = window.setTimeout(() => {
+      prefetchChunk();
+    }, 120);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(warmupTimer);
+      window.clearTimeout(chunkTimer);
+    };
+  }, [navItems, prefetchRoute, user]);
 
   const fetchOrganization = async (organizationId: string) => {
     setIsLoadingOrg(true);
@@ -114,10 +178,6 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
       setIsLoadingOrg(false);
     }
   };
-
-  const prefetchRoute = useCallback((href: string) => {
-    router.prefetch(href);
-  }, [router]);
 
   const normalizeHrefForMatch = useCallback((href?: string) => {
     if (!href) return '';

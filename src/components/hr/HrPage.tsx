@@ -112,15 +112,46 @@ export default function HRDashboardPage() {
     }
   }, [activeTab, statusFilter, departmentFilter]);
 
+  const getErrorStatus = (error: unknown): number | null => {
+    if (!error || typeof error !== 'object') return null;
+    const anyError = error as any;
+    if (typeof anyError.status === 'number') return anyError.status;
+    if (typeof anyError?.response?.status === 'number') return anyError.response.status;
+    return null;
+  };
+
   const loadDashboard = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const [data, alertData] = await Promise.all([
+      const [dashboardResult, alertsResult] = await Promise.allSettled([
         hrService.getDashboard(),
-        hrService.getHrAlerts().catch(() => []),
+        hrService.getHrAlerts(),
       ]);
-      setDashboardData(data);
-      setAlerts(alertData.length > 0 ? alertData : data.alerts || []);
+
+      const nextDashboardData =
+        dashboardResult.status === 'fulfilled'
+          ? dashboardResult.value
+          : hrService.getEmptyDashboard();
+
+      setDashboardData(nextDashboardData);
+
+      const nextAlerts =
+        alertsResult.status === 'fulfilled' && alertsResult.value.length > 0
+          ? alertsResult.value
+          : nextDashboardData.alerts || [];
+
+      setAlerts(nextAlerts);
+
+      if (dashboardResult.status === 'rejected') {
+        const status = getErrorStatus(dashboardResult.reason);
+        const isKnownDashboardEndpointGap =
+          status === 404 || status === 405 || status === 501;
+
+        if (!isKnownDashboardEndpointGap) {
+          console.error('Error loading HR dashboard:', dashboardResult.reason);
+          showToast('Failed to load HR dashboard', 'error');
+        }
+      }
     } catch (error) {
       console.error('Error loading HR dashboard:', error);
       showToast('Failed to load HR dashboard', 'error');
