@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PDFDownloadLink, pdf } from '@react-pdf/renderer';
 import SignatureCanvas from 'react-signature-canvas';
@@ -167,6 +167,11 @@ export default function DiamondRimsPostChecklistCreatePage({
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [showTechnicianDropdown, setShowTechnicianDropdown] = useState(false);
   const [userSearch, setUserSearch] = useState('');
+  const [clientSearch, setClientSearch] = useState('');
+  const [clientOptions, setClientOptions] = useState<any[]>([]);
+  const [loadingClientOptions, setLoadingClientOptions] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState('');
+  const [linkingClient, setLinkingClient] = useState(false);
   const technicianDropdownRef = useRef<HTMLDivElement>(null);
   const draftRestoredRef = useRef(false);
 
@@ -380,6 +385,141 @@ export default function DiamondRimsPostChecklistCreatePage({
     }
   };
 
+  const getClientOptionLabel = (candidate: any) => {
+    const customerName = candidate?.customer?.name?.trim() || 'Unnamed Client';
+    const subject = candidate?.subject?.trim();
+    const firstVehicle = candidate?.vehicles?.[0];
+    const licensePlate =
+      firstVehicle?.registrationNumber ||
+      firstVehicle?.regNumber ||
+      firstVehicle?.regNo ||
+      firstVehicle?.licensePlate ||
+      firstVehicle?.plateNumber ||
+      '';
+
+    const subjectSegment = subject ? ` | ${subject}` : '';
+    const plateSegment = licensePlate ? ` | ${licensePlate}` : '';
+    return `${customerName}${subjectSegment}${plateSegment}`;
+  };
+
+  const loadClientOptions = useCallback(async (searchTerm = '') => {
+    try {
+      setLoadingClientOptions(true);
+      const response = await opportunityService.getAllOpportunities({
+        page: 1,
+        limit: 40,
+        sort: 'updatedAt:desc',
+        search: searchTerm.trim() || undefined,
+      });
+      const options = Array.isArray(response?.data) ? response.data : [];
+      setClientOptions(options);
+    } catch (error) {
+      console.error('Error loading post-checklist clients:', error);
+      showToast('Failed to load clients. Try searching again.', 'warning');
+    } finally {
+      setLoadingClientOptions(false);
+    }
+  }, [showToast]);
+
+  const handleClientSelection = async (nextClientId: string) => {
+    setSelectedClientId(nextClientId);
+
+    if (!nextClientId) {
+      setOpportunity(null);
+      setVehicle(null);
+      setPreChecklist(null);
+      setAutoPopulated(false);
+      setFormData(prev => ({
+        ...prev,
+        opportunityId: '',
+        preChecklistId: '',
+        vehicleId: '',
+      }));
+      return;
+    }
+
+    try {
+      setLinkingClient(true);
+
+      let selectedOpportunity = clientOptions.find((candidate) => {
+        const candidateId = typeof candidate === 'object' ? (candidate._id || candidate.id || '') : '';
+        return candidateId === nextClientId;
+      });
+
+      if (!selectedOpportunity) {
+        selectedOpportunity = await opportunityService.getOpportunityById(nextClientId, false);
+      }
+
+      setOpportunity(selectedOpportunity);
+      setPreChecklist(null);
+      setClientOptions(prev => {
+        const alreadyExists = prev.some((candidate) => {
+          const candidateId = typeof candidate === 'object' ? (candidate._id || candidate.id || '') : '';
+          return candidateId === nextClientId;
+        });
+        if (alreadyExists) return prev;
+        return [selectedOpportunity, ...prev].slice(0, 40);
+      });
+
+      const opportunityVehicle = selectedOpportunity?.vehicles?.[0] || null;
+      const selectedVehicleId = typeof opportunityVehicle === 'object'
+        ? (opportunityVehicle?._id || opportunityVehicle?.id || '')
+        : '';
+
+      let selectedVehicle = opportunityVehicle;
+      if (selectedVehicleId) {
+        try {
+          selectedVehicle = await vehicleService.getVehicleById(selectedVehicleId);
+        } catch (vehicleError) {
+          console.error('Error loading selected post-checklist vehicle details:', vehicleError);
+        }
+      }
+
+      setVehicle(selectedVehicle || null);
+      setAutoPopulated(false);
+      setFormData(prev => ({
+        ...prev,
+        opportunityId: nextClientId,
+        preChecklistId: '',
+        vehicleId: selectedVehicleId || prev.vehicleId,
+      }));
+
+      autoPopulateFromSource({
+        opportunityData: selectedOpportunity,
+        preChecklistData: null,
+        vehicleOverride: selectedVehicle,
+      });
+
+      showToast('Client details loaded into the post-checklist', 'success');
+    } catch (error) {
+      console.error('Error selecting post-checklist client:', error);
+      showToast('Failed to load selected client details', 'error');
+    } finally {
+      setLinkingClient(false);
+    }
+  };
+
+  useEffect(() => {
+    if (mode !== 'create' || opportunityId || preChecklistId || workOrderId) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      loadClientOptions(clientSearch);
+    }, 300);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [mode, opportunityId, preChecklistId, workOrderId, clientSearch, loadClientOptions]);
+
+  useEffect(() => {
+    const resolvedClientId =
+      formData.opportunityId ||
+      (typeof opportunity === 'object' ? (opportunity?._id || opportunity?.id || '') : '');
+    if (resolvedClientId) {
+      setSelectedClientId(resolvedClientId);
+    }
+  }, [formData.opportunityId, opportunity]);
+
   const loadRelatedData = async () => {
     try {
       setLoading(true);
@@ -562,23 +702,33 @@ export default function DiamondRimsPostChecklistCreatePage({
     }
   };
 
-  const autoPopulateFromSource = () => {
+  const autoPopulateFromSource = (options?: {
+    opportunityData?: any;
+    preChecklistData?: any;
+    vehicleOverride?: any;
+  }) => {
     try {
+      const selectedPreChecklist = options?.preChecklistData !== undefined
+        ? options.preChecklistData
+        : preChecklist;
+      const selectedOpportunity = options?.opportunityData ?? opportunity;
+      const selectedVehicle = options?.vehicleOverride ?? vehicle;
+
       // Prioritize pre-checklist data if available, otherwise use opportunity
-      const sourceData = preChecklist || opportunity;
+      const sourceData = selectedPreChecklist || selectedOpportunity;
       
       if (!sourceData) return;
 
       // Extract vehicle ID
       let extractedVehicleId = '';
-      if (preChecklist?.vehicleId) {
-        extractedVehicleId = typeof preChecklist.vehicleId === 'object' 
-          ? preChecklist.vehicleId._id 
-          : preChecklist.vehicleId;
-      } else if (vehicle?._id) {
-        extractedVehicleId = vehicle._id;
-      } else if (opportunity?.vehicles?.[0]?._id) {
-        extractedVehicleId = opportunity.vehicles[0]._id;
+      if (selectedPreChecklist?.vehicleId) {
+        extractedVehicleId = typeof selectedPreChecklist.vehicleId === 'object' 
+          ? selectedPreChecklist.vehicleId._id 
+          : selectedPreChecklist.vehicleId;
+      } else if (selectedVehicle?._id) {
+        extractedVehicleId = selectedVehicle._id;
+      } else if (selectedOpportunity?.vehicles?.[0]?._id) {
+        extractedVehicleId = selectedOpportunity.vehicles[0]._id;
       }
 
       // Extract customer information
@@ -587,20 +737,20 @@ export default function DiamondRimsPostChecklistCreatePage({
       let mobile = '';
       let email = '';
 
-      if (preChecklist?.customerDetails) {
+      if (selectedPreChecklist?.customerDetails) {
         // From pre-checklist
-        firstName = preChecklist.customerDetails.firstName || '';
-        lastName = preChecklist.customerDetails.lastName || '';
-        mobile = preChecklist.customerDetails.mobile || '';
-        email = preChecklist.customerDetails.email || '';
-      } else if (opportunity?.customer) {
+        firstName = selectedPreChecklist.customerDetails.firstName || '';
+        lastName = selectedPreChecklist.customerDetails.lastName || '';
+        mobile = selectedPreChecklist.customerDetails.mobile || '';
+        email = selectedPreChecklist.customerDetails.email || '';
+      } else if (selectedOpportunity?.customer) {
         // From opportunity
-        const customerName = opportunity.customer.name || '';
+        const customerName = selectedOpportunity.customer.name || '';
         const nameParts = customerName.split(' ');
         firstName = nameParts[0] || '';
         lastName = nameParts.slice(1).join(' ') || '';
-        mobile = opportunity.customer.phone || '';
-        email = opportunity.customer.email || '';
+        mobile = selectedOpportunity.customer.phone || '';
+        email = selectedOpportunity.customer.email || '';
       }
 
       // Extract vehicle information
@@ -610,35 +760,35 @@ export default function DiamondRimsPostChecklistCreatePage({
       let yearOfManufacture = '';
       let mileage = '';
 
-      if (preChecklist?.carDetails) {
+      if (selectedPreChecklist?.carDetails) {
         // From pre-checklist
-        carMake = preChecklist.carDetails.carMake || '';
-        carModel = preChecklist.carDetails.carModel || '';
-        licensePlate = preChecklist.carDetails.licensePlate || '';
-        yearOfManufacture = preChecklist.carDetails.yearOfManufacture || '';
-        mileage = preChecklist.carDetails.mileage || '';
-      } else if (vehicle) {
+        carMake = selectedPreChecklist.carDetails.carMake || '';
+        carModel = selectedPreChecklist.carDetails.carModel || '';
+        licensePlate = selectedPreChecklist.carDetails.licensePlate || '';
+        yearOfManufacture = selectedPreChecklist.carDetails.yearOfManufacture || '';
+        mileage = selectedPreChecklist.carDetails.mileage || '';
+      } else if (selectedVehicle) {
         // From vehicle
-        carMake = vehicle.make || vehicle.manufacturer || '';
-        carModel = vehicle.model || vehicle.modelName || '';
+        carMake = selectedVehicle.make || selectedVehicle.manufacturer || '';
+        carModel = selectedVehicle.model || selectedVehicle.modelName || '';
         
         // Try different license plate fields
         const plateFields = ['registrationNumber', 'regNumber', 'regNo', 'licensePlate', 'plateNumber'];
         for (const field of plateFields) {
-          if (vehicle[field]) {
-            licensePlate = vehicle[field];
+          if (selectedVehicle[field]) {
+            licensePlate = selectedVehicle[field];
             break;
           }
         }
         
         // Try different year fields
-        if (vehicle.year) yearOfManufacture = vehicle.year.toString();
-        else if (vehicle.yearOfManufacture) yearOfManufacture = vehicle.yearOfManufacture.toString();
-        else if (vehicle.modelYear) yearOfManufacture = vehicle.modelYear.toString();
+        if (selectedVehicle.year) yearOfManufacture = selectedVehicle.year.toString();
+        else if (selectedVehicle.yearOfManufacture) yearOfManufacture = selectedVehicle.yearOfManufacture.toString();
+        else if (selectedVehicle.modelYear) yearOfManufacture = selectedVehicle.modelYear.toString();
         
-        mileage = vehicle.mileage || vehicle.odometer || '';
-      } else if (opportunity?.vehicles?.[0]) {
-        const oppVehicle = opportunity.vehicles[0];
+        mileage = selectedVehicle.mileage || selectedVehicle.odometer || '';
+      } else if (selectedOpportunity?.vehicles?.[0]) {
+        const oppVehicle = selectedOpportunity.vehicles[0];
         carMake = oppVehicle.make || oppVehicle.manufacturer || '';
         carModel = oppVehicle.model || oppVehicle.modelName || '';
         
@@ -655,43 +805,43 @@ export default function DiamondRimsPostChecklistCreatePage({
 
       // Extract services
       let services: string[] = [];
-      if (preChecklist?.services?.actualService) {
-        services = preChecklist.services.actualService;
-      } else if (opportunity?.services) {
-        if (Array.isArray(opportunity.services)) {
-          services = opportunity.services.map((s: any) => s.name || s);
+      if (selectedPreChecklist?.services?.actualService) {
+        services = selectedPreChecklist.services.actualService;
+      } else if (selectedOpportunity?.services) {
+        if (Array.isArray(selectedOpportunity.services)) {
+          services = selectedOpportunity.services.map((s: any) => s.name || s);
         }
       }
 
       // Extract powder coating color
       let powderCoatingColor = '';
-      if (preChecklist?.powderCoating?.colourRAL) {
-        powderCoatingColor = preChecklist.powderCoating.colourRAL;
+      if (selectedPreChecklist?.powderCoating?.colourRAL) {
+        powderCoatingColor = selectedPreChecklist.powderCoating.colourRAL;
       }
 
       // Extract tire brand and DOT
       let tireBrand = '';
       let dotCode = '';
-      if (preChecklist?.tireBrands) {
-        const brands = preChecklist.tireBrands;
+      if (selectedPreChecklist?.tireBrands) {
+        const brands = selectedPreChecklist.tireBrands;
         tireBrand = brands.fr || brands.fl || brands.br || brands.bl || '';
       }
-      if (preChecklist?.tireDOT) {
-        const dots = preChecklist.tireDOT;
+      if (selectedPreChecklist?.tireDOT) {
+        const dots = selectedPreChecklist.tireDOT;
         dotCode = dots.fr?.code || dots.fl?.code || dots.br?.code || dots.bl?.code || '';
       }
 
       // Extract delivery mode
       let deliveryMode = '';
-      if (preChecklist?.deliveryMode) {
-        deliveryMode = preChecklist.deliveryMode;
+      if (selectedPreChecklist?.deliveryMode) {
+        deliveryMode = selectedPreChecklist.deliveryMode;
       }
 
-      const agreedTotal = Number(preChecklist?.agreedAmount?.total)
-        || Number(opportunity?.amount)
-        || Number(opportunity?.productPrice)
+      const agreedTotal = Number(selectedPreChecklist?.agreedAmount?.total)
+        || Number(selectedOpportunity?.amount)
+        || Number(selectedOpportunity?.productPrice)
         || 0;
-      const agreedBreakdown = preChecklist?.agreedAmount?.breakdown || '';
+      const agreedBreakdown = selectedPreChecklist?.agreedAmount?.breakdown || '';
 
       setFormData(prev => ({
         ...prev,
@@ -727,7 +877,7 @@ export default function DiamondRimsPostChecklistCreatePage({
           total: agreedTotal || prev.agreedAmount.total,
           breakdown: agreedBreakdown || prev.agreedAmount.breakdown,
         },
-        files: preChecklist?.files ? [...preChecklist.files] : prev.files
+        files: selectedPreChecklist?.files ? [...selectedPreChecklist.files] : prev.files
       }));
       
       setAutoPopulated(true);
@@ -1319,6 +1469,80 @@ export default function DiamondRimsPostChecklistCreatePage({
                 </div>
               </div>
             </div>
+
+            {mode === 'create' && !workOrderId && (
+              <div className="border-b pb-8">
+                <div className="flex items-center justify-between mb-4 gap-3">
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <Users className="h-5 w-5 text-purple-600" />
+                    Select Client
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => loadClientOptions(clientSearch)}
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                    disabled={loadingClientOptions}
+                  >
+                    {loadingClientOptions ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RotateCw className="h-4 w-4" />
+                    )}
+                    Refresh Clients
+                  </button>
+                </div>
+
+                <p className="text-sm text-gray-600 mb-4">
+                  Choose a client opportunity to auto-fill customer and vehicle information.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Search Client
+                    </label>
+                    <input
+                      type="text"
+                      value={clientSearch}
+                      onChange={(e) => setClientSearch(e.target.value)}
+                      placeholder="Search by client name, subject, or plate"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Client Opportunity
+                    </label>
+                    <select
+                      value={selectedClientId}
+                      onChange={(e) => handleClientSelection(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      disabled={loadingClientOptions || linkingClient}
+                    >
+                      <option value="">Select client</option>
+                      {clientOptions.map((candidate, index) => {
+                        const id = typeof candidate === 'object' ? (candidate._id || candidate.id || '') : '';
+                        if (!id) return null;
+
+                        return (
+                          <option key={`${id}-${index}`} value={id}>
+                            {getClientOptionLabel(candidate)}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                </div>
+
+                {linkingClient && (
+                  <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200 flex items-center gap-2 text-sm text-blue-700">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading client details...
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Customer Details */}
             <div className="border-b pb-8">
