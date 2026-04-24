@@ -53,16 +53,136 @@ export default function WorkOrdersList() {
       fallbackLimit: number,
       dataLength: number
     ) => {
-      const page = incoming?.page || fallbackPage;
-      const limit = incoming?.limit || fallbackLimit;
-      const total = incoming?.total || dataLength;
-      const apiTotalPages = incoming?.totalPages || incoming?.pages || 0;
+      const toPositiveInt = (value: unknown, fallback: number) => {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) return fallback;
+        const intValue = Math.floor(numeric);
+        return intValue > 0 ? intValue : fallback;
+      };
+
+      const toNonNegativeInt = (value: unknown, fallback: number) => {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) return fallback;
+        const intValue = Math.floor(numeric);
+        return intValue >= 0 ? intValue : fallback;
+      };
+
+      let page = toPositiveInt(incoming?.page, fallbackPage);
+      const limit = toPositiveInt(incoming?.limit, fallbackLimit);
+      const reportedTotal = toNonNegativeInt(incoming?.total, 0);
+      const total = Math.max(reportedTotal, dataLength);
+      const apiTotalPages = toPositiveInt(incoming?.totalPages ?? incoming?.pages, 0);
       const totalPages = apiTotalPages > 0 ? apiTotalPages : Math.max(1, Math.ceil(total / limit));
+
+      if (page > totalPages) {
+        page = totalPages;
+      }
 
       return { page, limit, total, totalPages };
     },
     []
   );
+
+  const resolveWorkOrdersRows = useCallback((response: any): any[] => {
+    if (Array.isArray(response)) return response;
+    if (Array.isArray(response?.data)) return response.data;
+    if (Array.isArray(response?.items)) return response.items;
+    if (Array.isArray(response?.results)) return response.results;
+    if (Array.isArray(response?.rows)) return response.rows;
+    if (Array.isArray(response?.data?.data)) return response.data.data;
+    if (Array.isArray(response?.data?.items)) return response.data.items;
+    if (Array.isArray(response?.data?.results)) return response.data.results;
+    return [];
+  }, []);
+
+  const resolvePaginationPayload = useCallback((response: any) => {
+    const nestedPagination =
+      response?.pagination ||
+      response?.meta ||
+      response?.data?.pagination ||
+      response?.data?.meta ||
+      {};
+
+    return {
+      page:
+        nestedPagination?.page ??
+        nestedPagination?.currentPage ??
+        nestedPagination?.current_page ??
+        response?.page ??
+        response?.currentPage ??
+        response?.current_page ??
+        response?.data?.page ??
+        response?.data?.currentPage ??
+        response?.data?.current_page,
+      limit:
+        nestedPagination?.limit ??
+        nestedPagination?.perPage ??
+        nestedPagination?.per_page ??
+        nestedPagination?.pageSize ??
+        nestedPagination?.page_size ??
+        response?.limit ??
+        response?.perPage ??
+        response?.per_page ??
+        response?.pageSize ??
+        response?.page_size ??
+        response?.data?.limit ??
+        response?.data?.perPage ??
+        response?.data?.per_page ??
+        response?.data?.pageSize ??
+        response?.data?.page_size,
+      total:
+        nestedPagination?.total ??
+        nestedPagination?.totalCount ??
+        nestedPagination?.total_count ??
+        nestedPagination?.count ??
+        nestedPagination?.totalItems ??
+        nestedPagination?.total_items ??
+        nestedPagination?.recordsTotal ??
+        response?.total ??
+        response?.totalCount ??
+        response?.total_count ??
+        response?.count ??
+        response?.totalItems ??
+        response?.total_items ??
+        response?.recordsTotal ??
+        response?.data?.total ??
+        response?.data?.totalCount ??
+        response?.data?.total_count ??
+        response?.data?.count ??
+        response?.data?.totalItems ??
+        response?.data?.total_items ??
+        response?.data?.recordsTotal,
+      totalPages:
+        nestedPagination?.totalPages ??
+        nestedPagination?.total_pages ??
+        nestedPagination?.pages ??
+        nestedPagination?.pageCount ??
+        nestedPagination?.page_count ??
+        nestedPagination?.lastPage ??
+        nestedPagination?.last_page ??
+        response?.totalPages ??
+        response?.total_pages ??
+        response?.pages ??
+        response?.pageCount ??
+        response?.page_count ??
+        response?.lastPage ??
+        response?.last_page ??
+        response?.data?.totalPages ??
+        response?.data?.total_pages ??
+        response?.data?.pages ??
+        response?.data?.pageCount ??
+        response?.data?.page_count ??
+        response?.data?.lastPage ??
+        response?.data?.last_page,
+      pages:
+        nestedPagination?.pages ??
+        nestedPagination?.totalPages ??
+        response?.pages ??
+        response?.totalPages ??
+        response?.data?.pages ??
+        response?.data?.totalPages,
+    };
+  }, []);
 
   // Status options - memoized
   const statusOptions = useMemo(() => [
@@ -125,25 +245,16 @@ export default function WorkOrdersList() {
         ]);
         
         if (mounted) {
-          if (Array.isArray(workOrdersResponse)) {
-            setWorkOrders(workOrdersResponse);
-            setPagination({
-              page: 1,
-              limit: 10,
-              total: workOrdersResponse.length,
-              totalPages: Math.ceil(workOrdersResponse.length / 10)
-            });
-          } else if (workOrdersResponse && 'data' in workOrdersResponse) {
-            setWorkOrders(workOrdersResponse.data || []);
-            setPagination(
-              normalizePagination(
-                workOrdersResponse.pagination,
-                1,
-                10,
-                workOrdersResponse.data?.length || 0
-              )
-            );
-          }
+          const rows = resolveWorkOrdersRows(workOrdersResponse);
+          setWorkOrders(rows);
+          setPagination(
+            normalizePagination(
+              resolvePaginationPayload(workOrdersResponse),
+              1,
+              10,
+              rows.length
+            )
+          );
           
           setStats(summaryStats);
           setStageStats(stageStatsData);
@@ -185,26 +296,16 @@ export default function WorkOrdersList() {
       
       const response = await workOrderService.getAllWorkOrders(params);
       
-      // Handle response
-      if (Array.isArray(response)) {
-        setWorkOrders(response);
-        setPagination(prev => ({
-          ...prev,
+      const rows = resolveWorkOrdersRows(response);
+      setWorkOrders(rows);
+      setPagination(
+        normalizePagination(
+          resolvePaginationPayload(response),
           page,
-          total: response.length,
-          totalPages: Math.ceil(response.length / prev.limit)
-        }));
-      } else if (response && 'data' in response) {
-        setWorkOrders(response.data || []);
-        setPagination(
-          normalizePagination(
-            response.pagination,
-            page,
-            pagination.limit,
-            response.data?.length || 0
-          )
-        );
-      }
+          pagination.limit,
+          rows.length
+        )
+      );
       
     } catch (error) {
       console.error('Error fetching work orders:', error);
@@ -212,7 +313,17 @@ export default function WorkOrdersList() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, statusFilter, stageFilter, pagination.limit, showToast, initialLoad, normalizePagination]);
+  }, [
+    debouncedSearch,
+    statusFilter,
+    stageFilter,
+    pagination.limit,
+    showToast,
+    initialLoad,
+    normalizePagination,
+    resolveWorkOrdersRows,
+    resolvePaginationPayload,
+  ]);
 
   // Trigger fetch when deps change
   useEffect(() => {
