@@ -614,10 +614,10 @@ const sanitizePreChecklistPayload = <T extends Record<string, any>>(payload: T):
   const customerEmail = normalizeOptionalEmail(payload.customerDetails?.email);
   const clientEmail = normalizeOptionalEmail(payload.clientEmail);
 
-  return {
+  const sanitizedPayload: Record<string, any> = {
     ...payload,
-    opportunityId,
-    vehicleId,
+    ...(opportunityId ? { opportunityId } : {}),
+    ...(vehicleId ? { vehicleId } : {}),
     ...(inspectedBy ? { inspectedBy } : {}),
     ...(payload.customerDetails
       ? {
@@ -629,6 +629,19 @@ const sanitizePreChecklistPayload = <T extends Record<string, any>>(payload: T):
       : {}),
     ...(clientEmail ? { clientEmail } : { clientEmail: undefined }),
   };
+
+  // Avoid sending empty identifiers to the API.
+  if (!opportunityId) {
+    delete sanitizedPayload.opportunityId;
+  }
+  if (!vehicleId) {
+    delete sanitizedPayload.vehicleId;
+  }
+  if (!inspectedBy) {
+    delete sanitizedPayload.inspectedBy;
+  }
+
+  return sanitizedPayload as T;
 };
 
 // Extended ApiClient for pre-checklist service

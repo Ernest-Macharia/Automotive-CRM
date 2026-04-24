@@ -594,7 +594,7 @@ export default function DiamondRimsPreChecklistCreatePage({
     'Gold',
     'Orange',
     'Red',
-    'Broze',
+    'Bronze',
     'Luminous Green',
     'Blue',
     'Graphite Grey',
@@ -2083,6 +2083,12 @@ export default function DiamondRimsPreChecklistCreatePage({
         files: formData.files || []
       };
 
+      const toChecklistTimestamp = (checklist: any): number => {
+        const candidate = checklist?.updatedAt || checklist?.createdAt || checklist?.dateCreated || '';
+        const parsed = Date.parse(String(candidate));
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+
       let result: PreChecklist;
       const userId = sessionStorage.getItem('userId') || undefined;
       
@@ -2090,8 +2096,34 @@ export default function DiamondRimsPreChecklistCreatePage({
         result = await preChecklistService.updatePreChecklist(checklistId, submissionData as any);
         showToast('Diamond Rims pre-checklist updated successfully', 'success');
       } else {
-        result = await preChecklistService.createPreChecklist(submissionData, userId);
-        showToast('Diamond Rims pre-checklist created successfully', 'success');
+        let existingChecklistId =
+          normalizeId(existingChecklist?._id) ||
+          normalizeId(workOrder?.preChecklistId) ||
+          normalizeId(workOrder?.prechecklistId);
+
+        if (!existingChecklistId && (workOrderId || source === 'workflow')) {
+          try {
+            const checklists = await preChecklistService.getPreChecklistsByOpportunity(resolvedOpportunityId);
+            const sortedChecklists = [...(checklists || [])].sort(
+              (left: any, right: any) => toChecklistTimestamp(right) - toChecklistTimestamp(left)
+            );
+            const sameTypeChecklist = sortedChecklists.find(
+              (checklist: any) => String(checklist?.checklistType || '').toLowerCase() === 'diamond_rims'
+            );
+            const fallbackChecklist = sameTypeChecklist || sortedChecklists[0];
+            existingChecklistId = normalizeId(fallbackChecklist?._id || fallbackChecklist?.id);
+          } catch (lookupError) {
+            console.error('Unable to check for existing checklist before create:', lookupError);
+          }
+        }
+
+        if (existingChecklistId) {
+          result = await preChecklistService.updatePreChecklist(existingChecklistId, submissionData as any);
+          showToast('Existing Diamond Rims pre-checklist updated successfully', 'success');
+        } else {
+          result = await preChecklistService.createPreChecklist(submissionData, userId);
+          showToast('Diamond Rims pre-checklist created successfully', 'success');
+        }
         localStorage.removeItem(PRE_CHECKLIST_DRAFT_KEY);
       }
 
@@ -2100,7 +2132,7 @@ export default function DiamondRimsPreChecklistCreatePage({
           preChecklistId: result._id,
           preChecklistStatus: 'pending'
         });
-        showToast('Pre-checklist created and linked to work order', 'success');
+        showToast('Pre-checklist linked to work order', 'success');
       }
 
       try {

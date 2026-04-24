@@ -274,7 +274,7 @@ export default function DiamondRimsPostChecklistCreatePage({
     'Gold',
     'Orange',
     'Red',
-    'Broze',
+    'Bronze',
     'Luminous Green',
     'Blue',
     'Graphite Grey',
