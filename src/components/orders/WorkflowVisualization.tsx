@@ -138,7 +138,7 @@ export default function WorkflowVisualization({
         router.push(`/waivers/create?${params.toString()}`);
         break;
       case 'prechecklist':
-        router.push(`/prechecklists/create?${params.toString()}`);
+        router.push(`/pre-checklist/create?${params.toString()}`);
         break;
       case 'postchecklist':
         router.push(`/postchecklists/create?${params.toString()}`);
@@ -188,7 +188,7 @@ export default function WorkflowVisualization({
       'invoice': `/invoices/${documentId}`,
       'jobcard': `/jobcards/${documentId}`,
       'waiver': `/waivers/${documentId}`,
-      'prechecklist': `/prechecklists/${documentId}`,
+      'prechecklist': `/pre-checklist/${documentId}`,
       'postchecklist': `/postchecklists/${documentId}`
     };
     return routes[stage] || `/${stage}s/${documentId}`;
