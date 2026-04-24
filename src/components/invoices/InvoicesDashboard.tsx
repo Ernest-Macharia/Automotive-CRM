@@ -807,7 +807,7 @@ Created: ${formatDate(invoice.createdAt)}
                                 
                                 {invoice.paymentStatus !== PAYMENT_STATUS.PAID && (
                                   <Link
-                                    href={`/invoices/${invoice.id}/pay`}
+                                    href={`/invoices/${invoice.id}?focus=payment`}
                                     className="p-1.5 md:p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
                                     title="Record Payment"
                                   >

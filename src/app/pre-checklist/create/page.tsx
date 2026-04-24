@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import DiamondRimsPreChecklistCreatePage from '@/components/pre-checklist/DiamondRimsPreChecklistCreatePage';
 import HeadlightPreChecklistCreatePage from '@/components/pre-checklist/HeadlightPreChecklistCreatePage';
@@ -19,15 +18,6 @@ export default function PreChecklistCreatePage() {
   const clientType = searchParams.get('clientType');
   const opportunityId = searchParams.get('opportunityId');
   const workOrderId = searchParams.get('workOrderId');
-
-  // Check for required parameters
-  useEffect(() => {
-    if (mode === 'create') {
-      if (!opportunityId && !workOrderId) {
-        console.error('Missing required parameters for pre-checklist creation');
-      }
-    }
-  }, [mode, opportunityId, workOrderId]);
 
   // Handle edit mode with invalid ID
   if (mode === 'edit' && (!checklistId || checklistId === 'undefined')) {

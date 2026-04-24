@@ -36,15 +36,6 @@ export default function PreChecklistCreateRoute() {
     });
   }, [clientType, mode, checklistId, opportunityId, workOrderId, source]);
 
-  // Check for required parameters
-  useEffect(() => {
-    if (mode === 'create') {
-      if (!opportunityId && !workOrderId) {
-        console.error('Missing required parameters for pre-checklist creation');
-      }
-    }
-  }, [mode, opportunityId, workOrderId, router]);
-
   // Handle edit mode with invalid ID
   if (mode === 'edit' && (!checklistId || checklistId === 'undefined')) {
     return (
