@@ -207,6 +207,13 @@ async function compressChecklistImage(file: File, maxDimension = 1600, quality =
   });
 }
 
+function getFieldIdentifiers(name: string) {
+  return {
+    id: name.replace(/[^a-zA-Z0-9_-]+/g, '-'),
+    name,
+  };
+}
+
 export default function HeadlightPreChecklistCreatePage({ 
   mode = 'create', 
   checklistId 
@@ -2008,6 +2015,7 @@ export default function HeadlightPreChecklistCreatePage({
                             <div className="grid grid-cols-2 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.highBeam.leftFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.highBeam.leftFault}
                                   onChange={(e) => handleHeadlightInspectionChange('highBeam', 'leftFault', e.target.checked)}
@@ -2017,6 +2025,7 @@ export default function HeadlightPreChecklistCreatePage({
                               </label>
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.highBeam.rightFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.highBeam.rightFault}
                                   onChange={(e) => handleHeadlightInspectionChange('highBeam', 'rightFault', e.target.checked)}
@@ -2030,6 +2039,7 @@ export default function HeadlightPreChecklistCreatePage({
                           {/* Remarks */}
                           <div>
                             <textarea
+                              {...getFieldIdentifiers('headlightInspection.highBeam.remarks')}
                               value={formData.headlightInspection.highBeam.remarks}
                               onChange={(e) => handleHeadlightInspectionChange('highBeam', 'remarks', e.target.value)}
                               placeholder="Add remarks or observations..."
@@ -2086,6 +2096,7 @@ export default function HeadlightPreChecklistCreatePage({
                             <div className="grid grid-cols-2 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.lowBeam.leftFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.lowBeam.leftFault}
                                   onChange={(e) => handleHeadlightInspectionChange('lowBeam', 'leftFault', e.target.checked)}
@@ -2095,6 +2106,7 @@ export default function HeadlightPreChecklistCreatePage({
                               </label>
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.lowBeam.rightFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.lowBeam.rightFault}
                                   onChange={(e) => handleHeadlightInspectionChange('lowBeam', 'rightFault', e.target.checked)}
@@ -2108,6 +2120,7 @@ export default function HeadlightPreChecklistCreatePage({
                           {/* Remarks */}
                           <div>
                             <textarea
+                              {...getFieldIdentifiers('headlightInspection.lowBeam.remarks')}
                               value={formData.headlightInspection.lowBeam.remarks}
                               onChange={(e) => handleHeadlightInspectionChange('lowBeam', 'remarks', e.target.value)}
                               placeholder="Add remarks or observations..."
@@ -2164,6 +2177,7 @@ export default function HeadlightPreChecklistCreatePage({
                             <div className="grid grid-cols-2 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.daytimeRunningLight.leftFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.daytimeRunningLight.leftFault}
                                   onChange={(e) => handleHeadlightInspectionChange('daytimeRunningLight', 'leftFault', e.target.checked)}
@@ -2173,6 +2187,7 @@ export default function HeadlightPreChecklistCreatePage({
                               </label>
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.daytimeRunningLight.rightFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.daytimeRunningLight.rightFault}
                                   onChange={(e) => handleHeadlightInspectionChange('daytimeRunningLight', 'rightFault', e.target.checked)}
@@ -2186,6 +2201,7 @@ export default function HeadlightPreChecklistCreatePage({
                           {/* Remarks */}
                           <div>
                             <textarea
+                              {...getFieldIdentifiers('headlightInspection.daytimeRunningLight.remarks')}
                               value={formData.headlightInspection.daytimeRunningLight.remarks}
                               onChange={(e) => handleHeadlightInspectionChange('daytimeRunningLight', 'remarks', e.target.value)}
                               placeholder="Add remarks or observations..."
@@ -2242,6 +2258,7 @@ export default function HeadlightPreChecklistCreatePage({
                             <div className="grid grid-cols-2 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.turnSignal.leftFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.turnSignal.leftFault}
                                   onChange={(e) => handleHeadlightInspectionChange('turnSignal', 'leftFault', e.target.checked)}
@@ -2251,6 +2268,7 @@ export default function HeadlightPreChecklistCreatePage({
                               </label>
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.turnSignal.rightFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.turnSignal.rightFault}
                                   onChange={(e) => handleHeadlightInspectionChange('turnSignal', 'rightFault', e.target.checked)}
@@ -2264,6 +2282,7 @@ export default function HeadlightPreChecklistCreatePage({
                           {/* Remarks */}
                           <div>
                             <textarea
+                              {...getFieldIdentifiers('headlightInspection.turnSignal.remarks')}
                               value={formData.headlightInspection.turnSignal.remarks}
                               onChange={(e) => handleHeadlightInspectionChange('turnSignal', 'remarks', e.target.value)}
                               placeholder="Add remarks or observations..."
@@ -2320,6 +2339,7 @@ export default function HeadlightPreChecklistCreatePage({
                             <div className="grid grid-cols-2 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.fogLights.leftFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.fogLights.leftFault}
                                   onChange={(e) => handleHeadlightInspectionChange('fogLights', 'leftFault', e.target.checked)}
@@ -2329,6 +2349,7 @@ export default function HeadlightPreChecklistCreatePage({
                               </label>
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.fogLights.rightFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.fogLights.rightFault}
                                   onChange={(e) => handleHeadlightInspectionChange('fogLights', 'rightFault', e.target.checked)}
@@ -2342,6 +2363,7 @@ export default function HeadlightPreChecklistCreatePage({
                           {/* Remarks */}
                           <div>
                             <textarea
+                              {...getFieldIdentifiers('headlightInspection.fogLights.remarks')}
                               value={formData.headlightInspection.fogLights.remarks}
                               onChange={(e) => handleHeadlightInspectionChange('fogLights', 'remarks', e.target.value)}
                               placeholder="Add remarks or observations..."
@@ -2398,6 +2420,7 @@ export default function HeadlightPreChecklistCreatePage({
                             <div className="grid grid-cols-2 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.parkingBulb.leftFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.parkingBulb.leftFault}
                                   onChange={(e) => handleHeadlightInspectionChange('parkingBulb', 'leftFault', e.target.checked)}
@@ -2407,6 +2430,7 @@ export default function HeadlightPreChecklistCreatePage({
                               </label>
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.parkingBulb.rightFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.parkingBulb.rightFault}
                                   onChange={(e) => handleHeadlightInspectionChange('parkingBulb', 'rightFault', e.target.checked)}
@@ -2420,6 +2444,7 @@ export default function HeadlightPreChecklistCreatePage({
                           {/* Remarks */}
                           <div>
                             <textarea
+                              {...getFieldIdentifiers('headlightInspection.parkingBulb.remarks')}
                               value={formData.headlightInspection.parkingBulb.remarks}
                               onChange={(e) => handleHeadlightInspectionChange('parkingBulb', 'remarks', e.target.value)}
                               placeholder="Add remarks or observations..."
@@ -2476,6 +2501,7 @@ export default function HeadlightPreChecklistCreatePage({
                             <div className="grid grid-cols-2 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.angelLights.leftFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.angelLights.leftFault}
                                   onChange={(e) => handleHeadlightInspectionChange('angelLights', 'leftFault', e.target.checked)}
@@ -2485,6 +2511,7 @@ export default function HeadlightPreChecklistCreatePage({
                               </label>
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.angelLights.rightFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.angelLights.rightFault}
                                   onChange={(e) => handleHeadlightInspectionChange('angelLights', 'rightFault', e.target.checked)}
@@ -2498,6 +2525,7 @@ export default function HeadlightPreChecklistCreatePage({
                           {/* Remarks */}
                           <div>
                             <textarea
+                              {...getFieldIdentifiers('headlightInspection.angelLights.remarks')}
                               value={formData.headlightInspection.angelLights.remarks}
                               onChange={(e) => handleHeadlightInspectionChange('angelLights', 'remarks', e.target.value)}
                               placeholder="Add remarks or observations..."
@@ -2554,6 +2582,7 @@ export default function HeadlightPreChecklistCreatePage({
                             <div className="grid grid-cols-2 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.headlightAdjusters.leftFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.headlightAdjusters.leftFault}
                                   onChange={(e) => handleHeadlightInspectionChange('headlightAdjusters', 'leftFault', e.target.checked)}
@@ -2563,6 +2592,7 @@ export default function HeadlightPreChecklistCreatePage({
                               </label>
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.headlightAdjusters.rightFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.headlightAdjusters.rightFault}
                                   onChange={(e) => handleHeadlightInspectionChange('headlightAdjusters', 'rightFault', e.target.checked)}
@@ -2576,6 +2606,7 @@ export default function HeadlightPreChecklistCreatePage({
                           {/* Remarks */}
                           <div>
                             <textarea
+                              {...getFieldIdentifiers('headlightInspection.headlightAdjusters.remarks')}
                               value={formData.headlightInspection.headlightAdjusters.remarks}
                               onChange={(e) => handleHeadlightInspectionChange('headlightAdjusters', 'remarks', e.target.value)}
                               placeholder="Add remarks or observations..."
@@ -2632,6 +2663,7 @@ export default function HeadlightPreChecklistCreatePage({
                             <div className="grid grid-cols-2 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.adaptiveFrontLights.leftFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.adaptiveFrontLights.leftFault}
                                   onChange={(e) => handleHeadlightInspectionChange('adaptiveFrontLights', 'leftFault', e.target.checked)}
@@ -2641,6 +2673,7 @@ export default function HeadlightPreChecklistCreatePage({
                               </label>
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.adaptiveFrontLights.rightFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.adaptiveFrontLights.rightFault}
                                   onChange={(e) => handleHeadlightInspectionChange('adaptiveFrontLights', 'rightFault', e.target.checked)}
@@ -2654,6 +2687,7 @@ export default function HeadlightPreChecklistCreatePage({
                           {/* Remarks */}
                           <div>
                             <textarea
+                              {...getFieldIdentifiers('headlightInspection.adaptiveFrontLights.remarks')}
                               value={formData.headlightInspection.adaptiveFrontLights.remarks}
                               onChange={(e) => handleHeadlightInspectionChange('adaptiveFrontLights', 'remarks', e.target.value)}
                               placeholder="Add remarks or observations..."
@@ -2710,6 +2744,7 @@ export default function HeadlightPreChecklistCreatePage({
                             <div className="grid grid-cols-2 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.dimmingFunctionality.leftFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.dimmingFunctionality.leftFault}
                                   onChange={(e) => handleHeadlightInspectionChange('dimmingFunctionality', 'leftFault', e.target.checked)}
@@ -2719,6 +2754,7 @@ export default function HeadlightPreChecklistCreatePage({
                               </label>
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.dimmingFunctionality.rightFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.dimmingFunctionality.rightFault}
                                   onChange={(e) => handleHeadlightInspectionChange('dimmingFunctionality', 'rightFault', e.target.checked)}
@@ -2732,6 +2768,7 @@ export default function HeadlightPreChecklistCreatePage({
                           {/* Remarks */}
                           <div>
                             <textarea
+                              {...getFieldIdentifiers('headlightInspection.dimmingFunctionality.remarks')}
                               value={formData.headlightInspection.dimmingFunctionality.remarks}
                               onChange={(e) => handleHeadlightInspectionChange('dimmingFunctionality', 'remarks', e.target.value)}
                               placeholder="Add remarks or observations..."
@@ -2788,6 +2825,7 @@ export default function HeadlightPreChecklistCreatePage({
                             <div className="grid grid-cols-2 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.headlightWiring.leftFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.headlightWiring.leftFault}
                                   onChange={(e) => handleHeadlightInspectionChange('headlightWiring', 'leftFault', e.target.checked)}
@@ -2797,6 +2835,7 @@ export default function HeadlightPreChecklistCreatePage({
                               </label>
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.headlightWiring.rightFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.headlightWiring.rightFault}
                                   onChange={(e) => handleHeadlightInspectionChange('headlightWiring', 'rightFault', e.target.checked)}
@@ -2810,6 +2849,7 @@ export default function HeadlightPreChecklistCreatePage({
                           {/* Remarks */}
                           <div>
                             <textarea
+                              {...getFieldIdentifiers('headlightInspection.headlightWiring.remarks')}
                               value={formData.headlightInspection.headlightWiring.remarks}
                               onChange={(e) => handleHeadlightInspectionChange('headlightWiring', 'remarks', e.target.value)}
                               placeholder="Add remarks or observations..."
@@ -2866,6 +2906,7 @@ export default function HeadlightPreChecklistCreatePage({
                             <div className="grid grid-cols-2 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.beamAlignment.leftFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.beamAlignment.leftFault}
                                   onChange={(e) => handleHeadlightInspectionChange('beamAlignment', 'leftFault', e.target.checked)}
@@ -2875,6 +2916,7 @@ export default function HeadlightPreChecklistCreatePage({
                               </label>
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.beamAlignment.rightFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.beamAlignment.rightFault}
                                   onChange={(e) => handleHeadlightInspectionChange('beamAlignment', 'rightFault', e.target.checked)}
@@ -2888,6 +2930,7 @@ export default function HeadlightPreChecklistCreatePage({
                           {/* Remarks */}
                           <div>
                             <textarea
+                              {...getFieldIdentifiers('headlightInspection.beamAlignment.remarks')}
                               value={formData.headlightInspection.beamAlignment.remarks}
                               onChange={(e) => handleHeadlightInspectionChange('beamAlignment', 'remarks', e.target.value)}
                               placeholder="Add remarks or observations..."
@@ -2944,6 +2987,7 @@ export default function HeadlightPreChecklistCreatePage({
                             <div className="grid grid-cols-2 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.headlightLens.leftFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.headlightLens.leftFault}
                                   onChange={(e) => handleHeadlightInspectionChange('headlightLens', 'leftFault', e.target.checked)}
@@ -2953,6 +2997,7 @@ export default function HeadlightPreChecklistCreatePage({
                               </label>
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.headlightLens.rightFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.headlightLens.rightFault}
                                   onChange={(e) => handleHeadlightInspectionChange('headlightLens', 'rightFault', e.target.checked)}
@@ -2966,6 +3011,7 @@ export default function HeadlightPreChecklistCreatePage({
                           {/* Remarks */}
                           <div>
                             <textarea
+                              {...getFieldIdentifiers('headlightInspection.headlightLens.remarks')}
                               value={formData.headlightInspection.headlightLens.remarks}
                               onChange={(e) => handleHeadlightInspectionChange('headlightLens', 'remarks', e.target.value)}
                               placeholder="Add remarks or observations..."
@@ -3022,6 +3068,7 @@ export default function HeadlightPreChecklistCreatePage({
                             <div className="grid grid-cols-2 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.waterProofing.leftFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.waterProofing.leftFault}
                                   onChange={(e) => handleHeadlightInspectionChange('waterProofing', 'leftFault', e.target.checked)}
@@ -3031,6 +3078,7 @@ export default function HeadlightPreChecklistCreatePage({
                               </label>
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.waterProofing.rightFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.waterProofing.rightFault}
                                   onChange={(e) => handleHeadlightInspectionChange('waterProofing', 'rightFault', e.target.checked)}
@@ -3044,6 +3092,7 @@ export default function HeadlightPreChecklistCreatePage({
                           {/* Remarks */}
                           <div>
                             <textarea
+                              {...getFieldIdentifiers('headlightInspection.waterProofing.remarks')}
                               value={formData.headlightInspection.waterProofing.remarks}
                               onChange={(e) => handleHeadlightInspectionChange('waterProofing', 'remarks', e.target.value)}
                               placeholder="Add remarks or observations..."
@@ -3102,6 +3151,7 @@ export default function HeadlightPreChecklistCreatePage({
                                 Warning Codes / Messages
                               </label>
                               <input
+                                {...getFieldIdentifiers('headlightInspection.dashboardWarningLights.warningCodes')}
                                 type="text"
                                 value={formData.headlightInspection.dashboardWarningLights.warningCodes}
                                 onChange={(e) => handleHeadlightInspectionChange('dashboardWarningLights', 'warningCodes', e.target.value)}
@@ -3110,6 +3160,7 @@ export default function HeadlightPreChecklistCreatePage({
                               />
                               <label className="flex items-center gap-2 mt-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.dashboardWarningLights.requiresDiagnostic')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.dashboardWarningLights.requiresDiagnostic}
                                   onChange={(e) => handleHeadlightInspectionChange('dashboardWarningLights', 'requiresDiagnostic', e.target.checked)}
@@ -3123,6 +3174,7 @@ export default function HeadlightPreChecklistCreatePage({
                           {/* Remarks */}
                           <div>
                             <textarea
+                              {...getFieldIdentifiers('headlightInspection.dashboardWarningLights.remarks')}
                               value={formData.headlightInspection.dashboardWarningLights.remarks}
                               onChange={(e) => handleHeadlightInspectionChange('dashboardWarningLights', 'remarks', e.target.value)}
                               placeholder="Add remarks or observations..."
@@ -3179,6 +3231,7 @@ export default function HeadlightPreChecklistCreatePage({
                             <div className="grid grid-cols-2 gap-4 mb-3 p-3 bg-gray-50 rounded-lg">
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.bumperCondition.leftFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.bumperCondition.leftFault}
                                   onChange={(e) => handleHeadlightInspectionChange('bumperCondition', 'leftFault', e.target.checked)}
@@ -3188,6 +3241,7 @@ export default function HeadlightPreChecklistCreatePage({
                               </label>
                               <label className="flex items-center gap-2">
                                 <input
+                                  {...getFieldIdentifiers('headlightInspection.bumperCondition.rightFault')}
                                   type="checkbox"
                                   checked={formData.headlightInspection.bumperCondition.rightFault}
                                   onChange={(e) => handleHeadlightInspectionChange('bumperCondition', 'rightFault', e.target.checked)}
@@ -3201,6 +3255,7 @@ export default function HeadlightPreChecklistCreatePage({
                           {/* Remarks */}
                           <div>
                             <textarea
+                              {...getFieldIdentifiers('headlightInspection.bumperCondition.remarks')}
                               value={formData.headlightInspection.bumperCondition.remarks}
                               onChange={(e) => handleHeadlightInspectionChange('bumperCondition', 'remarks', e.target.value)}
                               placeholder="Add remarks or observations..."
@@ -3271,8 +3326,9 @@ export default function HeadlightPreChecklistCreatePage({
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                          <label htmlFor="customerDetails-firstName" className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
                           <input
+                            {...getFieldIdentifiers('customerDetails.firstName')}
                             type="text"
                             value={formData.customerDetails.firstName}
                             onChange={(e) => handleCustomerDetailChange('firstName', e.target.value)}
@@ -3281,8 +3337,9 @@ export default function HeadlightPreChecklistCreatePage({
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                          <label htmlFor="customerDetails-lastName" className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
                           <input
+                            {...getFieldIdentifiers('customerDetails.lastName')}
                             type="text"
                             value={formData.customerDetails.lastName}
                             onChange={(e) => handleCustomerDetailChange('lastName', e.target.value)}
@@ -3291,8 +3348,9 @@ export default function HeadlightPreChecklistCreatePage({
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
+                          <label htmlFor="customerDetails-mobile" className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
                           <input
+                            {...getFieldIdentifiers('customerDetails.mobile')}
                             type="tel"
                             value={formData.customerDetails.mobile}
                             onChange={(e) => handleCustomerDetailChange('mobile', e.target.value)}
@@ -3301,8 +3359,9 @@ export default function HeadlightPreChecklistCreatePage({
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                          <label htmlFor="customerDetails-email" className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
                           <input
+                            {...getFieldIdentifiers('customerDetails.email')}
                             type="email"
                             value={formData.customerDetails.email}
                             onChange={(e) => handleCustomerDetailChange('email', e.target.value)}
@@ -3312,8 +3371,9 @@ export default function HeadlightPreChecklistCreatePage({
                         </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Inspector Name *</label>
+                        <label htmlFor="inspectorName" className="block text-sm font-medium text-gray-700 mb-1">Inspector Name *</label>
                         <input
+                          {...getFieldIdentifiers('inspectorName')}
                           type="text"
                           value={formData.inspectorName}
                           onChange={(e) => handleInputChange('inspectorName', e.target.value)}
@@ -3394,8 +3454,9 @@ export default function HeadlightPreChecklistCreatePage({
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Registration *</label>
+                          <label htmlFor="carDetails-licensePlate" className="block text-sm font-medium text-gray-700 mb-1">Registration *</label>
                           <input
+                            {...getFieldIdentifiers('carDetails.licensePlate')}
                             type="text"
                             value={formData.carDetails.licensePlate}
                             onChange={(e) => handleCarDetailChange('licensePlate', e.target.value)}
@@ -3404,8 +3465,9 @@ export default function HeadlightPreChecklistCreatePage({
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Make</label>
+                          <label htmlFor="carDetails-carMake" className="block text-sm font-medium text-gray-700 mb-1">Make</label>
                           <input
+                            {...getFieldIdentifiers('carDetails.carMake')}
                             type="text"
                             value={formData.carDetails.carMake}
                             onChange={(e) => handleCarDetailChange('carMake', e.target.value)}
@@ -3413,8 +3475,9 @@ export default function HeadlightPreChecklistCreatePage({
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                          <label htmlFor="carDetails-carModel" className="block text-sm font-medium text-gray-700 mb-1">Model</label>
                           <input
+                            {...getFieldIdentifiers('carDetails.carModel')}
                             type="text"
                             value={formData.carDetails.carModel}
                             onChange={(e) => handleCarDetailChange('carModel', e.target.value)}
@@ -3422,8 +3485,9 @@ export default function HeadlightPreChecklistCreatePage({
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+                          <label htmlFor="carDetails-yearOfManufacture" className="block text-sm font-medium text-gray-700 mb-1">Year</label>
                           <input
+                            {...getFieldIdentifiers('carDetails.yearOfManufacture')}
                             type="text"
                             value={formData.carDetails.yearOfManufacture}
                             onChange={(e) => handleCarDetailChange('yearOfManufacture', e.target.value)}
@@ -3431,8 +3495,9 @@ export default function HeadlightPreChecklistCreatePage({
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
+                          <label htmlFor="carDetails-color" className="block text-sm font-medium text-gray-700 mb-1">Color</label>
                           <input
+                            {...getFieldIdentifiers('carDetails.color')}
                             type="text"
                             value={formData.carDetails.color}
                             onChange={(e) => handleCarDetailChange('color', e.target.value)}
@@ -3440,8 +3505,9 @@ export default function HeadlightPreChecklistCreatePage({
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Mileage</label>
+                          <label htmlFor="carDetails-mileage" className="block text-sm font-medium text-gray-700 mb-1">Mileage</label>
                           <input
+                            {...getFieldIdentifiers('carDetails.mileage')}
                             type="text"
                             value={formData.carDetails.mileage}
                             onChange={(e) => handleCarDetailChange('mileage', e.target.value)}
@@ -3502,8 +3568,9 @@ export default function HeadlightPreChecklistCreatePage({
                     </h3>
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Service Description</label>
+                        <label htmlFor="productServiceNeeded" className="block text-sm font-medium text-gray-700 mb-1">Service Description</label>
                         <input
+                          {...getFieldIdentifiers('productServiceNeeded')}
                           type="text"
                           value={formData.productServiceNeeded}
                           onChange={(e) => handleInputChange('productServiceNeeded', e.target.value)}
@@ -3513,8 +3580,9 @@ export default function HeadlightPreChecklistCreatePage({
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Product Price (KES)</label>
+                          <label htmlFor="productPrice" className="block text-sm font-medium text-gray-700 mb-1">Product Price (KES)</label>
                           <input
+                            {...getFieldIdentifiers('productPrice')}
                             type="number"
                             value={formData.productPrice}
                             onChange={(e) => handleInputChange('productPrice', parseFloat(e.target.value) || 0)}
@@ -3522,8 +3590,9 @@ export default function HeadlightPreChecklistCreatePage({
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Service Price (KES)</label>
+                          <label htmlFor="servicePrice" className="block text-sm font-medium text-gray-700 mb-1">Service Price (KES)</label>
                           <input
+                            {...getFieldIdentifiers('servicePrice')}
                             type="number"
                             value={formData.servicePrice}
                             onChange={(e) => handleInputChange('servicePrice', parseFloat(e.target.value) || 0)}
@@ -3570,6 +3639,7 @@ export default function HeadlightPreChecklistCreatePage({
                       Additional Information
                     </h3>
                     <textarea
+                      {...getFieldIdentifiers('additionalInformation')}
                       value={formData.additionalInformation}
                       onChange={(e) => handleInputChange('additionalInformation', e.target.value)}
                       className="w-full px-3 py-2 border rounded-lg"
@@ -3605,6 +3675,7 @@ export default function HeadlightPreChecklistCreatePage({
                   </div>
 
                   <input
+                    {...getFieldIdentifiers('uploadedImages')}
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
@@ -3838,8 +3909,10 @@ export default function HeadlightPreChecklistCreatePage({
                               <p className="text-xs text-gray-500 capitalize">{item.itemType}</p>
                             </div>
                             <div>
-                              <label className="block text-xs text-gray-500 mb-1">Qty</label>
+                              <label htmlFor={`pricingSnapshot-items-${index}-quantity`} className="block text-xs text-gray-500 mb-1">Qty</label>
                               <input
+                                id={`pricingSnapshot-items-${index}-quantity`}
+                                name={`pricingSnapshot.items.${index}.quantity`}
                                 type="number"
                                 min={0}
                                 step="1"
@@ -3849,8 +3922,10 @@ export default function HeadlightPreChecklistCreatePage({
                               />
                             </div>
                             <div>
-                              <label className="block text-xs text-gray-500 mb-1">Unit Price</label>
+                              <label htmlFor={`pricingSnapshot-items-${index}-unitPrice`} className="block text-xs text-gray-500 mb-1">Unit Price</label>
                               <input
+                                id={`pricingSnapshot-items-${index}-unitPrice`}
+                                name={`pricingSnapshot.items.${index}.unitPrice`}
                                 type="number"
                                 min={0}
                                 step="0.01"
@@ -3992,6 +4067,7 @@ export default function HeadlightPreChecklistCreatePage({
                             
                             <div className="flex gap-3">
                               <input
+                                {...getFieldIdentifiers('customerDetails.emailForApproval')}
                                 type="email"
                                 value={formData.customerDetails.email}
                                 onChange={(e) => handleCustomerDetailChange('email', e.target.value)}
@@ -4017,8 +4093,9 @@ export default function HeadlightPreChecklistCreatePage({
                 
                 {/* Remarks */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Additional Remarks</label>
+                  <label htmlFor="remarks" className="block text-sm font-medium text-gray-700 mb-2">Additional Remarks</label>
                   <textarea
+                    {...getFieldIdentifiers('remarks')}
                     value={formData.remarks}
                     onChange={(e) => handleInputChange('remarks', e.target.value)}
                     className="w-full px-3 py-2 border rounded-lg"

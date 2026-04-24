@@ -430,6 +430,8 @@ export default function CreateInvoicePage() {
         <div className="relative">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
           <input
+            id="invoice-opportunity-search"
+            name="invoiceOpportunitySearch"
             type="text"
             value={opportunitySearch}
             onChange={(e) => {
@@ -492,6 +494,8 @@ export default function CreateInvoicePage() {
         <div className="relative">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
           <input
+            id="invoice-quote-search"
+            name="invoiceQuoteSearch"
             type="text"
             value={quoteSearch}
             onChange={(e) => setQuoteSearch(e.target.value)}
@@ -964,12 +968,14 @@ export default function CreateInvoicePage() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="invoice-due-date" className="block text-sm font-medium text-gray-700 mb-2">
                         Due Date *
                       </label>
                       <div className="relative">
                         <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                         <input
+                          id="invoice-due-date"
+                          name="dueDate"
                           type="date"
                           value={formData.dueDate || ''}
                           onChange={(e) => handleInputChange('dueDate', e.target.value)}
@@ -981,12 +987,14 @@ export default function CreateInvoicePage() {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="invoice-payment-method" className="block text-sm font-medium text-gray-700 mb-2">
                         Payment Method
                       </label>
                       <div className="relative">
                         <CreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                         <select
+                          id="invoice-payment-method"
+                          name="paymentMethod"
                           value={formData.paymentMethod || ''}
                           onChange={(e) => handleInputChange('paymentMethod', e.target.value)}
                           className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors appearance-none bg-white"
@@ -1004,10 +1012,12 @@ export default function CreateInvoicePage() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="invoice-notes" className="block text-sm font-medium text-gray-700 mb-2">
                       Notes
                     </label>
                     <textarea
+                      id="invoice-notes"
+                      name="notes"
                       value={formData.notes || ''}
                       onChange={(e) => handleInputChange('notes', e.target.value)}
                       rows={3}
@@ -1051,6 +1061,8 @@ export default function CreateInvoicePage() {
                             <span className="text-white font-bold">{index + 1}</span>
                           </div>
                           <input
+                            id={`invoice-item-${index}-description`}
+                            name={`items.${index}.description`}
                             type="text"
                             value={item.description}
                             onChange={(e) => handleItemChange(index, 'description', e.target.value)}
@@ -1075,10 +1087,12 @@ export default function CreateInvoicePage() {
 
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-2">
+                          <label htmlFor={`invoice-item-${index}-quantity`} className="block text-xs font-medium text-gray-700 mb-2">
                             Quantity *
                           </label>
                           <input
+                            id={`invoice-item-${index}-quantity`}
+                            name={`items.${index}.quantity`}
                             type="number"
                             min="1"
                             value={item.quantity}
@@ -1090,10 +1104,12 @@ export default function CreateInvoicePage() {
                         </div>
                         
                         <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-2">
+                          <label htmlFor={`invoice-item-${index}-unit-price`} className="block text-xs font-medium text-gray-700 mb-2">
                             Unit Price (KES) *
                           </label>
                           <input
+                            id={`invoice-item-${index}-unit-price`}
+                            name={`items.${index}.unitPrice`}
                             type="number"
                             min="0"
                             step="0.01"

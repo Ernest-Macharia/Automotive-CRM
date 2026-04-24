@@ -247,6 +247,13 @@ async function compressChecklistImage(file: File, maxDimension = 1600, quality =
   });
 }
 
+function getFieldIdentifiers(name: string) {
+  return {
+    id: name.replace(/[^a-zA-Z0-9_-]+/g, '-'),
+    name,
+  };
+}
+
 export default function DiamondRimsPreChecklistCreatePage({ 
   mode = 'create', 
   checklistId 
@@ -2791,12 +2798,13 @@ export default function DiamondRimsPreChecklistCreatePage({
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="serviceIntake-customerServiceRep" className="block text-sm font-medium text-gray-700 mb-2">
                     Customer Service Representative <RequiredField />
                   </label>
                   <div className="relative" ref={customerServiceDropdownRef}>
                     <div className="relative">
                       <input
+                        {...getFieldIdentifiers('serviceIntake.customerServiceRep')}
                         type="text"
                         value={formData.serviceIntake.customerServiceRep}
                         onChange={(e) => handleNestedInputChange('serviceIntake', 'customerServiceRep', e.target.value)}
@@ -2872,6 +2880,7 @@ export default function DiamondRimsPreChecklistCreatePage({
                           <div className="relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                             <input
+                              {...getFieldIdentifiers('serviceIntake.customerServiceRepSearch')}
                               type="text"
                               value={userSearch}
                               onChange={(e) => setUserSearch(e.target.value)}
@@ -3041,10 +3050,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="serviceIntake-date" className="block text-sm font-medium text-gray-700 mb-2">
                     Date <RequiredField />
                   </label>
                   <input
+                    {...getFieldIdentifiers('serviceIntake.date')}
                     type="date"
                     value={formData.serviceIntake.date}
                     onChange={(e) => handleNestedInputChange('serviceIntake', 'date', e.target.value)}
@@ -3092,6 +3102,7 @@ export default function DiamondRimsPreChecklistCreatePage({
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
+                      {...getFieldIdentifiers('serviceSearch')}
                       type="text"
                       value={serviceSearch}
                       onChange={(e) => {
@@ -3545,10 +3556,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="customerDetails-firstName" className="block text-sm font-medium text-gray-700 mb-2">
                         First Name <RequiredField />
                       </label>
                       <input
+                        {...getFieldIdentifiers('customerDetails.firstName')}
                         type="text"
                         value={formData.customerDetails.firstName}
                         onChange={(e) => handleNestedInputChange('customerDetails', 'firstName', e.target.value)}
@@ -3558,10 +3570,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="customerDetails-lastName" className="block text-sm font-medium text-gray-700 mb-2">
                         Last Name <RequiredField />
                       </label>
                       <input
+                        {...getFieldIdentifiers('customerDetails.lastName')}
                         type="text"
                         value={formData.customerDetails.lastName}
                         onChange={(e) => handleNestedInputChange('customerDetails', 'lastName', e.target.value)}
@@ -3574,10 +3587,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="customerDetails-mobile" className="block text-sm font-medium text-gray-700 mb-2">
                         Mobile <RequiredField />
                       </label>
                       <input
+                        {...getFieldIdentifiers('customerDetails.mobile')}
                         type="tel"
                         value={formData.customerDetails.mobile}
                         onChange={(e) => handleNestedInputChange('customerDetails', 'mobile', e.target.value)}
@@ -3587,10 +3601,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="customerDetails-email" className="block text-sm font-medium text-gray-700 mb-2">
                         Email <RequiredField />
                       </label>
                       <input
+                        {...getFieldIdentifiers('customerDetails.email')}
                         type="email"
                         value={formData.customerDetails.email}
                         onChange={(e) => handleNestedInputChange('customerDetails', 'email', e.target.value)}
@@ -3673,10 +3688,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label htmlFor="carDetails-carMake" className="block text-sm font-medium text-gray-700 mb-2">
                           Make <RequiredField />
                         </label>
                         <input
+                          {...getFieldIdentifiers('carDetails.carMake')}
                           type="text"
                           value={formData.carDetails.carMake}
                           onChange={(e) => handleNestedInputChange('carDetails', 'carMake', e.target.value)}
@@ -3686,10 +3702,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label htmlFor="carDetails-carModel" className="block text-sm font-medium text-gray-700 mb-2">
                           Model <RequiredField />
                         </label>
                         <input
+                          {...getFieldIdentifiers('carDetails.carModel')}
                           type="text"
                           value={formData.carDetails.carModel}
                           onChange={(e) => handleNestedInputChange('carDetails', 'carModel', e.target.value)}
@@ -3699,10 +3716,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label htmlFor="carDetails-licensePlate" className="block text-sm font-medium text-gray-700 mb-2">
                           License Plate <RequiredField />
                         </label>
                         <input
+                          {...getFieldIdentifiers('carDetails.licensePlate')}
                           type="text"
                           value={formData.carDetails.licensePlate}
                           onChange={(e) => handleNestedInputChange('carDetails', 'licensePlate', e.target.value)}
@@ -3712,10 +3730,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label htmlFor="carDetails-yearOfManufacture" className="block text-sm font-medium text-gray-700 mb-2">
                           Year <RequiredField />
                         </label>
                         <input
+                          {...getFieldIdentifiers('carDetails.yearOfManufacture')}
                           type="text"
                           value={formData.carDetails.yearOfManufacture}
                           onChange={(e) => handleNestedInputChange('carDetails', 'yearOfManufacture', e.target.value)}
@@ -3728,10 +3747,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label htmlFor="carDetails-color" className="block text-sm font-medium text-gray-700 mb-2">
                           Color <RequiredField />
                         </label>
                         <input
+                          {...getFieldIdentifiers('carDetails.color')}
                           type="text"
                           value={formData.carDetails.color}
                           onChange={(e) => handleNestedInputChange('carDetails', 'color', e.target.value)}
@@ -3741,10 +3761,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label htmlFor="carDetails-mileage" className="block text-sm font-medium text-gray-700 mb-2">
                           Mileage <RequiredField />
                         </label>
                         <input
+                          {...getFieldIdentifiers('carDetails.mileage')}
                           type="text"
                           value={formData.carDetails.mileage}
                           onChange={(e) => handleNestedInputChange('carDetails', 'mileage', e.target.value)}
@@ -3911,10 +3932,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                 
                 {/* Rim or Tire Selection - Dropdown */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="rimOrTireSelection" className="block text-sm font-medium text-gray-700 mb-2">
                     Select Item Type <RequiredField />
                   </label>
                   <select
+                    {...getFieldIdentifiers('rimOrTireSelection')}
                     value={formData.rimOrTireSelection}
                     onChange={(e) => handleInputChange('rimOrTireSelection', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
@@ -3931,10 +3953,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                 {formData.rimOrTireSelection === 'rims-only' || formData.rimOrTireSelection === 'rims-with-tires' ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="rimsDetails-quantity" className="block text-sm font-medium text-gray-700 mb-2">
                         Rim Quantity <RequiredField />
                       </label>
                       <input
+                        {...getFieldIdentifiers('rimsDetails.quantity')}
                         type="number"
                         value={formData.rimsDetails.quantity}
                         onChange={(e) => handleNestedInputChange('rimsDetails', 'quantity', parseInt(e.target.value) || 0)}
@@ -3945,10 +3968,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="rimsDetails-size" className="block text-sm font-medium text-gray-700 mb-2">
                         Rim Size
                       </label>
                       <input
+                        {...getFieldIdentifiers('rimsDetails.size')}
                         type="text"
                         value={formData.rimsDetails.size}
                         onChange={(e) => handleNestedInputChange('rimsDetails', 'size', e.target.value)}
@@ -3962,10 +3986,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                 {formData.rimOrTireSelection === 'tires-only' || formData.rimOrTireSelection === 'rims-with-tires' ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="tiresDetails-quantity" className="block text-sm font-medium text-gray-700 mb-2">
                         Tire Quantity
                       </label>
                       <input
+                        {...getFieldIdentifiers('tiresDetails.quantity')}
                         type="number"
                         value={formData.tiresDetails.quantity}
                         onChange={(e) => handleNestedInputChange('tiresDetails', 'quantity', parseInt(e.target.value) || 0)}
@@ -3975,10 +4000,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label htmlFor="tiresDetails-size" className="block text-sm font-medium text-gray-700 mb-2">
                         Tire Size
                       </label>
                       <input
+                        {...getFieldIdentifiers('tiresDetails.size')}
                         type="text"
                         value={formData.tiresDetails.size}
                         onChange={(e) => handleNestedInputChange('tiresDetails', 'size', e.target.value)}
@@ -4024,10 +4050,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                     {formData.centerCaps.present && (
                       <>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label htmlFor="centerCaps-quantity" className="block text-sm font-medium text-gray-700 mb-2">
                             Quantity
                           </label>
                           <input
+                            {...getFieldIdentifiers('centerCaps.quantity')}
                             type="number"
                             value={formData.centerCaps.quantity}
                             onChange={(e) => handleNestedInputChange('centerCaps', 'quantity', parseInt(e.target.value) || 0)}
@@ -4038,10 +4065,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                         </div>
                         
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label htmlFor="centerCaps-condition" className="block text-sm font-medium text-gray-700 mb-2">
                             Condition
                           </label>
                           <select
+                            {...getFieldIdentifiers('centerCaps.condition')}
                             value={formData.centerCaps.condition}
                             onChange={(e) => handleNestedInputChange('centerCaps', 'condition', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
@@ -4054,10 +4082,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                         </div>
                         
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label htmlFor="centerCaps-type" className="block text-sm font-medium text-gray-700 mb-2">
                             Type
                           </label>
                           <input
+                            {...getFieldIdentifiers('centerCaps.type')}
                             type="text"
                             value={formData.centerCaps.type}
                             onChange={(e) => handleNestedInputChange('centerCaps', 'type', e.target.value)}
@@ -4074,10 +4103,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                 {/* Wheel Nuts, Nozzle Caps, Lock Nuts */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="wheelNutsTotal" className="block text-sm font-medium text-gray-700 mb-2">
                       Total Number of Wheel Nuts
                     </label>
                     <input
+                      {...getFieldIdentifiers('wheelNutsTotal')}
                       type="number"
                       value={formData.wheelNutsTotal}
                       onChange={(e) => handleInputChange('wheelNutsTotal', parseInt(e.target.value) || 0)}
@@ -4087,10 +4117,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="nozzleCapsTotal" className="block text-sm font-medium text-gray-700 mb-2">
                       Total Number of Nozzle Caps
                     </label>
                     <input
+                      {...getFieldIdentifiers('nozzleCapsTotal')}
                       type="number"
                       value={formData.nozzleCapsTotal}
                       onChange={(e) => handleInputChange('nozzleCapsTotal', parseInt(e.target.value) || 0)}
@@ -4100,10 +4131,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="lockNutsTotal" className="block text-sm font-medium text-gray-700 mb-2">
                       Total Number of Lock Nuts
                     </label>
                     <input
+                      {...getFieldIdentifiers('lockNutsTotal')}
                       type="number"
                       value={formData.lockNutsTotal}
                       onChange={(e) => handleInputChange('lockNutsTotal', parseInt(e.target.value) || 0)}
@@ -4114,10 +4146,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                 </div>
                 
                 <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="nozzleCapsType" className="block text-sm font-medium text-gray-700 mb-2">
                     Nozzle Caps Type
                   </label>
                   <input
+                    {...getFieldIdentifiers('nozzleCapsType')}
                     type="text"
                     value={formData.nozzleCapsType}
                     onChange={(e) => handleInputChange('nozzleCapsType', e.target.value)}
@@ -4132,10 +4165,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Tire Brands</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="tireBrands-fr" className="block text-sm font-medium text-gray-700 mb-2">
                       FR (Front Right)
                     </label>
                     <input
+                      {...getFieldIdentifiers('tireBrands.fr')}
                       type="text"
                       value={formData.tireBrands.fr}
                       onChange={(e) => handleNestedInputChange('tireBrands', 'fr', e.target.value)}
@@ -4144,10 +4178,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="tireBrands-fl" className="block text-sm font-medium text-gray-700 mb-2">
                       FL (Front Left)
                     </label>
                     <input
+                      {...getFieldIdentifiers('tireBrands.fl')}
                       type="text"
                       value={formData.tireBrands.fl}
                       onChange={(e) => handleNestedInputChange('tireBrands', 'fl', e.target.value)}
@@ -4156,10 +4191,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="tireBrands-br" className="block text-sm font-medium text-gray-700 mb-2">
                       BR (Back Right)
                     </label>
                     <input
+                      {...getFieldIdentifiers('tireBrands.br')}
                       type="text"
                       value={formData.tireBrands.br}
                       onChange={(e) => handleNestedInputChange('tireBrands', 'br', e.target.value)}
@@ -4170,10 +4206,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="tireBrands-bl" className="block text-sm font-medium text-gray-700 mb-2">
                       BL (Back Left)
                     </label>
                     <input
+                      {...getFieldIdentifiers('tireBrands.bl')}
                       type="text"
                       value={formData.tireBrands.bl}
                       onChange={(e) => handleNestedInputChange('tireBrands', 'bl', e.target.value)}
@@ -4182,10 +4219,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="tireBrands-spare" className="block text-sm font-medium text-gray-700 mb-2">
                       Spare
                     </label>
                     <input
+                      {...getFieldIdentifiers('tireBrands.spare')}
                       type="text"
                       value={formData.tireBrands.spare}
                       onChange={(e) => handleNestedInputChange('tireBrands', 'spare', e.target.value)}
@@ -4205,8 +4243,12 @@ export default function DiamondRimsPreChecklistCreatePage({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {tireDotPositions.map((position) => (
                     <div key={position.key} className="p-4 border border-gray-200 rounded-lg">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">{position.label}</label>
+                      <label htmlFor={`tireDOT-${String(position.key)}-code`} className="block text-sm font-medium text-gray-700 mb-2">
+                        {position.label}
+                      </label>
                       <input
+                        id={`tireDOT-${String(position.key)}-code`}
+                        name={`tireDOT.${String(position.key)}.code`}
                         type="text"
                         value={formData.tireDOT[position.key].code || ''}
                         onChange={(e) =>
@@ -4241,10 +4283,12 @@ export default function DiamondRimsPreChecklistCreatePage({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {applicableSuitabilityFields.map((field) => (
                         <div key={field.key}>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label htmlFor={`suitability-${String(field.key)}`} className="block text-sm font-medium text-gray-700 mb-2">
                             {field.label}
                           </label>
                           <select
+                            id={`suitability-${String(field.key)}`}
+                            name={`suitability.${String(field.key)}`}
                             value={formData.suitability[field.key]}
                             onChange={(e) => handleNestedInputChange('suitability', field.key, e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -4262,10 +4306,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                   
                   {/* Additional Notes Section */}
                   <div className="mt-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="suitability-notes" className="block text-sm font-medium text-gray-700 mb-2">
                       Suitability Notes & Recommendations
                     </label>
                     <textarea
+                      {...getFieldIdentifiers('suitability.notes')}
                       value={formData.suitability.notes}
                       onChange={(e) => handleNestedInputChange('suitability', 'notes', e.target.value)}
                       placeholder="Detailed notes on suitability assessment and recommendations..."
@@ -4275,10 +4320,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                   </div>
                   
                   <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="suitability-recommendations" className="block text-sm font-medium text-gray-700 mb-2">
                       Technician Recommendations
                     </label>
                     <textarea
+                      {...getFieldIdentifiers('suitability.recommendations')}
                       value={formData.suitability.recommendations}
                       onChange={(e) => handleNestedInputChange('suitability', 'recommendations', e.target.value)}
                       placeholder="Specific recommendations for the customer..."
@@ -4328,10 +4374,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
-                          <label className="block text-sm font-medium text-yellow-800 mb-2">
+                          <label htmlFor="declaredValuable-declaredValue" className="block text-sm font-medium text-yellow-800 mb-2">
                             Declared Value (KES)
                           </label>
                           <input
+                            {...getFieldIdentifiers('declaredValuable.declaredValue')}
                             type="number"
                             value={formData.declaredValuable.declaredValue}
                             onChange={(e) => handleNestedInputChange('declaredValuable', 'declaredValue', parseFloat(e.target.value) || 0)}
@@ -4341,10 +4388,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                         </div>
                         
                         <div>
-                          <label className="block text-sm font-medium text-yellow-800 mb-2">
+                          <label htmlFor="declaredValuable-insuranceRequired" className="block text-sm font-medium text-yellow-800 mb-2">
                             Insurance Required?
                           </label>
                           <select
+                            {...getFieldIdentifiers('declaredValuable.insuranceRequired')}
                             value={formData.declaredValuable.insuranceRequired ? 'yes' : 'no'}
                             onChange={(e) => handleNestedInputChange('declaredValuable', 'insuranceRequired', e.target.value === 'yes')}
                             className="w-full px-3 py-2 border border-yellow-300 rounded-lg"
@@ -4358,10 +4406,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                       {formData.declaredValuable.insuranceRequired && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                           <div>
-                            <label className="block text-sm font-medium text-yellow-800 mb-2">
+                            <label htmlFor="declaredValuable-insuranceProvider" className="block text-sm font-medium text-yellow-800 mb-2">
                               Insurance Provider
                             </label>
                             <input
+                              {...getFieldIdentifiers('declaredValuable.insuranceProvider')}
                               type="text"
                               value={formData.declaredValuable.insuranceProvider}
                               onChange={(e) => handleNestedInputChange('declaredValuable', 'insuranceProvider', e.target.value)}
@@ -4371,10 +4420,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                           </div>
                           
                           <div>
-                            <label className="block text-sm font-medium text-yellow-800 mb-2">
+                            <label htmlFor="declaredValuable-policyNumber" className="block text-sm font-medium text-yellow-800 mb-2">
                               Policy Number
                             </label>
                             <input
+                              {...getFieldIdentifiers('declaredValuable.policyNumber')}
                               type="text"
                               value={formData.declaredValuable.policyNumber}
                               onChange={(e) => handleNestedInputChange('declaredValuable', 'policyNumber', e.target.value)}
@@ -4386,10 +4436,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                       )}
                       
                       <div>
-                        <label className="block text-sm font-medium text-yellow-800 mb-2">
+                        <label htmlFor="declaredValuable-notes" className="block text-sm font-medium text-yellow-800 mb-2">
                           Declared Valuable Notes
                         </label>
                         <textarea
+                          {...getFieldIdentifiers('declaredValuable.notes')}
                           value={formData.declaredValuable.notes}
                           onChange={(e) => handleNestedInputChange('declaredValuable', 'notes', e.target.value)}
                           placeholder="Additional notes regarding declared valuable items..."
@@ -4404,10 +4455,11 @@ export default function DiamondRimsPreChecklistCreatePage({
               
               {/* Additional Information */}
               <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="additionalInformation" className="block text-sm font-medium text-gray-700 mb-2">
                   Additional Information
                 </label>
                 <textarea
+                  {...getFieldIdentifiers('additionalInformation')}
                   value={formData.additionalInformation}
                   onChange={(e) => handleInputChange('additionalInformation', e.target.value)}
                   placeholder="Any additional notes or special requests..."
@@ -4717,6 +4769,7 @@ export default function DiamondRimsPreChecklistCreatePage({
               </div>
 
               <input
+                {...getFieldIdentifiers('uploadedImages')}
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
@@ -4922,8 +4975,10 @@ export default function DiamondRimsPreChecklistCreatePage({
                               <p className="text-xs text-gray-500 capitalize">{item.itemType}</p>
                             </div>
                             <div>
-                              <label className="block text-xs text-gray-500 mb-1">Qty</label>
+                              <label htmlFor={`pricingSnapshot-items-${index}-quantity`} className="block text-xs text-gray-500 mb-1">Qty</label>
                               <input
+                                id={`pricingSnapshot-items-${index}-quantity`}
+                                name={`pricingSnapshot.items.${index}.quantity`}
                                 type="number"
                                 min={0}
                                 step="1"
@@ -4933,8 +4988,10 @@ export default function DiamondRimsPreChecklistCreatePage({
                               />
                             </div>
                             <div>
-                              <label className="block text-xs text-gray-500 mb-1">Unit Price</label>
+                              <label htmlFor={`pricingSnapshot-items-${index}-unitPrice`} className="block text-xs text-gray-500 mb-1">Unit Price</label>
                               <input
+                                id={`pricingSnapshot-items-${index}-unitPrice`}
+                                name={`pricingSnapshot.items.${index}.unitPrice`}
                                 type="number"
                                 min={0}
                                 step="0.01"
@@ -5125,6 +5182,7 @@ export default function DiamondRimsPreChecklistCreatePage({
                           
                           <div className="flex gap-3">
                             <input
+                              {...getFieldIdentifiers('clientEmail')}
                               type="email"
                               value={formData.clientEmail}
                               onChange={(e) => handleInputChange('clientEmail', e.target.value)}
@@ -5151,10 +5209,11 @@ export default function DiamondRimsPreChecklistCreatePage({
               
               {/* Remarks */}
               <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="remarks" className="block text-sm font-medium text-gray-700 mb-2">
                   Additional Remarks
                 </label>
                 <textarea
+                  {...getFieldIdentifiers('remarks')}
                   value={formData.remarks}
                   onChange={(e) => handleInputChange('remarks', e.target.value)}
                   placeholder="Any additional notes or observations..."
