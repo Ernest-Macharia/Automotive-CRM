@@ -2116,7 +2116,7 @@ export default function DiamondRimsPreChecklistCreatePage({
       } else if (result._id) {
         router.push(`/pre-checklist/${result._id}`);
       } else {
-        router.push('/prechecklists');
+        router.push('/pre-checklist');
       }
 
     } catch (error: any) {
@@ -2171,7 +2171,7 @@ export default function DiamondRimsPreChecklistCreatePage({
     if (source === 'workflow' && workOrderId) {
       router.push(`/orders/work-orders/${workOrderId}`);
     } else {
-      router.push('/prechecklists');
+      router.push('/pre-checklist');
     }
   };
 

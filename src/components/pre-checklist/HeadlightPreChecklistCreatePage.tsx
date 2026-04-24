@@ -1645,7 +1645,7 @@ export default function HeadlightPreChecklistCreatePage({
       } else if (result?._id) {
         router.push(`/pre-checklist/${result._id}`);
       } else {
-        router.push('/prechecklists');
+        router.push('/pre-checklist');
       }
 
     } catch (error: any) {
@@ -1662,7 +1662,7 @@ export default function HeadlightPreChecklistCreatePage({
     } else if (source === 'opportunity' && formData.opportunityId) {
       router.push(`/opportunities/${formData.opportunityId}`);
     } else {
-      router.push('/prechecklists');
+      router.push('/pre-checklist');
     }
   };
 
