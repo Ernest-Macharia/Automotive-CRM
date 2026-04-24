@@ -2,7 +2,7 @@
 
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
-import { Wrench, Sparkles, X } from 'lucide-react';
+import { Wrench, Sparkles, X, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface PreChecklistTypeModalProps {
@@ -35,6 +35,11 @@ export default function PreChecklistTypeModal({
   const handleSelectEagleLights = () => {
     const oppId = getOpportunityIdString();
     router.push(`/pre-checklist/create?workOrderId=${workOrderId}&opportunityId=${oppId}&source=workflow&clientType=eagle-lights`);
+    onClose();
+  };
+
+  const handleSearchClientFirst = () => {
+    router.push('/pre-checklist/create?source=workflow');
     onClose();
   };
 
@@ -126,10 +131,18 @@ export default function PreChecklistTypeModal({
                   </button>
                 </div>
 
-                <div className="mt-8 pt-6 border-t border-gray-200">
+                <div className="mt-8 pt-6 border-t border-gray-200 space-y-4">
                   <p className="text-sm text-gray-500 text-center">
                     Not sure which one to choose? Both forms follow the same workflow structure.
                   </p>
+                  <button
+                    type="button"
+                    onClick={handleSearchClientFirst}
+                    className="w-full px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 flex items-center justify-center gap-2"
+                  >
+                    <Search className="h-4 w-4" />
+                    Search Client First
+                  </button>
                 </div>
               </Dialog.Panel>
             </Transition.Child>

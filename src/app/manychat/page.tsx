@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import ConnectionStatus from '@/components/manychat/ConnectionStatus';
 import MessageComposer from '@/components/manychat/MessageComposer';
@@ -9,7 +10,7 @@ import StatsDashboard from '@/components/manychat/StatsDashboard';
 import {
   type LucideIcon,
   MessageSquare, BarChart3, Tag, Send, Download,
-  Settings, AlertTriangle, KeyRound, Loader2
+  Settings, AlertTriangle, KeyRound, Loader2, ClipboardCheck
 } from 'lucide-react';
 import {
   manychatService,
@@ -22,6 +23,7 @@ import { useToast } from '@/contexts/ToastContext';
 type ManyChatTab = 'messages' | 'tags' | 'stats' | 'settings';
 
 export default function ManyChatPage() {
+  const router = useRouter();
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<ManyChatTab>('messages');
   const [selectedContact, setSelectedContact] = useState<ManyChatContact | null>(null);
@@ -135,6 +137,19 @@ export default function ManyChatPage() {
     }
   };
 
+  const handleCreateChecklist = () => {
+    const query = new URLSearchParams({
+      source: 'manychat',
+    });
+    const suggestedClient =
+      selectedContact?.fullName ||
+      `${selectedContact?.firstName || ''} ${selectedContact?.lastName || ''}`.trim();
+    if (suggestedClient) {
+      query.set('clientSearch', suggestedClient);
+    }
+    router.push(`/pre-checklist/create?${query.toString()}`);
+  };
+
   const renderConnectionRequired = () => (
     <div className="bg-white rounded-xl border border-gray-200 p-8">
       <div className="max-w-xl">
@@ -230,6 +245,13 @@ export default function ManyChatPage() {
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 {/* Quick Actions */}
                 <div className="p-4 border-b border-gray-100">
+                  <button
+                    onClick={handleCreateChecklist}
+                    className="w-full px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl hover:from-emerald-600 hover:to-teal-700 flex items-center justify-center gap-2 font-semibold mb-3"
+                  >
+                    <ClipboardCheck className="h-4 w-4" />
+                    Create Checklist
+                  </button>
                   <button
                     onClick={() => handleSendMessage()}
                     className="w-full px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 flex items-center justify-center gap-2 font-semibold mb-3"

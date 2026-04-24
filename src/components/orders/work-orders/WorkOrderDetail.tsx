@@ -19,7 +19,7 @@ import DelayTab from './tabs/DelayTab';
 import LoadingState from './LoadingState';
 import ErrorState from './ErrorState';
 import { workOrderService } from '@/services/workOrderService';
-import { Menu, X, ChevronDown, MoreVertical, RefreshCw, ArrowLeft, Wrench, Printer, Edit, Bell } from 'lucide-react';
+import { Menu, X, ChevronDown, MoreVertical, RefreshCw, ArrowLeft, Wrench, Printer, Edit, Bell, ClipboardCheck } from 'lucide-react';
 
 interface WorkOrderDetailProps {
   orderId: string;
@@ -138,6 +138,28 @@ export default function WorkOrderDetail({ orderId }: WorkOrderDetailProps) {
     }
   };
 
+  const getOpportunityId = (): string => {
+    const value = workOrder?.opportunityId;
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    return value._id || '';
+  };
+
+  const handleCreateChecklistFromWorkOrder = () => {
+    const query = new URLSearchParams({
+      workOrderId: workOrder._id,
+      source: 'workflow',
+    });
+
+    const opportunityId = getOpportunityId();
+    if (opportunityId) {
+      query.set('opportunityId', opportunityId);
+    }
+
+    router.push(`/pre-checklist/create?${query.toString()}`);
+    setMobileMenuOpen(false);
+  };
+
   if (loading) {
     return <LoadingState />;
   }
@@ -238,6 +260,13 @@ export default function WorkOrderDetail({ orderId }: WorkOrderDetailProps) {
               <Edit className="h-4 w-4 text-gray-600" />
               Edit
             </Link>
+            <button
+              onClick={handleCreateChecklistFromWorkOrder}
+              className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-3"
+            >
+              <ClipboardCheck className="h-4 w-4 text-gray-600" />
+              Create Checklist
+            </button>
             <button
               onClick={() => {
                 // Add your custom action here
