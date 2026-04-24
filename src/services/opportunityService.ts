@@ -795,14 +795,19 @@ class OpportunityService {
           (requestPage || 1),
       ),
     );
-    const resolvedTotal = Math.max(
-      0,
-      Math.floor(
-        this.toFiniteNumber(rawPagination.total ?? rawPagination.totalItems ?? rawPagination.count) ?? 0,
-      ),
+    const explicitTotal = this.toFiniteNumber(
+      rawPagination.total ?? rawPagination.totalItems ?? rawPagination.count,
     );
     const explicitTotalPages = this.toFiniteNumber(
       rawPagination.totalPages ?? rawPagination.pages ?? rawPagination.pageCount,
+    );
+    const dataLength = Array.isArray(payload?.data) ? payload.data.length : 0;
+    const fallbackTotal = explicitTotalPages
+      ? explicitTotalPages * resolvedLimit
+      : Math.max(dataLength, resolvedPage * resolvedLimit);
+    const resolvedTotal = Math.max(
+      0,
+      Math.floor(explicitTotal ?? fallbackTotal),
     );
     const inferredTotalPages =
       resolvedTotal > 0 ? Math.ceil(resolvedTotal / resolvedLimit) : 1;

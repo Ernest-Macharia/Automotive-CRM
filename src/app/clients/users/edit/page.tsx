@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useMemo, Suspense } from 'react';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import UserProfilePage from '@/components/users/UserProfilePage';
 import { Loader2 } from 'lucide-react';
@@ -9,23 +9,16 @@ import { Loader2 } from 'lucide-react';
 function UserEditContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [userId, setUserId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const userId = useMemo(() => searchParams.get('id'), [searchParams]);
 
   useEffect(() => {
-    const id = searchParams.get('id');
-    
-    if (!id) {
+    if (!userId) {
       console.error('No user ID provided in query parameters');
       router.push('/clients');
-      return;
     }
-    
-    setUserId(id);
-    setIsLoading(false);
-  }, [searchParams, router]);
+  }, [router, userId]);
 
-  if (isLoading) {
+  if (!userId) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center">
         <div className="text-center">
@@ -34,10 +27,6 @@ function UserEditContent() {
         </div>
       </div>
     );
-  }
-
-  if (!userId) {
-    return null;
   }
 
   return (
