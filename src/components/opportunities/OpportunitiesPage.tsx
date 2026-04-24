@@ -1672,9 +1672,15 @@ export default function OpportunitiesContent() {
     }
   };
 
-  // Debounced filter change
+  // Debounced filter change (non-pagination controls only)
   const debouncedFilterChange = useDebounce((key: keyof FilterParams, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value, page: 1 }));
+    setFilters((prev) => {
+      if (key === 'page') {
+        return { ...prev, page: value };
+      }
+
+      return { ...prev, [key]: value, page: 1 };
+    });
   }, 300);
 
   const getMonthDateRange = useCallback((monthValue: string) => {
@@ -1696,6 +1702,12 @@ export default function OpportunitiesContent() {
   }, []);
 
   const handleFilterChange = (key: keyof FilterParams, value: any) => {
+    // Page navigation should be immediate and must not be debounced.
+    if (key === 'page') {
+      setFilters((prev) => ({ ...prev, page: value }));
+      return;
+    }
+
     debouncedFilterChange(key, value);
   };
 
