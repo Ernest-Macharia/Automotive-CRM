@@ -233,12 +233,14 @@ export default function ReassignModal({
 
               {/* User Selection - Matches Create Page */}
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="reassign-sales-representative" className="block text-sm font-medium text-gray-700 mb-2">
                   Select New Sales Representative
                 </label>
                 <div className="relative" ref={dropdownRef}>
                   <div className="relative">
                     <input
+                      id="reassign-sales-representative"
+                      name="reassignSalesRepresentative"
                       type="text"
                       value={selectedUserId ? 
                         users.find(u => u.id === selectedUserId || u._id === selectedUserId)?.name || 
@@ -273,6 +275,8 @@ export default function ReassignModal({
                         <div className="relative">
                           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                           <input
+                            id="reassign-sales-representative-search"
+                            name="reassignSalesRepresentativeSearch"
                             type="text"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -355,10 +359,12 @@ export default function ReassignModal({
 
               {/* Notes */}
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="reassign-notes" className="block text-sm font-medium text-gray-700 mb-2">
                   Reassignment Notes (Optional)
                 </label>
                 <textarea
+                  id="reassign-notes"
+                  name="reassignNotes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Add any notes or context for the new assignee..."
