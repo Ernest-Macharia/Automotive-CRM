@@ -60,7 +60,6 @@ import {
   Download,
   Circle,
   Square,
-  Tag,
   RotateCw,
   ShieldOff,
   Award,
@@ -302,6 +301,8 @@ export default function DiamondRimsPreChecklistCreatePage({
   const [serviceSearch, setServiceSearch] = useState('');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
   const serviceDropdownRef = useRef<HTMLDivElement>(null);
+  const [showMustKnowDropdown, setShowMustKnowDropdown] = useState(false);
+  const mustKnowDropdownRef = useRef<HTMLDivElement>(null);
   const [draggedServiceName, setDraggedServiceName] = useState<string | null>(null);
   const [dragOverServiceIndex, setDragOverServiceIndex] = useState<number | null>(null);
 
@@ -527,7 +528,6 @@ export default function DiamondRimsPreChecklistCreatePage({
   const [showInspectorSignature, setShowInspectorSignature] = useState(false);
   const clientSigRef = useRef<SignatureCanvas>(null);
   const inspectorSigRef = useRef<SignatureCanvas>(null);
-  const [tagInput, setTagInput] = useState('');
 
   // Condition options for Diamond Rims
   const conditionOptions = [
@@ -1090,6 +1090,9 @@ export default function DiamondRimsPreChecklistCreatePage({
       if (serviceDropdownRef.current && !serviceDropdownRef.current.contains(event.target as Node)) {
         setShowServiceDropdown(false);
       }
+      if (mustKnowDropdownRef.current && !mustKnowDropdownRef.current.contains(event.target as Node)) {
+        setShowMustKnowDropdown(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -1567,35 +1570,6 @@ export default function DiamondRimsPreChecklistCreatePage({
       ...prev,
       [field]: value
     }));
-  };
-
-  const handleAddTag = (rawValue?: string) => {
-    const value = (rawValue ?? tagInput).trim();
-    if (!value) return;
-    setFormData(prev => {
-      if (prev.tags.includes(value)) {
-        return prev;
-      }
-      return {
-        ...prev,
-        tags: [...prev.tags, value]
-      };
-    });
-    setTagInput('');
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    setFormData(prev => ({
-      ...prev,
-      tags: prev.tags.filter(tag => tag !== tagToRemove)
-    }));
-  };
-
-  const handleTagKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter' || event.key === ',') {
-      event.preventDefault();
-      handleAddTag();
-    }
   };
 
   const handlePricingItemChange = (index: number, field: 'quantity' | 'unitPrice', rawValue: string) => {
@@ -2491,6 +2465,24 @@ export default function DiamondRimsPreChecklistCreatePage({
     );
   };
 
+  const handleSelectAllMustKnows = () => {
+    setServiceMustKnows((prev) =>
+      prev.map((mustKnow) => ({
+        ...mustKnow,
+        isAcknowledged: true,
+      }))
+    );
+  };
+
+  const handleClearMustKnows = () => {
+    setServiceMustKnows((prev) =>
+      prev.map((mustKnow) => ({
+        ...mustKnow,
+        isAcknowledged: false,
+      }))
+    );
+  };
+
   // Handle risk acknowledgment
   const handleRiskAcknowledgment = (riskId: string, acknowledged: boolean) => {
     setServiceRisks(prev =>
@@ -2683,6 +2675,9 @@ export default function DiamondRimsPreChecklistCreatePage({
       risk.serviceId === 'general' || selectedServiceIds.includes(risk.serviceId)
     );
   };
+
+  const acknowledgedMustKnowCount = serviceMustKnows.filter((mustKnow) => mustKnow.isAcknowledged).length;
+  const allMustKnowsSelected = serviceMustKnows.length > 0 && acknowledgedMustKnowCount === serviceMustKnows.length;
 
   if (loading) {
     return (
@@ -4406,13 +4401,9 @@ export default function DiamondRimsPreChecklistCreatePage({
                 
                 <div className="space-y-4">
                   {getSelectedServiceRisks().map((risk) => (
-                    <div 
-                      key={risk.id} 
-                      className={`p-4 border rounded-lg ${
-                        risk.riskLevel === 'high' ? 'bg-red-50 border-red-200' :
-                        risk.riskLevel === 'medium' ? 'bg-yellow-50 border-yellow-200' :
-                        'bg-blue-50 border-blue-200'
-                      }`}
+                    <div
+                      key={risk.id}
+                      className="p-4 border rounded-lg bg-gray-50 border-gray-200"
                     >
                       <div className="flex items-start gap-3">
                         <input
@@ -4424,19 +4415,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                           required={risk.required}
                         />
                         <div className="flex-1">
-                          <div className="flex items-start justify-between mb-1">
+                          <div className="mb-1">
                             <label htmlFor={`risk-${risk.id}`} className="text-sm font-medium text-gray-700">
                               {risk.description}
                               {risk.required && <span className="text-red-500 ml-1">*</span>}
                             </label>
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              risk.riskLevel === 'high' ? 'bg-red-100 text-red-800' :
-                              risk.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-blue-100 text-blue-800'
-                            }`}>
-                              {risk.riskLevel === 'high' ? 'High Risk' :
-                              risk.riskLevel === 'medium' ? 'Medium Risk' : 'Low Risk'}
-                            </span>
                           </div>
                           <p className="text-xs text-gray-500">
                             Applies to: {risk.serviceName}
@@ -4508,97 +4491,113 @@ export default function DiamondRimsPreChecklistCreatePage({
                       </div>
                     </button>
                     
-                    {/* Quick Summary */}
+                    {/* Must Know Selection */}
                     <div className="bg-white border border-gray-200 rounded-lg p-4">
-                      <h5 className="font-medium text-gray-900 mb-3">Key Points Summary:</h5>
-                      <ul className="text-sm text-gray-600 space-y-2">
-                        <li className="flex items-start gap-2">
-                          <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                          <span>Workmanship warranty period varies by service type (6-12 months)</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                          <span>No liability for personal items left with vehicle/rims</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                          <span>Storage fees: KES 500/day per part after 5 days</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                          <span>Full payment required before collection</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                          <span>Customer accepts inherent risks of rim services</span>
-                        </li>
-                      </ul>
-
-                      <div className="mt-5 pt-4 border-t border-gray-200">
-                        <div className="flex items-center justify-between mb-3">
-                          <h5 className="font-medium text-gray-900">Must Know (Continuation of Key Points):</h5>
-                          {formData.services.actualService.length > 0 && (
-                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                              {formData.services.actualService.length} selected service(s)
-                            </span>
-                          )}
-                        </div>
-
-                        {serviceMustKnows.length === 0 ? (
-                          <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-lg">
-                            <ClipboardCheck className="h-10 w-10 text-gray-400 mx-auto mb-2" />
-                            <p className="text-sm text-gray-600">No must-know items to display</p>
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            {serviceMustKnows.map((mustKnow) => (
-                              <div key={mustKnow.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                <input
-                                  type="checkbox"
-                                  id={`mustknow-${mustKnow.id}`}
-                                  checked={mustKnow.isAcknowledged}
-                                  onChange={(e) => handleMustKnowAcknowledgment(mustKnow.id, e.target.checked)}
-                                  className="mt-1 h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-                                  required={mustKnow.required}
-                                />
-                                <div className="flex-1">
-                                  <label htmlFor={`mustknow-${mustKnow.id}`} className="text-sm font-medium text-gray-700">
-                                    {mustKnow.description}
-                                    {mustKnow.required && <span className="text-red-500 ml-1">*</span>}
-                                  </label>
-                                  {mustKnow.serviceName !== 'General' && (
-                                    <p className="text-xs text-gray-500 mt-1">
-                                      Applies to: {mustKnow.serviceName}
-                                    </p>
-                                  )}
-                                </div>
-                                <span className={`text-xs px-2 py-1 rounded-full ${
-                                  mustKnow.riskLevel === 'high' ? 'bg-red-100 text-red-800' :
-                                  mustKnow.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-blue-100 text-blue-800'
-                                }`}>
-                                  {mustKnow.riskLevel === 'high' ? 'High Risk' :
-                                  mustKnow.riskLevel === 'medium' ? 'Medium Risk' : 'Low Risk'}
-                                </span>
-                              </div>
-                            ))}
-
-                            <div className="pt-2">
-                              <div className="flex items-center justify-between text-sm">
-                                <span className="text-gray-600">Must-knows acknowledged:</span>
-                                <span className="font-medium">
-                                  {serviceMustKnows.filter(m => m.isAcknowledged).length} of {serviceMustKnows.length}
-                                </span>
-                              </div>
-                              {!allMustKnowsAcknowledged() && (
-                                <div className="text-xs text-red-600 mt-1">
-                                  All required must-knows must be acknowledged
-                                </div>
-                              )}
-                            </div>
-                          </div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h5 className="font-medium text-gray-900">Must Know</h5>
+                        {formData.services.actualService.length > 0 && (
+                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                            {formData.services.actualService.length} selected service(s)
+                          </span>
                         )}
                       </div>
+
+                      {serviceMustKnows.length === 0 ? (
+                        <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-lg">
+                          <ClipboardCheck className="h-10 w-10 text-gray-400 mx-auto mb-2" />
+                          <p className="text-sm text-gray-600">No must-know items to display</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="relative" ref={mustKnowDropdownRef}>
+                            <button
+                              type="button"
+                              onClick={() => setShowMustKnowDropdown((prev) => !prev)}
+                              className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-lg bg-white hover:border-purple-300"
+                            >
+                              <span className="text-sm text-gray-700">
+                                {acknowledgedMustKnowCount === 0
+                                  ? 'Select must-know items'
+                                  : `${acknowledgedMustKnowCount} item(s) selected`}
+                              </span>
+                              <ChevronDown
+                                className={`h-4 w-4 text-gray-500 transition-transform ${
+                                  showMustKnowDropdown ? 'rotate-180' : ''
+                                }`}
+                              />
+                            </button>
+
+                            {showMustKnowDropdown && (
+                              <div className="absolute z-40 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+                                <div className="flex items-center justify-between gap-2 border-b border-gray-100 p-2">
+                                  <button
+                                    type="button"
+                                    onClick={handleSelectAllMustKnows}
+                                    className="text-xs font-medium text-purple-700 hover:text-purple-900"
+                                  >
+                                    Select All
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleClearMustKnows}
+                                    className="text-xs font-medium text-gray-600 hover:text-gray-800"
+                                  >
+                                    Clear
+                                  </button>
+                                </div>
+                                <div className="max-h-72 overflow-y-auto p-2 space-y-1">
+                                  {serviceMustKnows.map((mustKnow) => (
+                                    <label
+                                      key={mustKnow.id}
+                                      htmlFor={`mustknow-${mustKnow.id}`}
+                                      className="flex items-start gap-3 p-2 rounded-md hover:bg-gray-50 cursor-pointer"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        id={`mustknow-${mustKnow.id}`}
+                                        checked={mustKnow.isAcknowledged}
+                                        onChange={(e) => handleMustKnowAcknowledgment(mustKnow.id, e.target.checked)}
+                                        className="mt-1 h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                                        required={mustKnow.required}
+                                      />
+                                      <div className="flex-1">
+                                        <p className="text-sm text-gray-700">
+                                          {mustKnow.description}
+                                          {mustKnow.required && <span className="text-red-500 ml-1">*</span>}
+                                        </p>
+                                        {mustKnow.serviceName !== 'General' && (
+                                          <p className="text-xs text-gray-500 mt-0.5">
+                                            Applies to: {mustKnow.serviceName}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="pt-1">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-600">Must-knows acknowledged:</span>
+                              <span className="font-medium">
+                                {acknowledgedMustKnowCount} of {serviceMustKnows.length}
+                              </span>
+                            </div>
+                            {!allMustKnowsAcknowledged() && (
+                              <div className="text-xs text-red-600 mt-1">
+                                All required must-knows must be acknowledged
+                              </div>
+                            )}
+                            {allMustKnowsSelected && (
+                              <div className="text-xs text-green-600 mt-1">
+                                All must-know items selected
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="bg-white border border-gray-200 rounded-lg p-4">
@@ -5118,52 +5117,6 @@ export default function DiamondRimsPreChecklistCreatePage({
                 </div>
               </div>
               
-              {/* Remarks */}
-              <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tags
-                </label>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {formData.tags.length > 0 ? (
-                    formData.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700"
-                      >
-                        <Tag className="h-3.5 w-3.5" />
-                        {tag}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveTag(tag)}
-                          className="text-purple-700 hover:text-purple-900"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-400">No tags added yet</p>
-                  )}
-                </div>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <input
-                    type="text"
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={handleTagKeyDown}
-                    placeholder="Add a tag and press Enter"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleAddTag()}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-                  >
-                    Add Tag
-                  </button>
-                </div>
-              </div>
-
               {/* Remarks */}
               <div className="mt-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">

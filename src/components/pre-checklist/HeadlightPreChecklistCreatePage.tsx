@@ -62,7 +62,6 @@ import {
   Search,
   ChevronRight,
   ExternalLink,
-  Tag,
   Circle,
   RotateCw,
   Hammer,
@@ -506,7 +505,6 @@ export default function HeadlightPreChecklistCreatePage({
   const [showInspectorSignature, setShowInspectorSignature] = useState(false);
   const clientSigRef = useRef<SignatureCanvas>(null);
   const inspectorSigRef = useRef<SignatureCanvas>(null);
-  const [tagInput, setTagInput] = useState('');
 
   useEffect(() => {
     if (loading || mode === 'edit' || draftRestoredRef.current) {
@@ -879,35 +877,6 @@ export default function HeadlightPreChecklistCreatePage({
       ...prev,
       [field]: value
     }));
-  };
-
-  const handleAddTag = (rawValue?: string) => {
-    const value = (rawValue ?? tagInput).trim();
-    if (!value) return;
-    setFormData(prev => {
-      if (prev.tags.includes(value)) {
-        return prev;
-      }
-      return {
-        ...prev,
-        tags: [...prev.tags, value]
-      };
-    });
-    setTagInput('');
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    setFormData(prev => ({
-      ...prev,
-      tags: prev.tags.filter(tag => tag !== tagToRemove)
-    }));
-  };
-
-  const handleTagKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter' || event.key === ',') {
-      event.preventDefault();
-      handleAddTag();
-    }
   };
 
   const handlePricingItemChange = (index: number, field: 'quantity' | 'unitPrice', rawValue: string) => {
@@ -4014,51 +3983,6 @@ export default function HeadlightPreChecklistCreatePage({
                   </div>
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tags
-                  </label>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {formData.tags.length > 0 ? (
-                      formData.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700"
-                        >
-                          <Tag className="h-3.5 w-3.5" />
-                          {tag}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveTag(tag)}
-                            className="text-blue-700 hover:text-blue-900"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </span>
-                      ))
-                    ) : (
-                      <p className="text-sm text-gray-400">No tags added yet</p>
-                    )}
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="text"
-                      value={tagInput}
-                      onChange={(e) => setTagInput(e.target.value)}
-                      onKeyDown={handleTagKeyDown}
-                      placeholder="Add a tag and press Enter"
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleAddTag()}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      Add Tag
-                    </button>
-                  </div>
-                </div>
-
                 {/* Remarks */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Additional Remarks</label>
