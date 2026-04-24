@@ -87,7 +87,18 @@ const normalizeOpportunityStatus = (value?: string): StageId => {
     attemptedtocontact: 'attempted_to_contact',
     attemptedcontact: 'attempted_to_contact',
     contacted: 'attempted_to_contact',
+    contactattempted: 'attempted_to_contact',
+    followup: 'attempted_to_contact',
     prospecting: 'prospecting',
+    prospect: 'prospecting',
+    prospects: 'prospecting',
+    prospectlead: 'prospecting',
+    prospectinglead: 'prospecting',
+    prospectingleads: 'prospecting',
+    qualified: 'prospecting',
+    qualification: 'prospecting',
+    qualifying: 'prospecting',
+    inprogress: 'prospecting',
     appointmentscheduled: 'appointment_scheduled',
     scheduled: 'appointment_scheduled',
     nonprogressive: 'non_progressive',
@@ -103,10 +114,30 @@ const normalizeOpportunityStatus = (value?: string): StageId => {
   return statusMap[compact] || 'new';
 };
 
-const normalizeSearchPhone = (value?: string): string | undefined => {
+const buildPhoneSearchCandidates = (value?: string): string[] => {
   const digits = String(value || '').replace(/\D+/g, '');
-  return digits.length >= 7 ? digits : undefined;
+  if (digits.length < 7) return [];
+
+  const candidates = new Set<string>([digits]);
+
+  if (digits.startsWith('0') && digits.length > 7) {
+    candidates.add(digits.slice(1));
+  }
+
+  if (digits.startsWith('254') && digits.length >= 12) {
+    const lastNine = digits.slice(-9);
+    candidates.add(lastNine);
+    candidates.add(`0${lastNine}`);
+  }
+
+  if (digits.length === 9) {
+    candidates.add(`0${digits}`);
+    candidates.add(`254${digits}`);
+  }
+
+  return Array.from(candidates).filter((candidate) => candidate.length >= 7);
 };
+
 const leadTiers = [
   { id: 'hot', label: 'Hot', color: 'bg-red-100 text-red-600' },
   { id: 'warm', label: 'Warm', color: 'bg-amber-100 text-amber-600' },
@@ -1226,9 +1257,9 @@ export default function OpportunitiesContent() {
         limit: 20, // Load 20 at a time
       };
 
-      const response = hasActiveFilters
-        ? await opportunityService.filterOpportunities(params)
-        : await opportunityService.getAllOpportunities(params);
+      // Always use the filtered endpoint for stage pagination so historical stage records
+      // are fetched consistently even when no additional filters are active.
+      const response = await opportunityService.filterOpportunities(params);
       
       if (response.data.length > 0) {
         // Process new opportunities
@@ -1243,18 +1274,26 @@ export default function OpportunitiesContent() {
           };
         });
 
-        // Append to existing opportunities without duplicates
-        setOpportunities(prev => {
-          const existingIds = new Set(prev.map(opp => opp._id));
-          const uniqueIncoming = processedOpportunities.filter(opp => !existingIds.has(opp._id));
-          return uniqueIncoming.length > 0 ? [...prev, ...uniqueIncoming] : prev;
-        });
+        // Keep stage pagination focused on the requested stage only.
+        const stageOpportunities = processedOpportunities.filter((opp) => opp.status === stageId);
+        const existingIds = new Set(opportunities.map((opp) => opp._id));
+        const uniqueIncoming = stageOpportunities.filter((opp) => !existingIds.has(opp._id));
+        const uniqueIncomingCount = uniqueIncoming.length;
+        if (uniqueIncomingCount > 0) {
+          setOpportunities((prev) => [...prev, ...uniqueIncoming]);
+        }
         
         // Update pagination
+        const pageSize = Math.max(1, Number(params.limit) || 20);
         const totalPages = response.pagination?.totalPages;
-        const hasMore = typeof totalPages === 'number'
+        const totalCount = Number(response.pagination?.total) || 0;
+        const hasMoreFromPages = typeof totalPages === 'number'
           ? nextPage < totalPages
-          : response.data.length >= 20;
+          : response.data.length >= pageSize;
+        const hasMoreFromTotal = totalCount > 0
+          ? (nextPage * pageSize) < totalCount
+          : false;
+        const hasMore = hasMoreFromPages || hasMoreFromTotal || uniqueIncomingCount > 0;
 
         setStagePagination(prev => ({
           ...prev,
@@ -1276,7 +1315,7 @@ export default function OpportunitiesContent() {
     } finally {
       setColumnLoading(prev => ({ ...prev, [stageId]: false }));
     }
-  }, [columnLoading, stagePagination, filters, getStageColor, getAvatarColor, getLeadScoreTier, getChildCounts, showToast]);
+  }, [columnLoading, stagePagination, filters, getStageColor, getAvatarColor, getLeadScoreTier, getChildCounts, opportunities]);
 
   // Optimized fetch opportunities WITHOUT lead checking
   const fetchOpportunities = useCallback(async (isRefresh = false, forceRefresh = false) => {
@@ -1359,7 +1398,7 @@ export default function OpportunitiesContent() {
       delete statsParams.limit;
 
       // Fetch fresh data
-      const [response, filteredStatsResponse] = await Promise.all([
+      const [initialResponse, filteredStatsResponse] = await Promise.all([
         hasActiveFilters
           ? opportunityService.filterOpportunities(params)
           : opportunityService.getAllOpportunities(params),
@@ -1370,6 +1409,49 @@ export default function OpportunitiesContent() {
             })
           : Promise.resolve(null),
       ]);
+
+      let response = initialResponse;
+
+      // Guard against endpoints that may return only the newest slice without
+      // full pagination metadata for some users/roles.
+      if (!hasActiveFilters) {
+        const requestedLimit = Math.max(1, Number(params.limit) || 100);
+        const hasWeakPagination =
+          !response.pagination ||
+          (Number(response.pagination.totalPages) <= 1 && response.data.length >= requestedLimit);
+
+        if (hasWeakPagination) {
+          const fallbackResponse = await opportunityService.filterOpportunities(params);
+          if (fallbackResponse.data.length > 0) {
+            response = fallbackResponse;
+          }
+        }
+      }
+
+      // Phone numbers can be stored in multiple formats (+254..., 254..., 0...).
+      // Retry with alternate normalized variants so older prospects remain discoverable.
+      if ((params.search || params.customerPhone) && response.data.length === 0 && params.customerPhone) {
+        const primaryPhone = String(params.customerPhone);
+        const alternatePhoneCandidates = buildPhoneSearchCandidates(primaryPhone).filter(
+          (candidate) => candidate !== primaryPhone,
+        );
+
+        for (const candidate of alternatePhoneCandidates) {
+          const fallbackParams: FilterParams = {
+            ...params,
+            customerPhone: candidate,
+          };
+
+          const fallbackResponse = hasActiveFilters
+            ? await opportunityService.filterOpportunities(fallbackParams)
+            : await opportunityService.getAllOpportunities(fallbackParams);
+
+          if (fallbackResponse.data.length > 0) {
+            response = fallbackResponse;
+            break;
+          }
+        }
+      }
       
       // Pre-compute all values for opportunities
       const processedOpportunities = response.data.map((rawOpp: ExtendedOpportunity) => {
@@ -1611,7 +1693,9 @@ export default function OpportunitiesContent() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedSearch = searchQuery.trim();
-    const phoneSearch = normalizeSearchPhone(trimmedSearch);
+    const phoneCandidates = buildPhoneSearchCandidates(trimmedSearch);
+    const phoneSearch = phoneCandidates[0];
+    const isPhoneLikeSearch = phoneCandidates.length > 0;
     
     if (!trimmedSearch) {
       handleClearSearch();
@@ -1622,7 +1706,9 @@ export default function OpportunitiesContent() {
       setSearchLoading(true);
       setFilters(prev => ({ 
         ...prev, 
-        search: trimmedSearch,
+        // Avoid sending a text search term for phone-only input to prevent
+        // over-restrictive backend AND matching.
+        search: isPhoneLikeSearch ? undefined : trimmedSearch,
         customerPhone: phoneSearch,
         page: 1 
       }));
