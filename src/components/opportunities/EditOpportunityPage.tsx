@@ -1236,7 +1236,7 @@ export default function EditOpportunityPage() {
                       <div className="relative flex-1">
                         <div className="flex items-center justify-between w-full px-3 py-3 rounded-xl border border-gray-200 bg-white/50">
                           <div className="flex items-center gap-2">
-                            <span className="text-lg">🇰🇪</span>
+                            <span className="text-sm font-semibold text-gray-600">KE</span>
                             <span>{formData.phoneCode}</span>
                           </div>
                         </div>
@@ -1272,7 +1272,7 @@ export default function EditOpportunityPage() {
                       <div className="relative flex-1">
                         <div className="flex items-center justify-between w-full px-3 py-3 rounded-xl border border-gray-200 bg-white/50">
                           <div className="flex items-center gap-2">
-                            <span className="text-lg">ðŸ‡°ðŸ‡ª</span>
+                            <span className="text-sm font-semibold text-gray-600">KE</span>
                             <span>{formData.phoneCode}</span>
                           </div>
                         </div>
@@ -2061,3 +2061,4 @@ export default function EditOpportunityPage() {
     </div>
   );
 }
+
