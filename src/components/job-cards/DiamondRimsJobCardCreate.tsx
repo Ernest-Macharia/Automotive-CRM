@@ -483,13 +483,8 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
 
   // Load related data on component mount
   useEffect(() => {
-    if (opportunityId) {
-      loadRelatedData();
-    } else {
-      showToast('No opportunity specified in URL', 'error');
-      router.push('/job-cards');
-    }
-  }, [opportunityId]);
+    void loadRelatedData(opportunityId || undefined);
+  }, [opportunityId, workOrderId, vehicleId, preChecklistId]);
 
   // Auto-populate form when pre-checklist is loaded
   useEffect(() => {
@@ -498,13 +493,36 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
     }
   }, [preChecklist]);
 
-  const loadRelatedData = async () => {
+  const loadRelatedData = async (targetOpportunityId?: string) => {
     try {
       setLoading(true);
+      let resolvedOpportunityId = targetOpportunityId || '';
+
+      // Load work order first so we can derive opportunity context when URL lacks opportunityId.
+      if (workOrderId) {
+        try {
+          const wo = await workOrderService.getWorkOrderById(workOrderId);
+          setWorkOrder(wo);
+          if (!resolvedOpportunityId) {
+            const opportunityRef = wo.opportunityId as { _id?: string } | string | undefined;
+            resolvedOpportunityId =
+              typeof opportunityRef === 'string'
+                ? opportunityRef
+                : opportunityRef?._id || '';
+          }
+        } catch (error) {
+          console.error('Error loading work order:', error);
+        }
+      }
 
       // Load opportunity
-      if (opportunityId) {
-        const opp = await opportunityService.getOpportunityById(opportunityId, false);
+      if (resolvedOpportunityId) {
+        setFormData(prev => ({
+          ...prev,
+          opportunityId: resolvedOpportunityId
+        }));
+
+        const opp = await opportunityService.getOpportunityById(resolvedOpportunityId, false);
         setOpportunity(opp);
         
         // Get vehicle from opportunity
@@ -530,15 +548,13 @@ export default function DiamondRimsJobCardCreate({ mode = 'create' }: { mode?: '
             //
           }
         }
-      }
-
-      // Load work order if provided
-      if (workOrderId) {
+      } else if (vehicleId) {
+        // If no opportunity context but a vehicle is provided, still hydrate vehicle details.
         try {
-          const wo = await workOrderService.getWorkOrderById(workOrderId);
-          setWorkOrder(wo);
-        } catch (error) {
-          console.error('Error loading work order:', error);
+          const veh = await vehicleService.getVehicleById(vehicleId);
+          setVehicleDetails(veh);
+        } catch (vehError) {
+          // Continue without blocking form load
         }
       }
 
