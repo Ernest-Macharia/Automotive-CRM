@@ -75,6 +75,7 @@ import {
   ExternalLink,
   Search,
   Edit,
+  Users,
   Mail as MailIcon,
   GripVertical
 } from 'lucide-react';
@@ -285,6 +286,11 @@ export default function DiamondRimsPreChecklistCreatePage({
   const [showVehicleEdit, setShowVehicleEdit] = useState(mode === 'create');
   const [showConditionDropdown, setShowConditionDropdown] = useState(false);
   const [conditionSearch, setConditionSearch] = useState('');
+  const [clientSearch, setClientSearch] = useState('');
+  const [clientOptions, setClientOptions] = useState<any[]>([]);
+  const [loadingClientOptions, setLoadingClientOptions] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState('');
+  const [linkingClient, setLinkingClient] = useState(false);
   const conditionDropdownRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftRestoredRef = useRef(false);
@@ -581,22 +587,20 @@ export default function DiamondRimsPreChecklistCreatePage({
 
   // RAL Colors options
   const ralColors = [
-    'RAL 9010 (Pure White)',
-    'RAL 9005 (Jet Black)',
-    'RAL 7021 (Black Grey)',
-    'RAL 7016 (Anthracite Grey)',
-    'RAL 7047 (Telegrey)',
-    'RAL 5002 (Ultramarine Blue)',
-    'RAL 5024 (Pastel Blue)',
-    'RAL 6018 (Yellow Green)',
-    'RAL 6029 (Mint Green)',
-    'RAL 3000 (Flame Red)',
-    'RAL 3020 (Traffic Red)',
-    'RAL 2004 (Pure Orange)',
-    'RAL 1003 (Signal Yellow)',
-    'RAL 1018 (Zinc Yellow)',
-    'RAL 8017 (Chocolate Brown)',
-    'Custom Color'
+    'Super Glossy Black',
+    'Standard Glossy Black',
+    'Silver',
+    'Gold',
+    'Orange',
+    'Red',
+    'Broze',
+    'Luminous Green',
+    'Blue',
+    'Graphite Grey',
+    'Gun Metal',
+    'Gun Metall Light',
+    'Fine Flash Silver',
+    'Matte Black'
   ];
 
   // Required field indicator component
@@ -910,6 +914,111 @@ export default function DiamondRimsPreChecklistCreatePage({
     }
   };
 
+  const getClientOptionLabel = (candidate: any) => {
+    const customerName = candidate?.customer?.name?.trim() || 'Unnamed Client';
+    const subject = candidate?.subject?.trim();
+    const firstVehicle = candidate?.vehicles?.[0];
+    const licensePlate =
+      firstVehicle?.registrationNumber ||
+      firstVehicle?.regNumber ||
+      firstVehicle?.regNo ||
+      firstVehicle?.licensePlate ||
+      firstVehicle?.plateNumber ||
+      '';
+
+    const subjectSegment = subject ? ` | ${subject}` : '';
+    const plateSegment = licensePlate ? ` | ${licensePlate}` : '';
+    return `${customerName}${subjectSegment}${plateSegment}`;
+  };
+
+  const loadClientOptions = useCallback(async (searchTerm = '') => {
+    try {
+      setLoadingClientOptions(true);
+      const response = await opportunityService.getAllOpportunities({
+        page: 1,
+        limit: 40,
+        sort: 'updatedAt:desc',
+        search: searchTerm.trim() || undefined,
+      });
+
+      const options = Array.isArray(response?.data) ? response.data : [];
+      setClientOptions(options);
+    } catch (error) {
+      console.error('Error loading clients for checklist selection:', error);
+      showToast('Failed to load clients. Try searching again.', 'warning');
+    } finally {
+      setLoadingClientOptions(false);
+    }
+  }, [showToast]);
+
+  const handleClientSelection = async (nextClientId: string) => {
+    setSelectedClientId(nextClientId);
+
+    if (!nextClientId) {
+      setOpportunity(null);
+      setVehicle(null);
+      setAutoPopulated(false);
+      setFormData(prev => ({
+        ...prev,
+        opportunityId: '',
+        vehicleId: ''
+      }));
+      return;
+    }
+
+    try {
+      setLinkingClient(true);
+
+      let selectedOpportunity = clientOptions.find(
+        (candidate) => normalizeEntityId(candidate) === nextClientId
+      );
+
+      if (!selectedOpportunity || !hasOpportunityShape(selectedOpportunity)) {
+        selectedOpportunity = await opportunityService.getOpportunityById(nextClientId, false);
+      }
+
+      setOpportunity(selectedOpportunity);
+      setClientOptions(prev => {
+        const alreadyExists = prev.some((candidate) => normalizeEntityId(candidate) === nextClientId);
+        if (alreadyExists) return prev;
+        return [selectedOpportunity, ...prev].slice(0, 40);
+      });
+
+      const opportunityVehicle = selectedOpportunity?.vehicles?.[0] || null;
+      const selectedVehicleId = normalizeEntityId(opportunityVehicle);
+      let selectedVehicle = opportunityVehicle;
+
+      if (selectedVehicleId) {
+        try {
+          selectedVehicle = await vehicleService.getVehicleById(selectedVehicleId);
+        } catch (vehicleError) {
+          console.error('Error loading selected client vehicle details:', vehicleError);
+        }
+      }
+
+      setVehicle(selectedVehicle || null);
+      setAutoPopulated(false);
+      setFormData(prev => ({
+        ...prev,
+        opportunityId: nextClientId,
+        vehicleId: selectedVehicleId || '',
+      }));
+
+      autoPopulateFromOpportunity(selectedOpportunity, {
+        force: true,
+        vehicleOverride: selectedVehicle,
+      });
+      setShowCustomerEdit(false);
+      setShowVehicleEdit(false);
+      showToast('Client details loaded into the checklist', 'success');
+    } catch (error) {
+      console.error('Error selecting checklist client:', error);
+      showToast('Failed to load selected client details', 'error');
+    } finally {
+      setLinkingClient(false);
+    }
+  };
+
   // Update must-knows when selected services change
   useEffect(() => {
     const updateMustKnowsForSelectedServices = () => {
@@ -948,6 +1057,25 @@ export default function DiamondRimsPreChecklistCreatePage({
       autoPopulateFromOpportunity();
     }
   }, [opportunity]);
+
+  useEffect(() => {
+    if (mode !== 'create' || normalizedOpportunityId) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      loadClientOptions(clientSearch);
+    }, 300);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [mode, normalizedOpportunityId, clientSearch, loadClientOptions]);
+
+  useEffect(() => {
+    const resolvedClientId = normalizeEntityId(opportunity) || normalizeEntityId(formData.opportunityId);
+    if (resolvedClientId) {
+      setSelectedClientId(resolvedClientId);
+    }
+  }, [opportunity, formData.opportunityId]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -1334,18 +1462,22 @@ export default function DiamondRimsPreChecklistCreatePage({
     }
   };
 
-  const autoPopulateFromOpportunity = () => {
-    if (!opportunity || autoPopulated) return;
+  const autoPopulateFromOpportunity = (
+    sourceOpportunity: any = opportunity,
+    options?: { force?: boolean; vehicleOverride?: any }
+  ) => {
+    if (!sourceOpportunity) return;
+    if (autoPopulated && !options?.force) return;
 
     try {
       
       // Extract customer information
-      const customerName = opportunity.customer?.name || '';
+      const customerName = sourceOpportunity.customer?.name || '';
       const [firstName, ...lastNameParts] = customerName.split(' ');
       const lastName = lastNameParts.join(' ') || '';
 
       // Use the detailed vehicle data if available, otherwise use opportunity vehicle
-      const vehicleData = vehicle || opportunity.vehicles?.[0] || {};
+      const vehicleData = options?.vehicleOverride || vehicle || sourceOpportunity.vehicles?.[0] || {};
       
       // Extract the fields that should be pre-filled (Make, Model, License Plate, Year)
       const carMake = vehicleData.make || vehicleData.manufacturer || vehicleData.brand || '';
@@ -1397,8 +1529,8 @@ export default function DiamondRimsPreChecklistCreatePage({
           ...prev.customerDetails,
           firstName: firstName || '',
           lastName: lastName || '',
-          email: opportunity.customer?.email || '',
-          mobile: opportunity.customer?.phone || '',
+          email: sourceOpportunity.customer?.email || '',
+          mobile: sourceOpportunity.customer?.phone || '',
           name: customerName
         },
         carDetails: {
@@ -1413,7 +1545,7 @@ export default function DiamondRimsPreChecklistCreatePage({
           engineSize: prev.carDetails.engineSize,
           fuelType: prev.carDetails.fuelType
         },
-        additionalInformation: prev.additionalInformation || opportunity.notes || '',
+        additionalInformation: prev.additionalInformation || sourceOpportunity.notes || '',
         inspectorName: prev.inspectorName || loggedInUserName,
         serviceIntake: {
           ...prev.serviceIntake,
@@ -2070,7 +2202,7 @@ export default function DiamondRimsPreChecklistCreatePage({
 
   const handleRefreshFromOpportunity = () => {
     if (opportunity) {
-      autoPopulateFromOpportunity();
+      autoPopulateFromOpportunity(opportunity, { force: true, vehicleOverride: vehicle });
       showToast('Refreshed data from opportunity', 'info');
     }
   };
@@ -3203,6 +3335,28 @@ export default function DiamondRimsPreChecklistCreatePage({
               </div>
             </div>
 
+            {formData.services.actualService.some((service) =>
+              service.toLowerCase().includes('powder')
+            ) && (
+              <div className="mb-8">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Powder Coating Color
+                </label>
+                <select
+                  value={formData.powderCoating.colourRAL}
+                  onChange={(e) => handleNestedInputChange('powderCoating', 'colourRAL', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                >
+                  <option value="">Select powder coating color</option>
+                  {ralColors.map((color) => (
+                    <option key={color} value={color}>
+                      {color}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Delivery Mode */}
             <div className="mb-8">
               <label className="block text-sm font-medium text-gray-700 mb-4">
@@ -3229,6 +3383,86 @@ export default function DiamondRimsPreChecklistCreatePage({
                 <p className="mt-2 text-sm text-red-600">Please select a delivery mode</p>
               )}
             </div>
+
+            {mode === 'create' && (
+              <div className="mb-8 border-t pt-8">
+                <div className="flex items-center justify-between mb-4 gap-3">
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <Users className="h-5 w-5 text-purple-600" />
+                    Select Client
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => loadClientOptions(clientSearch)}
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                    disabled={loadingClientOptions}
+                  >
+                    {loadingClientOptions ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RotateCw className="h-4 w-4" />
+                    )}
+                    Refresh Clients
+                  </button>
+                </div>
+
+                <p className="text-sm text-gray-600 mb-4">
+                  Create checklist first, then choose a client. Customer details will auto-fill from the selected client record.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Search Client
+                    </label>
+                    <input
+                      type="text"
+                      value={clientSearch}
+                      onChange={(e) => setClientSearch(e.target.value)}
+                      placeholder="Search by client name, subject, or plate"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Client Opportunity <RequiredField />
+                    </label>
+                    <select
+                      value={selectedClientId}
+                      onChange={(e) => handleClientSelection(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      disabled={loadingClientOptions || linkingClient}
+                      required
+                    >
+                      <option value="">Select client</option>
+                      {clientOptions.map((candidate, index) => {
+                        const id = normalizeEntityId(candidate);
+                        if (!id) return null;
+
+                        return (
+                          <option key={`${id}-${index}`} value={id}>
+                            {getClientOptionLabel(candidate)}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                </div>
+
+                {linkingClient && (
+                  <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200 flex items-center gap-2 text-sm text-blue-700">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading client details...
+                  </div>
+                )}
+
+                {!loadingClientOptions && clientOptions.length === 0 && (
+                  <div className="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-700">
+                    No clients found. Try a different search term.
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Customer Details - Pre-filled with edit button */}
             <div className="mb-8 border-t pt-8">

@@ -29,7 +29,6 @@ import {
   Home,
   Mail,
   Phone,
-  FileCheck,
   ClipboardList,
   Thermometer,
   Droplets,
@@ -264,22 +263,20 @@ export default function DiamondRimsPostChecklistCreatePage({
 
   // RAL Colors options
   const ralColors = [
-    'RAL 9010 (Pure White)',
-    'RAL 9005 (Jet Black)',
-    'RAL 7021 (Black Grey)',
-    'RAL 7016 (Anthracite Grey)',
-    'RAL 7047 (Telegrey)',
-    'RAL 5002 (Ultramarine Blue)',
-    'RAL 5024 (Pastel Blue)',
-    'RAL 6018 (Yellow Green)',
-    'RAL 6029 (Mint Green)',
-    'RAL 3000 (Flame Red)',
-    'RAL 3020 (Traffic Red)',
-    'RAL 2004 (Pure Orange)',
-    'RAL 1003 (Signal Yellow)',
-    'RAL 1018 (Zinc Yellow)',
-    'RAL 8017 (Chocolate Brown)',
-    'Custom Color'
+    'Super Glossy Black',
+    'Standard Glossy Black',
+    'Silver',
+    'Gold',
+    'Orange',
+    'Red',
+    'Broze',
+    'Luminous Green',
+    'Blue',
+    'Graphite Grey',
+    'Gun Metal',
+    'Gun Metall Light',
+    'Fine Flash Silver',
+    'Matte Black'
   ];
 
   // Quality options
@@ -1037,10 +1034,6 @@ export default function DiamondRimsPostChecklistCreatePage({
         ['ADDITIONAL INFORMATION', '', '', '', ''],
         [formData.remarks, '', '', '', ''],
         ['', '', '', '', ''],
-        ['CLIENT CHARGE DETAILS', '', '', '', ''],
-        ['Amount Charged (KES):', formData.agreedAmount.total, '', '', ''],
-        ['Breakdown:', formData.agreedAmount.breakdown, '', '', ''],
-        ['', '', '', '', ''],
         ['SIGNATURES', '', '', '', ''],
         ['Client Signature:', formData.clientSignature ? '✓ Signed' : 'Not Signed', '', '', ''],
         ['', '', '', '', ''],
@@ -1591,7 +1584,7 @@ export default function DiamondRimsPostChecklistCreatePage({
                       !editMode.powderCoating ? 'bg-gray-100 border-gray-200' : 'border-gray-300'
                     }`}
                   >
-                    <option value="">Select RAL Colour</option>
+                    <option value="">Select Powder Coating Color</option>
                     {ralColors.map((color) => (
                       <option key={color} value={color}>{color}</option>
                     ))}
@@ -1818,53 +1811,6 @@ export default function DiamondRimsPostChecklistCreatePage({
                   value={formData.remarks}
                   onChange={(e) => handleInputChange('remarks', e.target.value)}
                   placeholder="Any additional notes or observations..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  rows={3}
-                />
-              </div>
-            </div>
-
-            {/* Client Charge Details */}
-            <div className="border-b pb-8">
-              <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                <FileCheck className="h-5 w-5 text-purple-600" />
-                Client Charge Details
-              </h2>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Amount Charged (KES)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={formData.agreedAmount.total}
-                    onChange={(e) => handleNestedInputChange('agreedAmount', 'total', parseFloat(e.target.value) || 0)}
-                    placeholder="0.00"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Total (Formatted)
-                  </label>
-                  <div className="w-full px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm font-medium text-gray-700">
-                    KES {Number(formData.agreedAmount.total || 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Breakdown
-                </label>
-                <textarea
-                  value={formData.agreedAmount.breakdown}
-                  onChange={(e) => handleNestedInputChange('agreedAmount', 'breakdown', e.target.value)}
-                  placeholder="Example: Straightening KES 5,000; Diamond Cutting KES 9,000; Balancing KES 1,500"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                   rows={3}
                 />
