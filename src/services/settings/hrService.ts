@@ -467,12 +467,46 @@ export interface CreateLeaveRequestDto {
 
 class HrService {
   private basePath = '/hr';
+  private readonly emptyDashboard: HrDashboard = {
+    statistics: {
+      totalEmployees: 0,
+      activePerformancePlans: 0,
+      openIncidents: 0,
+      activePolicies: 0,
+      activeWelfarePrograms: 0,
+      activeCandidates: 0,
+      expiringContracts: 0,
+      lowLeaveBalance: 0,
+      pendingLeaveRequests: 0,
+    },
+    alerts: [],
+    recentIncidents: [],
+    upcomingReviews: [],
+    pendingLeaves: [],
+  };
+
+  getEmptyDashboard(): HrDashboard {
+    return {
+      statistics: {
+        ...this.emptyDashboard.statistics,
+      },
+      alerts: [],
+      recentIncidents: [],
+      upcomingReviews: [],
+      pendingLeaves: [],
+    };
+  }
 
   async getDashboard(): Promise<HrDashboard> {
     try {
       const response = await apiClient.get<any>(`${this.basePath}/dashboard`);
       return this.normalizeDashboard(response);
     } catch (error) {
+      const maybeStatus = (error as any)?.status;
+      if (maybeStatus === 404 || maybeStatus === 405 || maybeStatus === 501) {
+        console.warn('HR dashboard endpoint is unavailable; falling back to an empty dashboard payload.');
+        return this.getEmptyDashboard();
+      }
       console.error('Error fetching HR dashboard:', error);
       throw error;
     }
@@ -1070,6 +1104,10 @@ class HrService {
       const response = await apiClient.get<any[]>(`${this.basePath}/alerts`);
       return response.map(alert => this.normalizeHrAlert(alert));
     } catch (error) {
+      const maybeStatus = (error as any)?.status;
+      if (maybeStatus === 404 || maybeStatus === 405 || maybeStatus === 501) {
+        return [];
+      }
       console.error('Error fetching HR alerts:', error);
       throw error;
     }
@@ -1230,12 +1268,17 @@ class HrService {
 
   // Normalization Methods
   private normalizeDashboard(data: any): HrDashboard {
+    const fallback = this.getEmptyDashboard();
+
     return {
-      statistics: data.statistics,
-      alerts: data.alerts?.map((alert: any) => this.normalizeHrAlert(alert)) || [],
-      recentIncidents: data.recentIncidents?.map((incident: any) => this.normalizeIncidentReport(incident)) || [],
-      upcomingReviews: data.upcomingReviews?.map((review: any) => this.normalizePerformancePlan(review)) || [],
-      pendingLeaves: data.pendingLeaves || [],
+      statistics: {
+        ...fallback.statistics,
+        ...(data?.statistics || {}),
+      },
+      alerts: data?.alerts?.map((alert: any) => this.normalizeHrAlert(alert)) || fallback.alerts,
+      recentIncidents: data?.recentIncidents?.map((incident: any) => this.normalizeIncidentReport(incident)) || fallback.recentIncidents,
+      upcomingReviews: data?.upcomingReviews?.map((review: any) => this.normalizePerformancePlan(review)) || fallback.upcomingReviews,
+      pendingLeaves: data?.pendingLeaves || fallback.pendingLeaves,
     };
   }
 
