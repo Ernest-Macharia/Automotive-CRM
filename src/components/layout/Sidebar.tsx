@@ -119,6 +119,18 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     router.prefetch(href);
   }, [router]);
 
+  const normalizeHrefForMatch = useCallback((href?: string) => {
+    if (!href) return '';
+    return href.split('?')[0] || '';
+  }, []);
+
+  const isRouteActive = useCallback((href?: string) => {
+    const normalizedHref = normalizeHrefForMatch(href);
+    if (!normalizedHref) return false;
+    if (normalizedHref === '/dashboard') return pathname === '/dashboard';
+    return pathname === normalizedHref || pathname.startsWith(`${normalizedHref}/`) || pathname.startsWith(normalizedHref);
+  }, [normalizeHrefForMatch, pathname]);
+
   const handleNavigation = useCallback(() => {
     if (window.innerWidth < 1024) {
       setSidebarOpen(false);
@@ -237,9 +249,11 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         <ul className="space-y-1">
           {navItems.map((item) => {
             const Icon = getIconComponent(item.icon);
-            const active = item.href === '/dashboard' 
-              ? pathname === '/dashboard'
-              : pathname.startsWith(item.href);
+            const allowedChildren = item.href === '/orders/work-orders' && Array.isArray(item.children)
+              ? item.children.filter((child: any) => !child?.permission || NavigationService.userHasPermission(user, child.permission))
+              : [];
+            const hasActiveChild = allowedChildren.some((child: any) => isRouteActive(child.href));
+            const active = isRouteActive(item.href) || hasActiveChild;
             
             return (
               <li key={item.href}>
@@ -264,6 +278,36 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                     active ? 'translate-x-0 opacity-100 text-blue-500 dark:text-blue-300' : '-translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-60 text-gray-400 dark:text-gray-500'
                   }`} />
                 </Link>
+
+                {allowedChildren.length > 0 && active && (
+                  <ul className="mt-1 ml-7 space-y-1">
+                    {allowedChildren.map((child: any) => {
+                      const childActive = isRouteActive(child.href);
+                      return (
+                        <li key={`${item.href}-${child.href}`}>
+                          <Link
+                            href={child.href}
+                            onClick={handleNavigation}
+                            onMouseEnter={() => prefetchRoute(child.href)}
+                            onFocus={() => prefetchRoute(child.href)}
+                            className={`flex items-center gap-2 rounded-md px-2.5 py-2 text-xs font-medium transition-colors ${
+                              childActive
+                                ? 'bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950 dark:text-blue-200 dark:border-blue-800'
+                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-800'
+                            }`}
+                          >
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${
+                                childActive ? 'bg-blue-500 dark:bg-blue-300' : 'bg-gray-300 dark:bg-gray-600'
+                              }`}
+                            />
+                            <span className="truncate">{child.label}</span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </li>
             );
           })}
