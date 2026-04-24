@@ -103,6 +103,21 @@ const getMetricValueClassName = (value: string, baseColor: string) => {
   return `text-2xl sm:text-[1.75rem] lg:text-[2.1rem] ${sharedClasses}`;
 };
 
+const parseFiniteNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+};
+
 // Pagination interface
 interface PaginationInfo {
   currentPage: number;
@@ -279,126 +294,159 @@ const ActionMenu = ({
 
 // Helper function to convert opportunities to contacts
 const convertOpportunitiesToContacts = (opportunities: Opportunity[]): OpportunityContact[] => {
-  return opportunities.map((opportunity): OpportunityContact => {
-    const customer = opportunity.customer || {
-      name: 'Unknown Customer',
-      email: '',
-      phone: '',
-      companyName: '',
-      companyAddress: '',
-      companyPhone: '',
-      _id: '',
-      id: ''
-    };
-    const opportunityType = opportunity.opportunityType || 'SERVICE';
-    
-    // Determine contact type based on opportunity type
-    let contactType = 'lead';
-    if (opportunityType === 'SERVICE' || opportunityType === 'MAINTENANCE' || opportunityType === 'REPAIR') {
-      contactType = 'customer';
-    } else if (opportunityType === 'SALE') {
-      contactType = 'customer';
+  const fallbackCustomer = {
+    name: 'Unknown Customer',
+    email: '',
+    phone: '',
+    companyName: '',
+    companyAddress: '',
+    companyPhone: '',
+    _id: '',
+    id: ''
+  };
+
+  const allowedOpportunityTypes = new Set(['SERVICE', 'SALE', 'REPAIR', 'MAINTENANCE', 'INSPECTION']);
+
+  return opportunities.reduce<OpportunityContact[]>((accumulator, opportunity, index) => {
+    try {
+      const rawCustomer =
+        opportunity?.customer && typeof opportunity.customer === 'object'
+          ? opportunity.customer
+          : {};
+      const customer = {
+        ...fallbackCustomer,
+        ...rawCustomer,
+      };
+
+      const rawOpportunityType =
+        typeof opportunity?.opportunityType === 'string'
+          ? opportunity.opportunityType.toUpperCase()
+          : 'SERVICE';
+      const opportunityType = allowedOpportunityTypes.has(rawOpportunityType)
+        ? rawOpportunityType
+        : 'SERVICE';
+
+      // Determine contact type based on opportunity type
+      let contactType = 'lead';
+      if (opportunityType === 'SERVICE' || opportunityType === 'MAINTENANCE' || opportunityType === 'REPAIR') {
+        contactType = 'customer';
+      } else if (opportunityType === 'SALE') {
+        contactType = 'customer';
+      }
+
+      // Determine if active based on opportunity status
+      const normalizedStatus = opportunity?.status || 'new';
+      const isActive = normalizedStatus !== 'lost' && normalizedStatus !== 'non_progressive';
+
+      // Get lead tier if available
+      const rawTier = opportunity?.leadScore?.tier;
+      const tier = rawTier === 'hot' || rawTier === 'warm' || rawTier === 'cold' ? rawTier : 'cold';
+
+      const vehicles = Array.isArray(opportunity?.vehicles) ? opportunity.vehicles : [];
+      const normalizedOpportunityId = String(opportunity?._id || opportunity?.id || '').trim();
+      const normalizedContactId = normalizedOpportunityId || `opp-${String(opportunity?.id || index)}`;
+      const normalizedCreatedAt = opportunity?.createdAt || new Date().toISOString();
+      const normalizedUpdatedAt = opportunity?.updatedAt || normalizedCreatedAt;
+      const normalizedSubject = opportunity?.subject || 'Untitled Opportunity';
+
+      // Calculate engagement score
+      let engagementScore = 0;
+      if (customer.email) engagementScore += 10;
+      if (customer.phone || customer.companyPhone) engagementScore += 10;
+      if (customer.companyName) engagementScore += 5;
+      if (normalizedStatus === 'won') engagementScore += 30;
+      if (tier === 'hot') engagementScore += 25;
+      if (tier === 'warm') engagementScore += 15;
+      if (opportunity?.leadScore?.totalScore && opportunity.leadScore.totalScore > 70) engagementScore += 20;
+      engagementScore = Math.min(engagementScore, 100);
+
+      accumulator.push({
+        _id: normalizedContactId,
+        id: String(opportunity?.id || normalizedOpportunityId),
+        name: customer.name || 'Unknown Customer',
+        email: customer.email || '',
+        phone: customer.phone || customer.companyPhone || '',
+        companyName: customer.companyName || '',
+        opportunityId: normalizedOpportunityId,
+        opportunity: {
+          _id: normalizedOpportunityId,
+          subject: normalizedSubject,
+          type: opportunity?.type || 'individual',
+          status: normalizedStatus as Opportunity['status'],
+          customer: customer
+        },
+        active: isActive,
+        type: contactType,
+        notes: opportunity?.notes || `Opportunity: ${normalizedSubject}. Status: ${normalizedStatus}`,
+        whatsappEnabled: tier === 'hot' || tier === 'warm',
+        whatsappStatus: 'active',
+        customFields: {
+          leadScore: opportunity?.leadScore?.totalScore || 0,
+          leadTier: tier,
+          opportunitySource: opportunity?.source || 'unknown',
+          opportunityStatus: normalizedStatus,
+          opportunityType: opportunityType,
+          packageType: opportunity?.packageType,
+          lastStageChange: normalizedUpdatedAt,
+          hasVehicles: vehicles.length > 0,
+          vehicleCount: vehicles.length,
+          totalValue: opportunity?.total || 0
+        },
+        whatsappMessages: [],
+        lastWhatsAppSent: undefined,
+        lastWhatsAppReceived: undefined,
+        totalWhatsAppSent: 0,
+        totalWhatsAppReceived: 0,
+        whatsappOptInDate: undefined,
+        whatsappOptOutDate: undefined,
+        callHistory: [],
+        totalCallDuration: 0,
+        totalCalls: 0,
+        lastCallDate: undefined,
+        createdAt: normalizedCreatedAt,
+        updatedAt: normalizedUpdatedAt,
+        // Computed properties
+        engagementScore,
+        leadPriority: opportunity?.leadScore?.priority || 3,
+        lastContact: new Date().toISOString(),
+        // Additional fields
+        address: customer.companyAddress || '',
+        website: '',
+        jobTitle: '',
+        department: '',
+        tags: [tier, opportunityType.toLowerCase()],
+        source: opportunity?.source || 'opportunity',
+        assignedTo: opportunity?.assignedTo || null,
+        // Financial fields
+        totalValue: opportunity?.total || 0,
+        lifetimeValue: opportunity?.total || 0,
+        lastPurchaseDate: normalizedCreatedAt,
+        // Communication preferences
+        emailOptIn: true,
+        smsOptIn: true,
+        // Social fields
+        linkedinProfile: '',
+        facebookProfile: '',
+        // Organization fields
+        companySize: '',
+        industry: '',
+        // Relationship fields
+        referredBy: '',
+        // Activity fields
+        lastActivityDate: normalizedUpdatedAt,
+        activityCount: 0,
+        // File attachments
+        attachments: [],
+        // Follow-up fields
+        nextFollowUpDate: '',
+        followUpNotes: ''
+      });
+    } catch (error) {
+      console.warn('Skipping malformed opportunity while converting contacts dashboard data:', opportunity, error);
     }
-    
-    // Determine if active based on opportunity status
-    const isActive = opportunity.status !== 'lost' && opportunity.status !== 'non_progressive';
-    
-    // Get lead tier if available
-    const tier = opportunity.leadScore?.tier || 'cold';
-    
-    // Calculate engagement score
-    let engagementScore = 0;
-    if (customer.email) engagementScore += 10;
-    if (customer.phone || customer.companyPhone) engagementScore += 10;
-    if (customer.companyName) engagementScore += 5;
-    if (opportunity.status === 'won') engagementScore += 30;
-    if (tier === 'hot') engagementScore += 25;
-    if (tier === 'warm') engagementScore += 15;
-    if (opportunity.leadScore?.totalScore && opportunity.leadScore.totalScore > 70) engagementScore += 20;
-    engagementScore = Math.min(engagementScore, 100);
-    
-    return {
-      _id: opportunity._id || `opp-${opportunity.id}`,
-      id: opportunity.id,
-      name: customer.name || 'Unknown Customer',
-      email: customer.email || '',
-      phone: customer.phone || customer.companyPhone || '',
-      companyName: customer.companyName || '',
-      opportunityId: opportunity._id,
-      opportunity: {
-        _id: opportunity._id,
-        subject: opportunity.subject,
-        type: opportunity.type || 'individual',
-        status: opportunity.status,
-        customer: customer
-      },
-      active: isActive,
-      type: contactType,
-      notes: opportunity.notes || `Opportunity: ${opportunity.subject}. Status: ${opportunity.status}`,
-      whatsappEnabled: tier === 'hot' || tier === 'warm',
-      whatsappStatus: 'active',
-      customFields: {
-        leadScore: opportunity.leadScore?.totalScore || 0,
-        leadTier: tier,
-        opportunitySource: opportunity.source || 'unknown',
-        opportunityStatus: opportunity.status,
-        opportunityType: opportunityType,
-        packageType: opportunity.packageType,
-        lastStageChange: opportunity.updatedAt,
-        hasVehicles: opportunity.vehicles && opportunity.vehicles.length > 0,
-        vehicleCount: opportunity.vehicles?.length || 0,
-        totalValue: opportunity.total || 0
-      },
-      whatsappMessages: [],
-      lastWhatsAppSent: undefined,
-      lastWhatsAppReceived: undefined,
-      totalWhatsAppSent: 0,
-      totalWhatsAppReceived: 0,
-      whatsappOptInDate: undefined,
-      whatsappOptOutDate: undefined,
-      callHistory: [],
-      totalCallDuration: 0,
-      totalCalls: 0,
-      lastCallDate: undefined,
-      createdAt: opportunity.createdAt,
-      updatedAt: opportunity.updatedAt,
-      // Computed properties
-      engagementScore,
-      leadPriority: opportunity.leadScore?.priority || 3,
-      lastContact: new Date().toISOString(),
-      // Additional fields
-      address: customer.companyAddress || '',
-      website: '',
-      jobTitle: '',
-      department: '',
-      tags: [tier, opportunityType.toLowerCase()],
-      source: opportunity.source || 'opportunity',
-      assignedTo: opportunity.assignedTo || null,
-      // Financial fields
-      totalValue: opportunity.total || 0,
-      lifetimeValue: opportunity.total || 0,
-      lastPurchaseDate: opportunity.createdAt,
-      // Communication preferences
-      emailOptIn: true,
-      smsOptIn: true,
-      // Social fields
-      linkedinProfile: '',
-      facebookProfile: '',
-      // Organization fields
-      companySize: '',
-      industry: '',
-      // Relationship fields
-      referredBy: '',
-      // Activity fields
-      lastActivityDate: opportunity.updatedAt,
-      activityCount: 0,
-      // File attachments
-      attachments: [],
-      // Follow-up fields
-      nextFollowUpDate: '',
-      followUpNotes: ''
-    };
-  });
+
+    return accumulator;
+  }, []);
 };
 
 // Skeleton Components (keep existing)
@@ -694,11 +742,22 @@ export default function ContactsDashboard() {
       let pagesLoaded = 0;
 
       while (hasMore && pagesLoaded < maxAllowedPages) {
-        const response = await opportunityService.getAllOpportunities({
-          page: currentPage,
-          limit: pageSize,
-          sort: 'createdAt:desc'
-        });
+        let response: Awaited<ReturnType<typeof opportunityService.getAllOpportunities>>;
+        try {
+          response = await opportunityService.getAllOpportunities({
+            page: currentPage,
+            limit: pageSize,
+            sort: 'updatedAt:desc'
+          });
+        } catch (pageError) {
+          if (pagesLoaded === 0) {
+            throw pageError;
+          }
+
+          // Keep already-fetched contacts if later pages fail due backend page boundary behavior.
+          console.warn(`Stopping contact opportunity fetch at page ${currentPage} after partial success:`, pageError);
+          break;
+        }
 
         const batch = Array.isArray(response.data) ? response.data : [];
         if (batch.length === 0) {
@@ -712,10 +771,26 @@ export default function ContactsDashboard() {
           break;
         }
 
-        const totalPages = response.pagination?.totalPages;
-        hasMore = typeof totalPages === 'number'
-          ? currentPage < totalPages
-          : batch.length >= pageSize;
+        const paginationAny = (response as any)?.pagination || {};
+        const metaAny = (response as any)?.meta || {};
+        const totalPages =
+          parseFiniteNumber(paginationAny.totalPages) ??
+          parseFiniteNumber(paginationAny.pages) ??
+          parseFiniteNumber(metaAny.totalPages) ??
+          parseFiniteNumber(metaAny.pages);
+        const totalItems =
+          parseFiniteNumber(paginationAny.total) ??
+          parseFiniteNumber(paginationAny.totalItems) ??
+          parseFiniteNumber(metaAny.total);
+
+        if (typeof totalPages === 'number' && totalPages > 0) {
+          hasMore = currentPage < totalPages;
+        } else if (typeof totalItems === 'number' && totalItems >= 0) {
+          hasMore = opportunitiesData.length < totalItems;
+        } else {
+          hasMore = batch.length >= pageSize;
+        }
+
         currentPage += 1;
       }
 
@@ -761,6 +836,7 @@ export default function ContactsDashboard() {
       console.error('Error loading opportunities:', error);
       setError('Failed to load contacts from opportunities. Please try again.');
       showToast('Failed to load contacts', 'error');
+      setStatsLoading(false);
       setContacts([]);
       setFilteredContacts([]);
       setPaginatedContacts([]);
