@@ -261,6 +261,7 @@ export default function DiamondRimsPreChecklistCreatePage({
   const workOrderId = searchParams.get('workOrderId');
   const vehicleId = searchParams.get('vehicleId');
   const source = searchParams.get('source');
+  const initialClientSearch = searchParams.get('clientSearch') || '';
   const normalizedOpportunityId = normalizeEntityId(opportunityId);
   const normalizedWorkOrderId = normalizeEntityId(workOrderId);
   const normalizedVehicleId = normalizeEntityId(vehicleId);
@@ -286,7 +287,7 @@ export default function DiamondRimsPreChecklistCreatePage({
   const [showVehicleEdit, setShowVehicleEdit] = useState(mode === 'create');
   const [showConditionDropdown, setShowConditionDropdown] = useState(false);
   const [conditionSearch, setConditionSearch] = useState('');
-  const [clientSearch, setClientSearch] = useState('');
+  const [clientSearch, setClientSearch] = useState(initialClientSearch);
   const [clientOptions, setClientOptions] = useState<any[]>([]);
   const [loadingClientOptions, setLoadingClientOptions] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState('');
@@ -3384,7 +3385,7 @@ export default function DiamondRimsPreChecklistCreatePage({
               )}
             </div>
 
-            {mode === 'create' && (
+            {mode === 'create' && !normalizedOpportunityId && (
               <div className="mb-8 border-t pt-8">
                 <div className="flex items-center justify-between mb-4 gap-3">
                   <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">

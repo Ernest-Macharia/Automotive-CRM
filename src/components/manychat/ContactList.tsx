@@ -5,7 +5,7 @@ import {
   Search, Filter, RefreshCw, User, Mail, Phone,
   MessageSquare, Tag, Calendar, ChevronRight,
   CheckCircle, XCircle, Edit, Trash2, Loader2,
-  Plus
+  Plus, ClipboardCheck
 } from 'lucide-react';
 import { manychatService, ManyChatContact, ManyChatFilterParams } from '@/services/manychatService';
 import { useToast } from '@/contexts/ToastContext';
@@ -15,12 +15,14 @@ interface ContactListProps {
   onSelectContact?: (contact: ManyChatContact) => void;
   onCreateContact?: () => void;
   onSendMessage?: (contact: ManyChatContact) => void;
+  onCreateChecklist?: (contact?: ManyChatContact) => void;
 }
 
 export default function ContactList({ 
   onSelectContact, 
   onCreateContact,
-  onSendMessage 
+  onSendMessage,
+  onCreateChecklist
 }: ContactListProps) {
   const { showToast } = useToast();
   const [contacts, setContacts] = useState<ManyChatContact[]>([]);
@@ -112,6 +114,15 @@ export default function ContactList({
           </div>
           
           <div className="flex items-center gap-2">
+            {onCreateChecklist && (
+              <button
+                onClick={() => onCreateChecklist()}
+                className="px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center gap-2"
+              >
+                <ClipboardCheck className="h-4 w-4" />
+                <span className="hidden sm:inline">Create Checklist</span>
+              </button>
+            )}
             <button
               onClick={handleRefresh}
               disabled={loading}
@@ -310,6 +321,19 @@ export default function ContactList({
                       title="Send Message"
                     >
                       <MessageSquare className="h-4 w-4" />
+                    </button>
+                  )}
+
+                  {onCreateChecklist && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCreateChecklist(contact);
+                      }}
+                      className="p-1.5 hover:bg-emerald-50 rounded-lg text-emerald-600 transition-colors"
+                      title="Create Checklist"
+                    >
+                      <ClipboardCheck className="h-4 w-4" />
                     </button>
                   )}
                   
