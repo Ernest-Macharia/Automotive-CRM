@@ -709,10 +709,10 @@ const OpportunityCard = memo(function OpportunityCard({
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <h4 className="font-semibold text-gray-800 text-sm truncate" title={opportunity.subject}>
+            <h4 className="font-semibold text-slate-900 text-sm truncate" title={opportunity.subject}>
               {opportunity.subject}
             </h4>
-            <p className="text-gray-600 text-xs truncate mt-0.5" title={`${opportunity.customer?.name || 'Unknown Customer'}${opportunity.customer?.companyName ? ` · ${opportunity.customer.companyName}` : ''}`}>
+            <p className="text-slate-700 text-xs truncate mt-0.5" title={`${opportunity.customer?.name || 'Unknown Customer'}${opportunity.customer?.companyName ? ` · ${opportunity.customer.companyName}` : ''}`}>
               {opportunity.customer?.name || 'Unknown Customer'}
               {opportunity.customer?.companyName && ` · ${opportunity.customer.companyName}`}
             </p>
@@ -2226,20 +2226,20 @@ export default function OpportunitiesContent() {
             <div className="flex flex-col md:flex-row justify-between gap-4">
               <div className="flex-1">
                 <form onSubmit={handleSearch} className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-500" />
                   <input
                     type="text"
                     placeholder="Search opportunities, customers..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 pr-28 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 w-full transition-all"
+                    className="pl-10 pr-28 py-3 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 w-full transition-all"
                     disabled={loading || creating}
                   />
                   {searchQuery && (
                     <button
                       type="button"
                       onClick={handleClearSearch}
-                      className="absolute right-16 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                      className="absolute right-16 top-1/2 transform -translate-y-1/2 text-slate-500 hover:text-slate-700 p-1"
                       disabled={loading || creating}
                     >
                       <X className="h-4 w-4" />
@@ -2253,19 +2253,19 @@ export default function OpportunitiesContent() {
                     Search
                   </button>
                   {showSearchHelp && (
-                    <div className="absolute top-full left-0 right-0 mt-1 px-3 py-1.5 bg-amber-50/80 backdrop-blur-sm border border-amber-200/50 rounded-lg text-xs text-amber-700">
+                    <div className="absolute top-full left-0 right-0 mt-1 px-3 py-1.5 bg-amber-50 border border-amber-300 rounded-lg text-xs font-medium text-amber-800">
                       Type at least 3 characters, or enter a full phone number
                     </div>
                   )}
                 </form>
                 {activeSearchTerm.length > 0 && (
                   <div className="mt-3 flex items-center gap-2 text-sm">
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50/80 backdrop-blur-sm text-blue-600 rounded-lg">
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-900 border border-blue-200 rounded-lg">
                       <Search className="h-3 w-3" />
                       <span>Searching for: "{activeSearchTerm}"</span>
                       <button
                         onClick={handleClearSearch}
-                        className="ml-2 text-blue-400 hover:text-blue-600"
+                        className="ml-2 text-blue-700 hover:text-blue-900"
                       >
                         <X className="h-3 w-3" />
                       </button>
