@@ -338,8 +338,8 @@ export default function JobCardCreate(mode = 'create',) {
       }
 
       if (isMounted) {
-        showToast('No opportunity specified in URL', 'error');
-        router.push('/job-cards');
+        await Promise.all([fetchTechnicians(), fetchParts()]);
+        setLoading(false);
       }
     };
 
@@ -348,7 +348,7 @@ export default function JobCardCreate(mode = 'create',) {
     return () => {
       isMounted = false;
     };
-  }, [opportunityId, workOrderId, router, showToast]);
+  }, [opportunityId, workOrderId]);
 
   useEffect(() => {
     if (resolvedOpportunityId) {
