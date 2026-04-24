@@ -857,7 +857,6 @@ export default function OpportunitiesContent() {
   const { showToast } = useToast();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [opportunities, setOpportunities] = useState<ExtendedOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1179,37 +1178,6 @@ export default function OpportunitiesContent() {
       return { success: false };
     }
   };
-
-  // Debounced search
-  const debouncedSetSearch = useDebounce((search: string) => {
-    const trimmedSearch = search.trim();
-    const phoneSearch = normalizeSearchPhone(trimmedSearch);
-    
-    if (trimmedSearch.length >= 3 || trimmedSearch.length === 0) {
-      setDebouncedSearch(trimmedSearch);
-      
-      if (trimmedSearch.length >= 3) {
-        setSearchLoading(true);
-        setFilters(prev => ({ 
-          ...prev, 
-          search: trimmedSearch,
-          customerPhone: phoneSearch,
-          page: 1 
-        }));
-      } else if (trimmedSearch.length === 0 && (filters.search || filters.customerPhone)) {
-        setFilters(prev => ({ 
-          ...prev, 
-          search: undefined,
-          customerPhone: undefined,
-          page: 1 
-        }));
-      }
-    }
-  }, 500);
-
-  useEffect(() => {
-    debouncedSetSearch(searchQuery);
-  }, [searchQuery, debouncedSetSearch]);
 
   const [columnLoading, setColumnLoading] = useState<Record<StageId, boolean>>({
     new: false,
@@ -1645,7 +1613,12 @@ export default function OpportunitiesContent() {
     const trimmedSearch = searchQuery.trim();
     const phoneSearch = normalizeSearchPhone(trimmedSearch);
     
-    if (trimmedSearch.length >= 3) {
+    if (!trimmedSearch) {
+      handleClearSearch();
+      return;
+    }
+
+    if (trimmedSearch.length >= 3 || Boolean(phoneSearch)) {
       setSearchLoading(true);
       setFilters(prev => ({ 
         ...prev, 
@@ -1661,7 +1634,6 @@ export default function OpportunitiesContent() {
 
   const handleClearSearch = () => {
     setSearchQuery('');
-    setDebouncedSearch('');
     if (filters.search || filters.customerPhone) {
       setFilters(prev => ({ 
         ...prev, 
@@ -1834,7 +1806,6 @@ export default function OpportunitiesContent() {
       isNurturing: undefined,
     });
     setSearchQuery('');
-    setDebouncedSearch('');
     setActiveQuickFilter(null);
     cacheRef.current.clear();
   };
@@ -1979,6 +1950,42 @@ export default function OpportunitiesContent() {
     const trimmedSearch = searchQuery.trim();
     return trimmedSearch.length > 0 && trimmedSearch.length < 3;
   }, [searchQuery]);
+  const activeSearchTerm = useMemo(() => {
+    const activeSearchValue = filters.search || filters.customerPhone || '';
+    return String(activeSearchValue).trim();
+  }, [filters.search, filters.customerPhone]);
+  const paginationSummary = useMemo(() => {
+    if (!pagination) {
+      return null;
+    }
+
+    const safeLimit = Math.max(
+      1,
+      Number(pagination.limit) || Number(filters.limit) || 100,
+    );
+    const safeTotal = Math.max(0, Number(pagination.total) || 0);
+    const inferredTotalPages =
+      safeTotal > 0 ? Math.ceil(safeTotal / safeLimit) : 1;
+    const safeTotalPages = Math.max(
+      1,
+      Number(pagination.totalPages) || inferredTotalPages,
+    );
+    const safePage = Math.min(
+      safeTotalPages,
+      Math.max(1, Number(pagination.page) || 1),
+    );
+    const start = safeTotal === 0 ? 0 : (safePage - 1) * safeLimit + 1;
+    const end = safeTotal === 0 ? 0 : Math.min(safeTotal, start + safeLimit - 1);
+
+    return {
+      page: safePage,
+      limit: safeLimit,
+      total: safeTotal,
+      totalPages: safeTotalPages,
+      start,
+      end,
+    };
+  }, [filters.limit, pagination]);
 
   if (loading && !opportunities.length) {
     return (
@@ -2139,30 +2146,37 @@ export default function OpportunitiesContent() {
                     placeholder="Search opportunities, customers..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 pr-10 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 w-full transition-all"
+                    className="pl-10 pr-28 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 w-full transition-all"
                     disabled={loading || creating}
                   />
                   {searchQuery && (
                     <button
                       type="button"
                       onClick={handleClearSearch}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                      className="absolute right-16 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
                       disabled={loading || creating}
                     >
                       <X className="h-4 w-4" />
                     </button>
                   )}
+                  <button
+                    type="submit"
+                    disabled={loading || creating}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 px-3 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Search
+                  </button>
                   {showSearchHelp && (
                     <div className="absolute top-full left-0 right-0 mt-1 px-3 py-1.5 bg-amber-50/80 backdrop-blur-sm border border-amber-200/50 rounded-lg text-xs text-amber-700">
-                      Type at least 3 characters to search
+                      Type at least 3 characters, or enter a full phone number
                     </div>
                   )}
                 </form>
-                {debouncedSearch.length >= 3 && (
+                {activeSearchTerm.length > 0 && (
                   <div className="mt-3 flex items-center gap-2 text-sm">
                     <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50/80 backdrop-blur-sm text-blue-600 rounded-lg">
                       <Search className="h-3 w-3" />
-                      <span>Searching for: "{debouncedSearch}"</span>
+                      <span>Searching for: "{activeSearchTerm}"</span>
                       <button
                         onClick={handleClearSearch}
                         className="ml-2 text-blue-400 hover:text-blue-600"
@@ -2281,9 +2295,9 @@ export default function OpportunitiesContent() {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-gray-800">Advanced Filters</h3>
                   <div className="flex items-center gap-2">
-                    {searchQuery && (
+                    {activeSearchTerm && (
                       <div className="text-xs text-gray-500">
-                        Search: "{searchQuery}"
+                        Search: "{activeSearchTerm}"
                       </div>
                     )}
                     <button 
@@ -2662,29 +2676,37 @@ export default function OpportunitiesContent() {
               </div>
             </div>
             
-            {pagination && pagination.totalPages > 1 && (
+            {paginationSummary && (
               <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="text-sm text-gray-600">
-                  Showing {opportunities.length} of {pagination.total} opportunities
-                  {pagination.page && pagination.totalPages && (
-                    <span> (Page {pagination.page} of {pagination.totalPages})</span>
-                  )}
+                  Showing {paginationSummary.start}-{paginationSummary.end} of {paginationSummary.total} opportunities
+                  <span> (Page {paginationSummary.page} of {paginationSummary.totalPages})</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <select
+                    value={paginationSummary.limit}
+                    onChange={(e) => handleFilterChange('limit', Number(e.target.value))}
+                    className="h-8 rounded-lg border border-gray-200/60 bg-white/70 px-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  >
+                    <option value={25}>25/page</option>
+                    <option value={50}>50/page</option>
+                    <option value={100}>100/page</option>
+                  </select>
                   <button
-                    onClick={() => handleFilterChange('page', Math.max(1, (pagination.page || 1) - 1))}
-                    disabled={!pagination.page || pagination.page <= 1}
+                    onClick={() => handleFilterChange('page', Math.max(1, paginationSummary.page - 1))}
+                    disabled={paginationSummary.page <= 1}
                     className="px-3 py-1.5 rounded-lg border border-gray-200/50 bg-white/50 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors"
                   >
                     Previous
                   </button>
-                  <div className="flex items-center gap-1">
+                  {paginationSummary.totalPages > 1 && (
+                    <div className="flex items-center gap-1">
                     {(() => {
-                      if (!pagination.totalPages) return null;
+                      if (!paginationSummary.totalPages) return null;
                       
                       const pages = [];
-                      const currentPage = pagination.page || 1;
-                      const totalPages = pagination.totalPages;
+                      const currentPage = paginationSummary.page;
+                      const totalPages = paginationSummary.totalPages;
                       
                       if (totalPages <= 5) {
                         for (let i = 1; i <= totalPages; i++) {
@@ -2723,10 +2745,11 @@ export default function OpportunitiesContent() {
                         )
                       ));
                     })()}
-                  </div>
+                    </div>
+                  )}
                   <button
-                    onClick={() => handleFilterChange('page', Math.min(pagination.totalPages || 1, (pagination.page || 1) + 1))}
-                    disabled={!pagination.page || pagination.page >= pagination.totalPages}
+                    onClick={() => handleFilterChange('page', Math.min(paginationSummary.totalPages, paginationSummary.page + 1))}
+                    disabled={paginationSummary.page >= paginationSummary.totalPages}
                     className="px-3 py-1.5 rounded-lg border border-gray-200/50 bg-white/50 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white transition-colors"
                   >
                     Next

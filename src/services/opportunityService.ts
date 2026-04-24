@@ -754,6 +754,71 @@ class OpportunityService {
     return null;
   }
 
+  private toFiniteNumber(value: unknown): number | undefined {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return undefined;
+      const parsed = Number(trimmed);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+
+    return undefined;
+  }
+
+  private normalizePagination(
+    payload: any,
+    requestPage?: number,
+    requestLimit?: number,
+  ): OpportunitiesResponse['pagination'] | undefined {
+    const rawPagination = payload?.pagination || payload?.meta;
+    if (!rawPagination) {
+      return undefined;
+    }
+
+    const resolvedLimit = Math.max(
+      1,
+      Math.floor(
+        this.toFiniteNumber(rawPagination.limit ?? rawPagination.perPage ?? requestLimit) ??
+          (requestLimit || 100),
+      ),
+    );
+    const resolvedPage = Math.max(
+      1,
+      Math.floor(
+        this.toFiniteNumber(rawPagination.page ?? rawPagination.currentPage ?? requestPage) ??
+          (requestPage || 1),
+      ),
+    );
+    const resolvedTotal = Math.max(
+      0,
+      Math.floor(
+        this.toFiniteNumber(rawPagination.total ?? rawPagination.totalItems ?? rawPagination.count) ?? 0,
+      ),
+    );
+    const explicitTotalPages = this.toFiniteNumber(
+      rawPagination.totalPages ?? rawPagination.pages ?? rawPagination.pageCount,
+    );
+    const inferredTotalPages =
+      resolvedTotal > 0 ? Math.ceil(resolvedTotal / resolvedLimit) : 1;
+    const resolvedTotalPages = Math.max(
+      1,
+      Math.floor(explicitTotalPages ?? inferredTotalPages),
+    );
+
+    return {
+      total: resolvedTotal,
+      page: Math.min(resolvedPage, resolvedTotalPages),
+      limit: resolvedLimit,
+      totalPages: resolvedTotalPages,
+    };
+  }
+
   private async uploadCsvFile<T>(
     endpoint: string,
     file: File,
@@ -837,6 +902,8 @@ class OpportunityService {
   async filterOpportunities(params?: FilterParams): Promise<OpportunitiesResponse> {
     try {
       const queryParams = new URLSearchParams();
+      const requestedPage = params?.page;
+      const requestedLimit = params?.limit;
       
       if (params) {
         Object.entries(params).forEach(([key, value]) => {
@@ -867,16 +934,7 @@ class OpportunityService {
       const response = await extendedApiClient.get<any>(endpoint);
       return {
         data: Array.isArray(response?.data) ? response.data : [],
-        pagination:
-          response?.pagination ||
-          (response?.meta
-            ? {
-                total: response.meta.total,
-                page: response.meta.page,
-                limit: response.meta.limit,
-                totalPages: response.meta.totalPages,
-              }
-            : undefined),
+        pagination: this.normalizePagination(response, requestedPage, requestedLimit),
         stats: response?.stats,
       };
     } catch (error) {
@@ -980,16 +1038,7 @@ class OpportunityService {
       const response = await extendedApiClient.get<any>(endpoint);
       return {
         data: Array.isArray(response?.data) ? response.data : [],
-        pagination:
-          response?.pagination ||
-          (response?.meta
-            ? {
-                total: response.meta.total,
-                page: response.meta.page,
-                limit: response.meta.limit,
-                totalPages: response.meta.totalPages,
-              }
-            : undefined),
+        pagination: this.normalizePagination(response, safeParams.page, safeParams.limit),
         stats: response?.stats,
       };
     } catch (error) {
