@@ -57,6 +57,7 @@ interface MenuItem {
   description?: string;
   category: string;
   featured: boolean;
+  visible?: boolean;
 }
 
 interface ServiceStatus {
@@ -147,6 +148,64 @@ export default function SettingsDashboard() {
     profiles: false
   });
 
+  const authUser = useMemo(() => authService.getUser() as any, []);
+
+  const normalizedRole = useMemo(() => {
+    const rawRole = authUser?.role;
+    return typeof rawRole === 'string'
+      ? rawRole.toLowerCase()
+      : String(rawRole?.name || authUser?.roleName || '').toLowerCase();
+  }, [authUser]);
+
+  const effectivePermissions = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...(Array.isArray(authUser?.permissions) ? authUser.permissions : []),
+          ...(Array.isArray(authUser?.rolePermissions) ? authUser.rolePermissions : []),
+          ...(Array.isArray(authUser?.additionalPermissions) ? authUser.additionalPermissions : []),
+          ...(Array.isArray(authUser?.directPermissions) ? authUser.directPermissions : []),
+        ]),
+      ),
+    [authUser],
+  );
+
+  const hasPermission = (permission: string): boolean => {
+    if (effectivePermissions.includes('*') || effectivePermissions.includes('system.*')) {
+      return true;
+    }
+
+    if (effectivePermissions.includes(permission)) {
+      return true;
+    }
+
+    const [moduleName] = permission.split('.');
+    return Boolean(moduleName && effectivePermissions.includes(`${moduleName}.*`));
+  };
+
+  const hasAnyPermission = (permissions: string[]): boolean =>
+    permissions.some((permission) => hasPermission(permission));
+
+  const canAccessOrganizations =
+    normalizedRole === 'superadmin' ||
+    hasAnyPermission(['organization.manage', 'organizations.read.all']) ||
+    Boolean(authUser?.organizationId || authUser?.organization?._id || authUser?.organization?.id);
+  const canAccessUsers =
+    hasAnyPermission(['users.read.organization', 'users.read.all', 'team.manage']) ||
+    ['superadmin', 'admin', 'management', 'branch_manager', 'fleet_manager', 'finance', 'compliance', 'hr_manager', 'hr_officer', 'hr_recruiter'].includes(normalizedRole);
+  const canAccessWorkflows =
+    hasAnyPermission(['workflows.read']) ||
+    ['superadmin', 'admin', 'management'].includes(normalizedRole);
+  const canAccessBlueprints =
+    hasAnyPermission(['blueprints.read']) ||
+    ['superadmin', 'admin', 'management', 'branch_manager', 'fleet_manager', 'finance', 'compliance', 'developer'].includes(normalizedRole);
+  const canAccessPermissions =
+    hasAnyPermission(['roles.manage']) ||
+    ['superadmin', 'admin', 'management'].includes(normalizedRole);
+  const canAccessProfiles =
+    hasAnyPermission(['profiles.view.all', 'profile.view.all', 'profile.update.organization', 'profiles.update.hr']) ||
+    ['superadmin', 'admin', 'management', 'hr_manager', 'hr_officer', 'hr_recruiter'].includes(normalizedRole);
+
   // Load data with timeout and error handling
   const loadDataWithTimeout = async <T,>(
     promise: Promise<T>,
@@ -174,26 +233,37 @@ export default function SettingsDashboard() {
       setLoading(true);
       setError(null);
       
-      const newServiceStatus = { ...serviceStatus };
+      const newServiceStatus: ServiceStatus = {
+        users: !canAccessUsers,
+        organizations: !canAccessOrganizations,
+        blueprints: !canAccessBlueprints,
+        workflows: !canAccessWorkflows,
+        permissions: !canAccessPermissions,
+        profiles: !canAccessProfiles,
+      };
       
       // Load user statistics with timeout
-      try {
-        const userStatsData = await loadDataWithTimeout(userService.getUserStatistics());
-        if (userStatsData) {
-          setUserStats({
-            total: (userStatsData as any)?.total || 0,
-            active: (userStatsData as any)?.active || 0
-          });
-          newServiceStatus.users = true;
+      if (canAccessUsers) {
+        try {
+          const userStatsData = await loadDataWithTimeout(userService.getUserStatistics());
+          if (userStatsData) {
+            setUserStats({
+              total: (userStatsData as any)?.total || 0,
+              active: (userStatsData as any)?.active || 0
+            });
+            newServiceStatus.users = true;
+          }
+        } catch (userError) {
+          console.error('Error loading user stats:', userError);
+          setUserStats({ total: 0, active: 0 });
         }
-      } catch (userError) {
-        console.error('Error loading user stats:', userError);
-        // Set default values
+      } else {
         setUserStats({ total: 0, active: 0 });
       }
       
       // Load organization statistics with timeout
-      try {
+      if (canAccessOrganizations) {
+        try {
         const authUser = authService.getUser() as any;
         const rawRole = authUser?.role;
         const userRole =
@@ -227,72 +297,91 @@ export default function SettingsDashboard() {
             newServiceStatus.organizations = true;
           }
         }
-      } catch (orgError) {
-        console.error('Error loading organization stats:', orgError);
+        } catch (orgError) {
+          console.error('Error loading organization stats:', orgError);
+          setOrganizationsStats({ total: 0, active: 0 });
+        }
+      } else {
         setOrganizationsStats({ total: 0, active: 0 });
       }
       
       // Load blueprints count
-      try {
-        const blueprintsResponse = await loadDataWithTimeout(blueprintsService.getBlueprints());
-        if (blueprintsResponse) {
-          let blueprintsData: any[] = [];
-          if (Array.isArray(blueprintsResponse)) {
-            blueprintsData = blueprintsResponse;
+      if (canAccessBlueprints) {
+        try {
+          const blueprintsResponse = await loadDataWithTimeout(blueprintsService.getBlueprints());
+          if (blueprintsResponse) {
+            let blueprintsData: any[] = [];
+            if (Array.isArray(blueprintsResponse)) {
+              blueprintsData = blueprintsResponse;
+            }
+            setBlueprintsCount(blueprintsData.length);
+            newServiceStatus.blueprints = true;
           }
-          setBlueprintsCount(blueprintsData.length);
-          newServiceStatus.blueprints = true;
+        } catch (blueprintsError) {
+          console.error('Error loading blueprints:', blueprintsError);
+          setBlueprintsCount(0);
         }
-      } catch (blueprintsError) {
-        console.error('Error loading blueprints:', blueprintsError);
+      } else {
         setBlueprintsCount(0);
       }
       
       // Load workflows count
-      try {
-        const workflowsResponse = await loadDataWithTimeout(workflowService.getAllWorkflows());
-        if (workflowsResponse) {
-          let workflowsData: any[] = [];
-          if (Array.isArray(workflowsResponse)) {
-            workflowsData = workflowsResponse;
-          } else if (workflowsResponse?.data && Array.isArray(workflowsResponse.data)) {
-            workflowsData = workflowsResponse.data;
+      if (canAccessWorkflows) {
+        try {
+          const workflowsResponse = await loadDataWithTimeout(workflowService.getAllWorkflows());
+          if (workflowsResponse) {
+            let workflowsData: any[] = [];
+            if (Array.isArray(workflowsResponse)) {
+              workflowsData = workflowsResponse;
+            } else if (workflowsResponse?.data && Array.isArray(workflowsResponse.data)) {
+              workflowsData = workflowsResponse.data;
+            }
+            setWorkflowsCount(workflowsData.length);
+            newServiceStatus.workflows = true;
           }
-          setWorkflowsCount(workflowsData.length);
-          newServiceStatus.workflows = true;
+        } catch (workflowsError) {
+          console.error('Error loading workflows:', workflowsError);
+          setWorkflowsCount(0);
         }
-      } catch (workflowsError) {
-        console.error('Error loading workflows:', workflowsError);
+      } else {
         setWorkflowsCount(0);
       }
       
       // Load permissions count
-      try {
-        const permissionsResponse = await loadDataWithTimeout(roleService.getAllPermissions());
-        if (permissionsResponse) {
-          let permissionsList: any[] = [];
-          if (Array.isArray(permissionsResponse)) {
-            permissionsList = permissionsResponse;
-          } else if (permissionsResponse?.permissions && Array.isArray(permissionsResponse.permissions)) {
-            permissionsList = permissionsResponse.permissions;
+      if (canAccessPermissions) {
+        try {
+          const permissionsResponse = await loadDataWithTimeout(roleService.getAllPermissions());
+          if (permissionsResponse) {
+            let permissionsList: any[] = [];
+            if (Array.isArray(permissionsResponse)) {
+              permissionsList = permissionsResponse;
+            } else if (permissionsResponse?.permissions && Array.isArray(permissionsResponse.permissions)) {
+              permissionsList = permissionsResponse.permissions;
+            }
+            setPermissionsCount(permissionsList.length);
+            newServiceStatus.permissions = true;
           }
-          setPermissionsCount(permissionsList.length);
-          newServiceStatus.permissions = true;
+        } catch (permissionsError) {
+          console.error('Error loading permissions:', permissionsError);
+          setPermissionsCount(0);
         }
-      } catch (permissionsError) {
-        console.error('Error loading permissions:', permissionsError);
+      } else {
         setPermissionsCount(0);
       }
 
       // Load profiles count
-      try {
-        const profiles = await loadDataWithTimeout(profileService.getProfiles());
-        if (profiles) {
-          setProfilesCount(profiles.length);
-          newServiceStatus.profiles = true;
+      if (canAccessProfiles) {
+        try {
+          const profiles = await loadDataWithTimeout(profileService.getProfiles());
+          if (profiles) {
+            setProfilesCount(profiles.length);
+            newServiceStatus.profiles = true;
+          }
+        } catch (profilesError) {
+          console.error('Error loading profiles count:', profilesError);
+          setProfilesCount(0);
         }
-      } catch (profilesError) {
-        console.error('Error loading profiles count:', profilesError);
+      } else {
         setProfilesCount(0);
       }
 
@@ -335,6 +424,7 @@ export default function SettingsDashboard() {
       description: 'Manage organizations, subscriptions, and multi-tenant settings',
       category: 'administration',
       featured: true,
+      visible: canAccessOrganizations,
     },
     {
       id: 'users',
@@ -347,6 +437,7 @@ export default function SettingsDashboard() {
       description: 'Manage system users, roles and permissions',
       category: 'administration',
       featured: true,
+      visible: canAccessUsers,
     },
     {
       id: 'workflows',
@@ -359,6 +450,7 @@ export default function SettingsDashboard() {
       description: 'Create and manage automated workflows',
       category: 'automation',
       featured: true,
+      visible: canAccessWorkflows,
     },
     {
       id: 'blueprints',
@@ -371,6 +463,7 @@ export default function SettingsDashboard() {
       description: 'Design and configure process templates',
       category: 'automation',
       featured: true,
+      visible: canAccessBlueprints,
     },
     {
       id: 'permissions',
@@ -383,6 +476,7 @@ export default function SettingsDashboard() {
       description: 'Configure role-based access control and permissions',
       category: 'security',
       featured: true,
+      visible: canAccessPermissions,
     },
     {
       id: 'profiles',
@@ -395,6 +489,7 @@ export default function SettingsDashboard() {
       description: 'Manage employee profiles and information',
       category: 'administration',
       featured: true,
+      visible: canAccessProfiles,
     },
     {
       id: 'system',
@@ -440,12 +535,32 @@ export default function SettingsDashboard() {
       category: 'communication',
       featured: false,
     }
-  ], [userStats.total, organizationsStats.total, workflowsCount, blueprintsCount, permissionsCount, profilesCount]);
+  ], [
+    userStats.total,
+    organizationsStats.total,
+    workflowsCount,
+    blueprintsCount,
+    permissionsCount,
+    profilesCount,
+    canAccessOrganizations,
+    canAccessUsers,
+    canAccessWorkflows,
+    canAccessBlueprints,
+    canAccessPermissions,
+    canAccessProfiles,
+  ]);
 
-  const featuredItems = useMemo(() => getMenuItems.filter(item => item.featured), [getMenuItems]);
+  const featuredItems = useMemo(
+    () => getMenuItems.filter(item => item.featured && item.visible !== false),
+    [getMenuItems],
+  );
   
   const filteredMenuItems = useMemo(() => {
     return getMenuItems.filter(item => {
+      if (item.visible === false) {
+        return false;
+      }
+
       const matchesSearch = !searchQuery || 
         item.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.description?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -459,6 +574,93 @@ export default function SettingsDashboard() {
       return matchesSearch && matchesCategory;
     });
   }, [searchQuery, activeCategory, getMenuItems]);
+
+  const quickActions = useMemo(
+    () =>
+      [
+        {
+          id: 'add-user',
+          label: 'Add User',
+          icon: Users,
+          color: 'border-purple-200 text-purple-700 hover:bg-purple-50',
+          visible: canAccessUsers,
+        },
+        {
+          id: 'add-organization',
+          label: 'Add Organization',
+          icon: Building2,
+          color: 'border-emerald-200 text-emerald-700 hover:bg-emerald-50',
+          visible: canAccessOrganizations,
+        },
+        {
+          id: 'create-workflow',
+          label: 'Create Workflow',
+          icon: Workflow,
+          color: 'border-pink-200 text-pink-700 hover:bg-pink-50',
+          visible: canAccessWorkflows,
+        },
+        {
+          id: 'view-analytics',
+          label: 'View Analytics',
+          icon: BarChart,
+          color: 'border-blue-200 text-blue-700 hover:bg-blue-50',
+          visible: true,
+        },
+      ].filter((item) => item.visible !== false),
+    [canAccessOrganizations, canAccessUsers, canAccessWorkflows],
+  );
+
+  const statsCards = useMemo(
+    () =>
+      [
+        {
+          id: 'organizations',
+          label: 'Organizations',
+          value: organizationsStats.total,
+          icon: Building2,
+          href: '/settings/organizations',
+          color: 'bg-emerald-100 text-emerald-600',
+          visible: canAccessOrganizations,
+        },
+        {
+          id: 'users',
+          label: 'Users',
+          value: userStats.total,
+          icon: Users,
+          href: '/settings/users',
+          color: 'bg-purple-100 text-purple-600',
+          visible: canAccessUsers,
+        },
+        {
+          id: 'workflows',
+          label: 'Workflows',
+          value: workflowsCount,
+          icon: Workflow,
+          href: '/settings/workflows',
+          color: 'bg-pink-100 text-pink-600',
+          visible: canAccessWorkflows,
+        },
+        {
+          id: 'permissions',
+          label: 'Permissions',
+          value: permissionsCount,
+          icon: Shield,
+          href: '/settings/permissions',
+          color: 'bg-indigo-100 text-indigo-600',
+          visible: canAccessPermissions,
+        },
+      ].filter((item) => item.visible !== false),
+    [
+      organizationsStats.total,
+      userStats.total,
+      workflowsCount,
+      permissionsCount,
+      canAccessOrganizations,
+      canAccessUsers,
+      canAccessWorkflows,
+      canAccessPermissions,
+    ],
+  );
 
   const simulateRefresh = async () => {
     setRefreshing(true);
@@ -593,34 +795,19 @@ export default function SettingsDashboard() {
         <div className="mb-8">
           <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-3">Quick Actions</h3>
           <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => handleQuickAction('add-user')}
-              className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-purple-200 text-purple-700 rounded-lg hover:bg-purple-50 text-sm font-medium"
-            >
-              <Users className="h-4 w-4" />
-              Add User
-            </button>
-            <button
-              onClick={() => handleQuickAction('add-organization')}
-              className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-emerald-200 text-emerald-700 rounded-lg hover:bg-emerald-50 text-sm font-medium"
-            >
-              <Building2 className="h-4 w-4" />
-              Add Organization
-            </button>
-            <button
-              onClick={() => handleQuickAction('create-workflow')}
-              className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-pink-200 text-pink-700 rounded-lg hover:bg-pink-50 text-sm font-medium"
-            >
-              <Workflow className="h-4 w-4" />
-              Create Workflow
-            </button>
-            <button
-              onClick={() => handleQuickAction('view-analytics')}
-              className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50 text-sm font-medium"
-            >
-              <BarChart className="h-4 w-4" />
-              View Analytics
-            </button>
+            {quickActions.map((action) => {
+              const Icon = action.icon;
+              return (
+                <button
+                  key={action.id}
+                  onClick={() => handleQuickAction(action.id)}
+                  className={`inline-flex items-center gap-2 px-3 py-2 bg-white border rounded-lg text-sm font-medium ${action.color}`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {action.label}
+                </button>
+              );
+            })}
             <button
               onClick={simulateRefresh}
               disabled={refreshing}
@@ -639,16 +826,11 @@ export default function SettingsDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {[
-          { label: 'Organizations', value: organizationsStats.total, icon: Building2, href: '/settings/organizations', color: 'bg-emerald-100 text-emerald-600' },
-          { label: 'Users', value: userStats.total, icon: Users, href: '/settings/users', color: 'bg-purple-100 text-purple-600' },
-          { label: 'Workflows', value: workflowsCount, icon: Workflow, href: '/settings/workflows', color: 'bg-pink-100 text-pink-600' },
-          { label: 'Permissions', value: permissionsCount, icon: Shield, href: '/settings/permissions', color: 'bg-indigo-100 text-indigo-600' },
-        ].map((stat, i) => {
+        {statsCards.map((stat) => {
           const Icon = stat.icon;
           return (
             <Link
-              key={i}
+              key={stat.id}
               href={stat.href}
               className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow"
             >
