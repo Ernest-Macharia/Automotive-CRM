@@ -250,6 +250,11 @@ const mapOpportunityTypeToServiceProductType = (
   }
 };
 
+const getFieldIdentifiers = (name: string) => ({
+  id: name.replace(/[^a-zA-Z0-9_-]+/g, '-'),
+  name,
+});
+
 export default function EditOpportunityPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -792,6 +797,8 @@ export default function EditOpportunityPage() {
           </label>
           <div className="relative">
             <input
+              id={`vehicle-${index}-${String(field)}`}
+              name={`vehicles.${index}.${String(field)}`}
               type="text"
               value={vehicleValue}
               onChange={(e) => {
@@ -822,6 +829,8 @@ export default function EditOpportunityPage() {
                 <div className="relative">
                   <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
                   <input
+                    id={`vehicle-${index}-${String(field)}-search`}
+                    name={`vehicleFieldSearch.${index}.${String(field)}`}
                     type="text"
                     value={searchValue}
                     onChange={(e) => setSearchValue(e.target.value)}
@@ -857,6 +866,8 @@ export default function EditOpportunityPage() {
             {label}
           </label>
           <input
+            id={`vehicle-${index}-${String(field)}`}
+            name={`vehicles.${index}.${String(field)}`}
             type="text"
             value={vehicleValue}
             onChange={(e) => handleVehicleChange(index, field, e.target.value)}
@@ -1080,6 +1091,7 @@ export default function EditOpportunityPage() {
                         First Name *
                       </label>
                       <input
+                        {...getFieldIdentifiers('firstName')}
                         type="text"
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
@@ -1102,6 +1114,7 @@ export default function EditOpportunityPage() {
                         Last Name
                       </label>
                       <input
+                        {...getFieldIdentifiers('lastName')}
                         type="text"
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
@@ -1117,6 +1130,7 @@ export default function EditOpportunityPage() {
                         Company Name *
                       </label>
                       <input
+                        {...getFieldIdentifiers('customer.companyName')}
                         type="text"
                         value={formData.customer.companyName}
                         onChange={(e) => handleCustomerChange('companyName', e.target.value)}
@@ -1140,6 +1154,7 @@ export default function EditOpportunityPage() {
                           Contact Person Name *
                         </label>
                         <input
+                          {...getFieldIdentifiers('customer.contactPersonName')}
                           type="text"
                           value={formData.customer.contactPersonName}
                           onChange={(e) => handleCustomerChange('contactPersonName', e.target.value)}
@@ -1161,6 +1176,7 @@ export default function EditOpportunityPage() {
                           Contact Person Title
                         </label>
                         <input
+                          {...getFieldIdentifiers('customer.contactPersonTitle')}
                           type="text"
                           value={formData.customer.contactPersonTitle}
                           onChange={(e) => handleCustomerChange('contactPersonTitle', e.target.value)}
@@ -1176,6 +1192,7 @@ export default function EditOpportunityPage() {
                           Contact Person Email
                         </label>
                         <input
+                          {...getFieldIdentifiers('customer.contactPersonEmail')}
                           type="email"
                           value={formData.customer.contactPersonEmail}
                           onChange={(e) => handleCustomerChange('contactPersonEmail', e.target.value)}
@@ -1193,6 +1210,7 @@ export default function EditOpportunityPage() {
                             {formData.phoneCode}
                           </div>
                           <input
+                            {...getFieldIdentifiers('customer.contactPersonPhone')}
                             type="tel"
                             value={formData.customer.contactPersonPhone}
                             onChange={(e) => handleCustomerChange('contactPersonPhone', e.target.value)}
@@ -1212,6 +1230,7 @@ export default function EditOpportunityPage() {
                       Email
                       </label>
                     <input
+                      {...getFieldIdentifiers('customer.email')}
                       type="email"
                       value={formData.customer.email}
                       onChange={(e) => handleCustomerChange('email', e.target.value)}
@@ -1243,6 +1262,7 @@ export default function EditOpportunityPage() {
                       </div>
                       
                       <input
+                        {...getFieldIdentifiers('customer.phone')}
                         type="tel"
                         value={formData.customer.phone}
                         onChange={(e) => handleCustomerChange('phone', e.target.value)}
@@ -1279,6 +1299,7 @@ export default function EditOpportunityPage() {
                       </div>
 
                       <input
+                        {...getFieldIdentifiers('customer.secondaryPhone')}
                         type="tel"
                         value={formData.customer.secondaryPhone}
                         onChange={(e) => handleCustomerChange('secondaryPhone', e.target.value)}
@@ -1344,6 +1365,8 @@ export default function EditOpportunityPage() {
                             VIN (Vehicle Identification Number)
                           </label>
                           <input
+                            id={`vehicle-${index}-vin`}
+                            name={`vehicles.${index}.vin`}
                             type="text"
                             value={vehicle.vin}
                             onChange={(e) => handleVehicleChange(index, 'vin', e.target.value)}
@@ -1357,6 +1380,8 @@ export default function EditOpportunityPage() {
                             Registration Number
                           </label>
                           <input
+                            id={`vehicle-${index}-registrationNumber`}
+                            name={`vehicles.${index}.registrationNumber`}
                             type="text"
                             value={vehicle.registrationNumber}
                             onChange={(e) => handleVehicleChange(index, 'registrationNumber', e.target.value)}
@@ -1370,6 +1395,8 @@ export default function EditOpportunityPage() {
                             License Plate
                           </label>
                           <input
+                            id={`vehicle-${index}-licensePlate`}
+                            name={`vehicles.${index}.licensePlate`}
                             type="text"
                             value={vehicle.licensePlate}
                             onChange={(e) => handleVehicleChange(index, 'licensePlate', e.target.value)}
@@ -1400,6 +1427,8 @@ export default function EditOpportunityPage() {
                             </label>
                             <div className="relative">
                               <input
+                                id={`vehicle-${index}-model`}
+                                name={`vehicles.${index}.model`}
                                 type="text"
                                 value={vehicle.model}
                                 onChange={(e) => {
@@ -1431,6 +1460,7 @@ export default function EditOpportunityPage() {
                                   <div className="relative">
                                     <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
                                     <input
+                                      {...getFieldIdentifiers('modelSearch')}
                                       type="text"
                                       value={modelSearch}
                                       onChange={(e) => setModelSearch(e.target.value)}
@@ -1464,6 +1494,8 @@ export default function EditOpportunityPage() {
                               Model
                             </label>
                             <input
+                              id={`vehicle-${index}-model`}
+                              name={`vehicles.${index}.model`}
                               type="text"
                               value={vehicle.model}
                               onChange={(e) => handleVehicleChange(index, 'model', e.target.value)}
@@ -1478,6 +1510,8 @@ export default function EditOpportunityPage() {
                             Year
                           </label>
                           <input
+                            id={`vehicle-${index}-year`}
+                            name={`vehicles.${index}.year`}
                             type="text"
                             value={vehicle.year}
                             onChange={(e) => handleVehicleChange(index, 'year', e.target.value)}
@@ -1505,6 +1539,8 @@ export default function EditOpportunityPage() {
                             Engine Size (CC)
                           </label>
                           <input
+                            id={`vehicle-${index}-engineSize`}
+                            name={`vehicles.${index}.engineSize`}
                             type="text"
                             value={vehicle.engineSize}
                             onChange={(e) => handleVehicleChange(index, 'engineSize', e.target.value)}
@@ -1546,6 +1582,8 @@ export default function EditOpportunityPage() {
                             Mileage (KM)
                           </label>
                           <input
+                            id={`vehicle-${index}-mileage`}
+                            name={`vehicles.${index}.mileage`}
                             type="text"
                             value={vehicle.mileage}
                             onChange={(e) => handleVehicleChange(index, 'mileage', e.target.value)}
@@ -1559,6 +1597,8 @@ export default function EditOpportunityPage() {
                             Chassis Number
                           </label>
                           <input
+                            id={`vehicle-${index}-chassisNumber`}
+                            name={`vehicles.${index}.chassisNumber`}
                             type="text"
                             value={vehicle.chassisNumber}
                             onChange={(e) => handleVehicleChange(index, 'chassisNumber', e.target.value)}
@@ -1689,6 +1729,7 @@ export default function EditOpportunityPage() {
                           </label>
                           <div className="relative">
                             <input
+                              {...getFieldIdentifiers('servicesProducts.title')}
                               type="text"
                               value={item.title}
                               onChange={(e) => {
@@ -1722,6 +1763,7 @@ export default function EditOpportunityPage() {
                                 <div className="relative">
                                   <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                                   <input
+                                    {...getFieldIdentifiers('serviceProductSearch')}
                                     type="text"
                                     value={serviceProductSearch}
                                     onChange={(e) => setServiceProductSearch(e.target.value)}
@@ -1751,6 +1793,7 @@ export default function EditOpportunityPage() {
                             Detailed Description
                           </label>
                           <textarea
+                            {...getFieldIdentifiers('servicesProducts.description')}
                             value={item.description}
                             onChange={(e) => handleServiceProductChange(index, 'description', e.target.value)}
                             placeholder={
@@ -1772,6 +1815,7 @@ export default function EditOpportunityPage() {
                                 Quantity
                               </label>
                               <input
+                                {...getFieldIdentifiers('servicesProducts.quantity')}
                                 type="number"
                                 min="0"
                                 value={item.quantity}
@@ -1788,6 +1832,7 @@ export default function EditOpportunityPage() {
                                 Unit Price (KES)
                               </label>
                               <input
+                                {...getFieldIdentifiers('servicesProducts.unitPrice')}
                                 type="number"
                                 min="0"
                                 step="0.01"
@@ -1805,6 +1850,7 @@ export default function EditOpportunityPage() {
                                 Discount (%)
                               </label>
                               <input
+                                {...getFieldIdentifiers('servicesProducts.discount')}
                                 type="number"
                                 min="0"
                                 max="100"
@@ -1936,6 +1982,7 @@ export default function EditOpportunityPage() {
                   Notes & Comments
                 </label>
                 <textarea
+                  {...getFieldIdentifiers('notes')}
                   value={formData.notes}
                   onChange={(e) => handleInputChange('notes', e.target.value)}
                   rows={4}

@@ -61,6 +61,11 @@ const statusOptions = [
   { value: KPI_STATUS.IN_PROGRESS, label: 'In Progress' }
 ];
 
+const getFieldIdentifiers = (name: string) => ({
+  id: name.replace(/[^a-zA-Z0-9_-]+/g, '-'),
+  name,
+});
+
 export default function KPICreateModal({ onClose, onSuccess, initialData }: KPICreateModalProps) {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -355,6 +360,7 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                         KPI Title *
                       </label>
                       <input
+                        {...getFieldIdentifiers('title')}
                         type="text"
                         value={formData.title}
                         onChange={(e) => handleFormChange('title', e.target.value)}
@@ -374,6 +380,7 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                         Description
                       </label>
                       <textarea
+                        {...getFieldIdentifiers('description')}
                         value={formData.description || ''}
                         onChange={(e) => handleFormChange('description', e.target.value)}
                         rows={3}
@@ -394,6 +401,7 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                           Status
                         </label>
                         <select
+                          {...getFieldIdentifiers('status')}
                           value={formData.status}
                           onChange={(e) => handleFormChange('status', e.target.value)}
                           className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -412,6 +420,7 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                           Frequency *
                         </label>
                         <select
+                          {...getFieldIdentifiers('frequency')}
                           value={formData.frequency}
                           onChange={(e) => handleFormChange('frequency', e.target.value)}
                           className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -430,6 +439,7 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                           Start Date *
                         </label>
                         <input
+                          {...getFieldIdentifiers('periodStart')}
                           type="date"
                           value={formData.periodStart}
                           onChange={(e) => handleFormChange('periodStart', e.target.value)}
@@ -448,6 +458,7 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                           End Date *
                         </label>
                         <input
+                          {...getFieldIdentifiers('periodEnd')}
                           type="date"
                           value={formData.periodEnd}
                           onChange={(e) => handleFormChange('periodEnd', e.target.value)}
@@ -521,6 +532,7 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                                 Metric Name *
                               </label>
                               <input
+                                {...getFieldIdentifiers('metrics.name')}
                                 type="text"
                                 value={metric.name}
                                 onChange={(e) => handleMetricChange(index, 'name', e.target.value)}
@@ -540,6 +552,7 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                                 Type
                               </label>
                               <select
+                                {...getFieldIdentifiers('metrics.type')}
                                 value={metric.type}
                                 onChange={(e) => handleMetricChange(index, 'type', e.target.value)}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -558,6 +571,7 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                                 Description
                               </label>
                               <input
+                                {...getFieldIdentifiers('metrics.description')}
                                 type="text"
                                 value={metric.description || ''}
                                 onChange={(e) => handleMetricChange(index, 'description', e.target.value)}
@@ -572,6 +586,7 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                                 Unit
                               </label>
                               <input
+                                {...getFieldIdentifiers('metrics.unit')}
                                 type="text"
                                 value={metric.unit || ''}
                                 onChange={(e) => handleMetricChange(index, 'unit', e.target.value)}
@@ -586,6 +601,7 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                                 Weight (%) *
                               </label>
                               <input
+                                {...getFieldIdentifiers('metrics.weight')}
                                 type="number"
                                 value={metric.weight}
                                 onChange={(e) => handleMetricChange(index, 'weight', e.target.value)}
@@ -608,6 +624,8 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                                 Target Value *
                               </label>
                               <input
+                                id={`metric-${index}-targetValue`}
+                                name={`metrics.${index}.targetValue`}
                                 type="number"
                                 value={metric.targetValue !== undefined ? metric.targetValue : ''}
                                 onChange={(e) => handleMetricChange(index, 'targetValue', e.target.value ? Number(e.target.value) : undefined)}
@@ -629,6 +647,8 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                                 Current Value
                               </label>
                               <input
+                                id={`metric-${index}-currentValue`}
+                                name={`metrics.${index}.currentValue`}
                                 type="number"
                                 value={metric.currentValue !== undefined ? metric.currentValue : ''}
                                 onChange={(e) => handleMetricChange(index, 'currentValue', e.target.value ? Number(e.target.value) : undefined)}
@@ -672,6 +692,7 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                         Assign To *
                       </label>
                       <select
+                        {...getFieldIdentifiers('assignedTo')}
                         value={formData.assignedTo}
                         onChange={(e) => handleFormChange('assignedTo', e.target.value)}
                         className={`w-full px-3 py-2 rounded-lg border ${
@@ -696,6 +717,7 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                         Role *
                       </label>
                       <select
+                        {...getFieldIdentifiers('role')}
                         value={formData.role}
                         onChange={(e) => handleFormChange('role', e.target.value)}
                         className={`w-full px-3 py-2 rounded-lg border ${
@@ -720,6 +742,7 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                         Priority
                       </label>
                       <select
+                        {...getFieldIdentifiers('priority')}
                         value={formData.priority || 'medium'}
                         onChange={(e) => handleFormChange('priority', e.target.value)}
                         className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -738,6 +761,7 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                         Additional Notes
                       </label>
                       <textarea
+                        {...getFieldIdentifiers('notes')}
                         value={formData.notes || ''}
                         onChange={(e) => handleFormChange('notes', e.target.value)}
                         rows={2}
@@ -750,6 +774,7 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                     <div className="md:col-span-2 flex items-center gap-6">
                       <label className="flex items-center gap-2">
                         <input
+                          {...getFieldIdentifiers('distributeToSubordinates')}
                           type="checkbox"
                           checked={formData.distributeToSubordinates}
                           onChange={(e) => handleFormChange('distributeToSubordinates', e.target.checked)}
@@ -761,6 +786,7 @@ export default function KPICreateModal({ onClose, onSuccess, initialData }: KPIC
                       
                       <label className="flex items-center gap-2">
                         <input
+                          {...getFieldIdentifiers('isTemplate')}
                           type="checkbox"
                           checked={formData.isTemplate}
                           onChange={(e) => handleFormChange('isTemplate', e.target.checked)}
