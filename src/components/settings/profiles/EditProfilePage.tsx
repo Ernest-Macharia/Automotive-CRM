@@ -88,6 +88,11 @@ interface UserOption {
   role: string;
 }
 
+const getFieldIdentifiers = (name: string) => ({
+  id: name.replace(/[^a-zA-Z0-9_-]+/g, '-'),
+  name,
+});
+
 export default function EditProfilePage() {
   const router = useRouter();
   const params = useParams();
@@ -583,6 +588,7 @@ export default function EditProfilePage() {
                   First Name *
                 </label>
                 <input
+                  {...getFieldIdentifiers('firstName')}
                   type="text"
                   value={formData.firstName}
                   onChange={(e) => handleInputChange('firstName', e.target.value)}
@@ -604,6 +610,7 @@ export default function EditProfilePage() {
                   Middle Name
                 </label>
                 <input
+                  {...getFieldIdentifiers('middleName')}
                   type="text"
                   value={formData.middleName}
                   onChange={(e) => handleInputChange('middleName', e.target.value)}
@@ -617,6 +624,7 @@ export default function EditProfilePage() {
                   Last Name *
                 </label>
                 <input
+                  {...getFieldIdentifiers('lastName')}
                   type="text"
                   value={formData.lastName}
                   onChange={(e) => handleInputChange('lastName', e.target.value)}
@@ -638,6 +646,7 @@ export default function EditProfilePage() {
                   Date of Birth *
                 </label>
                 <input
+                  {...getFieldIdentifiers('dateOfBirth')}
                   type="date"
                   value={formData.dateOfBirth}
                   onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
@@ -658,6 +667,7 @@ export default function EditProfilePage() {
                   Gender *
                 </label>
                 <select
+                  {...getFieldIdentifiers('gender')}
                   value={formData.gender}
                   onChange={(e) => handleInputChange('gender', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -673,6 +683,7 @@ export default function EditProfilePage() {
                   Nationality
                 </label>
                 <input
+                  {...getFieldIdentifiers('nationality')}
                   type="text"
                   value={formData.nationality}
                   onChange={(e) => handleInputChange('nationality', e.target.value)}
@@ -686,6 +697,7 @@ export default function EditProfilePage() {
                   Citizenship
                 </label>
                 <input
+                  {...getFieldIdentifiers('citizenship')}
                   type="text"
                   value={formData.citizenship}
                   onChange={(e) => handleInputChange('citizenship', e.target.value)}
@@ -704,6 +716,7 @@ export default function EditProfilePage() {
                   User Account *
                 </label>
                 <select
+                  {...getFieldIdentifiers('userId')}
                   value={formData.userId}
                   onChange={(e) => handleInputChange('userId', e.target.value)}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
@@ -734,6 +747,7 @@ export default function EditProfilePage() {
                   Employee ID *
                 </label>
                 <input
+                  {...getFieldIdentifiers('employeeId')}
                   type="text"
                   value={formData.employeeId}
                   onChange={(e) => handleInputChange('employeeId', e.target.value)}
@@ -755,6 +769,7 @@ export default function EditProfilePage() {
                   Position *
                 </label>
                 <select
+                  {...getFieldIdentifiers('position')}
                   value={formData.position}
                   onChange={(e) => handleInputChange('position', e.target.value)}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
@@ -769,6 +784,7 @@ export default function EditProfilePage() {
                 </select>
                 {formData.position === 'other' && (
                   <input
+                    {...getFieldIdentifiers('position')}
                     type="text"
                     value={formData.position}
                     onChange={(e) => handleInputChange('position', e.target.value)}
@@ -789,6 +805,7 @@ export default function EditProfilePage() {
                   Department *
                 </label>
                 <select
+                  {...getFieldIdentifiers('department')}
                   value={formData.department}
                   onChange={(e) => handleInputChange('department', e.target.value)}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
@@ -803,6 +820,7 @@ export default function EditProfilePage() {
                 </select>
                 {formData.department === 'other' && (
                   <input
+                    {...getFieldIdentifiers('department')}
                     type="text"
                     value={formData.department}
                     onChange={(e) => handleInputChange('department', e.target.value)}
@@ -823,6 +841,7 @@ export default function EditProfilePage() {
                   Date Started *
                 </label>
                 <input
+                  {...getFieldIdentifiers('dateStarted')}
                   type="date"
                   value={formData.dateStarted}
                   onChange={(e) => handleInputChange('dateStarted', e.target.value)}
@@ -843,6 +862,7 @@ export default function EditProfilePage() {
                   Employment Status
                 </label>
                 <select
+                  {...getFieldIdentifiers('employmentStatus')}
                   value={formData.employmentStatus}
                   onChange={(e) => handleInputChange('employmentStatus', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -890,6 +910,7 @@ export default function EditProfilePage() {
                   Personal Phone *
                 </label>
                 <input
+                  {...getFieldIdentifiers('personalPhone')}
                   type="tel"
                   value={formData.personalPhone}
                   onChange={(e) => handleInputChange('personalPhone', e.target.value)}
@@ -911,6 +932,7 @@ export default function EditProfilePage() {
                   Work Phone
                 </label>
                 <input
+                  {...getFieldIdentifiers('workPhone')}
                   type="tel"
                   value={formData.workPhone}
                   onChange={(e) => handleInputChange('workPhone', e.target.value)}
@@ -924,6 +946,7 @@ export default function EditProfilePage() {
                   Personal Email *
                 </label>
                 <input
+                  {...getFieldIdentifiers('personalEmail')}
                   type="email"
                   value={formData.personalEmail}
                   onChange={(e) => handleInputChange('personalEmail', e.target.value)}
@@ -945,6 +968,7 @@ export default function EditProfilePage() {
                   Residential Address *
                 </label>
                 <textarea
+                  {...getFieldIdentifiers('residentialAddress')}
                   value={formData.residentialAddress}
                   onChange={(e) => handleInputChange('residentialAddress', e.target.value)}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
@@ -966,6 +990,7 @@ export default function EditProfilePage() {
                   Postal Address
                 </label>
                 <textarea
+                  {...getFieldIdentifiers('postalAddress')}
                   value={formData.postalAddress}
                   onChange={(e) => handleInputChange('postalAddress', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -980,6 +1005,7 @@ export default function EditProfilePage() {
                     County
                   </label>
                   <input
+                    {...getFieldIdentifiers('county')}
                     type="text"
                     value={formData.county}
                     onChange={(e) => handleInputChange('county', e.target.value)}
@@ -992,6 +1018,7 @@ export default function EditProfilePage() {
                     Sub-County
                   </label>
                   <input
+                    {...getFieldIdentifiers('subCounty')}
                     type="text"
                     value={formData.subCounty}
                     onChange={(e) => handleInputChange('subCounty', e.target.value)}
@@ -1011,6 +1038,7 @@ export default function EditProfilePage() {
                   Contract Type
                 </label>
                 <select
+                  {...getFieldIdentifiers('contractType')}
                   value={formData.contractType}
                   onChange={(e) => handleInputChange('contractType', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -1028,6 +1056,7 @@ export default function EditProfilePage() {
                     Contract Start
                   </label>
                   <input
+                    {...getFieldIdentifiers('contractStartDate')}
                     type="date"
                     value={formData.contractStartDate}
                     onChange={(e) => handleInputChange('contractStartDate', e.target.value)}
@@ -1039,6 +1068,7 @@ export default function EditProfilePage() {
                     Contract End
                   </label>
                   <input
+                    {...getFieldIdentifiers('contractEndDate')}
                     type="date"
                     value={formData.contractEndDate}
                     onChange={(e) => handleInputChange('contractEndDate', e.target.value)}
@@ -1052,6 +1082,7 @@ export default function EditProfilePage() {
                   Contract Document URL
                 </label>
                 <input
+                  {...getFieldIdentifiers('contractDocumentUrl')}
                   type="text"
                   value={formData.contractDocumentUrl}
                   onChange={(e) => handleInputChange('contractDocumentUrl', e.target.value)}
@@ -1065,6 +1096,7 @@ export default function EditProfilePage() {
                   Reporting Manager ID
                 </label>
                 <input
+                  {...getFieldIdentifiers('reportingManager')}
                   type="text"
                   value={formData.reportingManager}
                   onChange={(e) => handleInputChange('reportingManager', e.target.value)}
@@ -1078,6 +1110,7 @@ export default function EditProfilePage() {
                   Marital Status
                 </label>
                 <input
+                  {...getFieldIdentifiers('maritalStatus')}
                   type="text"
                   value={formData.maritalStatus}
                   onChange={(e) => handleInputChange('maritalStatus', e.target.value)}
@@ -1091,6 +1124,7 @@ export default function EditProfilePage() {
                   Spouse Name
                 </label>
                 <input
+                  {...getFieldIdentifiers('spouseName')}
                   type="text"
                   value={formData.spouseName}
                   onChange={(e) => handleInputChange('spouseName', e.target.value)}
@@ -1104,6 +1138,7 @@ export default function EditProfilePage() {
                   Number of Children
                 </label>
                 <input
+                  {...getFieldIdentifiers('childrenCount')}
                   type="number"
                   value={formData.childrenCount}
                   onChange={(e) => handleInputChange('childrenCount', parseInt(e.target.value) || 0)}
@@ -1126,6 +1161,7 @@ export default function EditProfilePage() {
                 Bank Name
               </label>
               <input
+                {...getFieldIdentifiers('bankName')}
                 type="text"
                 value={formData.bankName}
                 onChange={(e) => handleInputChange('bankName', e.target.value)}
@@ -1139,6 +1175,7 @@ export default function EditProfilePage() {
                 Account Number
               </label>
               <input
+                {...getFieldIdentifiers('bankAccountNumber')}
                 type="text"
                 value={formData.bankAccountNumber}
                 onChange={(e) => handleInputChange('bankAccountNumber', e.target.value)}
@@ -1152,6 +1189,7 @@ export default function EditProfilePage() {
                 Bank Branch
               </label>
               <input
+                {...getFieldIdentifiers('bankBranch')}
                 type="text"
                 value={formData.bankBranch}
                 onChange={(e) => handleInputChange('bankBranch', e.target.value)}
@@ -1172,6 +1210,7 @@ export default function EditProfilePage() {
                 Next of Kin Name
               </label>
               <input
+                {...getFieldIdentifiers('nextOfKinName')}
                 type="text"
                 value={formData.nextOfKinName}
                 onChange={(e) => handleInputChange('nextOfKinName', e.target.value)}
@@ -1185,6 +1224,7 @@ export default function EditProfilePage() {
                 Relationship
               </label>
               <input
+                {...getFieldIdentifiers('nextOfKinRelationship')}
                 type="text"
                 value={formData.nextOfKinRelationship}
                 onChange={(e) => handleInputChange('nextOfKinRelationship', e.target.value)}
@@ -1198,6 +1238,7 @@ export default function EditProfilePage() {
                 Phone Number
               </label>
               <input
+                {...getFieldIdentifiers('nextOfKinPhone')}
                 type="tel"
                 value={formData.nextOfKinPhone}
                 onChange={(e) => handleInputChange('nextOfKinPhone', e.target.value)}
@@ -1211,6 +1252,7 @@ export default function EditProfilePage() {
                 Address
               </label>
               <input
+                {...getFieldIdentifiers('nextOfKinAddress')}
                 type="text"
                 value={formData.nextOfKinAddress}
                 onChange={(e) => handleInputChange('nextOfKinAddress', e.target.value)}
@@ -1235,6 +1277,7 @@ export default function EditProfilePage() {
                 </label>
                 <div className="flex gap-2 mb-2">
                   <input
+                    {...getFieldIdentifiers('newSkill')}
                     type="text"
                     value={newSkill}
                     onChange={(e) => setNewSkill(e.target.value)}
@@ -1276,6 +1319,7 @@ export default function EditProfilePage() {
                   Qualifications
                 </label>
                 <input
+                  {...getFieldIdentifiers('qualifications')}
                   type="text"
                   value={formData.qualifications?.join(', ') || ''}
                   onChange={(e) => handleArrayInputChange('qualifications', e.target.value.split(', ').filter(Boolean))}
@@ -1293,6 +1337,7 @@ export default function EditProfilePage() {
                   Certifications
                 </label>
                 <input
+                  {...getFieldIdentifiers('certifications')}
                   type="text"
                   value={formData.certifications?.join(', ') || ''}
                   onChange={(e) => handleArrayInputChange('certifications', e.target.value.split(', ').filter(Boolean))}
@@ -1306,6 +1351,7 @@ export default function EditProfilePage() {
                   Languages
                 </label>
                 <input
+                  {...getFieldIdentifiers('languages')}
                   type="text"
                   value={formData.languages.join(', ')}
                   onChange={(e) => handleArrayInputChange('languages', e.target.value.split(', ').filter(Boolean))}
@@ -1340,6 +1386,7 @@ export default function EditProfilePage() {
                     Name *
                   </label>
                   <input
+                    {...getFieldIdentifiers('newEmergencyContact.name')}
                     type="text"
                     value={newEmergencyContact.name}
                     onChange={(e) => setNewEmergencyContact(prev => ({ ...prev, name: e.target.value }))}
@@ -1352,6 +1399,7 @@ export default function EditProfilePage() {
                     Relationship *
                   </label>
                   <input
+                    {...getFieldIdentifiers('newEmergencyContact.relationship')}
                     type="text"
                     value={newEmergencyContact.relationship}
                     onChange={(e) => setNewEmergencyContact(prev => ({ ...prev, relationship: e.target.value }))}
@@ -1364,6 +1412,7 @@ export default function EditProfilePage() {
                     Phone Number *
                   </label>
                   <input
+                    {...getFieldIdentifiers('newEmergencyContact.phoneNumber')}
                     type="tel"
                     value={newEmergencyContact.phoneNumber}
                     onChange={(e) => setNewEmergencyContact(prev => ({ ...prev, phoneNumber: e.target.value }))}
@@ -1376,6 +1425,7 @@ export default function EditProfilePage() {
                     Email
                   </label>
                   <input
+                    {...getFieldIdentifiers('newEmergencyContact.email')}
                     type="email"
                     value={newEmergencyContact.email}
                     onChange={(e) => setNewEmergencyContact(prev => ({ ...prev, email: e.target.value }))}
@@ -1388,6 +1438,7 @@ export default function EditProfilePage() {
                     Address
                   </label>
                   <textarea
+                    {...getFieldIdentifiers('newEmergencyContact.address')}
                     value={newEmergencyContact.address}
                     onChange={(e) => setNewEmergencyContact(prev => ({ ...prev, address: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -1494,6 +1545,7 @@ export default function EditProfilePage() {
                     Document Type *
                   </label>
                   <select
+                    {...getFieldIdentifiers('newGovernmentDocument.type')}
                     value={newGovernmentDocument.type}
                     onChange={(e) => setNewGovernmentDocument(prev => ({ ...prev, type: e.target.value as GovernmentDocument['type'] }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -1511,6 +1563,7 @@ export default function EditProfilePage() {
                     Document Number *
                   </label>
                   <input
+                    {...getFieldIdentifiers('newGovernmentDocument.number')}
                     type="text"
                     value={newGovernmentDocument.number}
                     onChange={(e) => setNewGovernmentDocument(prev => ({ ...prev, number: e.target.value }))}
@@ -1523,6 +1576,7 @@ export default function EditProfilePage() {
                     Expiry Date
                   </label>
                   <input
+                    {...getFieldIdentifiers('newGovernmentDocument.expiryDate')}
                     type="date"
                     value={newGovernmentDocument.expiryDate as string || ''}
                     onChange={(e) => setNewGovernmentDocument(prev => ({ ...prev, expiryDate: e.target.value }))}
@@ -1534,6 +1588,7 @@ export default function EditProfilePage() {
                     Document URL
                   </label>
                   <input
+                    {...getFieldIdentifiers('newGovernmentDocument.documentUrl')}
                     type="text"
                     value={newGovernmentDocument.documentUrl || ''}
                     onChange={(e) => setNewGovernmentDocument(prev => ({ ...prev, documentUrl: e.target.value }))}
