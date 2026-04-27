@@ -1558,53 +1558,71 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
             </div>
             
             <div className="grid grid-cols-2 gap-3">
-              <button className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300">
+              <Link
+                href="/vehicles/create"
+                className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300"
+              >
                 <div className="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 mb-2 group-hover:from-blue-200 group-hover:to-blue-300">
                   <Car className="h-6 w-6 text-blue-600" />
                 </div>
                 <span className="text-sm font-medium text-gray-900">Add Vehicle</span>
                 <span className="text-xs text-gray-600">Register new vehicle</span>
-              </button>
+              </Link>
               
-              <button className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300">
+              <Link
+                href="/job-cards/create"
+                className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300"
+              >
                 <div className="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 mb-2 group-hover:from-blue-200 group-hover:to-blue-300">
                   <WrenchIcon className="h-6 w-6 text-blue-600" />
                 </div>
                 <span className="text-sm font-medium text-gray-900">Create Job Card</span>
                 <span className="text-xs text-gray-600">New service job card</span>
-              </button>
+              </Link>
               
-              <button className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300">
+              <Link
+                href="/reports"
+                className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300"
+              >
                 <div className="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 mb-2 group-hover:from-blue-200 group-hover:to-blue-300">
                   <FileText className="h-6 w-6 text-blue-600" />
                 </div>
                 <span className="text-sm font-medium text-gray-900">Service Report</span>
                 <span className="text-xs text-gray-600">Generate service report</span>
-              </button>
+              </Link>
               
-              <button className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300">
+              <Link
+                href="/settings/users/create"
+                className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300"
+              >
                 <div className="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 mb-2 group-hover:from-blue-200 group-hover:to-blue-300">
                   <Users className="h-6 w-6 text-blue-600" />
                 </div>
                 <span className="text-sm font-medium text-gray-900">Add Technician</span>
                 <span className="text-xs text-gray-600">Add new technician</span>
-              </button>
+              </Link>
               
-              <button className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300">
+              <Link
+                href="/products"
+                className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300"
+              >
                 <div className="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 mb-2 group-hover:from-blue-200 group-hover:to-blue-300">
                   <Package className="h-6 w-6 text-blue-600" />
                 </div>
                 <span className="text-sm font-medium text-gray-900">Parts Inventory</span>
                 <span className="text-xs text-gray-600">Manage spare parts</span>
-              </button>
+              </Link>
               
-              <button className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300">
+              <Link
+                href="/invoices"
+                className="group flex flex-col items-center justify-center p-4 bg-blue-50/50 border border-blue-200/50 hover:border-blue-300/50 hover:bg-blue-100/50 rounded-xl transition-all duration-300"
+              >
                 <div className="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 mb-2 group-hover:from-blue-200 group-hover:to-blue-300">
                   <DollarSign className="h-6 w-6 text-blue-600" />
                 </div>
                 <span className="text-sm font-medium text-gray-900">Invoices</span>
                 <span className="text-xs text-gray-600">Manage billing</span>
-              </button>
+              </Link>
             </div>
           </div>
         </div>
