@@ -593,6 +593,29 @@ export default function DiamondRimsPreChecklistCreatePage({
     { id: 'mobile_delivery_install', label: 'Mobile Service', icon: <CarIcon className="h-5 w-5" /> }
   ];
 
+  const normalizeDeliveryModeValue = (value: string): string => {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) {
+      return '';
+    }
+
+    const matchedById = deliveryModeOptions.find((option) => option.id === trimmedValue);
+    if (matchedById) {
+      return matchedById.id;
+    }
+
+    const matchedByLabel = deliveryModeOptions.find(
+      (option) => option.label.toLowerCase() === trimmedValue.toLowerCase()
+    );
+    return matchedByLabel ? matchedByLabel.id : trimmedValue;
+  };
+
+  const getDeliveryModeLabel = (value: string): string => {
+    const normalizedValue = normalizeDeliveryModeValue(value);
+    const matchedOption = deliveryModeOptions.find((option) => option.id === normalizedValue);
+    return matchedOption ? matchedOption.label : value;
+  };
+
   // RAL Colors options
   const ralColors = [
     'Super Glossy Black',
@@ -1246,7 +1269,7 @@ export default function DiamondRimsPreChecklistCreatePage({
         colourRAL: checklist?.powderCoating?.colourRAL || '',
       },
 
-      deliveryMode: checklist?.deliveryMode || '',
+      deliveryMode: normalizeDeliveryModeValue(checklist?.deliveryMode || ''),
       tpmsSensorsFitted: !!checklist?.tpmsSensorsFitted,
       wheelNutsTotal: checklist?.wheelNutsTotal || 4,
       nozzleCapsTotal: checklist?.nozzleCapsTotal || 0,
@@ -2054,7 +2077,7 @@ export default function DiamondRimsPreChecklistCreatePage({
           colourRAL: formData.powderCoating.colourRAL
         },
         
-        deliveryMode: formData.deliveryMode,
+        deliveryMode: normalizeDeliveryModeValue(formData.deliveryMode),
         tpmsSensorsFitted: formData.tpmsSensorsFitted,
         wheelNutsTotal: formData.wheelNutsTotal,
         nozzleCapsTotal: formData.nozzleCapsTotal,
@@ -2292,7 +2315,7 @@ export default function DiamondRimsPreChecklistCreatePage({
         ['Powder Coating Colour (RAL):', formData.powderCoating.colourRAL, '', '', '', '', ''],
         ['', '', '', '', '', '', ''],
         ['DELIVERY & ACCESSORIES', '', '', '', '', '', ''],
-        ['Delivery Mode:', formData.deliveryMode, '', 'TPMS Sensors:', formData.tpmsSensorsFitted ? 'Yes' : 'No', '', ''],
+        ['Delivery Mode:', getDeliveryModeLabel(formData.deliveryMode), '', 'TPMS Sensors:', formData.tpmsSensorsFitted ? 'Yes' : 'No', '', ''],
         ['Wheel Nuts:', formData.wheelNutsTotal, '', 'Nozzle Caps:', formData.nozzleCapsTotal, '', ''],
         ['Nozzle Caps Type:', formData.nozzleCapsType, '', 'Lock Nuts:', formData.lockNutsTotal, '', ''],
         ['Center Caps Present:', formData.centerCaps.present ? 'Yes' : 'No', '', '', '', '', ''],
@@ -3406,9 +3429,9 @@ export default function DiamondRimsPreChecklistCreatePage({
                   <button
                     key={mode.id}
                     type="button"
-                    onClick={() => handleInputChange('deliveryMode', mode.label)}
+                    onClick={() => handleInputChange('deliveryMode', mode.id)}
                     className={`p-4 border-2 rounded-lg text-center transition-all flex flex-col items-center gap-2 ${
-                      formData.deliveryMode === mode.label
+                      formData.deliveryMode === mode.id
                         ? 'border-purple-500 bg-purple-50 text-purple-700'
                         : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                     }`}

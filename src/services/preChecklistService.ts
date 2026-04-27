@@ -580,18 +580,25 @@ export interface SignedPreChecklist {
 }
 
 const normalizeObjectId = (value: unknown): string => {
+  let candidate = '';
+
   if (typeof value === 'string') {
-    return value.trim();
+    candidate = value.trim();
   }
 
-  if (value && typeof value === 'object') {
+  if (!candidate && value && typeof value === 'object') {
     const rawId = (value as Record<string, unknown>)._id ?? (value as Record<string, unknown>).id;
     if (typeof rawId === 'string') {
-      return rawId.trim();
+      candidate = rawId.trim();
     }
   }
 
-  return '';
+  if (!candidate) {
+    return '';
+  }
+
+  const invalidTokens = new Set(['undefined', 'null', '[object Object]', 'NaN']);
+  return invalidTokens.has(candidate) ? '' : candidate;
 };
 
 const normalizeOptionalEmail = (value: unknown): string | undefined => {
@@ -864,22 +871,17 @@ class PreChecklistService {
         headers['X-User-Id'] = userId;
       }
       
-      const sanitizedData = sanitizePreChecklistPayload(data);
+      const sanitizedData = sanitizePreChecklistPayload(
+        data as Record<string, any>
+      ) as CreatePreChecklistDto;
 
       if (!sanitizedData.checklistType && (sanitizedData.services || sanitizedData.carDetails)) {
         sanitizedData.checklistType = 'diamond_rims';
       }
-      
-      const submissionData = {
-        ...sanitizedData,
-        createdBy: userId || sanitizedData.inspectedBy,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      
+
       return await extendedApiClient.post<CreatePreChecklistDto, PreChecklist>(
         '/prechecklists', 
-        submissionData, 
+        sanitizedData, 
         headers
       );
     } catch (error: any) {
