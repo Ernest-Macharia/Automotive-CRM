@@ -1464,6 +1464,47 @@ export default function OpportunitiesContent() {
           }
         }
       }
+
+      // Some backend deployments index phone lookups primarily through `search`
+      // instead of `customerPhone`. Try a text-search fallback before concluding
+      // no matches.
+      if (response.data.length === 0 && params.customerPhone && !params.search) {
+        const phoneSearchCandidates = Array.from(
+          new Set([String(params.customerPhone), ...buildPhoneSearchCandidates(String(params.customerPhone))]),
+        );
+
+        for (const candidate of phoneSearchCandidates) {
+          const textSearchParams: FilterParams = {
+            ...params,
+            search: candidate,
+            customerPhone: undefined,
+          };
+
+          let textSearchResponse = hasActiveFilters
+            ? await opportunityService.filterOpportunities(textSearchParams)
+            : await opportunityService.getAllOpportunities(textSearchParams);
+
+          if (textSearchResponse.data.length === 0) {
+            const broadSearchResponse = await opportunityService.getAllOpportunities({
+              page: textSearchParams.page,
+              limit: textSearchParams.limit,
+              sort: textSearchParams.sort,
+              status: textSearchParams.status,
+              source: textSearchParams.source,
+              search: candidate,
+            });
+
+            if (broadSearchResponse.data.length > 0) {
+              textSearchResponse = broadSearchResponse;
+            }
+          }
+
+          if (textSearchResponse.data.length > 0) {
+            response = textSearchResponse;
+            break;
+          }
+        }
+      }
       
       // Pre-compute all values for opportunities
       const processedOpportunities = response.data.map((rawOpp: ExtendedOpportunity) => {
@@ -1705,7 +1746,7 @@ export default function OpportunitiesContent() {
   const applySearchFilters = useCallback(
     (
       rawSearchValue: string,
-      options: { showValidationToast?: boolean } = {},
+      options: { showValidationToast?: boolean; forceFetchWhenUnchanged?: boolean } = {},
     ) => {
       const trimmedSearch = rawSearchValue.trim();
       const phoneCandidates = buildPhoneSearchCandidates(trimmedSearch);
@@ -1729,28 +1770,30 @@ export default function OpportunitiesContent() {
       }
 
       if (trimmedSearch.length >= 3 || Boolean(phoneSearch)) {
-        setSearchLoading(true);
-        setFilters((prev) => {
-          const nextSearch = isPhoneOnlySearch ? undefined : trimmedSearch;
-          const nextPhone = phoneSearch;
+        const nextSearch = isPhoneOnlySearch ? undefined : trimmedSearch;
+        const nextPhone = phoneSearch;
+        const hasSearchStateChanged =
+          filters.search !== nextSearch ||
+          filters.customerPhone !== nextPhone ||
+          filters.page !== 1;
 
-          if (
-            prev.search === nextSearch &&
-            prev.customerPhone === nextPhone &&
-            prev.page === 1
-          ) {
-            return prev;
-          }
-
-          return {
+        if (hasSearchStateChanged) {
+          setSearchLoading(true);
+          setFilters((prev) => ({
             ...prev,
             // Phone-only queries should avoid setting text search to prevent
             // backend AND matching from becoming over-restrictive.
             search: nextSearch,
             customerPhone: nextPhone,
             page: 1,
-          };
-        });
+          }));
+        } else if (options.forceFetchWhenUnchanged) {
+          // Allow explicit search submit to refresh results even when the query
+          // has not changed, preventing stale boards and stuck "Searching..." UI.
+          setSearchLoading(true);
+          void fetchOpportunities(true, true);
+        }
+
         setActiveQuickFilter(null);
         return;
       }
@@ -1759,7 +1802,7 @@ export default function OpportunitiesContent() {
         showToast('Please enter at least 3 characters to search', 'info', 2000);
       }
     },
-    [showToast],
+    [showToast, fetchOpportunities, filters.search, filters.customerPhone, filters.page],
   );
 
   const debouncedApplySearchFilters = useDebounce((searchValue: string) => {
@@ -1772,7 +1815,10 @@ export default function OpportunitiesContent() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    applySearchFilters(searchQuery, { showValidationToast: true });
+    applySearchFilters(searchQuery, {
+      showValidationToast: true,
+      forceFetchWhenUnchanged: true,
+    });
   };
 
   const handleClearSearch = () => {
