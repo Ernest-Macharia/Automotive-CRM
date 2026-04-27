@@ -78,7 +78,7 @@ import {
   Mail as MailIcon,
   GripVertical
 } from 'lucide-react';
-import { CreatePreChecklistDto, PreChecklist, preChecklistService } from '@/services/preChecklistService';
+import { CreatePreChecklistDto, InspectionItem, PreChecklist, preChecklistService } from '@/services/preChecklistService';
 import { workOrderService } from '@/services/workOrderService';
 import { opportunityService } from '@/services/opportunityService';
 import { vehicleService } from '@/services/vehicleService';
@@ -252,6 +252,24 @@ function getFieldIdentifiers(name: string) {
     id: name.replace(/[^a-zA-Z0-9_-]+/g, '-'),
     name,
   };
+}
+
+function parseJsonObject(value: unknown): Record<string, any> {
+  if (typeof value !== 'string') {
+    return {};
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed || !trimmed.startsWith('{')) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
 }
 
 export default function DiamondRimsPreChecklistCreatePage({ 
@@ -1191,6 +1209,24 @@ export default function DiamondRimsPreChecklistCreatePage({
   };
 
   const mapChecklistToForm = (checklist: PreChecklist) => {
+    const compatibilityData = parseJsonObject(checklist?.additionalInformation);
+    const fallbackPreServiceInspection = compatibilityData.preServiceInspection || {};
+    const fallbackPowderCoating = compatibilityData.powderCoating || {};
+    const fallbackCenterCaps = compatibilityData.centerCaps || {};
+    const fallbackRimsDetails = compatibilityData.rimsDetails || {};
+    const fallbackTiresDetails = compatibilityData.tiresDetails || {};
+    const fallbackTireBrands = compatibilityData.tireBrands || {};
+    const fallbackTireDot = compatibilityData.tireDOT || {};
+    const fallbackSuitability = compatibilityData.suitability || {};
+    const fallbackDeclaredValuable = compatibilityData.declaredValuable || {};
+    const fallbackClientUpdate = compatibilityData.clientUpdate || {};
+    const fallbackAssociatedRisks = fallbackClientUpdate.associatedRisks || {};
+    const fallbackMustKnows = fallbackClientUpdate.mustKnows || {};
+    const additionalRemarks =
+      typeof compatibilityData.additionalRemarks === 'string'
+        ? compatibilityData.additionalRemarks
+        : '';
+
     return {
       checklistType: checklist?.checklistType || 'diamond_rims',
       opportunityId: toId(checklist?.opportunityId),
@@ -1216,8 +1252,8 @@ export default function DiamondRimsPreChecklistCreatePage({
             total: 0
           },
       agreedAmount: {
-        total: checklist?.agreedAmount?.total ?? 0,
-        breakdown: checklist?.agreedAmount?.breakdown || ''
+        total: checklist?.agreedAmount?.total ?? compatibilityData.agreedAmount?.total ?? 0,
+        breakdown: checklist?.agreedAmount?.breakdown || compatibilityData.agreedAmount?.breakdown || ''
       },
 
       serviceIntake: {
@@ -1258,126 +1294,128 @@ export default function DiamondRimsPreChecklistCreatePage({
       preServiceInspection: {
         condition: Array.isArray(checklist?.preServiceInspection?.condition)
           ? checklist.preServiceInspection.condition
+          : Array.isArray(fallbackPreServiceInspection?.condition)
+            ? fallbackPreServiceInspection.condition
           : [],
-        inspectorAccessNotes: checklist?.preServiceInspection?.inspectorAccessNotes || '',
-        inspectionNotes: checklist?.preServiceInspection?.inspectionNotes || '',
-        photosRequired: !!checklist?.preServiceInspection?.photosRequired,
-        videoRequired: !!checklist?.preServiceInspection?.videoRequired
+        inspectorAccessNotes: checklist?.preServiceInspection?.inspectorAccessNotes || fallbackPreServiceInspection.inspectorAccessNotes || '',
+        inspectionNotes: checklist?.preServiceInspection?.inspectionNotes || fallbackPreServiceInspection.inspectionNotes || '',
+        photosRequired: checklist?.preServiceInspection?.photosRequired ?? !!fallbackPreServiceInspection.photosRequired,
+        videoRequired: checklist?.preServiceInspection?.videoRequired ?? !!fallbackPreServiceInspection.videoRequired
       },
 
       powderCoating: {
-        colourRAL: checklist?.powderCoating?.colourRAL || '',
+        colourRAL: checklist?.powderCoating?.colourRAL || fallbackPowderCoating.colourRAL || '',
       },
 
-      deliveryMode: normalizeDeliveryModeValue(checklist?.deliveryMode || ''),
-      tpmsSensorsFitted: !!checklist?.tpmsSensorsFitted,
-      wheelNutsTotal: checklist?.wheelNutsTotal || 4,
-      nozzleCapsTotal: checklist?.nozzleCapsTotal || 0,
-      nozzleCapsType: checklist?.nozzleCapsType || '',
-      lockNutsTotal: checklist?.lockNutsTotal || 0,
+      deliveryMode: normalizeDeliveryModeValue(checklist?.deliveryMode || compatibilityData.deliveryMode || ''),
+      tpmsSensorsFitted: checklist?.tpmsSensorsFitted ?? !!compatibilityData.tpmsSensorsFitted,
+      wheelNutsTotal: checklist?.wheelNutsTotal ?? compatibilityData.wheelNutsTotal ?? 4,
+      nozzleCapsTotal: checklist?.nozzleCapsTotal ?? compatibilityData.nozzleCapsTotal ?? 0,
+      nozzleCapsType: checklist?.nozzleCapsType || compatibilityData.nozzleCapsType || '',
+      lockNutsTotal: checklist?.lockNutsTotal ?? compatibilityData.lockNutsTotal ?? 0,
 
       centerCaps: {
-        present: !!checklist?.centerCaps?.present,
-        quantity: checklist?.centerCaps?.quantity || 0,
-        condition: checklist?.centerCaps?.condition || 'good',
-        type: checklist?.centerCaps?.type || '',
-        notes: checklist?.centerCaps?.notes || ''
+        present: checklist?.centerCaps?.present ?? !!fallbackCenterCaps.present,
+        quantity: checklist?.centerCaps?.quantity ?? fallbackCenterCaps.quantity ?? 0,
+        condition: checklist?.centerCaps?.condition || fallbackCenterCaps.condition || 'good',
+        type: checklist?.centerCaps?.type || fallbackCenterCaps.type || '',
+        notes: checklist?.centerCaps?.notes || fallbackCenterCaps.notes || ''
       },
 
-      rimOrTireSelection: checklist?.rimOrTireSelection || '',
+      rimOrTireSelection: checklist?.rimOrTireSelection || compatibilityData.rimOrTireSelection || '',
       rimsDetails: {
-        quantity: checklist?.rimsDetails?.quantity || 0,
-        size: checklist?.rimsDetails?.size || '',
-        type: checklist?.rimsDetails?.type || '',
-        condition: checklist?.rimsDetails?.condition || ''
+        quantity: checklist?.rimsDetails?.quantity ?? fallbackRimsDetails.quantity ?? 0,
+        size: checklist?.rimsDetails?.size || fallbackRimsDetails.size || '',
+        type: checklist?.rimsDetails?.type || fallbackRimsDetails.type || '',
+        condition: checklist?.rimsDetails?.condition || fallbackRimsDetails.condition || ''
       },
       tiresDetails: {
-        quantity: checklist?.tiresDetails?.quantity || 0,
-        size: checklist?.tiresDetails?.size || '',
-        type: checklist?.tiresDetails?.type || '',
-        treadDepth: checklist?.tiresDetails?.treadDepth || ''
+        quantity: checklist?.tiresDetails?.quantity ?? fallbackTiresDetails.quantity ?? 0,
+        size: checklist?.tiresDetails?.size || fallbackTiresDetails.size || '',
+        type: checklist?.tiresDetails?.type || fallbackTiresDetails.type || '',
+        treadDepth: checklist?.tiresDetails?.treadDepth || fallbackTiresDetails.treadDepth || ''
       },
 
       tireBrands: {
-        fr: checklist?.tireBrands?.fr || '',
-        fl: checklist?.tireBrands?.fl || '',
-        br: checklist?.tireBrands?.br || '',
-        bl: checklist?.tireBrands?.bl || '',
-        spare: checklist?.tireBrands?.spare || '',
+        fr: checklist?.tireBrands?.fr || fallbackTireBrands.fr || '',
+        fl: checklist?.tireBrands?.fl || fallbackTireBrands.fl || '',
+        br: checklist?.tireBrands?.br || fallbackTireBrands.br || '',
+        bl: checklist?.tireBrands?.bl || fallbackTireBrands.bl || '',
+        spare: checklist?.tireBrands?.spare || fallbackTireBrands.spare || '',
       },
 
       tireDOT: {
         fr: {
-          code: checklist?.tireDOT?.fr?.code || '',
-          week: checklist?.tireDOT?.fr?.week || '',
-          year: checklist?.tireDOT?.fr?.year || '',
-          plant: checklist?.tireDOT?.fr?.plant || ''
+          code: checklist?.tireDOT?.fr?.code || fallbackTireDot?.fr?.code || '',
+          week: checklist?.tireDOT?.fr?.week || fallbackTireDot?.fr?.week || '',
+          year: checklist?.tireDOT?.fr?.year || fallbackTireDot?.fr?.year || '',
+          plant: checklist?.tireDOT?.fr?.plant || fallbackTireDot?.fr?.plant || ''
         },
         fl: {
-          code: checklist?.tireDOT?.fl?.code || '',
-          week: checklist?.tireDOT?.fl?.week || '',
-          year: checklist?.tireDOT?.fl?.year || '',
-          plant: checklist?.tireDOT?.fl?.plant || ''
+          code: checklist?.tireDOT?.fl?.code || fallbackTireDot?.fl?.code || '',
+          week: checklist?.tireDOT?.fl?.week || fallbackTireDot?.fl?.week || '',
+          year: checklist?.tireDOT?.fl?.year || fallbackTireDot?.fl?.year || '',
+          plant: checklist?.tireDOT?.fl?.plant || fallbackTireDot?.fl?.plant || ''
         },
         br: {
-          code: checklist?.tireDOT?.br?.code || '',
-          week: checklist?.tireDOT?.br?.week || '',
-          year: checklist?.tireDOT?.br?.year || '',
-          plant: checklist?.tireDOT?.br?.plant || ''
+          code: checklist?.tireDOT?.br?.code || fallbackTireDot?.br?.code || '',
+          week: checklist?.tireDOT?.br?.week || fallbackTireDot?.br?.week || '',
+          year: checklist?.tireDOT?.br?.year || fallbackTireDot?.br?.year || '',
+          plant: checklist?.tireDOT?.br?.plant || fallbackTireDot?.br?.plant || ''
         },
         bl: {
-          code: checklist?.tireDOT?.bl?.code || '',
-          week: checklist?.tireDOT?.bl?.week || '',
-          year: checklist?.tireDOT?.bl?.year || '',
-          plant: checklist?.tireDOT?.bl?.plant || ''
+          code: checklist?.tireDOT?.bl?.code || fallbackTireDot?.bl?.code || '',
+          week: checklist?.tireDOT?.bl?.week || fallbackTireDot?.bl?.week || '',
+          year: checklist?.tireDOT?.bl?.year || fallbackTireDot?.bl?.year || '',
+          plant: checklist?.tireDOT?.bl?.plant || fallbackTireDot?.bl?.plant || ''
         },
         spare: {
-          code: checklist?.tireDOT?.spare?.code || '',
-          week: checklist?.tireDOT?.spare?.week || '',
-          year: checklist?.tireDOT?.spare?.year || '',
-          plant: checklist?.tireDOT?.spare?.plant || ''
+          code: checklist?.tireDOT?.spare?.code || fallbackTireDot?.spare?.code || '',
+          week: checklist?.tireDOT?.spare?.week || fallbackTireDot?.spare?.week || '',
+          year: checklist?.tireDOT?.spare?.year || fallbackTireDot?.spare?.year || '',
+          plant: checklist?.tireDOT?.spare?.plant || fallbackTireDot?.spare?.plant || ''
         },
       },
 
       suitability: {
-        skimming: checklist?.suitability?.skimming || '',
-        powderCoating: checklist?.suitability?.powderCoating || '',
-        straightening: checklist?.suitability?.straightening || '',
-        welding: checklist?.suitability?.welding || '',
-        diamondCutting: checklist?.suitability?.diamondCutting || '',
-        notes: checklist?.suitability?.notes || '',
-        recommendations: checklist?.suitability?.recommendations || ''
+        skimming: checklist?.suitability?.skimming || fallbackSuitability.skimming || '',
+        powderCoating: checklist?.suitability?.powderCoating || fallbackSuitability.powderCoating || '',
+        straightening: checklist?.suitability?.straightening || fallbackSuitability.straightening || '',
+        welding: checklist?.suitability?.welding || fallbackSuitability.welding || '',
+        diamondCutting: checklist?.suitability?.diamondCutting || fallbackSuitability.diamondCutting || '',
+        notes: checklist?.suitability?.notes || fallbackSuitability.notes || '',
+        recommendations: checklist?.suitability?.recommendations || fallbackSuitability.recommendations || ''
       },
 
       declaredValuable: {
-        value: !!checklist?.declaredValuable?.value,
-        declaredValue: checklist?.declaredValuable?.declaredValue || 0,
-        insuranceRequired: !!checklist?.declaredValuable?.insuranceRequired,
-        insuranceProvider: checklist?.declaredValuable?.insuranceProvider || '',
-        policyNumber: checklist?.declaredValuable?.policyNumber || '',
-        notes: checklist?.declaredValuable?.notes || ''
+        value: checklist?.declaredValuable?.value ?? !!fallbackDeclaredValuable.value,
+        declaredValue: checklist?.declaredValuable?.declaredValue ?? fallbackDeclaredValuable.declaredValue ?? 0,
+        insuranceRequired: checklist?.declaredValuable?.insuranceRequired ?? !!fallbackDeclaredValuable.insuranceRequired,
+        insuranceProvider: checklist?.declaredValuable?.insuranceProvider || fallbackDeclaredValuable.insuranceProvider || '',
+        policyNumber: checklist?.declaredValuable?.policyNumber || fallbackDeclaredValuable.policyNumber || '',
+        notes: checklist?.declaredValuable?.notes || fallbackDeclaredValuable.notes || ''
       },
 
-      additionalInformation: checklist?.additionalInformation || '',
-      mustKnowAccepted: !!checklist?.mustKnowAccepted,
+      additionalInformation: additionalRemarks || checklist?.additionalInformation || '',
+      mustKnowAccepted: checklist?.mustKnowAccepted ?? !!compatibilityData.mustKnowAccepted,
 
       clientUpdate: {
         associatedRisks: {
-          brakeDiscSkimming: !!checklist?.clientUpdate?.associatedRisks?.brakeDiscSkimming,
-          powderCoating: !!checklist?.clientUpdate?.associatedRisks?.powderCoating,
-          straightening: !!checklist?.clientUpdate?.associatedRisks?.straightening,
-          welding: !!checklist?.clientUpdate?.associatedRisks?.welding,
-          diamondCutting: !!checklist?.clientUpdate?.associatedRisks?.diamondCutting,
-          general: !!checklist?.clientUpdate?.associatedRisks?.general
+          brakeDiscSkimming: checklist?.clientUpdate?.associatedRisks?.brakeDiscSkimming ?? !!fallbackAssociatedRisks.brakeDiscSkimming,
+          powderCoating: checklist?.clientUpdate?.associatedRisks?.powderCoating ?? !!fallbackAssociatedRisks.powderCoating,
+          straightening: checklist?.clientUpdate?.associatedRisks?.straightening ?? !!fallbackAssociatedRisks.straightening,
+          welding: checklist?.clientUpdate?.associatedRisks?.welding ?? !!fallbackAssociatedRisks.welding,
+          diamondCutting: checklist?.clientUpdate?.associatedRisks?.diamondCutting ?? !!fallbackAssociatedRisks.diamondCutting,
+          general: checklist?.clientUpdate?.associatedRisks?.general ?? !!fallbackAssociatedRisks.general
         },
         mustKnows: {
-          processExplained: !!checklist?.clientUpdate?.mustKnows?.processExplained,
-          clientRiskAcceptance: !!checklist?.clientUpdate?.mustKnows?.clientRiskAcceptance,
-          personalBelongings: !!checklist?.clientUpdate?.mustKnows?.personalBelongings,
-          timelineEstimates: !!checklist?.clientUpdate?.mustKnows?.timelineEstimates,
-          fullPaymentRequired: !!checklist?.clientUpdate?.mustKnows?.fullPaymentRequired,
-          storageFees: !!checklist?.clientUpdate?.mustKnows?.storageFees,
-          storageRisk: !!checklist?.clientUpdate?.mustKnows?.storageRisk
+          processExplained: checklist?.clientUpdate?.mustKnows?.processExplained ?? !!fallbackMustKnows.processExplained,
+          clientRiskAcceptance: checklist?.clientUpdate?.mustKnows?.clientRiskAcceptance ?? !!fallbackMustKnows.clientRiskAcceptance,
+          personalBelongings: checklist?.clientUpdate?.mustKnows?.personalBelongings ?? !!fallbackMustKnows.personalBelongings,
+          timelineEstimates: checklist?.clientUpdate?.mustKnows?.timelineEstimates ?? !!fallbackMustKnows.timelineEstimates,
+          fullPaymentRequired: checklist?.clientUpdate?.mustKnows?.fullPaymentRequired ?? !!fallbackMustKnows.fullPaymentRequired,
+          storageFees: checklist?.clientUpdate?.mustKnows?.storageFees ?? !!fallbackMustKnows.storageFees,
+          storageRisk: checklist?.clientUpdate?.mustKnows?.storageRisk ?? !!fallbackMustKnows.storageRisk
         }
       },
 
@@ -2019,6 +2057,40 @@ export default function DiamondRimsPreChecklistCreatePage({
       }
       const sanitizedCustomerEmail = customerEmail || undefined;
       const sanitizedClientEmail = clientEmail || undefined;
+      const inspectionRemarks = [
+        formData.preServiceInspection.inspectorAccessNotes,
+        formData.preServiceInspection.inspectionNotes,
+        formData.remarks,
+      ]
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
+        .filter(Boolean)
+        .join(' | ');
+
+      const inspectionItems: InspectionItem[] = (
+        Array.isArray(formData.preServiceInspection.condition)
+          ? formData.preServiceInspection.condition
+          : []
+      )
+        .filter(Boolean)
+        .map((conditionId) => {
+          const matchedCondition = conditionOptions.find((option) => option.id === conditionId);
+          const label = matchedCondition?.label || conditionId.replace(/_/g, ' ');
+          return {
+            item: label,
+            status: conditionId === 'normal' ? 'ok' : 'fault',
+            remarks: inspectionRemarks || undefined,
+            side: 'general',
+          };
+        });
+
+      if (inspectionItems.length === 0) {
+        inspectionItems.push({
+          item: 'General Inspection',
+          status: 'n/a',
+          remarks: inspectionRemarks || 'No conditions selected',
+          side: 'general',
+        });
+      }
 
       // Create submission data with proper structure matching backend DTO
       const submissionData: CreatePreChecklistDto = {
@@ -2030,6 +2102,7 @@ export default function DiamondRimsPreChecklistCreatePage({
         remarks: formData.remarks,
         tags: formData.tags,
         pricingSnapshot: formData.pricingSnapshot,
+        inspectionItems,
         agreedAmount: formData.agreedAmount,
         approved: false,
         
@@ -2113,6 +2186,71 @@ export default function DiamondRimsPreChecklistCreatePage({
         files: formData.files || []
       };
 
+      const compatibilitySubmissionData: CreatePreChecklistDto = {
+        opportunityId: submissionData.opportunityId,
+        ...(submissionData.vehicleId ? { vehicleId: submissionData.vehicleId } : {}),
+        checklistType: 'diamond_rims',
+        inspectedBy: submissionData.inspectedBy,
+        inspectorName: submissionData.inspectorName,
+        remarks: submissionData.remarks,
+        tags: submissionData.tags,
+        approved: false,
+        pricingSnapshot: submissionData.pricingSnapshot,
+        inspectionItems: submissionData.inspectionItems,
+        serviceIntake: submissionData.serviceIntake,
+        customerDetails: submissionData.customerDetails,
+        carDetails: submissionData.carDetails,
+        services: submissionData.services,
+        additionalInformation: JSON.stringify({
+          additionalRemarks: formData.additionalInformation || '',
+          preServiceInspection: submissionData.preServiceInspection,
+          powderCoating: submissionData.powderCoating,
+          deliveryMode: submissionData.deliveryMode,
+          tpmsSensorsFitted: submissionData.tpmsSensorsFitted,
+          wheelNutsTotal: submissionData.wheelNutsTotal,
+          nozzleCapsTotal: submissionData.nozzleCapsTotal,
+          nozzleCapsType: submissionData.nozzleCapsType,
+          lockNutsTotal: submissionData.lockNutsTotal,
+          centerCaps: submissionData.centerCaps,
+          rimOrTireSelection: submissionData.rimOrTireSelection,
+          rimsDetails: submissionData.rimsDetails,
+          tiresDetails: submissionData.tiresDetails,
+          tireBrands: submissionData.tireBrands,
+          tireDOT: submissionData.tireDOT,
+          suitability: submissionData.suitability,
+          declaredValuable: submissionData.declaredValuable,
+          agreedAmount: submissionData.agreedAmount,
+          mustKnowAccepted: submissionData.mustKnowAccepted,
+          clientUpdate: submissionData.clientUpdate,
+        }),
+        acceptTerms: submissionData.acceptTerms,
+        clientSignature: submissionData.clientSignature,
+        inspectorSignature: submissionData.inspectorSignature,
+        uploadedImages: submissionData.uploadedImages,
+        clientSigningMethod: submissionData.clientSigningMethod,
+        clientEmail: submissionData.clientEmail,
+      };
+
+      const getErrorStatus = (error: any): number | null => {
+        const directStatus = Number(error?.status ?? error?.response?.status);
+        if (Number.isFinite(directStatus) && directStatus > 0) {
+          return directStatus;
+        }
+
+        const matchedStatus = String(error?.message || '').match(/API Error \((\d{3})\)/);
+        if (!matchedStatus) {
+          return null;
+        }
+
+        const parsedStatus = Number(matchedStatus[1]);
+        return Number.isFinite(parsedStatus) ? parsedStatus : null;
+      };
+
+      const isRecoverableServerError = (error: any): boolean => {
+        const statusCode = getErrorStatus(error);
+        return statusCode !== null && statusCode >= 500;
+      };
+
       const toChecklistTimestamp = (checklist: any): number => {
         const candidate = checklist?.updatedAt || checklist?.createdAt || checklist?.dateCreated || '';
         const parsed = Date.parse(String(candidate));
@@ -2123,7 +2261,16 @@ export default function DiamondRimsPreChecklistCreatePage({
       const userId = sessionStorage.getItem('userId') || undefined;
       
       if (mode === 'edit' && checklistId) {
-        result = await preChecklistService.updatePreChecklist(checklistId, submissionData as any);
+        try {
+          result = await preChecklistService.updatePreChecklist(checklistId, submissionData as any);
+        } catch (updateError: any) {
+          if (!isRecoverableServerError(updateError)) {
+            throw updateError;
+          }
+          console.warn('Primary Diamond Rims payload failed, retrying with compatibility payload', updateError);
+          result = await preChecklistService.updatePreChecklist(checklistId, compatibilitySubmissionData as any);
+          showToast('Checklist saved in compatibility mode to avoid server payload errors', 'warning');
+        }
         showToast('Diamond Rims pre-checklist updated successfully', 'success');
       } else {
         let existingChecklistId =
@@ -2148,10 +2295,28 @@ export default function DiamondRimsPreChecklistCreatePage({
         }
 
         if (existingChecklistId) {
-          result = await preChecklistService.updatePreChecklist(existingChecklistId, submissionData as any);
+          try {
+            result = await preChecklistService.updatePreChecklist(existingChecklistId, submissionData as any);
+          } catch (updateError: any) {
+            if (!isRecoverableServerError(updateError)) {
+              throw updateError;
+            }
+            console.warn('Primary Diamond Rims update payload failed, retrying with compatibility payload', updateError);
+            result = await preChecklistService.updatePreChecklist(existingChecklistId, compatibilitySubmissionData as any);
+            showToast('Checklist saved in compatibility mode to avoid server payload errors', 'warning');
+          }
           showToast('Existing Diamond Rims pre-checklist updated successfully', 'success');
         } else {
-          result = await preChecklistService.createPreChecklist(submissionData, userId);
+          try {
+            result = await preChecklistService.createPreChecklist(submissionData, userId);
+          } catch (createError: any) {
+            if (!isRecoverableServerError(createError)) {
+              throw createError;
+            }
+            console.warn('Primary Diamond Rims create payload failed, retrying with compatibility payload', createError);
+            result = await preChecklistService.createPreChecklist(compatibilitySubmissionData, userId);
+            showToast('Checklist saved in compatibility mode to avoid server payload errors', 'warning');
+          }
           showToast('Diamond Rims pre-checklist created successfully', 'success');
         }
         localStorage.removeItem(PRE_CHECKLIST_DRAFT_KEY);
