@@ -72,6 +72,7 @@ import { workOrderService } from '@/services/workOrderService';
 import { opportunityService } from '@/services/opportunityService';
 import { vehicleService } from '@/services/vehicleService';
 import { preChecklistService } from '@/services/preChecklistService';
+import { serviceService, Service } from '@/services/serviceService';
 import { useToast } from '@/contexts/ToastContext';
 import { format } from 'date-fns';
 import { lifecycleIntegrationService } from '@/services/lifecycleIntegrationService';
@@ -115,6 +116,8 @@ export default function HeadlightPostChecklistCreatePage({
   const [selectedAfterFiles, setSelectedAfterFiles] = useState<File[]>([]);
   const [inspectorName, setInspectorName] = useState('');
   const [draftSaved, setDraftSaved] = useState(false);
+  const [availableServices, setAvailableServices] = useState<Service[]>([]);
+  const [loadingServices, setLoadingServices] = useState(false);
 
   // Section expansion state
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -212,10 +215,30 @@ export default function HeadlightPostChecklistCreatePage({
   const [showCustomerSignature, setShowCustomerSignature] = useState(false);
   const customerSigRef = useRef<SignatureCanvas>(null);
 
+  const loadServiceOptions = async () => {
+    try {
+      setLoadingServices(true);
+      const services = await serviceService.getAllServices();
+      const activeServices = services
+        .filter((service) => service.isActive)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setAvailableServices(activeServices);
+    } catch (error) {
+      console.error('Error loading headlight post-checklist services:', error);
+      showToast('Could not load services for dropdown selection', 'warning');
+    } finally {
+      setLoadingServices(false);
+    }
+  };
+
   // Load related data
   useEffect(() => {
     loadRelatedData();
   }, [opportunityId, workOrderId, vehicleId, preChecklistId, checklistId, mode]);
+
+  useEffect(() => {
+    loadServiceOptions();
+  }, []);
 
   const loadRelatedData = async () => {
     try {
@@ -1107,16 +1130,49 @@ export default function HeadlightPostChecklistCreatePage({
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Service Description
                         </label>
-                        <input
-                          type="text"
-                          value={formData.serviceDetails.productServiceNeeded}
-                          onChange={(e) => handleInputChange('serviceDetails', {
-                            ...formData.serviceDetails,
-                            productServiceNeeded: e.target.value
-                          })}
-                          placeholder="Service Description"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
+                        <div className="space-y-2">
+                          <select
+                            value={formData.serviceDetails.productServiceNeeded}
+                            onChange={(e) => handleInputChange('serviceDetails', {
+                              ...formData.serviceDetails,
+                              productServiceNeeded: e.target.value
+                            })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">
+                              {loadingServices ? 'Loading services...' : 'Select service from dropdown'}
+                            </option>
+                            {formData.serviceDetails.productServiceNeeded &&
+                              !availableServices.some(
+                                (service) =>
+                                  service.name.toLowerCase() ===
+                                  formData.serviceDetails.productServiceNeeded.toLowerCase()
+                              ) && (
+                                <option value={formData.serviceDetails.productServiceNeeded}>
+                                  {formData.serviceDetails.productServiceNeeded} (Current Value)
+                                </option>
+                              )}
+                            {availableServices.map((service) => (
+                              <option key={service.id} value={service.name}>
+                                {service.serviceCode} - {service.name}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-gray-500">
+                              Choose the completed service from the dropdown list.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={loadServiceOptions}
+                              disabled={loadingServices}
+                              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 disabled:opacity-60"
+                            >
+                              <RotateCw className={`h-3 w-3 ${loadingServices ? 'animate-spin' : ''}`} />
+                              Refresh
+                            </button>
+                          </div>
+                        </div>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">

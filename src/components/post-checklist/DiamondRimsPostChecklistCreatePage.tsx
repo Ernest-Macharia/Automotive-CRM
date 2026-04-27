@@ -70,6 +70,7 @@ import * as XLSX from 'xlsx';
 import { preChecklistService } from '@/services/preChecklistService';
 import FileUploadSection from '@/components/pre-checklist/FileUploadSection';
 import { ChecklistFile } from '@/services/preChecklistService';
+import { serviceService, Service } from '@/services/serviceService';
 import { format } from 'date-fns';
 
 interface DiamondRimsPostChecklistCreatePageProps {
@@ -172,7 +173,12 @@ export default function DiamondRimsPostChecklistCreatePage({
   const [loadingClientOptions, setLoadingClientOptions] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState('');
   const [linkingClient, setLinkingClient] = useState(false);
+  const [availableServices, setAvailableServices] = useState<Service[]>([]);
+  const [loadingServices, setLoadingServices] = useState(false);
+  const [serviceSearch, setServiceSearch] = useState('');
+  const [showServicesDropdown, setShowServicesDropdown] = useState(false);
   const technicianDropdownRef = useRef<HTMLDivElement>(null);
+  const serviceDropdownRef = useRef<HTMLDivElement>(null);
   const draftRestoredRef = useRef(false);
 
   // POST CHECKLIST FORM STATE
@@ -296,6 +302,7 @@ export default function DiamondRimsPostChecklistCreatePage({
   useEffect(() => {
     loadRelatedData();
     fetchTechnicians();
+    loadAvailableServices();
   }, [opportunityId, workOrderId, vehicleId, checklistId, mode, preChecklistId]);
 
   useEffect(() => {
@@ -309,6 +316,10 @@ export default function DiamondRimsPostChecklistCreatePage({
       if (technicianDropdownRef.current && !technicianDropdownRef.current.contains(event.target as Node)) {
         setShowTechnicianDropdown(false);
         setUserSearch('');
+      }
+
+      if (serviceDropdownRef.current && !serviceDropdownRef.current.contains(event.target as Node)) {
+        setShowServicesDropdown(false);
       }
     };
 
@@ -382,6 +393,22 @@ export default function DiamondRimsPostChecklistCreatePage({
       console.error('Error fetching technicians:', error);
     } finally {
       setLoadingUsers(false);
+    }
+  };
+
+  const loadAvailableServices = async () => {
+    try {
+      setLoadingServices(true);
+      const services = await serviceService.getAllServices();
+      const activeServices = services
+        .filter((service) => service.isActive)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setAvailableServices(activeServices);
+    } catch (error) {
+      console.error('Error loading services for post-checklist dropdown:', error);
+      showToast('Could not load services for dropdown selection', 'warning');
+    } finally {
+      setLoadingServices(false);
     }
   };
 
@@ -905,7 +932,40 @@ export default function DiamondRimsPostChecklistCreatePage({
     }));
   };
 
+  const handleServiceToggle = (serviceName: string) => {
+    setFormData((prev) => {
+      const currentServices = prev.services.actualService || [];
+      const serviceExists = currentServices.includes(serviceName);
+
+      return {
+        ...prev,
+        services: {
+          ...prev.services,
+          actualService: serviceExists
+            ? currentServices.filter((name) => name !== serviceName)
+            : [...currentServices, serviceName],
+        },
+      };
+    });
+  };
+
+  const filteredServiceOptions = availableServices.filter((service) => {
+    const searchTerm = serviceSearch.trim().toLowerCase();
+    if (!searchTerm) return true;
+
+    return (
+      service.name.toLowerCase().includes(searchTerm) ||
+      service.serviceCode.toLowerCase().includes(searchTerm) ||
+      service.description.toLowerCase().includes(searchTerm)
+    );
+  });
+
   const toggleEditMode = (section: string) => {
+    if (section === 'services' && editMode.services) {
+      setShowServicesDropdown(false);
+      setServiceSearch('');
+    }
+
     setEditMode(prev => ({
       ...prev,
       [section]: !prev[section]
@@ -1751,15 +1811,127 @@ export default function DiamondRimsPostChecklistCreatePage({
                 </button>
               </div>
               
-              <div className={`${!editMode.services ? 'opacity-80' : ''}`}>
+              <div className={`space-y-4 ${!editMode.services ? 'opacity-80' : ''}`}>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm text-gray-600">
+                      Select one or more services from the dropdown.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={loadAvailableServices}
+                      disabled={loadingServices || !editMode.services}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-purple-200 text-purple-700 rounded hover:bg-purple-50 disabled:opacity-60"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${loadingServices ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </button>
+                  </div>
+                  <div className="relative" ref={serviceDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!editMode.services) return;
+                        setShowServicesDropdown((prev) => !prev);
+                      }}
+                      className={`w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left text-sm text-gray-700 flex items-center justify-between ${
+                        editMode.services ? 'hover:border-purple-400' : 'cursor-not-allowed'
+                      }`}
+                    >
+                      <span>
+                        {formData.services.actualService.length > 0
+                          ? `${formData.services.actualService.length} service(s) selected`
+                          : 'Select services'}
+                      </span>
+                      {showServicesDropdown ? (
+                        <ChevronUp className="h-4 w-4 text-gray-500" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-gray-500" />
+                      )}
+                    </button>
+
+                    {showServicesDropdown && (
+                      <div className="absolute z-20 mt-2 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                        <div className="p-3 border-b border-gray-100">
+                          <div className="relative">
+                            <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input
+                              type="text"
+                              value={serviceSearch}
+                              onChange={(event) => setServiceSearch(event.target.value)}
+                              placeholder="Search services..."
+                              className="w-full pl-9 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                            />
+                            {serviceSearch && (
+                              <button
+                                type="button"
+                                onClick={() => setServiceSearch('')}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="max-h-64 overflow-y-auto">
+                          {loadingServices ? (
+                            <div className="px-3 py-4 text-sm text-gray-500 flex items-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Loading services...
+                            </div>
+                          ) : filteredServiceOptions.length === 0 ? (
+                            <p className="px-3 py-4 text-sm text-gray-500">No matching services found</p>
+                          ) : (
+                            filteredServiceOptions.map((service) => {
+                              const isSelected = formData.services.actualService.includes(service.name);
+                              return (
+                                <label
+                                  key={service.id}
+                                  className="flex items-start gap-3 px-3 py-2 border-b border-gray-100 last:border-b-0 hover:bg-purple-50 cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => handleServiceToggle(service.name)}
+                                    className="mt-1 h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                                  />
+                                  <span className="min-w-0">
+                                    <span className="block text-sm font-medium text-gray-800 truncate">
+                                      {service.name}
+                                    </span>
+                                    <span className="block text-xs text-gray-500 truncate">
+                                      {service.serviceCode} • {service.type}
+                                    </span>
+                                  </span>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {formData.services.actualService.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {formData.services.actualService.map((service, index) => (
-                      <div 
+                      <div
                         key={index}
-                        className="px-3 py-2 bg-purple-100 text-purple-800 rounded-lg text-sm font-medium"
+                        className="px-3 py-2 bg-purple-100 text-purple-800 rounded-lg text-sm font-medium flex items-center gap-2"
                       >
                         {service}
+                        {editMode.services && (
+                          <button
+                            type="button"
+                            onClick={() => handleServiceToggle(service)}
+                            className="text-purple-700 hover:text-purple-900"
+                            aria-label={`Remove ${service}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>

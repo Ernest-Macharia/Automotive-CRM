@@ -138,6 +138,18 @@ const buildPhoneSearchCandidates = (value?: string): string[] => {
   return Array.from(candidates).filter((candidate) => candidate.length >= 7);
 };
 
+const isPhoneOnlySearchInput = (value?: string): boolean => {
+  const raw = String(value || '').trim();
+  if (!raw) return false;
+
+  // Treat as phone-only input only when the query contains phone-like
+  // characters (digits, spaces, +, -, parentheses) and enough digits.
+  if (!/^[+\d\s\-()]+$/.test(raw)) return false;
+
+  const digits = raw.replace(/\D+/g, '');
+  return digits.length >= 7;
+};
+
 const leadTiers = [
   { id: 'hot', label: 'Hot', color: 'bg-red-100 text-red-600' },
   { id: 'warm', label: 'Warm', color: 'bg-amber-100 text-amber-600' },
@@ -1690,32 +1702,77 @@ export default function OpportunitiesContent() {
     };
   }, [hasActiveFilters, filteredStats, stats, pagination?.total, opportunities, stageCounts]);
 
+  const applySearchFilters = useCallback(
+    (
+      rawSearchValue: string,
+      options: { showValidationToast?: boolean } = {},
+    ) => {
+      const trimmedSearch = rawSearchValue.trim();
+      const phoneCandidates = buildPhoneSearchCandidates(trimmedSearch);
+      const phoneSearch = phoneCandidates[0];
+      const isPhoneOnlySearch = isPhoneOnlySearchInput(trimmedSearch);
+
+      if (!trimmedSearch) {
+        setFilters((prev) => {
+          if (!prev.search && !prev.customerPhone && prev.page === 1) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            search: undefined,
+            customerPhone: undefined,
+            page: 1,
+          };
+        });
+        return;
+      }
+
+      if (trimmedSearch.length >= 3 || Boolean(phoneSearch)) {
+        setSearchLoading(true);
+        setFilters((prev) => {
+          const nextSearch = isPhoneOnlySearch ? undefined : trimmedSearch;
+          const nextPhone = phoneSearch;
+
+          if (
+            prev.search === nextSearch &&
+            prev.customerPhone === nextPhone &&
+            prev.page === 1
+          ) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            // Phone-only queries should avoid setting text search to prevent
+            // backend AND matching from becoming over-restrictive.
+            search: nextSearch,
+            customerPhone: nextPhone,
+            page: 1,
+          };
+        });
+        setActiveQuickFilter(null);
+        return;
+      }
+
+      if (options.showValidationToast) {
+        showToast('Please enter at least 3 characters to search', 'info', 2000);
+      }
+    },
+    [showToast],
+  );
+
+  const debouncedApplySearchFilters = useDebounce((searchValue: string) => {
+    applySearchFilters(searchValue, { showValidationToast: false });
+  }, 450);
+
+  useEffect(() => {
+    debouncedApplySearchFilters(searchQuery);
+  }, [searchQuery, debouncedApplySearchFilters]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedSearch = searchQuery.trim();
-    const phoneCandidates = buildPhoneSearchCandidates(trimmedSearch);
-    const phoneSearch = phoneCandidates[0];
-    const isPhoneLikeSearch = phoneCandidates.length > 0;
-    
-    if (!trimmedSearch) {
-      handleClearSearch();
-      return;
-    }
-
-    if (trimmedSearch.length >= 3 || Boolean(phoneSearch)) {
-      setSearchLoading(true);
-      setFilters(prev => ({ 
-        ...prev, 
-        // Avoid sending a text search term for phone-only input to prevent
-        // over-restrictive backend AND matching.
-        search: isPhoneLikeSearch ? undefined : trimmedSearch,
-        customerPhone: phoneSearch,
-        page: 1 
-      }));
-      setActiveQuickFilter(null);
-    } else if (trimmedSearch.length > 0 && trimmedSearch.length < 3) {
-      showToast('Please enter at least 3 characters to search', 'info', 2000);
-    }
+    applySearchFilters(searchQuery, { showValidationToast: true });
   };
 
   const handleClearSearch = () => {
