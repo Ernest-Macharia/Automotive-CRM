@@ -176,7 +176,7 @@ export default function WorkOrderCreate() {
       const newWorkOrder = await workOrderService.createWorkOrder(createData);
       showToast('Work order created successfully!', 'success');
       
-      router.push(`/workorders/${newWorkOrder._id}`);
+      router.push(`/orders/work-orders/${newWorkOrder._id}`);
       
     } catch (error: any) {
       console.error('Error creating work order:', error);
@@ -188,7 +188,7 @@ export default function WorkOrderCreate() {
   };
 
   const handleCancel = () => {
-    router.push('/workorders');
+    router.push('/orders/work-orders');
   };
 
   useEffect(() => {
