@@ -1746,7 +1746,7 @@ export default function OpportunitiesContent() {
   const applySearchFilters = useCallback(
     (
       rawSearchValue: string,
-      options: { showValidationToast?: boolean; forceFetchWhenUnchanged?: boolean } = {},
+      options: { forceFetchWhenUnchanged?: boolean } = {},
     ) => {
       const trimmedSearch = rawSearchValue.trim();
       const phoneCandidates = buildPhoneSearchCandidates(trimmedSearch);
@@ -1769,54 +1769,38 @@ export default function OpportunitiesContent() {
         return;
       }
 
-      if (trimmedSearch.length >= 3 || Boolean(phoneSearch)) {
-        const nextSearch = isPhoneOnlySearch ? undefined : trimmedSearch;
-        const nextPhone = phoneSearch;
-        const hasSearchStateChanged =
-          filters.search !== nextSearch ||
-          filters.customerPhone !== nextPhone ||
-          filters.page !== 1;
+      const nextSearch = isPhoneOnlySearch ? undefined : trimmedSearch;
+      const nextPhone = phoneSearch;
+      const hasSearchStateChanged =
+        filters.search !== nextSearch ||
+        filters.customerPhone !== nextPhone ||
+        filters.page !== 1;
 
-        if (hasSearchStateChanged) {
-          setSearchLoading(true);
-          setFilters((prev) => ({
-            ...prev,
-            // Phone-only queries should avoid setting text search to prevent
-            // backend AND matching from becoming over-restrictive.
-            search: nextSearch,
-            customerPhone: nextPhone,
-            page: 1,
-          }));
-        } else if (options.forceFetchWhenUnchanged) {
-          // Allow explicit search submit to refresh results even when the query
-          // has not changed, preventing stale boards and stuck "Searching..." UI.
-          setSearchLoading(true);
-          void fetchOpportunities(true, true);
-        }
-
-        setActiveQuickFilter(null);
-        return;
+      if (hasSearchStateChanged) {
+        setSearchLoading(true);
+        setFilters((prev) => ({
+          ...prev,
+          // Phone-only queries should avoid setting text search to prevent
+          // backend AND matching from becoming over-restrictive.
+          search: nextSearch,
+          customerPhone: nextPhone,
+          page: 1,
+        }));
+      } else if (options.forceFetchWhenUnchanged) {
+        // Allow explicit search submit to refresh results even when the query
+        // has not changed, preventing stale boards and stuck "Searching..." UI.
+        setSearchLoading(true);
+        void fetchOpportunities(true, true);
       }
 
-      if (options.showValidationToast) {
-        showToast('Please enter at least 3 characters to search', 'info', 2000);
-      }
+      setActiveQuickFilter(null);
     },
-    [showToast, fetchOpportunities, filters.search, filters.customerPhone, filters.page],
+    [fetchOpportunities, filters.search, filters.customerPhone, filters.page],
   );
-
-  const debouncedApplySearchFilters = useDebounce((searchValue: string) => {
-    applySearchFilters(searchValue, { showValidationToast: false });
-  }, 450);
-
-  useEffect(() => {
-    debouncedApplySearchFilters(searchQuery);
-  }, [searchQuery, debouncedApplySearchFilters]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     applySearchFilters(searchQuery, {
-      showValidationToast: true,
       forceFetchWhenUnchanged: true,
     });
   };
@@ -2135,10 +2119,6 @@ export default function OpportunitiesContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [scrolling, loading, creating]);
 
-  const showSearchHelp = useMemo(() => {
-    const trimmedSearch = searchQuery.trim();
-    return trimmedSearch.length > 0 && trimmedSearch.length < 3;
-  }, [searchQuery]);
   const activeSearchTerm = useMemo(() => {
     const activeSearchValue = filters.search || filters.customerPhone || '';
     return String(activeSearchValue).trim();
@@ -2355,11 +2335,6 @@ export default function OpportunitiesContent() {
                   >
                     Search
                   </button>
-                  {showSearchHelp && (
-                    <div className="absolute top-full left-0 right-0 mt-1 px-3 py-1.5 bg-amber-50 border border-amber-300 rounded-lg text-xs font-medium text-amber-800">
-                      Type at least 3 characters, or enter a full phone number
-                    </div>
-                  )}
                 </form>
                 {activeSearchTerm.length > 0 && (
                   <div className="mt-3 flex items-center gap-2 text-sm">
