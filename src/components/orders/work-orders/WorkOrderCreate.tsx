@@ -79,12 +79,6 @@ export default function WorkOrderCreate() {
       return;
     }
 
-    if (normalizedSearch.length < 2) {
-      setOpportunities([]);
-      setSearching(false);
-      return;
-    }
-
     const cachedResults = searchCacheRef.current.get(normalizedSearch);
     if (cachedResults) {
       setOpportunities(cachedResults);
@@ -131,7 +125,7 @@ export default function WorkOrderCreate() {
 
     searchTimeoutRef.current = setTimeout(() => {
       void searchOpportunities(value);
-    }, 250);
+    }, 150);
   };
 
   const handleSelectOpportunity = (opportunity: Opportunity) => {

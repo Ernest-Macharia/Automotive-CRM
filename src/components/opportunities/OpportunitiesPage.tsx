@@ -955,6 +955,7 @@ export default function OpportunitiesContent() {
   // Create cache instance
   const cacheRef = useRef(createCache());
   const statusSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchRequestIdRef = useRef(0);
   const currentRoleName = useMemo(() => {
     const rawRole = (currentUser as any)?.role;
     if (typeof rawRole === 'string') return rawRole.toLowerCase();
@@ -1331,6 +1332,9 @@ export default function OpportunitiesContent() {
 
   // Optimized fetch opportunities WITHOUT lead checking
   const fetchOpportunities = useCallback(async (isRefresh = false, forceRefresh = false) => {
+    const requestId = ++fetchRequestIdRef.current;
+    const isLatestRequest = () => requestId === fetchRequestIdRef.current;
+
     try {
       if (!isRefresh) {
         setLoading(true);
@@ -1368,12 +1372,22 @@ export default function OpportunitiesContent() {
       if (memoizedAdvancedFilters.isNurturing !== undefined) {
         params.isNurturing = memoizedAdvancedFilters.isNurturing;
       }
+
+      // Keep search responses lightweight for faster perceived results.
+      if (params.search || params.customerPhone) {
+        const currentLimit = Number(params.limit) || 100;
+        params.limit = Math.max(1, Math.min(currentLimit, 40));
+      }
       
       // Check cache first - but skip if forceRefresh is true
       const cacheKey = `opportunities-${JSON.stringify(params)}`;
       const cachedData = !forceRefresh ? cacheRef.current.get(cacheKey) : null;
       
       if (cachedData && !isRefresh && !forceRefresh) {
+        if (!isLatestRequest()) {
+          return;
+        }
+
         const {
           data,
           pagination: cachedPagination,
@@ -1409,18 +1423,17 @@ export default function OpportunitiesContent() {
       delete statsParams.page;
       delete statsParams.limit;
 
-      // Fetch fresh data
-      const [initialResponse, filteredStatsResponse] = await Promise.all([
-        hasActiveFilters
-          ? opportunityService.filterOpportunities(params)
-          : opportunityService.getAllOpportunities(params),
-        hasActiveFilters
-          ? opportunityService.getFilteredStats(statsParams).catch((error) => {
-              console.warn('Failed to load filtered stats, falling back to response stats:', error);
-              return null;
-            })
-          : Promise.resolve(null),
-      ]);
+      const filteredStatsPromise: Promise<FilteredStats | null> = hasActiveFilters
+        ? opportunityService.getFilteredStats(statsParams).catch((error) => {
+            console.warn('Failed to load filtered stats, falling back to response stats:', error);
+            return null;
+          })
+        : Promise.resolve(null);
+
+      // Fetch main board data first so UI can render search results immediately.
+      const initialResponse = hasActiveFilters
+        ? await opportunityService.filterOpportunities(params)
+        : await opportunityService.getAllOpportunities(params);
 
       let response = initialResponse;
 
@@ -1506,6 +1519,10 @@ export default function OpportunitiesContent() {
         }
       }
       
+      if (!isLatestRequest()) {
+        return;
+      }
+
       // Pre-compute all values for opportunities
       const processedOpportunities = response.data.map((rawOpp: ExtendedOpportunity) => {
         const opp = normalizeBoardOpportunity(rawOpp);
@@ -1520,11 +1537,19 @@ export default function OpportunitiesContent() {
       
       setOpportunities(processedOpportunities);
       setPagination(response.pagination);
-      setFilteredStats(filteredStatsResponse);
       
       if (response.stats) {
         setStats(response.stats);
       }
+
+      // Main search/list results are ready; clear search spinner before optional stats finish.
+      setSearchLoading(false);
+
+      const filteredStatsResponse = await filteredStatsPromise;
+      if (!isLatestRequest()) {
+        return;
+      }
+      setFilteredStats(filteredStatsResponse);
       
       // Cache the response (unless forceRefresh)
       if (!forceRefresh) {
@@ -1537,6 +1562,10 @@ export default function OpportunitiesContent() {
       }
       
     } catch (err: any) {
+      if (!isLatestRequest()) {
+        return;
+      }
+
       console.error('Error fetching opportunities:', err);
       
       // Check if it's an OrganizationError
@@ -1551,6 +1580,10 @@ export default function OpportunitiesContent() {
         showToast('Failed to load opportunities', 'error', 3000);
       }
     } finally {
+      if (!isLatestRequest()) {
+        return;
+      }
+
       setLoading(false);
       setRefreshing(false);
       setStatsLoading(false);

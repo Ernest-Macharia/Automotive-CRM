@@ -1566,10 +1566,24 @@ class OpportunityService {
   }
 
   async searchOpportunities(searchTerm: string): Promise<OpportunitiesResponse> {
+    const normalizedTerm = String(searchTerm || '').trim();
+    if (!normalizedTerm) {
+      return {
+        data: [],
+        pagination: {
+          total: 0,
+          page: 1,
+          limit: 25,
+          totalPages: 1,
+        },
+      };
+    }
+
     return this.filterOpportunities({
-      search: searchTerm,
-      sort: 'leadScore.totalScore:desc',
-      limit: 50
+      search: normalizedTerm,
+      // Prefer index-friendly recency sort for faster interactive lookups.
+      sort: 'createdAt:desc',
+      limit: 25
     });
   }
 
