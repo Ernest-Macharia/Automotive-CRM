@@ -651,6 +651,91 @@ const sanitizePreChecklistPayload = <T extends Record<string, any>>(payload: T):
   return sanitizedPayload as T;
 };
 
+const MAX_INLINE_PRECHECKLIST_CREATE_BYTES = 900 * 1024; // 900KB safety ceiling for JSON create payload
+
+type DeferredChecklistMediaPayload = Pick<
+  UpdatePreChecklistDto,
+  'clientSignature' | 'inspectorSignature' | 'uploadedImages'
+>;
+
+const estimateJsonPayloadSize = (payload: unknown): number => {
+  try {
+    return JSON.stringify(payload || {}).length;
+  } catch {
+    return 0;
+  }
+};
+
+const parseErrorStatusCode = (error: any): number | null => {
+  const status = Number(error?.status ?? error?.response?.status);
+  if (Number.isFinite(status) && status > 0) {
+    return status;
+  }
+
+  const messageMatch = String(error?.message || '').match(/API Error \((\d{3})\)/);
+  if (!messageMatch) {
+    return null;
+  }
+
+  const parsedStatus = Number(messageMatch[1]);
+  return Number.isFinite(parsedStatus) ? parsedStatus : null;
+};
+
+const shouldRetryChecklistCreateWithoutMedia = (error: any): boolean => {
+  const statusCode = parseErrorStatusCode(error);
+  if (!statusCode) {
+    return false;
+  }
+
+  // Retry by stripping heavy media payload on server/size pressure and transient server errors.
+  return [413, 414, 431, 500, 502, 503, 504].includes(statusCode);
+};
+
+const normalizeNonEmptyString = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed || undefined;
+};
+
+const normalizeImageArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => normalizeNonEmptyString(item))
+    .filter((item): item is string => Boolean(item));
+};
+
+const buildDeferredChecklistMediaPayload = (
+  payload: Record<string, any>
+): DeferredChecklistMediaPayload | null => {
+  const clientSignature = normalizeNonEmptyString(payload.clientSignature);
+  const inspectorSignature = normalizeNonEmptyString(payload.inspectorSignature);
+  const uploadedImages = normalizeImageArray(payload.uploadedImages);
+
+  if (!clientSignature && !inspectorSignature && uploadedImages.length === 0) {
+    return null;
+  }
+
+  return {
+    ...(clientSignature ? { clientSignature } : {}),
+    ...(inspectorSignature ? { inspectorSignature } : {}),
+    ...(uploadedImages.length > 0 ? { uploadedImages } : {}),
+  };
+};
+
+const omitDeferredChecklistMediaFromPayload = <T extends Record<string, any>>(payload: T): T => {
+  const clonedPayload: Record<string, any> = { ...payload };
+  delete clonedPayload.clientSignature;
+  delete clonedPayload.inspectorSignature;
+  delete clonedPayload.uploadedImages;
+  return clonedPayload as T;
+};
+
 // Extended ApiClient for pre-checklist service
 class ExtendedApiClient {
   private getApiBaseUrl(): string {
@@ -862,33 +947,143 @@ class PreChecklistService {
     return headers;
   }
 
+  private async syncDeferredChecklistMedia(
+    checklistId: string,
+    mediaPayload: DeferredChecklistMediaPayload
+  ): Promise<void> {
+    const hasSignatures = Boolean(mediaPayload.clientSignature || mediaPayload.inspectorSignature);
+    const hasImages = Array.isArray(mediaPayload.uploadedImages) && mediaPayload.uploadedImages.length > 0;
+
+    if (!checklistId || (!hasSignatures && !hasImages)) {
+      return;
+    }
+
+    const pushMediaUpdate = async (payload: UpdatePreChecklistDto): Promise<void> => {
+      const normalizedPayload = sanitizePreChecklistPayload(payload as Record<string, any>) as UpdatePreChecklistDto;
+      const requestBody: UpdatePreChecklistDto & { updatedAt: string } = {
+        ...normalizedPayload,
+        updatedAt: new Date().toISOString()
+      };
+      await extendedApiClient.put<UpdatePreChecklistDto, PreChecklist>(
+        `/prechecklists/${checklistId}`,
+        requestBody
+      );
+    };
+
+    try {
+      await pushMediaUpdate(mediaPayload);
+      return;
+    } catch (primarySyncError) {
+      console.warn('Deferred checklist media sync failed, retrying with smaller update chunks:', primarySyncError);
+    }
+
+    if (hasSignatures) {
+      try {
+        await pushMediaUpdate({
+          ...(mediaPayload.clientSignature ? { clientSignature: mediaPayload.clientSignature } : {}),
+          ...(mediaPayload.inspectorSignature ? { inspectorSignature: mediaPayload.inspectorSignature } : {}),
+        });
+      } catch (signatureSyncError) {
+        console.warn('Deferred checklist signature sync failed:', signatureSyncError);
+      }
+    }
+
+    if (hasImages) {
+      try {
+        await pushMediaUpdate({
+          uploadedImages: mediaPayload.uploadedImages,
+        });
+      } catch (imageSyncError) {
+        console.warn('Deferred checklist image sync failed:', imageSyncError);
+      }
+    }
+  }
+
   // 1. Create a new pre-checklist
   async createPreChecklist(data: CreatePreChecklistDto, userId?: string): Promise<PreChecklist> {
-    try {
-      const headers: Record<string, string> = {};
-      
-      if (userId) {
-        headers['X-User-Id'] = userId;
-      }
-      
-      const sanitizedData = sanitizePreChecklistPayload(
-        data as Record<string, any>
-      ) as CreatePreChecklistDto;
+    const headers: Record<string, string> = {};
+    if (userId) {
+      headers['X-User-Id'] = userId;
+    }
 
-      if (!sanitizedData.checklistType && (sanitizedData.services || sanitizedData.carDetails)) {
-        sanitizedData.checklistType = 'diamond_rims';
-      }
+    const sanitizedData = sanitizePreChecklistPayload(
+      data as Record<string, any>
+    ) as CreatePreChecklistDto;
 
-      return await extendedApiClient.post<CreatePreChecklistDto, PreChecklist>(
-        '/prechecklists', 
-        sanitizedData, 
+    if (!sanitizedData.checklistType && (sanitizedData.services || sanitizedData.carDetails)) {
+      sanitizedData.checklistType = 'diamond_rims';
+    }
+
+    const deferredMediaPayload = buildDeferredChecklistMediaPayload(
+      sanitizedData as Record<string, any>
+    );
+    const payloadSize = estimateJsonPayloadSize(sanitizedData);
+    const shouldSplitPayloadOnCreate =
+      Boolean(deferredMediaPayload) && payloadSize > MAX_INLINE_PRECHECKLIST_CREATE_BYTES;
+
+    const createWithPayload = async (payload: CreatePreChecklistDto): Promise<PreChecklist> =>
+      extendedApiClient.post<CreatePreChecklistDto, PreChecklist>(
+        '/prechecklists',
+        payload,
         headers
       );
-    } catch (error: any) {
-      console.error('Error creating pre-checklist:', error);
-      console.error('Error response:', error.response?.data || error.message);
-      throw new Error(error.message || 'Failed to create pre-checklist');
+
+    let createdChecklist: PreChecklist | null = null;
+    let usedDeferredMediaCreate = false;
+
+    try {
+      if (shouldSplitPayloadOnCreate) {
+        usedDeferredMediaCreate = true;
+        const payloadWithoutMedia = omitDeferredChecklistMediaFromPayload(
+          sanitizedData as Record<string, any>
+        ) as CreatePreChecklistDto;
+        createdChecklist = await createWithPayload(payloadWithoutMedia);
+      } else {
+        createdChecklist = await createWithPayload(sanitizedData);
+      }
+    } catch (primaryError: any) {
+      const shouldRetryWithoutMedia =
+        !shouldSplitPayloadOnCreate &&
+        Boolean(deferredMediaPayload) &&
+        shouldRetryChecklistCreateWithoutMedia(primaryError);
+
+      if (!shouldRetryWithoutMedia) {
+        console.error('Error creating pre-checklist:', primaryError);
+        console.error('Error response:', primaryError?.response?.data || primaryError?.message);
+        console.error('Pre-checklist create diagnostics:', {
+          apiBaseUrl: this.getApiBaseUrl(),
+          payloadSize,
+          hasDeferredMedia: Boolean(deferredMediaPayload),
+          imageCount: deferredMediaPayload?.uploadedImages?.length || 0,
+        });
+        throw new Error(primaryError?.message || 'Failed to create pre-checklist');
+      }
+
+      try {
+        usedDeferredMediaCreate = true;
+        const payloadWithoutMedia = omitDeferredChecklistMediaFromPayload(
+          sanitizedData as Record<string, any>
+        ) as CreatePreChecklistDto;
+        createdChecklist = await createWithPayload(payloadWithoutMedia);
+        console.warn(
+          'Pre-checklist created without inline signatures/images due create payload failure; syncing media in follow-up update.'
+        );
+      } catch (retryError: any) {
+        console.error('Error creating pre-checklist after media-split retry:', retryError);
+        console.error('Retry error response:', retryError?.response?.data || retryError?.message);
+        throw new Error(retryError?.message || 'Failed to create pre-checklist');
+      }
     }
+
+    if (!createdChecklist) {
+      throw new Error('Failed to create pre-checklist');
+    }
+
+    if (usedDeferredMediaCreate && deferredMediaPayload && createdChecklist._id) {
+      await this.syncDeferredChecklistMedia(createdChecklist._id, deferredMediaPayload);
+    }
+
+    return createdChecklist;
   }
 
   // 2. Get all pre-checklists
@@ -923,21 +1118,72 @@ class PreChecklistService {
 
   // 5. Update a pre-checklist
   async updatePreChecklist(id: string, data: UpdatePreChecklistDto): Promise<PreChecklist> {
-    try {
-      const updateData: UpdatePreChecklistDto & { updatedAt: string } = {
-        ...(sanitizePreChecklistPayload(data as Record<string, any>) as UpdatePreChecklistDto),
-        updatedAt: new Date().toISOString()
-      };
-      
-      return await extendedApiClient.put<UpdatePreChecklistDto, PreChecklist>(
-        `/prechecklists/${id}`, 
-        updateData
+    const updateData: UpdatePreChecklistDto & { updatedAt: string } = {
+      ...(sanitizePreChecklistPayload(data as Record<string, any>) as UpdatePreChecklistDto),
+      updatedAt: new Date().toISOString()
+    };
+
+    const deferredMediaPayload = buildDeferredChecklistMediaPayload(updateData as Record<string, any>);
+    const payloadSize = estimateJsonPayloadSize(updateData);
+    const shouldSplitPayloadOnUpdate =
+      Boolean(deferredMediaPayload) && payloadSize > MAX_INLINE_PRECHECKLIST_CREATE_BYTES;
+
+    const updateWithPayload = async (payload: UpdatePreChecklistDto): Promise<PreChecklist> =>
+      extendedApiClient.put<UpdatePreChecklistDto, PreChecklist>(
+        `/prechecklists/${id}`,
+        payload
       );
-    } catch (error: any) {
-      console.error(`Error updating pre-checklist ${id}:`, error);
-      console.error('Error response:', error.response?.data || error.message);
-      throw new Error(error.message || 'Failed to update pre-checklist');
+
+    let updatedChecklist: PreChecklist | null = null;
+    let usedDeferredMediaUpdate = false;
+
+    try {
+      if (shouldSplitPayloadOnUpdate) {
+        usedDeferredMediaUpdate = true;
+        const payloadWithoutMedia = omitDeferredChecklistMediaFromPayload(
+          updateData as Record<string, any>
+        ) as UpdatePreChecklistDto;
+        updatedChecklist = await updateWithPayload(payloadWithoutMedia);
+      } else {
+        updatedChecklist = await updateWithPayload(updateData);
+      }
+    } catch (primaryError: any) {
+      const shouldRetryWithoutMedia =
+        !shouldSplitPayloadOnUpdate &&
+        Boolean(deferredMediaPayload) &&
+        shouldRetryChecklistCreateWithoutMedia(primaryError);
+
+      if (!shouldRetryWithoutMedia) {
+        console.error(`Error updating pre-checklist ${id}:`, primaryError);
+        console.error('Error response:', primaryError?.response?.data || primaryError?.message);
+        throw new Error(primaryError?.message || 'Failed to update pre-checklist');
+      }
+
+      try {
+        usedDeferredMediaUpdate = true;
+        const payloadWithoutMedia = omitDeferredChecklistMediaFromPayload(
+          updateData as Record<string, any>
+        ) as UpdatePreChecklistDto;
+        updatedChecklist = await updateWithPayload(payloadWithoutMedia);
+        console.warn(
+          `Pre-checklist ${id} updated without inline signatures/images due payload failure; syncing media in follow-up update.`
+        );
+      } catch (retryError: any) {
+        console.error(`Error updating pre-checklist ${id} after media-split retry:`, retryError);
+        console.error('Retry error response:', retryError?.response?.data || retryError?.message);
+        throw new Error(retryError?.message || 'Failed to update pre-checklist');
+      }
     }
+
+    if (!updatedChecklist) {
+      throw new Error('Failed to update pre-checklist');
+    }
+
+    if (usedDeferredMediaUpdate && deferredMediaPayload) {
+      await this.syncDeferredChecklistMedia(id, deferredMediaPayload);
+    }
+
+    return updatedChecklist;
   }
 
   // 6. Delete a pre-checklist
@@ -1316,12 +1562,12 @@ class PreChecklistService {
   async getPreChecklistsByOpportunity(opportunityId: string): Promise<PreChecklist[]> {
     try {
       try {
-        const list = await extendedApiClient.get<PreChecklist[]>(`/prechecklists/opportunity/${opportunityId}`);
+        const list = await extendedApiClient.get<PreChecklist[]>('/prechecklists', { opportunityId });
         return Array.isArray(list) ? list : [];
       } catch {}
 
       try {
-        const list = await extendedApiClient.get<PreChecklist[]>('/prechecklists', { opportunityId });
+        const list = await extendedApiClient.get<PreChecklist[]>(`/prechecklists/opportunity/${opportunityId}`);
         return Array.isArray(list) ? list : [];
       } catch {}
 
