@@ -163,6 +163,67 @@ const normalizeSourceForForm = (value?: string): OpportunityFormData['source'] =
   return value as OpportunityFormData['source'];
 };
 
+const normalizeEmailValue = (value?: string): string | undefined => {
+  const trimmed = String(value || '').trim().toLowerCase();
+  return trimmed || undefined;
+};
+
+const normalizePhoneForStorage = (phoneCode: string, phone: string): string => {
+  const codeDigits = String(phoneCode || '').replace(/\D+/g, '');
+  const rawDigits = String(phone || '').replace(/\D+/g, '');
+  if (!rawDigits) return '';
+
+  let localDigits = rawDigits;
+  if (codeDigits) {
+    if (rawDigits.startsWith(codeDigits)) {
+      localDigits = rawDigits.slice(codeDigits.length);
+    }
+    localDigits = localDigits.replace(/^0+/, '');
+    return `+${codeDigits}${localDigits || rawDigits}`;
+  }
+
+  return `+${rawDigits}`;
+};
+
+const buildPhoneDuplicateCandidates = (phoneCode: string, phone: string): string[] => {
+  const candidates = new Set<string>();
+  const normalizedPhone = normalizePhoneForStorage(phoneCode, phone);
+  const digits = normalizedPhone.replace(/\D+/g, '');
+  const codeDigits = String(phoneCode || '').replace(/\D+/g, '');
+
+  if (normalizedPhone) {
+    candidates.add(normalizedPhone);
+  }
+  if (digits) {
+    candidates.add(digits);
+  }
+
+  if (digits.startsWith('254') && digits.length >= 12) {
+    const lastNine = digits.slice(-9);
+    candidates.add(`+254${lastNine}`);
+    candidates.add(`254${lastNine}`);
+    candidates.add(`0${lastNine}`);
+    candidates.add(lastNine);
+  }
+
+  if (digits.startsWith('0') && digits.length > 7) {
+    const withoutZero = digits.replace(/^0+/, '');
+    candidates.add(withoutZero);
+    if (codeDigits) {
+      candidates.add(`+${codeDigits}${withoutZero}`);
+      candidates.add(`${codeDigits}${withoutZero}`);
+    }
+  }
+
+  if (digits.length === 9 && codeDigits) {
+    candidates.add(`+${codeDigits}${digits}`);
+    candidates.add(`${codeDigits}${digits}`);
+    candidates.add(`0${digits}`);
+  }
+
+  return Array.from(candidates).filter((candidate) => candidate.replace(/\D+/g, '').length >= 7);
+};
+
 const vehicleColorCodes = [
   '#FFFFFF', '#000000', '#C0C0C0', '#808080', '#FF0000', '#0000FF', '#008000', '#964B00',
   '#FFFF00', '#FFA500', '#800080', '#FFD700', '#F5F5DC', '#800000', '#000080',
@@ -842,7 +903,8 @@ export default function CreateOpportunityPage() {
         setShowDuplicateModal(true);
         setIsSubmitting(false);
         submitInFlightRef.current = false;
-        showToast('Duplicate opportunity detected. Creation is blocked.', 'warning', 4000);
+        const firstMatchName = similarOpportunities[0]?.customer?.name || 'This client';
+        showToast(`${firstMatchName} already exists in opportunities. Use the existing record.`, 'warning', 5000);
         return;
       }
 
@@ -933,17 +995,17 @@ export default function CreateOpportunityPage() {
           name: isIndividual
             ? `${formData.firstName} ${formData.lastName}`.trim()
             : formData.companyName,
-          email: formData.email || undefined,
-          phone: `${formData.phoneCode}${formData.phone}` || undefined,
+          email: normalizeEmailValue(formData.email),
+          phone: normalizePhoneForStorage(formData.phoneCode, formData.phone) || undefined,
           secondaryPhone: formData.secondaryPhone
-            ? `${formData.phoneCode}${formData.secondaryPhone}`
+            ? normalizePhoneForStorage(formData.phoneCode, formData.secondaryPhone)
             : undefined,
           companyName: !isIndividual ? formData.companyName : undefined,
           ...(formData.accountType === 'organization' && {
             contactPersonName: formData.contactPersonName || undefined,
-            contactPersonEmail: formData.contactPersonEmail || undefined,
+            contactPersonEmail: normalizeEmailValue(formData.contactPersonEmail),
             contactPersonPhone: formData.contactPersonPhone ? 
-              `${formData.phoneCode}${formData.contactPersonPhone}` : undefined,
+              normalizePhoneForStorage(formData.phoneCode, formData.contactPersonPhone) : undefined,
             contactPersonTitle: formData.contactPersonTitle || undefined,
           }),
         },
@@ -973,7 +1035,8 @@ export default function CreateOpportunityPage() {
       if (duplicateFromApi.length > 0) {
         setDuplicateOpportunities(duplicateFromApi);
         setShowDuplicateModal(true);
-        showToast('Duplicate opportunity detected. Creation is blocked.', 'warning', 4000);
+        const firstMatchName = duplicateFromApi[0]?.customer?.name || 'This client';
+        showToast(`${firstMatchName} already exists in opportunities. Use the existing record.`, 'warning', 5000);
         return;
       }
 
@@ -984,38 +1047,79 @@ export default function CreateOpportunityPage() {
     }
   };
   const handleContinueAnyway = () => {
-    showToast('Creating duplicates is disabled. Use an existing opportunity instead.', 'error', 4000);
+    showToast('Client already exists. Creating duplicate opportunities is disabled.', 'error', 5000);
   };
   const findSimilarOpportunities = async () => {
-    const params: SimilarOpportunitiesRequest = {};
-    let hasParams = false;
-    
-    if (formData.email && formData.email.trim().length > 0) {
-      params.customerEmail = formData.email;
-      hasParams = true;
-    }
-    
-    if (formData.phone && formData.phone.trim().length > 0) {
-      params.customerPhone = `${formData.phoneCode}${formData.phone}`;
-      hasParams = true;
-    }
-    
-    if (formData.accountType === 'individual') {
-      if (formData.firstName && formData.firstName.trim().length > 0 && formData.lastName && formData.lastName.trim().length > 0) {
-        params.customerName = `${formData.firstName} ${formData.lastName}`.trim();
-        hasParams = true;
-      }
-    } else if (formData.accountType === 'organization' && formData.companyName && formData.companyName.trim().length > 0) {
-      params.customerName = formData.companyName;
-      hasParams = true;
-    }
-    
-    // Require enough data for duplicate verification; fail closed.
+    const normalizedEmail = normalizeEmailValue(formData.email);
+    const phoneCandidates = buildPhoneDuplicateCandidates(formData.phoneCode, formData.phone);
+    const customerName =
+      formData.accountType === 'individual'
+        ? `${formData.firstName} ${formData.lastName}`.trim()
+        : formData.companyName.trim();
+
+    const hasParams = Boolean(normalizedEmail || phoneCandidates.length > 0 || customerName);
     if (!hasParams) {
       throw new Error('Provide customer email, phone, or name to verify duplicates.');
     }
 
-    const similarOpportunities = await opportunityService.findSimilarOpportunities(params);
+    const baseParams: SimilarOpportunitiesRequest = {
+      customerName: customerName || undefined,
+      customerEmail: normalizedEmail,
+      limit: 25,
+    };
+
+    const duplicateBuckets: Opportunity[][] = [];
+
+    // Initial broad check with primary normalized phone candidate.
+    const primaryPhone = phoneCandidates[0];
+    const initialParams: SimilarOpportunitiesRequest = primaryPhone
+      ? { ...baseParams, customerPhone: primaryPhone }
+      : baseParams;
+    duplicateBuckets.push(await opportunityService.findSimilarOpportunities(initialParams));
+
+    // Additional checks for common phone-format variants (e.g. +254..., 254..., 07..., local).
+    const alternatePhoneCandidates = phoneCandidates.filter((candidate) => candidate !== primaryPhone).slice(0, 4);
+    if (alternatePhoneCandidates.length > 0) {
+      const alternateResults = await Promise.allSettled(
+        alternatePhoneCandidates.map((candidate) =>
+          opportunityService.findSimilarOpportunities({
+            ...baseParams,
+            customerPhone: candidate,
+            limit: 25,
+          })
+        )
+      );
+
+      alternateResults.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          duplicateBuckets.push(result.value);
+        }
+      });
+    }
+
+    // Fallback duplicate endpoint for organizations that have stricter duplicate rules on backend.
+    const fallbackDuplicateResult = await opportunityService.checkForDuplicatesSimple({
+      email: normalizedEmail,
+      phone: primaryPhone || undefined,
+      firstName: formData.accountType === 'individual' ? formData.firstName : undefined,
+      lastName: formData.accountType === 'individual' ? formData.lastName : undefined,
+      companyName: formData.accountType === 'organization' ? formData.companyName : undefined,
+    });
+    if (fallbackDuplicateResult.isDuplicate && fallbackDuplicateResult.existingOpportunities.length > 0) {
+      duplicateBuckets.push(fallbackDuplicateResult.existingOpportunities);
+    }
+
+    const similarOpportunities = duplicateBuckets
+      .flat()
+      .filter((opportunity) => Boolean(opportunity?._id || opportunity?.id))
+      .reduce<Opportunity[]>((acc, opportunity) => {
+        const key = String(opportunity._id || opportunity.id);
+        if (!acc.some((existing) => String(existing._id || existing.id) === key)) {
+          acc.push(opportunity);
+        }
+        return acc;
+      }, []);
+
     if (similarOpportunities.length > 0) {
       showToast(`Found ${similarOpportunities.length} similar opportunity(s)`, 'info', 2000);
     }
@@ -1120,7 +1224,10 @@ export default function CreateOpportunityPage() {
     const parsed = extractDuplicatePayload(error);
 
     const code = parsed?.code || parsed?.errorCode;
-    const isDuplicateCode = String(code || '').toUpperCase() === 'DUPLICATE_OPPORTUNITY';
+    const normalizedCode = String(code || '').toUpperCase();
+    const isDuplicateCode =
+      normalizedCode === 'DUPLICATE_OPPORTUNITY' ||
+      normalizedCode === 'DUPLICATE_OPPORTUNITY_AUTO_REASSIGNED';
     const duplicateList = Array.isArray(parsed?.duplicates) ? parsed.duplicates : [];
 
     if (!isDuplicateCode || duplicateList.length === 0) {
@@ -1165,7 +1272,11 @@ export default function CreateOpportunityPage() {
     if (duplicateFromApi.length > 0) {
       setDuplicateOpportunities(duplicateFromApi);
       setShowDuplicateModal(true);
-      showToast(getDuplicateFeedbackMessage(error) || 'Duplicate opportunity detected. Review existing records first.', 'warning', 5000);
+      showToast(
+        getDuplicateFeedbackMessage(error) || 'Client already exists in opportunities. Use the existing record.',
+        'warning',
+        5000
+      );
       return;
     }
     
