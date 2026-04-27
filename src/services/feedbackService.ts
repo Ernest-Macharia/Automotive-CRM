@@ -130,6 +130,62 @@ export interface TypeOption {
 }
 
 class FeedbackService {
+  private createEmptyStats(): FeedbackStats {
+    return {
+      total: 0,
+      new: 0,
+      reviewed: 0,
+      in_progress: 0,
+      resolved: 0,
+      rejected: 0,
+      duplicate: 0,
+      bySection: {},
+      byType: {},
+      byPriority: {},
+      byAssignedTo: {},
+    };
+  }
+
+  private buildStatsFromFeedback(feedbackList: Feedback[]): FeedbackStats {
+    const stats = this.createEmptyStats();
+
+    for (const feedback of feedbackList) {
+      stats.total += 1;
+
+      const status = feedback.status || 'new';
+      if (status === 'new') stats.new += 1;
+      if (status === 'reviewed') stats.reviewed += 1;
+      if (status === 'in_progress') stats.in_progress += 1;
+      if (status === 'resolved') stats.resolved += 1;
+      if (status === 'rejected') stats.rejected += 1;
+      if (status === 'duplicate') stats.duplicate += 1;
+
+      const section = feedback.section || 'other';
+      const type = feedback.type || 'other';
+      const priority = feedback.priority || 'medium';
+
+      stats.bySection[section] = (stats.bySection[section] || 0) + 1;
+      stats.byType[type] = (stats.byType[type] || 0) + 1;
+      stats.byPriority[priority] = (stats.byPriority[priority] || 0) + 1;
+
+      let assigneeKey = 'unassigned';
+      if (typeof feedback.assignedTo === 'string' && feedback.assignedTo.trim()) {
+        assigneeKey = feedback.assignedTo;
+      } else if (feedback.assignedTo && typeof feedback.assignedTo === 'object') {
+        assigneeKey =
+          feedback.assignedTo._id ||
+          feedback.assignedTo.id ||
+          feedback.assignedTo.email ||
+          feedback.assignedTo.name ||
+          assigneeKey;
+      }
+
+      stats.byAssignedTo[assigneeKey] = (stats.byAssignedTo[assigneeKey] || 0) + 1;
+    }
+
+    return stats;
+  }
+
   /**
    * Submit new feedback
    * POST /api/v1/feedback
@@ -340,7 +396,17 @@ async createFeedbackWithScreenshot(data: FormData): Promise<Feedback> {
     try {
       const response = await apiClient.get<any>('/feedback/stats/summary');
       return response;
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.status === 403 || error?.status === 404) {
+        try {
+          const allFeedback = await this.getAllFeedback();
+          return this.buildStatsFromFeedback(allFeedback);
+        } catch (fallbackError) {
+          console.error('Error fetching fallback feedback stats:', fallbackError);
+          return this.createEmptyStats();
+        }
+      }
+
       console.error('Error fetching feedback stats:', error);
       throw error;
     }
