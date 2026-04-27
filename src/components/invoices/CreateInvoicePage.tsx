@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   Receipt, ArrowLeft, Save, Plus, Trash2,
@@ -20,7 +20,6 @@ import { quoteService, type Quote } from '@/services/quoteService';
 import { jobCardService, type JobCard } from '@/services/jobCardService';
 import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
-import debounce from 'lodash/debounce';
 
 // Helper function to format date
 const formatDate = (dateString?: string): string => {
@@ -79,6 +78,9 @@ export default function CreateInvoicePage() {
   
   // Backend data
   const [vehicles, setVehicles] = useState<any[]>([]);
+  const opportunitySearchRequestRef = useRef(0);
+  const opportunitySearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const opportunitySearchCacheRef = useRef<Map<string, Opportunity[]>>(new Map());
 
   const quoteId = searchParams.get('quoteId');
   const opportunityId = searchParams.get('opportunityId');
@@ -149,14 +151,45 @@ export default function CreateInvoicePage() {
   };
 
   const loadOpportunities = async (search = '') => {
+    const normalizedSearch = String(search || '').trim().toLowerCase();
+
+    if (normalizedSearch) {
+      const cached = opportunitySearchCacheRef.current.get(normalizedSearch);
+      if (cached) {
+        setOpportunities(cached);
+        setSearching(false);
+        return;
+      }
+    }
+
     try {
+      const requestId = ++opportunitySearchRequestRef.current;
       setSearching(true);
-      const response = await opportunityService.filterOpportunities({
-        search,
-        limit: 10,
-        sort: 'createdAt:desc'
-      });
-      setOpportunities(response.data || []);
+
+      const response = normalizedSearch
+        ? await opportunityService.searchOpportunities(normalizedSearch)
+        : await opportunityService.filterOpportunities({
+            search: '',
+            limit: 10,
+            sort: 'createdAt:desc'
+          });
+
+      if (requestId !== opportunitySearchRequestRef.current) {
+        return;
+      }
+
+      const loadedOpportunities = response.data || [];
+      setOpportunities(loadedOpportunities);
+
+      if (normalizedSearch) {
+        opportunitySearchCacheRef.current.set(normalizedSearch, loadedOpportunities);
+        if (opportunitySearchCacheRef.current.size > 30) {
+          const firstKey = opportunitySearchCacheRef.current.keys().next().value;
+          if (firstKey) {
+            opportunitySearchCacheRef.current.delete(firstKey);
+          }
+        }
+      }
     } catch (error) {
       console.error('Error loading opportunities:', error);
     } finally {
@@ -199,12 +232,23 @@ export default function CreateInvoicePage() {
     }
   };
 
-  const debouncedSearchOpportunities = useCallback(
-    debounce((searchTerm: string) => {
-      loadOpportunities(searchTerm);
-    }, 300),
-    []
-  );
+  const debouncedSearchOpportunities = useCallback((searchTerm: string) => {
+    if (opportunitySearchDebounceRef.current) {
+      clearTimeout(opportunitySearchDebounceRef.current);
+    }
+
+    opportunitySearchDebounceRef.current = setTimeout(() => {
+      void loadOpportunities(searchTerm);
+    }, 150);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (opportunitySearchDebounceRef.current) {
+        clearTimeout(opportunitySearchDebounceRef.current);
+      }
+    };
+  }, []);
 
   const handleSelectOpportunity = async (opportunityId: string) => {
     try {

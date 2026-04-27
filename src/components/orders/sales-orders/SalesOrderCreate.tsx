@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ShoppingCart, ArrowLeft, Save, Loader2,
@@ -21,6 +21,9 @@ interface FormData {
 export default function SalesOrderCreate() {
   const router = useRouter();
   const { showToast } = useToast();
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchRequestRef = useRef(0);
+  const searchCacheRef = useRef<Map<string, Opportunity[]>>(new Map());
   
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -43,20 +46,69 @@ export default function SalesOrderCreate() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
+  const rankSearchResults = (results: Opportunity[], query: string): Opportunity[] => {
+    const normalizedQuery = query.toLowerCase();
+
+    const scoreResult = (opportunity: Opportunity) => {
+      const subject = (opportunity.subject || '').toLowerCase();
+      const customerName = (opportunity.customer?.name || '').toLowerCase();
+      const companyName = (opportunity.customer?.companyName || '').toLowerCase();
+
+      let score = 0;
+
+      if (customerName.startsWith(normalizedQuery)) score += 120;
+      else if (customerName.includes(normalizedQuery)) score += 80;
+
+      if (subject.startsWith(normalizedQuery)) score += 90;
+      else if (subject.includes(normalizedQuery)) score += 60;
+
+      if (companyName.startsWith(normalizedQuery)) score += 55;
+      else if (companyName.includes(normalizedQuery)) score += 35;
+
+      return score;
+    };
+
+    return [...results].sort((a, b) => scoreResult(b) - scoreResult(a));
+  };
+
   const searchOpportunities = async (searchTerm: string) => {
-    if (!searchTerm.trim()) {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    if (!normalizedSearch) {
       setOpportunities([]);
+      setSearching(false);
+      return;
+    }
+
+    const cachedResults = searchCacheRef.current.get(normalizedSearch);
+    if (cachedResults) {
+      setOpportunities(cachedResults);
+      setSearching(false);
       return;
     }
 
     try {
+      const requestId = ++searchRequestRef.current;
       setSearching(true);
-      const response = await opportunityService.searchOpportunities(searchTerm);
+      const response = await opportunityService.searchOpportunities(normalizedSearch);
+      if (requestId !== searchRequestRef.current) {
+        return;
+      }
+
       // Filter for SALE type opportunities
-      const saleOpportunities = (response.data || []).filter(
+      const saleOpportunities = rankSearchResults(
+        (response.data || []).filter(
         opp => opp.opportunityType === 'SALE' || !opp.opportunityType
+        ),
+        normalizedSearch
       );
       setOpportunities(saleOpportunities);
+      searchCacheRef.current.set(normalizedSearch, saleOpportunities);
+      if (searchCacheRef.current.size > 30) {
+        const firstKey = searchCacheRef.current.keys().next().value;
+        if (firstKey) {
+          searchCacheRef.current.delete(firstKey);
+        }
+      }
     } catch (error) {
       console.error('Error searching opportunities:', error);
     } finally {
@@ -71,7 +123,14 @@ export default function SalesOrderCreate() {
       searchOpportunity: value,
       showDropdown: true 
     }));
-    searchOpportunities(value);
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      void searchOpportunities(value);
+    }, 150);
   };
 
   const handleSelectOpportunity = (opportunity: Opportunity) => {
@@ -130,6 +189,14 @@ export default function SalesOrderCreate() {
   const handleCancel = () => {
     router.push('/salesorders');
   };
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-emerald-50/30">
