@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ClipboardCheck,
@@ -23,12 +23,16 @@ import {
   Wrench,
   Calendar,
   Building,
-  Tag
+  Tag,
+  Mail
 } from 'lucide-react';
 import { preChecklistService, PreChecklist } from '@/services/preChecklistService';
 import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
 import { format } from 'date-fns';
+import { pdf } from '@react-pdf/renderer';
+import DiamondRimsPDF from '@/components/pre-checklist/DiamondRimsPDF';
+import PreChecklistPDF from '@/components/pre-checklist/PreChecklistPDF';
 
 interface PreChecklistDetailPageProps {
   id: string;
@@ -158,6 +162,77 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     return format(new Date(dateString), 'MMM dd, yyyy HH:mm');
   };
 
+  const getChecklistVariant = useCallback((entry: PreChecklist | null) => {
+    const rawType = String(entry?.checklistType || '').trim().toLowerCase();
+    if (rawType.includes('diamond')) return 'diamond_rims';
+    if (rawType.includes('headlight')) return 'headlight';
+
+    if (entry?.services || entry?.powderCoating || entry?.tireDOT || entry?.suitability) {
+      return 'diamond_rims';
+    }
+    return 'headlight';
+  }, []);
+
+  const buildChecklistPdfBlob = useCallback(async (entry: PreChecklist): Promise<Blob> => {
+    const variant = getChecklistVariant(entry);
+
+    if (variant === 'diamond_rims') {
+      return pdf(
+        <DiamondRimsPDF
+          formData={entry}
+          opportunity={typeof entry.opportunityId === 'object' ? entry.opportunityId : undefined}
+          vehicle={typeof entry.vehicleId === 'object' ? entry.vehicleId : undefined}
+        />
+      ).toBlob();
+    }
+
+    const stats = (entry.inspectionItems || []).reduce(
+      (acc, item) => {
+        const normalized = String(item?.status || '').toLowerCase();
+        if (normalized === 'ok') acc.ok += 1;
+        else if (normalized === 'fault') acc.fault += 1;
+        else if (normalized === 'n/a') acc.na += 1;
+        else acc.pending += 1;
+        acc.total += 1;
+        return acc;
+      },
+      { total: 0, ok: 0, fault: 0, na: 0, pending: 0 }
+    );
+
+    return pdf(
+      <PreChecklistPDF
+        formData={entry}
+        stats={stats}
+        existingChecklist={entry}
+        opportunity={typeof entry.opportunityId === 'object' ? entry.opportunityId : undefined}
+        vehicle={typeof entry.vehicleId === 'object' ? entry.vehicleId : undefined}
+      />
+    ).toBlob();
+  }, [getChecklistVariant]);
+
+  const buildCustomerEmailMessage = useCallback((entry: PreChecklist) => {
+    const variant = getChecklistVariant(entry);
+    const companyName = variant === 'diamond_rims' ? 'Diamond Rimz' : 'Eagle Lights';
+    const teamName = variant === 'diamond_rims' ? 'Diamond Rimz Team' : 'Eagle Lights Team';
+    const customerName =
+      `${entry.customerDetails?.firstName || ''} ${entry.customerDetails?.lastName || ''}`.trim() ||
+      (typeof entry.opportunityId === 'object' ? entry.opportunityId?.customer?.name : '') ||
+      'Client';
+
+    return [
+      `Dear ${customerName},`,
+      '',
+      `Thank you for choosing ${companyName}.`,
+      '',
+      'Attached is a copy of the signed service intake form for your records.',
+      '',
+      'Our team will now proceed as agreed. Kindly note that our Terms and Conditions apply to all services rendered. If you have any questions or follow-up requests, feel free to contact us.',
+      '',
+      'Kind regards,',
+      teamName,
+    ].join('\n');
+  }, [getChecklistVariant]);
+
   /* ---------------- actions ---------------- */
 
   const handleApprove = async () => {
@@ -227,13 +302,21 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     if (!checklist) return;
     try {
       setUpdating(true);
-      const blob = await preChecklistService.viewPDF(checklist._id);
+      const blob = await buildChecklistPdfBlob(checklist);
       const url = window.URL.createObjectURL(blob);
       window.open(url, '_blank');
       showToast('PDF opened successfully', 'success');
     } catch (error) {
-      console.error('Error opening pre-checklist PDF:', error);
-      showToast('Failed to open pre-checklist PDF', 'error');
+      console.error('Error opening local pre-checklist PDF, trying backend copy:', error);
+      try {
+        const fallbackBlob = await preChecklistService.viewPDF(checklist._id);
+        const fallbackUrl = window.URL.createObjectURL(fallbackBlob);
+        window.open(fallbackUrl, '_blank');
+        showToast('PDF opened successfully', 'success');
+      } catch (fallbackError) {
+        console.error('Error opening pre-checklist PDF from backend:', fallbackError);
+        showToast('Failed to open pre-checklist PDF', 'error');
+      }
     } finally {
       setUpdating(false);
     }
@@ -243,7 +326,7 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     if (!checklist) return;
     try {
       setUpdating(true);
-      const blob = await preChecklistService.viewPDF(checklist._id);
+      const blob = await buildChecklistPdfBlob(checklist);
       const url = window.URL.createObjectURL(blob);
       const win = window.open(url, '_blank');
       if (win) {
@@ -251,8 +334,68 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
       }
       showToast('Print view opened', 'success');
     } catch (error) {
-      console.error('Error printing pre-checklist PDF:', error);
-      showToast('Failed to print pre-checklist', 'error');
+      console.error('Error printing local PDF, trying backend PDF:', error);
+      try {
+        const fallbackBlob = await preChecklistService.viewPDF(checklist._id);
+        const fallbackUrl = window.URL.createObjectURL(fallbackBlob);
+        const fallbackWindow = window.open(fallbackUrl, '_blank');
+        if (fallbackWindow) {
+          fallbackWindow.onload = () => fallbackWindow.print();
+        }
+        showToast('Print view opened', 'success');
+      } catch (fallbackError) {
+        console.error('Error printing pre-checklist PDF:', fallbackError);
+        showToast('Failed to print pre-checklist', 'error');
+      }
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleSendChecklistEmail = async () => {
+    if (!checklist) return;
+
+    const recipient =
+      checklist.clientEmail ||
+      checklist.customerDetails?.email ||
+      (typeof checklist.opportunityId === 'object' ? checklist.opportunityId?.customer?.email : '') ||
+      '';
+
+    if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+      showToast('A valid client email is required before sending', 'error');
+      return;
+    }
+
+    try {
+      setUpdating(true);
+
+      const customerName =
+        `${checklist.customerDetails?.firstName || ''} ${checklist.customerDetails?.lastName || ''}`.trim() ||
+        (typeof checklist.opportunityId === 'object' ? checklist.opportunityId?.customer?.name : '') ||
+        'Client';
+      const vehicleLabel =
+        checklist.carDetails?.licensePlate ||
+        (typeof checklist.vehicleId === 'object'
+          ? `${checklist.vehicleId?.make || ''} ${checklist.vehicleId?.model || ''}`.trim()
+          : '') ||
+        'Service Intake';
+
+      const response = await preChecklistService.sendChecklistCopyEmail(checklist._id, {
+        email: recipient,
+        subject: `SERVICE INTAKE FORM - ${customerName} - ${vehicleLabel}`,
+        message: buildCustomerEmailMessage(checklist),
+        includePdf: true,
+        includeSecureLink: true,
+      });
+
+      if (response.fallbackUsed) {
+        showToast('Checklist email sent using approval flow fallback', 'info');
+      } else {
+        showToast('Checklist email sent to client', 'success');
+      }
+    } catch (error) {
+      console.error('Error sending checklist email:', error);
+      showToast('Failed to send checklist email', 'error');
     } finally {
       setUpdating(false);
     }
@@ -611,6 +754,14 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
 	                >
 	                  <Eye className="h-4 w-4" />
 	                  View PDF
+	                </button>
+	                <button 
+	                  onClick={handleSendChecklistEmail}
+	                  className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-blue-300 text-blue-700 text-sm font-medium rounded-lg hover:bg-blue-50 disabled:opacity-60"
+	                  disabled={updating}
+	                >
+	                  <Mail className="h-4 w-4" />
+	                  Send To Client Email
 	                </button>
 
                 <button 

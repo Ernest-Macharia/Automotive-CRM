@@ -1773,12 +1773,51 @@ export default function DiamondRimsPreChecklistCreatePage({
         showToast('Please enter a valid email address', 'error');
         return;
       }
-      
-      // Save draft first
-      await handleSaveAsDraft();
-      
-      // Simulate email sending
-      showToast('Approval email sent successfully!', 'success');
+
+      const resolvedChecklistId =
+        checklistId ||
+        String(existingChecklist?._id || existingChecklist?.id || '').trim();
+
+      if (!resolvedChecklistId) {
+        showToast('Please create or save the checklist first before sending email', 'warning');
+        return;
+      }
+
+      const clientName =
+        `${formData.customerDetails.firstName || ''} ${formData.customerDetails.lastName || ''}`.trim() ||
+        'Client';
+      const vehicleLabel =
+        formData.carDetails.licensePlate ||
+        `${formData.carDetails.carMake || ''} ${formData.carDetails.carModel || ''}`.trim() ||
+        'your vehicle';
+
+      const emailSubject = `SERVICE INTAKE FORM - ${clientName} - ${vehicleLabel}`;
+      const emailMessage = [
+        `Dear ${clientName},`,
+        '',
+        'Thank you for choosing Diamond Rimz.',
+        '',
+        'Attached is a copy of the signed service intake form for your records.',
+        '',
+        'Our team will now proceed as agreed. Kindly note that our Terms and Conditions apply to all services rendered. If you have any questions or follow-up requests, feel free to contact us via WhatsApp or phone at 0758 735 982.',
+        '',
+        'Kind regards,',
+        'Diamond Rimz Team',
+      ].join('\n');
+
+      const response = await preChecklistService.sendChecklistCopyEmail(resolvedChecklistId, {
+        email: formData.clientEmail.trim(),
+        subject: emailSubject,
+        message: emailMessage,
+        includePdf: true,
+        includeSecureLink: true,
+      });
+
+      if (response.fallbackUsed) {
+        showToast('Client email sent using approval flow fallback', 'info');
+      } else {
+        showToast('Checklist email sent successfully', 'success');
+      }
       
     } catch (error) {
       console.error('Error sending approval email:', error);
@@ -5381,7 +5420,11 @@ export default function DiamondRimsPreChecklistCreatePage({
                             <button
                               type="button"
                               onClick={sendForClientApproval}
-                              disabled={!formData.inspectorSignature || !formData.clientEmail}
+                              disabled={
+                                !formData.inspectorSignature ||
+                                !formData.clientEmail ||
+                                !(checklistId || existingChecklist?._id || existingChecklist?.id)
+                              }
                               className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
                               <Mail className="h-4 w-4" />

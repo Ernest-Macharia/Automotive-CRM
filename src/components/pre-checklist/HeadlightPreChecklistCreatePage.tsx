@@ -1145,13 +1145,38 @@ export default function HeadlightPreChecklistCreatePage({
         return;
       }
       
-      await preChecklistService.requestEmailApproval(
-        checklistId, 
-        formData.customerDetails.email,
-        `Please review and approve the headlight inspection checklist for vehicle ${formData.carDetails.licensePlate}`
-      );
-      
-      showToast('Approval email sent successfully!', 'success');
+      const clientName =
+        `${formData.customerDetails.firstName || ''} ${formData.customerDetails.lastName || ''}`.trim() ||
+        'Client';
+      const vehicleLabel =
+        formData.carDetails.licensePlate ||
+        `${formData.carDetails.carMake || ''} ${formData.carDetails.carModel || ''}`.trim() ||
+        'your vehicle';
+
+      const response = await preChecklistService.sendChecklistCopyEmail(checklistId, {
+        email: formData.customerDetails.email.trim(),
+        subject: `HEADLIGHT CHECKLIST - ${clientName} - ${vehicleLabel}`,
+        message: [
+          `Dear ${clientName},`,
+          '',
+          'Thank you for choosing Eagle Lights.',
+          '',
+          'Attached is a copy of the signed inspection checklist for your records.',
+          '',
+          'Our team will now proceed as agreed. Please contact us if you need any clarification.',
+          '',
+          'Kind regards,',
+          'Eagle Lights Team',
+        ].join('\n'),
+        includePdf: true,
+        includeSecureLink: true,
+      });
+
+      if (response.fallbackUsed) {
+        showToast('Client email sent using approval flow fallback', 'info');
+      } else {
+        showToast('Checklist email sent successfully!', 'success');
+      }
       
     } catch (error) {
       console.error('Error sending approval email:', error);
@@ -4133,7 +4158,11 @@ export default function HeadlightPreChecklistCreatePage({
                               <button
                                 type="button"
                                 onClick={sendForClientApproval}
-                                disabled={!formData.inspectorSignature || !formData.customerDetails.email}
+                                disabled={
+                                  !formData.inspectorSignature ||
+                                  !formData.customerDetails.email ||
+                                  !checklistId
+                                }
                                 className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50"
                               >
                                 Send Email

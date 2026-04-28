@@ -579,6 +579,14 @@ export interface SignedPreChecklist {
   updatedAt: string;
 }
 
+export interface SendChecklistEmailOptions {
+  email: string;
+  message?: string;
+  subject?: string;
+  includePdf?: boolean;
+  includeSecureLink?: boolean;
+}
+
 const normalizeObjectId = (value: unknown): string => {
   let candidate = '';
 
@@ -1228,6 +1236,66 @@ class PreChecklistService {
       console.error(`Error requesting email approval for pre-checklist ${id}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Send checklist copy email with PDF attachment when supported by backend.
+   * Falls back to request-email-approval flow if dedicated email endpoints are unavailable.
+   */
+  async sendChecklistCopyEmail(
+    id: string,
+    options: SendChecklistEmailOptions
+  ): Promise<{ success: boolean; message: string; endpoint?: string; fallbackUsed?: boolean }> {
+    const payload = {
+      email: options.email,
+      message: options.message,
+      subject: options.subject,
+      includePdf: options.includePdf ?? true,
+      includeSecureLink: options.includeSecureLink ?? true,
+    };
+
+    // Try to pre-generate the PDF so attachment-enabled endpoints can pick it up.
+    try {
+      await this.generatePDF(id);
+    } catch (pdfError) {
+      console.warn(`Unable to pre-generate checklist PDF for ${id} before email send:`, pdfError);
+    }
+
+    const endpoints = [
+      `/prechecklists/${id}/send-email`,
+      `/prechecklists/${id}/send-pdf-email`,
+      `/prechecklists/${id}/send-signed-copy`,
+      `/prechecklists/${id}/email/send-copy`,
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        const response = await extendedApiClient.post<typeof payload, any>(endpoint, payload);
+        const normalizedSuccess =
+          typeof response?.success === 'boolean' ? response.success : true;
+        const normalizedMessage =
+          response?.message || 'Checklist email sent successfully';
+        return {
+          success: normalizedSuccess,
+          message: normalizedMessage,
+          endpoint,
+        };
+      } catch (error: any) {
+        const statusCode = parseErrorStatusCode(error);
+        if (statusCode === 404 || statusCode === 405) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    const fallback = await this.requestEmailApproval(id, options.email, options.message);
+    return {
+      success: fallback.success,
+      message: fallback.message || 'Checklist email request sent successfully',
+      endpoint: `/prechecklists/${id}/request-email-approval`,
+      fallbackUsed: true,
+    };
   }
 
   // 9. Approve pre-checklist via email token
