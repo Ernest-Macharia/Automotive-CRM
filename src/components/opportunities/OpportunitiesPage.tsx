@@ -111,7 +111,109 @@ const normalizeOpportunityStatus = (value?: string): StageId => {
     closed: 'won',
   };
 
-  return statusMap[compact] || 'new';
+  const mappedStatus = statusMap[compact];
+  if (mappedStatus) {
+    return mappedStatus;
+  }
+
+  // Fallback keyword matching to absorb backend status label drifts.
+  if (compact.includes('prospect')) return 'prospecting';
+  if (compact.includes('attempt') && compact.includes('contact')) return 'attempted_to_contact';
+  if (compact.includes('appointment') || compact.includes('schedule')) return 'appointment_scheduled';
+  if ((compact.includes('non') && compact.includes('progress')) || compact.includes('dormant') || compact.includes('stalled')) {
+    return 'non_progressive';
+  }
+  if (compact.includes('lost')) return 'lost';
+  if (compact.includes('won') || compact.includes('closedwon')) return 'won';
+
+  return 'new';
+};
+
+const normalizeStatusCounts = (
+  rawCounts?: Record<string, unknown> | null,
+): Record<StageId, number> => {
+  const normalized: Record<StageId, number> = {
+    new: 0,
+    attempted_to_contact: 0,
+    prospecting: 0,
+    appointment_scheduled: 0,
+    non_progressive: 0,
+    lost: 0,
+    won: 0,
+  };
+
+  if (!rawCounts || typeof rawCounts !== 'object') {
+    return normalized;
+  }
+
+  Object.entries(rawCounts).forEach(([statusKey, rawValue]) => {
+    const count = Number(rawValue);
+    if (!Number.isFinite(count) || count <= 0) return;
+    const normalizedStatus = normalizeOpportunityStatus(statusKey);
+    normalized[normalizedStatus] += count;
+  });
+
+  return normalized;
+};
+
+const getOpportunityIdentity = (opportunity: { _id?: string; id?: string }): string => {
+  return String(opportunity?._id || opportunity?.id || '').trim();
+};
+
+const dedupeOpportunities = (items: ExtendedOpportunity[]): ExtendedOpportunity[] => {
+  const seen = new Set<string>();
+  const deduped: ExtendedOpportunity[] = [];
+
+  items.forEach((item) => {
+    const identity = getOpportunityIdentity(item);
+    if (!identity || seen.has(identity)) {
+      return;
+    }
+
+    seen.add(identity);
+    deduped.push(item);
+  });
+
+  return deduped;
+};
+
+const isLookupOnlySearchParams = (params: FilterParams): boolean => {
+  const hasSearchLookup = Boolean(params.search || params.customerPhone);
+  if (!hasSearchLookup) return false;
+
+  const hasExtraFilters = Boolean(
+    params.status ||
+    params.source ||
+    params.type ||
+    params.tier ||
+    params.opportunityType ||
+    params.minScore !== undefined ||
+    params.maxScore !== undefined ||
+    params.month ||
+    params.fromDate ||
+    params.toDate ||
+    (params.assignedTo !== undefined && params.assignedTo !== null && params.assignedTo !== '') ||
+    params.minTotal !== undefined ||
+    params.maxTotal !== undefined ||
+    params.hasServicesProducts !== undefined ||
+    params.hasVehicles !== undefined ||
+    params.hasQuotes !== undefined ||
+    params.hasJobCards !== undefined ||
+    params.isNurturing !== undefined ||
+    params.vehicleMake ||
+    params.vehicleModel ||
+    params.customerName ||
+    params.customerEmail ||
+    params.subject ||
+    params.priority !== undefined ||
+    (Array.isArray(params.statuses) && params.statuses.length > 0) ||
+    (Array.isArray(params.sources) && params.sources.length > 0) ||
+    (Array.isArray(params.types) && params.types.length > 0) ||
+    (Array.isArray(params.opportunityTypes) && params.opportunityTypes.length > 0) ||
+    params.packageType
+  );
+
+  return !hasExtraFilters;
 };
 
 const buildPhoneSearchCandidates = (value?: string): string[] => {
@@ -956,6 +1058,14 @@ export default function OpportunitiesContent() {
   const cacheRef = useRef(createCache());
   const statusSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchRequestIdRef = useRef(0);
+  const loadedOpportunityIdsRef = useRef<Set<string>>(new Set());
+  const syncLoadedOpportunityIds = useCallback((items: ExtendedOpportunity[]) => {
+    loadedOpportunityIdsRef.current = new Set(
+      items
+        .map((opportunity) => getOpportunityIdentity(opportunity))
+        .filter((identity) => Boolean(identity)),
+    );
+  }, []);
   const currentRoleName = useMemo(() => {
     const rawRole = (currentUser as any)?.role;
     if (typeof rawRole === 'string') return rawRole.toLowerCase();
@@ -1270,9 +1380,11 @@ export default function OpportunitiesContent() {
         limit: 20, // Load 20 at a time
       };
 
-      // Always use the filtered endpoint for stage pagination so historical stage records
-      // are fetched consistently even when no additional filters are active.
-      const response = await opportunityService.filterOpportunities(params);
+      // Use the simpler list endpoint for default board loading (faster and less error-prone),
+      // and retain filtered endpoint when user-applied filters are active.
+      const response = hasActiveFilters
+        ? await opportunityService.filterOpportunities(params)
+        : await opportunityService.getAllOpportunities(params);
       
       if (response.data.length > 0) {
         // Process new opportunities
@@ -1289,8 +1401,16 @@ export default function OpportunitiesContent() {
 
         // Keep stage pagination focused on the requested stage only.
         const stageOpportunities = processedOpportunities.filter((opp) => opp.status === stageId);
-        const existingIds = new Set(opportunities.map((opp) => opp._id));
-        const uniqueIncoming = stageOpportunities.filter((opp) => !existingIds.has(opp._id));
+        const knownIds = loadedOpportunityIdsRef.current;
+        const uniqueIncoming = stageOpportunities.filter((opp) => {
+          const identity = getOpportunityIdentity(opp);
+          if (!identity || knownIds.has(identity)) {
+            return false;
+          }
+
+          knownIds.add(identity);
+          return true;
+        });
         const uniqueIncomingCount = uniqueIncoming.length;
         if (uniqueIncomingCount > 0) {
           setOpportunities((prev) => [...prev, ...uniqueIncoming]);
@@ -1328,7 +1448,7 @@ export default function OpportunitiesContent() {
     } finally {
       setColumnLoading(prev => ({ ...prev, [stageId]: false }));
     }
-  }, [columnLoading, stagePagination, filters, getStageColor, getAvatarColor, getLeadScoreTier, getChildCounts, opportunities]);
+  }, [columnLoading, stagePagination, filters, hasActiveFilters, getStageColor, getAvatarColor, getLeadScoreTier, getChildCounts]);
 
   // Optimized fetch opportunities WITHOUT lead checking
   const fetchOpportunities = useCallback(async (isRefresh = false, forceRefresh = false) => {
@@ -1406,8 +1526,10 @@ export default function OpportunitiesContent() {
             computedChildCounts: getChildCounts(opp)
           };
         });
-        
-        setOpportunities(processedOpportunities);
+
+        const dedupedOpportunities = dedupeOpportunities(processedOpportunities);
+        setOpportunities(dedupedOpportunities);
+        syncLoadedOpportunityIds(dedupedOpportunities);
         setPagination(cachedPagination);
         setStats(cachedStats);
         setFilteredStats(cachedFilteredStats || null);
@@ -1422,8 +1544,27 @@ export default function OpportunitiesContent() {
       const statsParams: FilterParams = { ...params };
       delete statsParams.page;
       delete statsParams.limit;
+      const lookupOnlySearch = isLookupOnlySearchParams(params);
+      const shouldLoadFilteredStats = hasActiveFilters && !lookupOnlySearch;
+      const fetchListResponse = async (requestParams: FilterParams) => {
+        if (lookupOnlySearch) {
+          return opportunityService.getAllOpportunities({
+            page: requestParams.page,
+            limit: requestParams.limit,
+            sort: requestParams.sort,
+            status: requestParams.status,
+            source: requestParams.source,
+            search: requestParams.search,
+            customerPhone: requestParams.customerPhone,
+          });
+        }
 
-      const filteredStatsPromise: Promise<FilteredStats | null> = hasActiveFilters
+        return hasActiveFilters
+          ? opportunityService.filterOpportunities(requestParams)
+          : opportunityService.getAllOpportunities(requestParams);
+      };
+
+      const filteredStatsPromise: Promise<FilteredStats | null> = shouldLoadFilteredStats
         ? opportunityService.getFilteredStats(statsParams).catch((error) => {
             console.warn('Failed to load filtered stats, falling back to response stats:', error);
             return null;
@@ -1431,9 +1572,7 @@ export default function OpportunitiesContent() {
         : Promise.resolve(null);
 
       // Fetch main board data first so UI can render search results immediately.
-      const initialResponse = hasActiveFilters
-        ? await opportunityService.filterOpportunities(params)
-        : await opportunityService.getAllOpportunities(params);
+      const initialResponse = await fetchListResponse(params);
 
       let response = initialResponse;
 
@@ -1467,9 +1606,7 @@ export default function OpportunitiesContent() {
             customerPhone: candidate,
           };
 
-          const fallbackResponse = hasActiveFilters
-            ? await opportunityService.filterOpportunities(fallbackParams)
-            : await opportunityService.getAllOpportunities(fallbackParams);
+          const fallbackResponse = await fetchListResponse(fallbackParams);
 
           if (fallbackResponse.data.length > 0) {
             response = fallbackResponse;
@@ -1493,9 +1630,7 @@ export default function OpportunitiesContent() {
             customerPhone: undefined,
           };
 
-          let textSearchResponse = hasActiveFilters
-            ? await opportunityService.filterOpportunities(textSearchParams)
-            : await opportunityService.getAllOpportunities(textSearchParams);
+          let textSearchResponse = await fetchListResponse(textSearchParams);
 
           if (textSearchResponse.data.length === 0) {
             const broadSearchResponse = await opportunityService.getAllOpportunities({
@@ -1534,8 +1669,10 @@ export default function OpportunitiesContent() {
           computedChildCounts: getChildCounts(opp)
         };
       });
-      
-      setOpportunities(processedOpportunities);
+
+      const dedupedOpportunities = dedupeOpportunities(processedOpportunities);
+      setOpportunities(dedupedOpportunities);
+      syncLoadedOpportunityIds(dedupedOpportunities);
       setPagination(response.pagination);
       
       if (response.stats) {
@@ -1589,7 +1726,7 @@ export default function OpportunitiesContent() {
       setStatsLoading(false);
       setSearchLoading(false);
     }
-  }, [memoizedFilters, memoizedAdvancedFilters, hasActiveFilters, showToast, getAvatarColor, getLeadScoreTier, getStageColor, getChildCounts]);
+  }, [memoizedFilters, memoizedAdvancedFilters, hasActiveFilters, showToast, getAvatarColor, getLeadScoreTier, getStageColor, getChildCounts, syncLoadedOpportunityIds]);
 
   // Fetch overview stats
   const fetchOverview = useCallback(async () => {
@@ -1688,8 +1825,9 @@ export default function OpportunitiesContent() {
   }, [opportunities]);
 
   const stageCounts = useMemo(() => {
-    const sourceCounts: Record<string, number> =
-      (hasActiveFilters ? filteredStats?.byStatus : stats?.byStatus) || {};
+    const sourceCounts = normalizeStatusCounts(
+      (hasActiveFilters ? filteredStats?.byStatus : stats?.byStatus) as Record<string, unknown> | undefined,
+    );
 
     const counts = {} as Record<StageId, number>;
     stages.forEach((stage) => {
@@ -1702,6 +1840,10 @@ export default function OpportunitiesContent() {
   }, [hasActiveFilters, filteredStats?.byStatus, stats?.byStatus, opportunitiesByStage]);
 
   useEffect(() => {
+    if (loading || refreshing || searchLoading) {
+      return;
+    }
+
     const stagesToPreload = stages.filter((stage) => {
       const visibleCount = opportunitiesByStage[stage.id]?.length || 0;
       const targetVisibleCount = Math.min(stageCounts[stage.id] || 0, 20);
@@ -1723,13 +1865,15 @@ export default function OpportunitiesContent() {
     stagesToPreload.forEach((stage) => {
       void loadMoreForStage(stage.id);
     });
-  }, [stageCounts, opportunitiesByStage, stagePagination, columnLoading, loadMoreForStage]);
+  }, [stageCounts, opportunitiesByStage, stagePagination, columnLoading, loadMoreForStage, loading, refreshing, searchLoading]);
 
   // Card metrics should reflect backend aggregates, not only the loaded page.
   const cardMetrics = useMemo(() => {
     const useFilteredStats = hasActiveFilters && !!filteredStats;
     const byTier = (useFilteredStats ? filteredStats?.byTier : undefined) || {};
-    const byStatus = (useFilteredStats ? filteredStats?.byStatus : undefined) || {};
+    const byStatus = normalizeStatusCounts(
+      (useFilteredStats ? filteredStats?.byStatus : stats?.byStatus) as Record<string, unknown> | undefined,
+    );
     const totalFromStageCounts = Object.values(stageCounts).reduce((sum, count) => sum + Number(count || 0), 0);
     const loadedHotLeads = opportunities.filter((opp) => opp.leadScore?.tier === 'hot').length;
     const activeDealsFromStageCounts = Math.max(
@@ -1761,8 +1905,8 @@ export default function OpportunitiesContent() {
     const hotLeads = useFilteredStats
       ? Math.max(byTier.hot ?? byTier.HOT ?? 0, loadedHotLeads)
       : Math.max(hotFromStats ?? 0, loadedHotLeads);
-    const wonCount = byStatus.won ?? 0;
-    const lostCount = byStatus.lost ?? 0;
+    const wonCount = byStatus.won || 0;
+    const lostCount = byStatus.lost || 0;
     const activeDeals = useFilteredStats
       ? Math.max(total - wonCount - lostCount, activeDealsFromStageCounts, 0)
       : Math.max(openFromStats ?? 0, total - wonCount - lostCount, activeDealsFromStageCounts, 0);
