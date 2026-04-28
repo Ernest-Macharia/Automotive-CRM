@@ -305,6 +305,48 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
     }
   };
 
+  const stringifyValue = (value: unknown): string => {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value.trim();
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    return '';
+  };
+
+  const resolveRiskAcknowledgement = (riskKey: string): boolean => {
+    const associatedRisks = formData.clientUpdate?.associatedRisks;
+    if (associatedRisks && typeof associatedRisks[riskKey] === 'boolean') {
+      return associatedRisks[riskKey];
+    }
+    if (typeof formData.clientUpdate?.[riskKey] === 'boolean') {
+      return formData.clientUpdate[riskKey];
+    }
+    return false;
+  };
+
+  const formatCenterCapsSummary = () => {
+    const centerCaps = formData.centerCaps;
+    if (!centerCaps || typeof centerCaps !== 'object') {
+      return stringifyValue(centerCaps) || '-';
+    }
+
+    const presentLabel = centerCaps.present ? 'Present' : 'Not Present';
+    const quantityLabel = hasValue(centerCaps.quantity) ? `Qty ${centerCaps.quantity}` : '';
+    const conditionLabel = stringifyValue(centerCaps.condition);
+    const typeLabel = stringifyValue(centerCaps.type);
+    const parts = [presentLabel, quantityLabel, conditionLabel, typeLabel].filter(Boolean);
+    return parts.join(' | ') || '-';
+  };
+
+  const formatDeclaredValuableSummary = () => {
+    const declared = formData.declaredValuable;
+    if (declared && typeof declared === 'object') {
+      return declared.value ? 'Yes' : 'No';
+    }
+    return declared ? 'Yes' : 'No';
+  };
+
+  const rimOrTireLabel = stringifyValue(formData.rimOrTireSelection) || '-';
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -330,6 +372,30 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
               <Text style={styles.value}>{formData.serviceIntake?.customerServiceRep || '—'}</Text>
             </View>
           </View>
+          {(hasValue(formData.serviceIntake?.priorityLevel) || hasValue(formData.serviceIntake?.backendAccessCode)) && (
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>PRIORITY LEVEL</Text>
+                <Text style={styles.value}>{formData.serviceIntake?.priorityLevel || '-'}</Text>
+              </View>
+              <View style={styles.col}>
+                <Text style={styles.label}>BACKEND ACCESS CODE</Text>
+                <Text style={styles.value}>{formData.serviceIntake?.backendAccessCode || '-'}</Text>
+              </View>
+            </View>
+          )}
+          {(hasValue(formData.serviceIntake?.inspectorNotes) || hasValue(formData.serviceIntake?.specialInstructions)) && (
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>INSPECTOR NOTES</Text>
+                <Text style={styles.multiLineValue}>{formData.serviceIntake?.inspectorNotes || '-'}</Text>
+              </View>
+              <View style={styles.col}>
+                <Text style={styles.label}>SPECIAL INSTRUCTIONS</Text>
+                <Text style={styles.multiLineValue}>{formData.serviceIntake?.specialInstructions || '-'}</Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* CUSTOMER DETAILS */}
@@ -382,6 +448,30 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
               <Text style={styles.value}>{formData.carDetails?.licensePlate || '—'}</Text>
             </View>
           </View>
+          {(hasValue(formData.carDetails?.color) || hasValue(formData.carDetails?.vehicleType) || hasValue(formData.carDetails?.fuelType)) && (
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>COLOR</Text>
+                <Text style={styles.value}>{formData.carDetails?.color || '-'}</Text>
+              </View>
+              <View style={styles.col}>
+                <Text style={styles.label}>VEHICLE TYPE</Text>
+                <Text style={styles.value}>{formData.carDetails?.vehicleType || '-'}</Text>
+              </View>
+              <View style={styles.col}>
+                <Text style={styles.label}>FUEL TYPE</Text>
+                <Text style={styles.value}>{formData.carDetails?.fuelType || '-'}</Text>
+              </View>
+            </View>
+          )}
+          {hasValue(formData.carDetails?.engineSize) && (
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>ENGINE SIZE</Text>
+                <Text style={styles.value}>{formData.carDetails?.engineSize || '-'}</Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* SERVICES */}
@@ -416,6 +506,28 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
               <Text style={styles.value}>—</Text>
             )}
           </View>
+          {(hasValue(formData.preServiceInspection?.inspectorAccessNotes) || hasValue(formData.preServiceInspection?.inspectionNotes)) && (
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>INSPECTOR ACCESS NOTES</Text>
+                <Text style={styles.multiLineValue}>{formData.preServiceInspection?.inspectorAccessNotes || '-'}</Text>
+              </View>
+            </View>
+          )}
+          {(hasValue(formData.preServiceInspection?.inspectionNotes) || hasValue(formData.preServiceInspection?.photosRequired) || hasValue(formData.preServiceInspection?.videoRequired)) && (
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>INSPECTION NOTES</Text>
+                <Text style={styles.multiLineValue}>{formData.preServiceInspection?.inspectionNotes || '-'}</Text>
+              </View>
+              <View style={styles.col}>
+                <Text style={styles.label}>MEDIA REQUIREMENTS</Text>
+                <Text style={styles.value}>
+                  Photos: {formData.preServiceInspection?.photosRequired ? 'Yes' : 'No'} | Video: {formData.preServiceInspection?.videoRequired ? 'Yes' : 'No'}
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* POWDER COATING COLOURS */}
@@ -486,21 +598,82 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>CENTER CAPS</Text>
-              <Text style={styles.value}>{formData.centerCaps || '—'}</Text>
+              <Text style={styles.value}>{formatCenterCapsSummary()}</Text>
             </View>
             <View style={styles.col}>
               <Text style={styles.label}>RIMS/TIRES <Text style={styles.required}>*Required</Text></Text>
-              <Text style={styles.value}>{formData.rimsTires || '—'}</Text>
+              <Text style={styles.value}>{rimOrTireLabel}</Text>
             </View>
           </View>
 
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>DECLARED VALUABLE <Text style={styles.required}>*Required</Text></Text>
-              <Text style={styles.value}>{formData.declaredValuable ? 'Yes' : 'No'}</Text>
+              <Text style={styles.value}>{formatDeclaredValuableSummary()}</Text>
+            </View>
+            <View style={styles.col}>
+              <Text style={styles.label}>DECLARED VALUE</Text>
+              <Text style={styles.value}>
+                {formData.declaredValuable?.value && Number(formData.declaredValuable?.declaredValue || 0) > 0
+                  ? formatKES(Number(formData.declaredValuable?.declaredValue || 0))
+                  : '-'}
+              </Text>
             </View>
           </View>
+          {(hasValue(formData.declaredValuable?.insuranceRequired) || hasValue(formData.declaredValuable?.insuranceProvider) || hasValue(formData.declaredValuable?.policyNumber)) && (
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>INSURANCE REQUIRED</Text>
+                <Text style={styles.value}>{formData.declaredValuable?.insuranceRequired ? 'Yes' : 'No'}</Text>
+              </View>
+              <View style={styles.col}>
+                <Text style={styles.label}>INSURANCE PROVIDER</Text>
+                <Text style={styles.value}>{formData.declaredValuable?.insuranceProvider || '-'}</Text>
+              </View>
+              <View style={styles.col}>
+                <Text style={styles.label}>POLICY NUMBER</Text>
+                <Text style={styles.value}>{formData.declaredValuable?.policyNumber || '-'}</Text>
+              </View>
+            </View>
+          )}
+          {hasValue(formData.declaredValuable?.notes) && (
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>DECLARED VALUABLE NOTES</Text>
+                <Text style={styles.multiLineValue}>{formData.declaredValuable?.notes || '-'}</Text>
+              </View>
+            </View>
+          )}
         </View>
+
+        {/* RIMS / TIRES DETAILS */}
+        {(hasValue(formData.rimOrTireSelection) || hasValue(formData.rimsDetails?.size) || hasValue(formData.tiresDetails?.size)) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>RIMS / TIRES DETAILS</Text>
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>SELECTION</Text>
+                <Text style={styles.value}>{rimOrTireLabel}</Text>
+              </View>
+            </View>
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>RIMS</Text>
+                <Text style={styles.multiLineValue}>
+                  Qty: {formData.rimsDetails?.quantity || 0} | Size: {formData.rimsDetails?.size || '-'} | Type: {formData.rimsDetails?.type || '-'} | Condition: {formData.rimsDetails?.condition || '-'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>TIRES</Text>
+                <Text style={styles.multiLineValue}>
+                  Qty: {formData.tiresDetails?.quantity || 0} | Size: {formData.tiresDetails?.size || '-'} | Type: {formData.tiresDetails?.type || '-'} | Tread Depth: {formData.tiresDetails?.treadDepth || '-'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* TIRE BRANDS */}
         <View style={styles.section}>
@@ -543,29 +716,39 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>TIRE DOT - FR (FRONT RIGHT)</Text>
-              <Text style={styles.value}>{formData.tireDOT?.fr?.code || '—'}</Text>
+              <Text style={styles.value}>
+                {[formData.tireDOT?.fr?.code, formData.tireDOT?.fr?.week && `W${formData.tireDOT?.fr?.week}`, formData.tireDOT?.fr?.year, formData.tireDOT?.fr?.plant].filter(Boolean).join(' | ') || '—'}
+              </Text>
             </View>
             <View style={styles.col}>
               <Text style={styles.label}>TIRE DOT - FL (FRONT LEFT)</Text>
-              <Text style={styles.value}>{formData.tireDOT?.fl?.code || '—'}</Text>
+              <Text style={styles.value}>
+                {[formData.tireDOT?.fl?.code, formData.tireDOT?.fl?.week && `W${formData.tireDOT?.fl?.week}`, formData.tireDOT?.fl?.year, formData.tireDOT?.fl?.plant].filter(Boolean).join(' | ') || '—'}
+              </Text>
             </View>
           </View>
 
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>TIRE DOT - BR (BACK RIGHT)</Text>
-              <Text style={styles.value}>{formData.tireDOT?.br?.code || '—'}</Text>
+              <Text style={styles.value}>
+                {[formData.tireDOT?.br?.code, formData.tireDOT?.br?.week && `W${formData.tireDOT?.br?.week}`, formData.tireDOT?.br?.year, formData.tireDOT?.br?.plant].filter(Boolean).join(' | ') || '—'}
+              </Text>
             </View>
             <View style={styles.col}>
               <Text style={styles.label}>TIRE DOT - BL (BACK LEFT)</Text>
-              <Text style={styles.value}>{formData.tireDOT?.bl?.code || '—'}</Text>
+              <Text style={styles.value}>
+                {[formData.tireDOT?.bl?.code, formData.tireDOT?.bl?.week && `W${formData.tireDOT?.bl?.week}`, formData.tireDOT?.bl?.year, formData.tireDOT?.bl?.plant].filter(Boolean).join(' | ') || '—'}
+              </Text>
             </View>
           </View>
 
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>TIRE DOT - SPARE</Text>
-              <Text style={styles.value}>{formData.tireDOT?.spare?.code || '—'}</Text>
+              <Text style={styles.value}>
+                {[formData.tireDOT?.spare?.code, formData.tireDOT?.spare?.week && `W${formData.tireDOT?.spare?.week}`, formData.tireDOT?.spare?.year, formData.tireDOT?.spare?.plant].filter(Boolean).join(' | ') || '—'}
+              </Text>
             </View>
           </View>
         </View>
@@ -590,7 +773,29 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
               <Text style={styles.label}>SUITABLE FOR STRAIGHTENING</Text>
               <Text style={styles.value}>{getSuitabilityLabel(formData.suitability?.straightening)}</Text>
             </View>
+            <View style={styles.col}>
+              <Text style={styles.label}>SUITABLE FOR WELDING</Text>
+              <Text style={styles.value}>{getSuitabilityLabel(formData.suitability?.welding)}</Text>
+            </View>
           </View>
+          <View style={styles.row}>
+            <View style={styles.col}>
+              <Text style={styles.label}>SUITABLE FOR DIAMOND CUTTING</Text>
+              <Text style={styles.value}>{getSuitabilityLabel(formData.suitability?.diamondCutting)}</Text>
+            </View>
+          </View>
+          {(hasValue(formData.suitability?.notes) || hasValue(formData.suitability?.recommendations)) && (
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>SUITABILITY NOTES</Text>
+                <Text style={styles.multiLineValue}>{formData.suitability?.notes || '-'}</Text>
+              </View>
+              <View style={styles.col}>
+                <Text style={styles.label}>RECOMMENDATIONS</Text>
+                <Text style={styles.multiLineValue}>{formData.suitability?.recommendations || '-'}</Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* ADDITIONAL INFORMATION */}
@@ -648,6 +853,32 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
               {formData.mustKnowAccepted ? '☑' : '☐'} I acknowledge and understand all the above points *
             </Text>
           </View>
+          {formData.clientUpdate?.mustKnows && (
+            <View style={{ marginTop: 8 }}>
+              <Text style={styles.label}>CLIENT MUST-KNOW ACKNOWLEDGEMENTS</Text>
+              <Text style={styles.termsContent}>
+                {formData.clientUpdate.mustKnows.processExplained ? '☑' : '☐'} Process explained
+              </Text>
+              <Text style={styles.termsContent}>
+                {formData.clientUpdate.mustKnows.clientRiskAcceptance ? '☑' : '☐'} Risk acceptance confirmed
+              </Text>
+              <Text style={styles.termsContent}>
+                {formData.clientUpdate.mustKnows.personalBelongings ? '☑' : '☐'} Personal belongings disclosure
+              </Text>
+              <Text style={styles.termsContent}>
+                {formData.clientUpdate.mustKnows.timelineEstimates ? '☑' : '☐'} Timeline estimate acknowledged
+              </Text>
+              <Text style={styles.termsContent}>
+                {formData.clientUpdate.mustKnows.fullPaymentRequired ? '☑' : '☐'} Full payment requirement acknowledged
+              </Text>
+              <Text style={styles.termsContent}>
+                {formData.clientUpdate.mustKnows.storageFees ? '☑' : '☐'} Storage fee notice acknowledged
+              </Text>
+              <Text style={styles.termsContent}>
+                {formData.clientUpdate.mustKnows.storageRisk ? '☑' : '☐'} Storage risk acknowledged
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* CLIENT UPDATE - Service Risks */}
@@ -679,7 +910,7 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
                 • We do not guarantee results if the disc has been skimmed before or has unknown machining history.
               </Text>
               <Text style={{ marginTop: 5, fontSize: 8 }}>
-                {formData.clientUpdate?.brakeDiscSkimming ? '☑ Accepted' : '☐ Not Accepted'}
+                {resolveRiskAcknowledgement('brakeDiscSkimming') ? '☑ Accepted' : '☐ Not Accepted'}
               </Text>
             </View>
           )}
@@ -712,7 +943,7 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
                 • Customer aesthetic dissatisfaction not a valid claim
               </Text>
               <Text style={{ marginTop: 5, fontSize: 8 }}>
-                {formData.clientUpdate?.powderCoating ? '☑ Accepted' : '☐ Not Accepted'}
+                {resolveRiskAcknowledgement('powderCoating') ? '☑ Accepted' : '☐ Not Accepted'}
               </Text>
             </View>
           )}
@@ -745,7 +976,7 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
                 • Rims may crack during straightening
               </Text>
               <Text style={{ marginTop: 5, fontSize: 8 }}>
-                {formData.clientUpdate?.straightening ? '☑ Accepted' : '☐ Not Accepted'}
+                {resolveRiskAcknowledgement('straightening') ? '☑ Accepted' : '☐ Not Accepted'}
               </Text>
             </View>
           )}
@@ -774,25 +1005,25 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
           )}
         </View>
 
-        {/* AGENT DETAILS */}
+        {/* STAFF DETAILS */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>AGENT DETAILS</Text>
+          <Text style={styles.sectionTitle}>STAFF DETAILS</Text>
           
           <View style={styles.row}>
             <View style={styles.col}>
-              <Text style={styles.label}>FIRST NAME</Text>
-              <Text style={styles.value}>{formData.agentDetails?.firstName || '—'}</Text>
+              <Text style={styles.label}>INSPECTOR NAME</Text>
+              <Text style={styles.value}>{formData.inspectorName || '-'}</Text>
             </View>
             <View style={styles.col}>
-              <Text style={styles.label}>LAST NAME</Text>
-              <Text style={styles.value}>{formData.agentDetails?.lastName || '—'}</Text>
+              <Text style={styles.label}>CUSTOMER SERVICE REP</Text>
+              <Text style={styles.value}>{formData.serviceIntake?.customerServiceRep || '-'}</Text>
             </View>
           </View>
 
           <View style={styles.row}>
             <View style={styles.col}>
-              <Text style={styles.label}>ID NUMBER</Text>
-              <Text style={styles.value}>{formData.agentDetails?.idNumber || '—'}</Text>
+              <Text style={styles.label}>INSPECTED BY (USER ID)</Text>
+              <Text style={styles.value}>{formData.inspectedBy || '-'}</Text>
             </View>
           </View>
         </View>
@@ -852,6 +1083,28 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>ADDITIONAL REMARKS</Text>
             <Text style={styles.multiLineValue}>{formData.remarks}</Text>
+          </View>
+        )}
+
+        {hasItems(formData.inspectionItems) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>INSPECTION ITEMS</Text>
+            {formData.inspectionItems.map((item: any, index: number) => (
+              <Text key={`${item?._id || index}`} style={styles.termsContent}>
+                {index + 1}. {item?.item || 'Inspection item'} | Status: {item?.status || 'pending'}{item?.remarks ? ` | Remarks: ${item.remarks}` : ''}
+              </Text>
+            ))}
+          </View>
+        )}
+
+        {hasItems(formData.files) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>ATTACHED FILES</Text>
+            {formData.files.map((file: any, index: number) => (
+              <Text key={`${file?._id || index}`} style={styles.termsContent}>
+                {index + 1}. {file?.originalName || file?.filename || 'Attachment'}
+              </Text>
+            ))}
           </View>
         )}
 
