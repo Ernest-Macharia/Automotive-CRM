@@ -2064,13 +2064,110 @@ export default function DiamondRimsPreChecklistCreatePage({
         return candidate && isValidObjectId(candidate) ? candidate : '';
       };
 
-      const resolvedOpportunityId =
+      const resolveOpportunityContextId = async (): Promise<string> => {
+        const fullName =
+          `${formData.customerDetails.firstName} ${formData.customerDetails.lastName}`.trim() ||
+          (formData.customerDetails.name || '').trim() ||
+          'Checklist Client';
+        const rawPhone = String(formData.customerDetails.mobile || '').trim();
+        const rawEmail = String(formData.customerDetails.email || '').trim();
+        const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail : '';
+        const selectedServices = formData.services.actualService.filter(Boolean);
+
+        try {
+          const hasLookupInput = Boolean(fullName || rawPhone || validEmail);
+          if (hasLookupInput) {
+            const similarOpportunities = await opportunityService.findSimilarOpportunities({
+              customerName: fullName || undefined,
+              customerPhone: rawPhone || undefined,
+              customerEmail: validEmail || undefined,
+              limit: 10,
+            });
+            const matchedOpportunity = (similarOpportunities || []).find((candidate: any) => normalizeId(candidate));
+            const matchedOpportunityId = normalizeId(matchedOpportunity);
+
+            if (matchedOpportunityId) {
+              setOpportunity(matchedOpportunity);
+              const matchedVehicle = matchedOpportunity?.vehicles?.[0] || null;
+              const matchedVehicleId = normalizeId(matchedVehicle);
+              setVehicle(matchedVehicle);
+              setFormData((prev) => ({
+                ...prev,
+                opportunityId: matchedOpportunityId,
+                vehicleId: prev.vehicleId || matchedVehicleId || '',
+              }));
+              showToast('Linked checklist to existing client opportunity.', 'info');
+              return matchedOpportunityId;
+            }
+          }
+        } catch (lookupError) {
+          console.error('Error finding similar opportunities for checklist submission:', lookupError);
+        }
+
+        const subjectSegments = ['Pre-Checklist', formData.carDetails.licensePlate?.trim(), fullName].filter(Boolean);
+        const createdOpportunity = await opportunityService.createOpportunity(
+          {
+            type: 'individual',
+            subject: subjectSegments.join(' - '),
+            status: 'new',
+            source: 'walk_in',
+            opportunityType: 'SERVICE',
+            customer: {
+              name: fullName,
+              phone: rawPhone || undefined,
+              email: validEmail || undefined,
+            },
+            vehicles: [
+              {
+                registrationNumber: formData.carDetails.licensePlate || undefined,
+                licensePlate: formData.carDetails.licensePlate || undefined,
+                make: formData.carDetails.carMake || 'Unknown',
+                model: formData.carDetails.carModel || 'Unknown',
+                year: formData.carDetails.yearOfManufacture || undefined,
+                color: formData.carDetails.color || undefined,
+                engineSize: formData.carDetails.engineSize || undefined,
+                fuelType: formData.carDetails.fuelType || undefined,
+                mileage: formData.carDetails.mileage || undefined,
+              },
+            ],
+            notes:
+              selectedServices.length > 0
+                ? `Pre-checklist services: ${selectedServices.join(', ')}`
+                : 'Pre-checklist created from checklist form',
+            assignedTo: sessionStorage.getItem('userId') || undefined,
+          },
+          sessionStorage.getItem('userId') || undefined
+        );
+
+        const createdOpportunityId = normalizeId(createdOpportunity);
+        if (!createdOpportunityId) {
+          return '';
+        }
+
+        const createdVehicle = createdOpportunity?.vehicles?.[0] || null;
+        const createdVehicleId = normalizeId(createdVehicle);
+        setOpportunity(createdOpportunity);
+        setVehicle(createdVehicle);
+        setFormData((prev) => ({
+          ...prev,
+          opportunityId: createdOpportunityId,
+          vehicleId: prev.vehicleId || createdVehicleId || '',
+        }));
+        showToast('Created and linked a client opportunity for this checklist.', 'info');
+        return createdOpportunityId;
+      };
+
+      let resolvedOpportunityId =
         normalizeId(formData.opportunityId) ||
         normalizeId(opportunityId) ||
         normalizeId(opportunity);
 
       if (!resolvedOpportunityId) {
-        showToast('Opportunity information is missing. Reload the checklist and try again.', 'error');
+        resolvedOpportunityId = await resolveOpportunityContextId();
+      }
+
+      if (!resolvedOpportunityId) {
+        showToast('Unable to resolve or create an opportunity for this checklist. Please review customer details and try again.', 'error');
         setSubmitting(false);
         return;
       }
