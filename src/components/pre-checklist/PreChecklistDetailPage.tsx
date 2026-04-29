@@ -237,6 +237,39 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     ).toBlob();
   }, [getChecklistVariant]);
 
+  const blobToBase64 = useCallback((blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = typeof reader.result === 'string' ? reader.result : '';
+        const normalized = result.includes(',') ? result.split(',')[1] : result;
+        resolve(normalized);
+      };
+      reader.onerror = () => reject(new Error('Failed to serialize PDF attachment'));
+      reader.readAsDataURL(blob);
+    });
+  }, []);
+
+  const normalizeApiErrorMessage = useCallback((error: unknown): string => {
+    const raw = String((error as any)?.message || '').trim();
+    if (!raw) return 'Failed to send checklist email';
+
+    const withoutPrefix = raw.replace(/^API Error \(\d{3}\):\s*/i, '').trim();
+    if (withoutPrefix.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(withoutPrefix);
+        const parsedMessage = parsed?.message || parsed?.error || parsed?.statusCode;
+        if (parsedMessage) {
+          return String(parsedMessage);
+        }
+      } catch {
+        // Keep original message when payload isn't valid JSON.
+      }
+    }
+
+    return withoutPrefix || 'Failed to send checklist email';
+  }, []);
+
   const buildCustomerEmailMessage = useCallback((entry: PreChecklist) => {
     const variant = getChecklistVariant(entry);
     const companyName = variant === 'diamond_rims' ? 'Diamond Rimz' : 'Eagle Lights';
@@ -411,12 +444,26 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
           : '') ||
         'Service Intake';
 
+      let pdfBase64: string | undefined;
+      try {
+        const attachmentBlob = await buildChecklistPdfBlob(checklist);
+        pdfBase64 = await blobToBase64(attachmentBlob);
+      } catch (attachmentError) {
+        console.warn('Failed to pre-build local PDF attachment, continuing with server-side email flow:', attachmentError);
+      }
+
+      const fileSafeCustomerName = customerName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+      const fileSafeVehicle = vehicleLabel.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+
       const response = await preChecklistService.sendChecklistCopyEmail(checklist._id, {
         email: recipient,
         subject: `SERVICE INTAKE FORM - ${customerName} - ${vehicleLabel}`,
         message: buildCustomerEmailMessage(checklist),
         includePdf: true,
         includeSecureLink: false,
+        pdfBase64,
+        pdfFilename: `SERVICE-INTAKE-${fileSafeCustomerName || 'CLIENT'}-${fileSafeVehicle || 'VEHICLE'}.pdf`,
+        pdfMimeType: 'application/pdf',
       });
 
       if (!response.success) {
@@ -430,7 +477,7 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
       }
     } catch (error) {
       console.error('Error sending checklist email:', error);
-      showToast('Failed to send checklist email', 'error');
+      showToast(normalizeApiErrorMessage(error), 'error');
     } finally {
       setUpdating(false);
     }
