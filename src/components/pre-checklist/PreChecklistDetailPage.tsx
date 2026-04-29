@@ -214,6 +214,10 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     const variant = getChecklistVariant(entry);
     const companyName = variant === 'diamond_rims' ? 'Diamond Rimz' : 'Eagle Lights';
     const teamName = variant === 'diamond_rims' ? 'Diamond Rimz Team' : 'Eagle Lights Team';
+    const supportLine =
+      variant === 'diamond_rims'
+        ? 'Our team will now proceed as agreed. Kindly note that our Terms and Conditions apply to all services rendered. If you have any questions or follow-up requests, feel free to contact us via WhatsApp or phone at 0758 735 982.'
+        : 'Our team will now proceed as agreed. Kindly note that our Terms and Conditions apply to all services rendered. If you have any questions or follow-up requests, feel free to contact us.';
     const customerName =
       `${entry.customerDetails?.firstName || ''} ${entry.customerDetails?.lastName || ''}`.trim() ||
       (typeof entry.opportunityId === 'object' ? entry.opportunityId?.customer?.name : '') ||
@@ -226,7 +230,7 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
       '',
       'Attached is a copy of the signed service intake form for your records.',
       '',
-      'Our team will now proceed as agreed. Kindly note that our Terms and Conditions apply to all services rendered. If you have any questions or follow-up requests, feel free to contact us.',
+      supportLine,
       '',
       'Kind regards,',
       teamName,
@@ -385,8 +389,12 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
         subject: `SERVICE INTAKE FORM - ${customerName} - ${vehicleLabel}`,
         message: buildCustomerEmailMessage(checklist),
         includePdf: true,
-        includeSecureLink: true,
+        includeSecureLink: false,
       });
+
+      if (!response.success) {
+        throw new Error(response.message || 'Checklist email endpoint returned unsuccessful response');
+      }
 
       if (response.fallbackUsed) {
         showToast('Checklist email sent using approval flow fallback', 'info');

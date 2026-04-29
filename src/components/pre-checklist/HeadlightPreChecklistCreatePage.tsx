@@ -1169,8 +1169,12 @@ export default function HeadlightPreChecklistCreatePage({
           'Eagle Lights Team',
         ].join('\n'),
         includePdf: true,
-        includeSecureLink: true,
+        includeSecureLink: false,
       });
+
+      if (!response.success) {
+        throw new Error(response.message || 'Checklist email endpoint returned unsuccessful response');
+      }
 
       if (response.fallbackUsed) {
         showToast('Client email sent using approval flow fallback', 'info');
@@ -1524,7 +1528,6 @@ export default function HeadlightPreChecklistCreatePage({
         return;
       }
 
-      const isValidObjectId = (value: string): boolean => /^[a-fA-F0-9]{24}$/.test(value);
       const normalizeId = (value: unknown): string => {
         let candidate = '';
         if (typeof value === 'string') {
@@ -1532,8 +1535,20 @@ export default function HeadlightPreChecklistCreatePage({
         } else if (value && typeof value === 'object') {
           candidate = String((value as any)._id || (value as any).id || '').trim();
         }
-        return candidate && isValidObjectId(candidate) ? candidate : '';
+        if (!candidate) {
+          return '';
+        }
+        const lowered = candidate.toLowerCase();
+        if (lowered === 'undefined' || lowered === 'null' || lowered === 'nan' || lowered === '[object object]') {
+          return '';
+        }
+        return candidate;
       };
+
+      const normalizePhoneValue = (value: unknown): string =>
+        String(value || '')
+          .replace(/[^\d]/g, '')
+          .trim();
 
       const resolveOpportunityContextId = async (): Promise<string> => {
         const fullName =
@@ -1543,35 +1558,150 @@ export default function HeadlightPreChecklistCreatePage({
         const rawPhone = String(formData.customerDetails.mobile || '').trim();
         const rawEmail = String(formData.customerDetails.email || '').trim();
         const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail : '';
+        const normalizedPhone = normalizePhoneValue(rawPhone);
+        const normalizedEmail = validEmail.toLowerCase();
+        const normalizedName = fullName.toLowerCase();
+        const normalizedPlate = String(formData.carDetails.licensePlate || '').trim().toLowerCase();
 
-        try {
-          const hasLookupInput = Boolean(fullName || rawPhone || validEmail);
-          if (hasLookupInput) {
-            const similarOpportunities = await opportunityService.findSimilarOpportunities({
-              customerName: fullName || undefined,
-              customerPhone: rawPhone || undefined,
-              customerEmail: validEmail || undefined,
-              limit: 10,
-            });
-            const matchedOpportunity = (similarOpportunities || []).find((candidate: any) => normalizeId(candidate));
-            const matchedOpportunityId = normalizeId(matchedOpportunity);
+        const collectOpportunityCandidates = async (): Promise<any[]> => {
+          const collected: any[] = [];
+          const seen = new Set<string>();
 
-            if (matchedOpportunityId) {
-              setOpportunity(matchedOpportunity);
-              const matchedVehicle = matchedOpportunity?.vehicles?.[0] || null;
-              const matchedVehicleId = normalizeId(matchedVehicle);
-              setVehicle(matchedVehicle);
-              setFormData((prev) => ({
-                ...prev,
-                opportunityId: matchedOpportunityId,
-                vehicleId: prev.vehicleId || matchedVehicleId || '',
-              }));
-              showToast('Linked checklist to existing client opportunity.', 'info');
-              return matchedOpportunityId;
+          const pushCandidates = (candidates: any[]) => {
+            for (const candidate of candidates) {
+              const candidateId = normalizeId(candidate);
+              if (!candidateId || seen.has(candidateId)) {
+                continue;
+              }
+              seen.add(candidateId);
+              collected.push(candidate);
+            }
+          };
+
+          try {
+            const hasLookupInput = Boolean(fullName || rawPhone || validEmail);
+            if (hasLookupInput) {
+              const similarOpportunities = await opportunityService.findSimilarOpportunities({
+                customerName: fullName || undefined,
+                customerPhone: rawPhone || undefined,
+                customerEmail: validEmail || undefined,
+                limit: 10,
+              });
+              pushCandidates(similarOpportunities || []);
+            }
+          } catch (lookupError) {
+            console.error('Error finding similar opportunities for checklist submission:', lookupError);
+          }
+
+          try {
+            if (rawPhone || validEmail || fullName) {
+              const duplicateCheck = await opportunityService.checkForDuplicatesSimple({
+                phone: rawPhone || undefined,
+                email: validEmail || undefined,
+                firstName: formData.customerDetails.firstName || undefined,
+                lastName: formData.customerDetails.lastName || undefined,
+              });
+              pushCandidates(duplicateCheck.existingOpportunities || []);
+            }
+          } catch (duplicateLookupError) {
+            console.error('Error checking duplicate opportunities during checklist submission:', duplicateLookupError);
+          }
+
+          const searchTerms = Array.from(
+            new Set(
+              [rawPhone, validEmail, fullName, formData.carDetails.licensePlate]
+                .map((term) => String(term || '').trim())
+                .filter((term) => term.length >= 3)
+            )
+          ).slice(0, 4);
+
+          for (const term of searchTerms) {
+            try {
+              const response = await opportunityService.searchOpportunities(term);
+              pushCandidates(response?.data || []);
+            } catch (searchError) {
+              console.error(`Error searching opportunities with term "${term}":`, searchError);
             }
           }
-        } catch (lookupError) {
-          console.error('Error finding similar opportunities for checklist submission:', lookupError);
+
+          return collected;
+        };
+
+        const scoreOpportunityCandidate = (candidate: any): number => {
+          const candidateCustomer = candidate?.customer || {};
+          const candidatePhone = normalizePhoneValue(
+            candidateCustomer.phone ||
+              candidateCustomer.secondaryPhone ||
+              candidateCustomer.companyPhone ||
+              ''
+          );
+          const candidateEmail = String(candidateCustomer.email || candidateCustomer.companyEmail || '')
+            .trim()
+            .toLowerCase();
+          const candidateName = String(candidateCustomer.name || '').trim().toLowerCase();
+          const candidatePlateMatch = Array.isArray(candidate?.vehicles)
+            ? candidate.vehicles.some((vehicle: any) => {
+                const registration = String(
+                  vehicle?.registrationNumber || vehicle?.licensePlate || ''
+                )
+                  .trim()
+                  .toLowerCase();
+                return Boolean(normalizedPlate && registration && registration === normalizedPlate);
+              })
+            : false;
+
+          let score = 0;
+
+          if (
+            normalizedPhone &&
+            candidatePhone &&
+            (candidatePhone.endsWith(normalizedPhone) || normalizedPhone.endsWith(candidatePhone))
+          ) {
+            score += 120;
+          }
+
+          if (normalizedEmail && candidateEmail && candidateEmail === normalizedEmail) {
+            score += 100;
+          }
+
+          if (normalizedPlate && candidatePlateMatch) {
+            score += 80;
+          }
+
+          if (normalizedName && candidateName) {
+            if (candidateName === normalizedName) {
+              score += 70;
+            } else if (candidateName.includes(normalizedName) || normalizedName.includes(candidateName)) {
+              score += 40;
+            }
+          }
+
+          return score;
+        };
+
+        const candidateOpportunities = await collectOpportunityCandidates();
+        const bestOpportunityMatch = candidateOpportunities
+          .map((candidate) => ({ candidate, score: scoreOpportunityCandidate(candidate) }))
+          .sort((left, right) => right.score - left.score)[0];
+
+        const matchedOpportunity =
+          bestOpportunityMatch && (bestOpportunityMatch.score >= 80 || candidateOpportunities.length === 1)
+            ? bestOpportunityMatch.candidate
+            : null;
+        const matchedOpportunityId = normalizeId(matchedOpportunity);
+
+        if (matchedOpportunityId) {
+          setOpportunity(matchedOpportunity);
+          const matchedVehicle = matchedOpportunity?.vehicles?.[0] || null;
+          const matchedVehicleId = normalizeId(matchedVehicle);
+          setVehicle(matchedVehicle);
+          setFormData((prev) => ({
+            ...prev,
+            opportunityId: matchedOpportunityId,
+            vehicleId: prev.vehicleId || matchedVehicleId || '',
+          }));
+          showToast('Linked checklist to existing client opportunity.', 'info');
+          return matchedOpportunityId;
         }
 
         const subjectSegments = ['Pre-Checklist', formData.carDetails.licensePlate?.trim(), fullName].filter(Boolean);
