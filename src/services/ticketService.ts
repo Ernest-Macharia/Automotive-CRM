@@ -1,6 +1,6 @@
 import { apiClient } from '@/lib/api/client';
 
-export type TicketStatus = 'open' | 'queued' | 'in_progress' | 'resolved' | 'closed' | string;
+export type TicketStatus = 'new' | 'open' | 'queued' | 'in_progress' | 'resolved' | 'closed' | string;
 export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent' | string;
 
 export interface TicketReply {
@@ -73,6 +73,42 @@ export interface AddTicketReplyData {
 
 class TicketService {
   private basePath = '/tickets';
+
+  private getErrorStatus(error: unknown): number | undefined {
+    if (!error || typeof error !== 'object') return undefined;
+    const status = (error as { status?: unknown }).status;
+    return typeof status === 'number' ? status : undefined;
+  }
+
+  private async tryMutationWithFallback(
+    attempts: Array<() => Promise<unknown>>,
+    operation: string
+  ): Promise<unknown> {
+    let lastError: unknown;
+
+    for (let index = 0; index < attempts.length; index += 1) {
+      const attempt = attempts[index];
+      try {
+        return await attempt();
+      } catch (error) {
+        lastError = error;
+        const status = this.getErrorStatus(error);
+        const isLastAttempt = index === attempts.length - 1;
+
+        if (isLastAttempt) {
+          break;
+        }
+
+        // Keep trying compatible endpoints/payload formats for common API mismatches.
+        if (status !== undefined && status < 400) {
+          break;
+        }
+      }
+    }
+
+    console.error(`All fallback attempts failed for ${operation}.`, lastError);
+    throw lastError;
+  }
 
   private asRecord(value: unknown): Record<string, unknown> {
     return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
@@ -207,9 +243,54 @@ class TicketService {
 
   async queueTicket(id: string, data: UpdateTicketQueueData = {}): Promise<Ticket> {
     try {
-      const response = await apiClient.patch<UpdateTicketQueueData, unknown>(
-        `${this.basePath}/${id}/queue`,
-        data
+      const normalizedQueue = data.queue?.trim();
+      const queuePayload: UpdateTicketQueueData = {
+        ...(normalizedQueue ? { queue: normalizedQueue } : {}),
+        ...(data.note ? { note: data.note } : {}),
+      };
+
+      const response = await this.tryMutationWithFallback(
+        [
+          () =>
+            apiClient.patch<UpdateTicketQueueData, unknown>(
+              `${this.basePath}/${id}/queue`,
+              queuePayload
+            ),
+          () =>
+            apiClient.post<UpdateTicketQueueData, unknown>(
+              `${this.basePath}/${id}/queue`,
+              queuePayload
+            ),
+          () =>
+            apiClient.patch<UpdateTicketStatusData, unknown>(
+              `${this.basePath}/${id}/status`,
+              { status: 'queued', ...(data.note ? { note: data.note } : {}) }
+            ),
+          () =>
+            apiClient.patch<Record<string, never>, unknown>(
+              `${this.basePath}/${id}/status/queued`,
+              {}
+            ),
+          () =>
+            apiClient.patch<Record<string, unknown>, unknown>(
+              `${this.basePath}/${id}`,
+              {
+                status: 'queued',
+                ...(normalizedQueue ? { queue: normalizedQueue } : {}),
+                ...(data.note ? { note: data.note } : {}),
+              }
+            ),
+          () =>
+            apiClient.put<Record<string, unknown>, unknown>(
+              `${this.basePath}/${id}`,
+              {
+                status: 'queued',
+                ...(normalizedQueue ? { queue: normalizedQueue } : {}),
+                ...(data.note ? { note: data.note } : {}),
+              }
+            ),
+        ],
+        `queueing ticket ${id}`
       );
       return this.normalizeTicket(this.unwrapTicketPayload(response));
     } catch (error) {
@@ -220,9 +301,37 @@ class TicketService {
 
   async updateTicketStatus(id: string, data: UpdateTicketStatusData): Promise<Ticket> {
     try {
-      const response = await apiClient.patch<UpdateTicketStatusData, unknown>(
-        `${this.basePath}/${id}/status`,
-        data
+      const normalizedStatus = (data.status || '').toString().trim().toLowerCase() || 'open';
+      const notePayload = data.note ? { note: data.note } : {};
+      const response = await this.tryMutationWithFallback(
+        [
+          () =>
+            apiClient.patch<UpdateTicketStatusData, unknown>(
+              `${this.basePath}/${id}/status`,
+              { status: normalizedStatus, ...notePayload }
+            ),
+          () =>
+            apiClient.patch<Record<string, unknown>, unknown>(
+              `${this.basePath}/${id}/status/${encodeURIComponent(normalizedStatus)}`,
+              notePayload
+            ),
+          () =>
+            apiClient.put<UpdateTicketStatusData, unknown>(
+              `${this.basePath}/${id}/status`,
+              { status: normalizedStatus, ...notePayload }
+            ),
+          () =>
+            apiClient.patch<Record<string, unknown>, unknown>(
+              `${this.basePath}/${id}`,
+              { status: normalizedStatus, ...notePayload }
+            ),
+          () =>
+            apiClient.put<Record<string, unknown>, unknown>(
+              `${this.basePath}/${id}`,
+              { status: normalizedStatus, ...notePayload }
+            ),
+        ],
+        `updating status for ticket ${id}`
       );
       return this.normalizeTicket(this.unwrapTicketPayload(response));
     } catch (error) {

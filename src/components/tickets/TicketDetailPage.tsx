@@ -11,6 +11,15 @@ interface TicketDetailPageProps {
   id: string;
 }
 
+const STATUS_OPTIONS = [
+  { value: 'new', label: 'New' },
+  { value: 'open', label: 'Open' },
+  { value: 'queued', label: 'Queued' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'resolved', label: 'Resolved' },
+  { value: 'closed', label: 'Closed' },
+];
+
 export default function TicketDetailPage({ id }: TicketDetailPageProps) {
   const router = useRouter();
   const { showToast } = useToast();
@@ -21,7 +30,7 @@ export default function TicketDetailPage({ id }: TicketDetailPageProps) {
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reply, setReply] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('open');
+  const [selectedStatus, setSelectedStatus] = useState('new');
 
   const roleName = useMemo(() => {
     const role = (user as unknown as { role?: unknown } | null)?.role;
@@ -39,6 +48,14 @@ export default function TicketDetailPage({ id }: TicketDetailPageProps) {
     if (!error || typeof error !== 'object') return undefined;
     const maybeStatus = (error as { status?: unknown }).status;
     return typeof maybeStatus === 'number' ? maybeStatus : undefined;
+  };
+
+  const getErrorMessage = (error: unknown, fallback: string): string => {
+    if (error instanceof Error) {
+      const trimmed = error.message.trim();
+      if (trimmed) return trimmed;
+    }
+    return fallback;
   };
 
   const loadTicket = useCallback(async () => {
@@ -99,10 +116,11 @@ export default function TicketDetailPage({ id }: TicketDetailPageProps) {
       setSaving(true);
       const updated = await ticketService.updateTicketStatus(id, { status: selectedStatus });
       setTicket(updated);
+      setSelectedStatus(updated.status || selectedStatus);
       showToast('Ticket status updated', 'success');
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error updating status:', error);
-      showToast('Failed to update ticket status', 'error');
+      showToast(getErrorMessage(error, 'Failed to update ticket status'), 'error');
     } finally {
       setSaving(false);
     }
@@ -111,12 +129,13 @@ export default function TicketDetailPage({ id }: TicketDetailPageProps) {
   const handleQueueTicket = async () => {
     try {
       setSaving(true);
-      const updated = await ticketService.queueTicket(id, { queue: 'default' });
+      const updated = await ticketService.queueTicket(id, {});
       setTicket(updated);
+      setSelectedStatus(updated.status || 'queued');
       showToast('Ticket queued', 'success');
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error queueing ticket:', error);
-      showToast('Failed to queue ticket', 'error');
+      showToast(getErrorMessage(error, 'Failed to queue ticket'), 'error');
     } finally {
       setSaving(false);
     }
@@ -135,6 +154,10 @@ export default function TicketDetailPage({ id }: TicketDetailPageProps) {
   }
 
   const replies: TicketReply[] = ticket.replies || [];
+  const normalizedSelectedStatus = (selectedStatus || '').toLowerCase();
+  const statusOptions = STATUS_OPTIONS.some(option => option.value === normalizedSelectedStatus)
+    ? STATUS_OPTIONS
+    : [{ value: normalizedSelectedStatus, label: ticket.status || normalizedSelectedStatus }, ...STATUS_OPTIONS];
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
@@ -217,11 +240,11 @@ export default function TicketDetailPage({ id }: TicketDetailPageProps) {
                   onChange={e => setSelectedStatus(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 >
-                  <option value="open">Open</option>
-                  <option value="queued">Queued</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="resolved">Resolved</option>
-                  <option value="closed">Closed</option>
+                  {statusOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
                 <button
                   onClick={handleUpdateStatus}
