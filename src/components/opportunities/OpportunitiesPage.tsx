@@ -1593,34 +1593,21 @@ export default function OpportunitiesContent() {
       }
 
       // Phone numbers can be stored in multiple formats (+254..., 254..., 0...).
-      // Retry with alternate normalized variants so older prospects remain discoverable.
-      if ((params.search || params.customerPhone) && response.data.length === 0 && params.customerPhone) {
-        const primaryPhone = String(params.customerPhone);
-        const alternatePhoneCandidates = buildPhoneSearchCandidates(primaryPhone).filter(
-          (candidate) => candidate !== primaryPhone,
-        );
+      // If lookup yields no rows, retry phone-like terms via plain text search
+      // variants to maximize match rate across inconsistent historical formats.
+      const phoneLookupSeed =
+        String(params.customerPhone || '').trim() ||
+        (isPhoneOnlySearchInput(params.search) ? String(params.search || '').trim() : '');
 
-        for (const candidate of alternatePhoneCandidates) {
-          const fallbackParams: FilterParams = {
-            ...params,
-            customerPhone: candidate,
-          };
-
-          const fallbackResponse = await fetchListResponse(fallbackParams);
-
-          if (fallbackResponse.data.length > 0) {
-            response = fallbackResponse;
-            break;
-          }
-        }
-      }
-
-      // Some backend deployments index phone lookups primarily through `search`
-      // instead of `customerPhone`. Try a text-search fallback before concluding
-      // no matches.
-      if (response.data.length === 0 && params.customerPhone && !params.search) {
+      if (response.data.length === 0 && phoneLookupSeed) {
         const phoneSearchCandidates = Array.from(
-          new Set([String(params.customerPhone), ...buildPhoneSearchCandidates(String(params.customerPhone))]),
+          new Set([
+            phoneLookupSeed,
+            ...buildPhoneSearchCandidates(phoneLookupSeed),
+            ...buildPhoneSearchCandidates(phoneLookupSeed).map((candidate) =>
+              candidate.startsWith('254') ? `+${candidate}` : candidate,
+            ),
+          ]),
         );
 
         for (const candidate of phoneSearchCandidates) {
@@ -1926,10 +1913,6 @@ export default function OpportunitiesContent() {
       options: { forceFetchWhenUnchanged?: boolean } = {},
     ) => {
       const trimmedSearch = rawSearchValue.trim();
-      const phoneCandidates = buildPhoneSearchCandidates(trimmedSearch);
-      const phoneSearch = phoneCandidates[0];
-      const isPhoneOnlySearch = isPhoneOnlySearchInput(trimmedSearch);
-
       if (!trimmedSearch) {
         setFilters((prev) => {
           if (!prev.search && !prev.customerPhone && prev.page === 1) {
@@ -1946,8 +1929,11 @@ export default function OpportunitiesContent() {
         return;
       }
 
-      const nextSearch = isPhoneOnlySearch ? undefined : trimmedSearch;
-      const nextPhone = phoneSearch;
+      // Route numeric and text inputs through the same backend `search` flow.
+      // Numeric-only queries previously used `customerPhone`, which can stall
+      // on some deployments and leave the UI stuck on "Searching...".
+      const nextSearch = trimmedSearch;
+      const nextPhone = undefined;
       const hasSearchStateChanged =
         filters.search !== nextSearch ||
         filters.customerPhone !== nextPhone ||
@@ -1957,8 +1943,6 @@ export default function OpportunitiesContent() {
         setSearchLoading(true);
         setFilters((prev) => ({
           ...prev,
-          // Phone-only queries should avoid setting text search to prevent
-          // backend AND matching from becoming over-restrictive.
           search: nextSearch,
           customerPhone: nextPhone,
           page: 1,
