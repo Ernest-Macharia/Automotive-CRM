@@ -366,7 +366,6 @@ export default function DiamondRimsPreChecklistCreatePage({
       date: new Date().toISOString().split('T')[0],
       customerServiceRep: sessionStorage.getItem('userName') || '',
       inspectorNotes: '',
-      backendAccessCode: '',
       priorityLevel: 'normal',
       specialInstructions: ''
     },
@@ -496,9 +495,6 @@ export default function DiamondRimsPreChecklistCreatePage({
     declaredValuable: {
       value: false,
       declaredValue: 0,
-      insuranceRequired: false,
-      insuranceProvider: '',
-      policyNumber: '',
       notes: ''
     },
     
@@ -1260,7 +1256,6 @@ export default function DiamondRimsPreChecklistCreatePage({
         date: checklist?.serviceIntake?.date || new Date().toISOString().split('T')[0],
         customerServiceRep: checklist?.serviceIntake?.customerServiceRep || sessionStorage.getItem('userName') || '',
         inspectorNotes: checklist?.serviceIntake?.inspectorNotes || '',
-        backendAccessCode: checklist?.serviceIntake?.backendAccessCode || '',
         priorityLevel: checklist?.serviceIntake?.priorityLevel || 'normal',
         specialInstructions: checklist?.serviceIntake?.specialInstructions || ''
       },
@@ -1390,9 +1385,6 @@ export default function DiamondRimsPreChecklistCreatePage({
       declaredValuable: {
         value: checklist?.declaredValuable?.value ?? !!fallbackDeclaredValuable.value,
         declaredValue: checklist?.declaredValuable?.declaredValue ?? fallbackDeclaredValuable.declaredValue ?? 0,
-        insuranceRequired: checklist?.declaredValuable?.insuranceRequired ?? !!fallbackDeclaredValuable.insuranceRequired,
-        insuranceProvider: checklist?.declaredValuable?.insuranceProvider || fallbackDeclaredValuable.insuranceProvider || '',
-        policyNumber: checklist?.declaredValuable?.policyNumber || fallbackDeclaredValuable.policyNumber || '',
         notes: checklist?.declaredValuable?.notes || fallbackDeclaredValuable.notes || ''
       },
 
@@ -2376,7 +2368,6 @@ export default function DiamondRimsPreChecklistCreatePage({
           date: formData.serviceIntake.date,
           customerServiceRep: formData.serviceIntake.customerServiceRep,
           inspectorNotes: formData.serviceIntake.inspectorNotes,
-          backendAccessCode: formData.serviceIntake.backendAccessCode,
           priorityLevel: formData.serviceIntake.priorityLevel,
           specialInstructions: formData.serviceIntake.specialInstructions
         },
@@ -2436,7 +2427,11 @@ export default function DiamondRimsPreChecklistCreatePage({
           spare: { code: formData.tireDOT.spare.code }
         },
         suitability: formData.suitability,
-        declaredValuable: formData.declaredValuable,
+        declaredValuable: {
+          value: formData.declaredValuable.value,
+          declaredValue: formData.declaredValuable.declaredValue,
+          notes: formData.declaredValuable.notes
+        },
         additionalInformation: formData.additionalInformation,
         mustKnowAccepted: allMustKnowsAcknowledged,
         
@@ -2724,7 +2719,7 @@ export default function DiamondRimsPreChecklistCreatePage({
         ['DIAMOND RIMZ LTD', '', '', '', '', '', ''],
         ['SERVICE INTAKE FORM', '', '', '', '', '', ''],
         ['', '', '', '', '', '', ''],
-        ['CUSTOMER SERVICE:', formData.serviceIntake.customerServiceRep, '', 'DATE:', formData.serviceIntake.date, '', ''],
+        ['INSPECTOR NAME:', formData.serviceIntake.customerServiceRep, '', 'DATE:', formData.serviceIntake.date, '', ''],
         ['', '', '', '', '', '', ''],
         ['CUSTOMER DETAILS', '', '', '', '', '', ''],
         ['Name:', `${formData.customerDetails.firstName} ${formData.customerDetails.lastName}`, '', '', '', '', ''],
@@ -3253,7 +3248,7 @@ export default function DiamondRimsPreChecklistCreatePage({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
                   <label htmlFor="serviceIntake-customerServiceRep" className="block text-sm font-medium text-gray-700 mb-2">
-                    Customer Service Representative <RequiredField />
+                    Inspector Name <RequiredField />
                   </label>
                   <div className="relative" ref={customerServiceDropdownRef}>
                     <div className="relative">
@@ -3274,7 +3269,7 @@ export default function DiamondRimsPreChecklistCreatePage({
                           }
                           setShowCustomerServiceDropdown(true);
                         }}
-                        placeholder="Select or type customer service representative..."
+                        placeholder="Select or type inspector name..."
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 pl-10 pr-8"
                         required
                       />
@@ -3344,7 +3339,7 @@ export default function DiamondRimsPreChecklistCreatePage({
                             />
                           </div>
                           <div className="mt-2 text-xs text-gray-500">
-                            Select a customer service representative
+                            Select the inspector who started this inspection
                           </div>
                         </div>
                         
@@ -3500,7 +3495,7 @@ export default function DiamondRimsPreChecklistCreatePage({
                   
                   {/* Helper text */}
                   <p className="mt-1 text-xs text-gray-500">
-                    Select the customer service representative handling this intake. Defaults to you.
+                    Select the inspector who started this inspection. Defaults to you.
                   </p>
                 </div>
                 <div>
@@ -4826,7 +4821,7 @@ export default function DiamondRimsPreChecklistCreatePage({
                   
                   {formData.declaredValuable.value && (
                     <>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div className="grid grid-cols-1 gap-4 mb-4">
                         <div>
                           <label htmlFor="declaredValuable-declaredValue" className="block text-sm font-medium text-yellow-800 mb-2">
                             Declared Value (KES)
@@ -4840,54 +4835,7 @@ export default function DiamondRimsPreChecklistCreatePage({
                             className="w-full px-3 py-2 border border-yellow-300 rounded-lg"
                           />
                         </div>
-                        
-                        <div>
-                          <label htmlFor="declaredValuable-insuranceRequired" className="block text-sm font-medium text-yellow-800 mb-2">
-                            Insurance Required?
-                          </label>
-                          <select
-                            {...getFieldIdentifiers('declaredValuable.insuranceRequired')}
-                            value={formData.declaredValuable.insuranceRequired ? 'yes' : 'no'}
-                            onChange={(e) => handleNestedInputChange('declaredValuable', 'insuranceRequired', e.target.value === 'yes')}
-                            className="w-full px-3 py-2 border border-yellow-300 rounded-lg"
-                          >
-                            <option value="no">No</option>
-                            <option value="yes">Yes</option>
-                          </select>
-                        </div>
                       </div>
-                      
-                      {formData.declaredValuable.insuranceRequired && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                          <div>
-                            <label htmlFor="declaredValuable-insuranceProvider" className="block text-sm font-medium text-yellow-800 mb-2">
-                              Insurance Provider
-                            </label>
-                            <input
-                              {...getFieldIdentifiers('declaredValuable.insuranceProvider')}
-                              type="text"
-                              value={formData.declaredValuable.insuranceProvider}
-                              onChange={(e) => handleNestedInputChange('declaredValuable', 'insuranceProvider', e.target.value)}
-                              placeholder="Insurance company name"
-                              className="w-full px-3 py-2 border border-yellow-300 rounded-lg"
-                            />
-                          </div>
-                          
-                          <div>
-                            <label htmlFor="declaredValuable-policyNumber" className="block text-sm font-medium text-yellow-800 mb-2">
-                              Policy Number
-                            </label>
-                            <input
-                              {...getFieldIdentifiers('declaredValuable.policyNumber')}
-                              type="text"
-                              value={formData.declaredValuable.policyNumber}
-                              onChange={(e) => handleNestedInputChange('declaredValuable', 'policyNumber', e.target.value)}
-                              placeholder="Policy number"
-                              className="w-full px-3 py-2 border border-yellow-300 rounded-lg"
-                            />
-                          </div>
-                        </div>
-                      )}
                       
                       <div>
                         <label htmlFor="declaredValuable-notes" className="block text-sm font-medium text-yellow-800 mb-2">
