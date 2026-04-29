@@ -2223,7 +2223,7 @@ export default function DiamondRimsPostChecklistCreatePage({
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <label className="block text-sm font-medium text-gray-700">
-                    Client Signature *Required
+                    Client Signature
                   </label>
                   {clientSignature && (
                     <button
