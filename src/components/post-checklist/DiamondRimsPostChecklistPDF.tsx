@@ -1,10 +1,11 @@
-import React from 'react';
+﻿import React from 'react';
 import { 
   Document, 
   Page, 
   Text, 
   View, 
   StyleSheet, 
+  Image,
   Font
 } from '@react-pdf/renderer';
 import { format } from 'date-fns';
@@ -25,12 +26,12 @@ const styles = StyleSheet.create({
   page: {
     flexDirection: 'column',
     backgroundColor: '#FFFFFF',
-    padding: 30,
+    padding: 22,
     fontFamily: 'Helvetica'
   },
   header: {
-    marginBottom: 20,
-    paddingBottom: 15,
+    marginBottom: 14,
+    paddingBottom: 10,
     borderBottomWidth: 2,
     borderBottomColor: '#7c3aed',
     borderBottomStyle: 'solid'
@@ -56,8 +57,8 @@ const styles = StyleSheet.create({
     marginBottom: 10
   },
   section: {
-    marginBottom: 15,
-    padding: 12,
+    marginBottom: 10,
+    padding: 10,
     backgroundColor: '#f8fafc',
     borderRadius: 4,
     borderLeftWidth: 3,
@@ -71,7 +72,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    marginBottom: 6
+    marginBottom: 4
   },
   col: {
     flexDirection: 'column',
@@ -150,22 +151,27 @@ const styles = StyleSheet.create({
     marginBottom: 4
   },
   signatureSection: {
-    marginTop: 15,
-    paddingTop: 15,
+    marginTop: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#d1d5db'
   },
   signatureBox: {
-    height: 60,
+    height: 72,
     borderWidth: 1,
     borderColor: '#d1d5db',
     borderRadius: 4,
     marginTop: 5,
     backgroundColor: '#f9fafb'
   },
+  signatureImage: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'contain'
+  },
   footer: {
-    marginTop: 20,
-    paddingTop: 15,
+    marginTop: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
     fontSize: 8,
@@ -200,6 +206,29 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1e40af',
     marginBottom: 6
+  },
+  mediaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 6
+  },
+  mediaItem: {
+    width: '48%',
+    marginRight: '2%',
+    marginBottom: 8
+  },
+  mediaImage: {
+    width: '100%',
+    height: 120,
+    objectFit: 'cover',
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#d1d5db'
+  },
+  mediaCaption: {
+    fontSize: 8,
+    color: '#6b7280',
+    marginTop: 2
   }
 });
 
@@ -222,7 +251,7 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
   
   // Helper function to format date
   const formatDate = (dateString: string) => {
-    if (!dateString) return '—';
+    if (!dateString) return 'â€”';
     try {
       return format(new Date(dateString), 'dd-MMM-yyyy');
     } catch (error) {
@@ -240,6 +269,31 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
     return array && Array.isArray(array) && array.length > 0;
   };
 
+  const apiBaseUrl = String(process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
+  const normalizeImageSource = (value: unknown): string | null => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith('data:image/')) return trimmed;
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    if (trimmed.startsWith('/') && apiBaseUrl) return `${apiBaseUrl}${trimmed}`;
+    return null;
+  };
+
+  const signatureSrc = normalizeImageSource(formData.signature);
+  const uploadedImageSources = Array.from(
+    new Set(
+      [
+        ...(Array.isArray(formData.uploadedImages) ? formData.uploadedImages : []),
+        ...(Array.isArray(formData.files)
+          ? formData.files.map((file: any) => file?.path || file?.thumbnailPath || file?.url || '').filter(Boolean)
+          : []),
+      ]
+        .map((source) => normalizeImageSource(source))
+        .filter((source): source is string => Boolean(source))
+    )
+  );
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -248,7 +302,7 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
           <Text style={styles.companyName}>DIAMOND RIMZ LTD</Text>
           <Text style={styles.title}>POST-SERVICE CHECKLIST</Text>
           <Text style={styles.subtitle}>
-            Date: {formatDate(formData.date)} | Inspector: {formData.inspectorName || '—'}
+            Date: {formatDate(formData.date)} | Inspector: {formData.inspectorName || 'â€”'}
           </Text>
         </View>
 
@@ -259,11 +313,11 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>DATE</Text>
-              <Text style={styles.value}>{formatDate(formData.date) || '—'}</Text>
+              <Text style={styles.value}>{formatDate(formData.date) || 'â€”'}</Text>
             </View>
             <View style={styles.col}>
               <Text style={styles.label}>INSPECTOR</Text>
-              <Text style={styles.value}>{formData.inspectorName || '—'}</Text>
+              <Text style={styles.value}>{formData.inspectorName || 'â€”'}</Text>
             </View>
           </View>
         </View>
@@ -274,12 +328,12 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
           
           <View style={styles.row}>
             <View style={styles.col}>
-              <Text style={styles.label}>MOBILE *Required</Text>
-              <Text style={styles.value}>{formData.contactDetails?.mobile || '—'}</Text>
+              <Text style={styles.label}>MOBILE </Text>
+              <Text style={styles.value}>{formData.contactDetails?.mobile || 'â€”'}</Text>
             </View>
             <View style={styles.col}>
-              <Text style={styles.label}>EMAIL *Required</Text>
-              <Text style={styles.value}>{formData.contactDetails?.email || '—'}</Text>
+              <Text style={styles.label}>EMAIL </Text>
+              <Text style={styles.value}>{formData.contactDetails?.email || 'â€”'}</Text>
             </View>
           </View>
         </View>
@@ -290,8 +344,8 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
           
           <View style={styles.row}>
             <View style={styles.col}>
-              <Text style={styles.label}>LICENSE PLATE *Required</Text>
-              <Text style={styles.value}>{formData.vehicleDetails?.licensePlate || '—'}</Text>
+              <Text style={styles.label}>LICENSE PLATE </Text>
+              <Text style={styles.value}>{formData.vehicleDetails?.licensePlate || 'â€”'}</Text>
             </View>
           </View>
         </View>
@@ -299,7 +353,7 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
         {/* Services Completed */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>SERVICES COMPLETED</Text>
-          <Text style={styles.label}>ACTUAL SERVICE *Required</Text>
+          <Text style={styles.label}>ACTUAL SERVICE </Text>
           <View style={styles.badgeContainer}>
             {hasItems(formData.services?.actualService) ? (
               formData.services.actualService.map((service: string, index: number) => (
@@ -308,7 +362,7 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
                 </View>
               ))
             ) : (
-              <Text style={styles.value}>—</Text>
+              <Text style={styles.value}>â€”</Text>
             )}
           </View>
         </View>
@@ -330,7 +384,7 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
           {formData.finalChecks?.lockNuts && (
             <View style={styles.checkRow}>
               <Text style={styles.checkLabel}>Number of Lock Nuts:</Text>
-              <Text style={styles.checkValue}>{formData.finalChecks.numberOfLockNuts || '—'}</Text>
+              <Text style={styles.checkValue}>{formData.finalChecks.numberOfLockNuts || 'â€”'}</Text>
             </View>
           )}
           
@@ -351,7 +405,7 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
           
           <View style={styles.checkRow}>
             <Text style={styles.checkLabel}>Tire Condition:</Text>
-            <Text style={styles.checkValue}>{formData.finalChecks?.tireCondition || '—'}</Text>
+            <Text style={styles.checkValue}>{formData.finalChecks?.tireCondition || 'â€”'}</Text>
           </View>
           
           <View style={styles.checkRow}>
@@ -372,18 +426,18 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>Tire Brand</Text>
-              <Text style={styles.value}>{formData.tireSpecifications?.brand || '—'}</Text>
+              <Text style={styles.value}>{formData.tireSpecifications?.brand || 'â€”'}</Text>
             </View>
             <View style={styles.col}>
               <Text style={styles.label}>Inflation PSI</Text>
-              <Text style={styles.value}>{formData.tireSpecifications?.inflationPSI || '—'}</Text>
+              <Text style={styles.value}>{formData.tireSpecifications?.inflationPSI || 'â€”'}</Text>
             </View>
           </View>
           
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>Tire DOT</Text>
-              <Text style={styles.value}>{formData.tireSpecifications?.dot || '—'}</Text>
+              <Text style={styles.value}>{formData.tireSpecifications?.dot || 'â€”'}</Text>
             </View>
           </View>
         </View>
@@ -401,7 +455,7 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
           <Text style={styles.companyName}>DIAMOND RIMZ LTD</Text>
           <Text style={styles.title}>POST-SERVICE CHECKLIST (CONTINUED)</Text>
           <Text style={styles.subtitle}>
-            Date: {formatDate(formData.date)} | Vehicle: {formData.vehicleDetails?.licensePlate || '—'}
+            Date: {formatDate(formData.date)} | Vehicle: {formData.vehicleDetails?.licensePlate || 'â€”'}
           </Text>
         </View>
 
@@ -420,7 +474,7 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
           <View style={styles.qualityBox}>
             <Text style={styles.qualityTitle}>Lead Technician Confirmation</Text>
             <Text style={styles.checkbox}>
-              {formData.qualityAssurance?.leadTechnicianConfirmation ? '☑' : '☐'} 
+              {formData.qualityAssurance?.leadTechnicianConfirmation ? 'â˜‘' : 'â˜'} 
               I confirm that all services have been completed as per Diamond Rimz quality standards and specifications
             </Text>
           </View>
@@ -428,7 +482,7 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
           <View style={[styles.qualityBox, { backgroundColor: '#f0f9ff' }]}>
             <Text style={[styles.qualityTitle, { color: '#0369a1' }]}>Operations Counter Check</Text>
             <Text style={styles.checkbox}>
-              {formData.qualityAssurance?.operationsCounterCheck ? '☑' : '☐'} 
+              {formData.qualityAssurance?.operationsCounterCheck ? 'â˜‘' : 'â˜'} 
               I confirm that all operations checks have been completed and the vehicle is ready for customer collection
             </Text>
           </View>
@@ -464,7 +518,7 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
           
           <View style={{ marginTop: 10 }}>
             <Text style={styles.checkbox}>
-              {formData.acceptTerms ? '☑' : '☐'} I accept the Terms and Conditions of Diamond Rimz
+              {formData.acceptTerms ? 'â˜‘' : 'â˜'} I accept the Terms and Conditions of Diamond Rimz
             </Text>
           </View>
         </View>
@@ -475,13 +529,10 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
             <View style={styles.col}>
               <Text style={styles.label}>SIGNATURE (FOR AND ON BEHALF OF DIAMOND RIMZ)</Text>
               <View style={styles.signatureBox}>
-                {formData.signature ? (
-                  <View style={{ padding: 10, alignItems: 'center' }}>
-                    <Text style={{ fontSize: 9, color: '#374151' }}>Digitally Signed</Text>
-                    <Text style={{ fontSize: 8, color: '#6b7280', marginTop: 5 }}>E-Signature Applied</Text>
-                  </View>
+                {signatureSrc ? (
+                  <Image src={signatureSrc} style={styles.signatureImage} />
                 ) : (
-                  <Text style={{ fontSize: 9, color: '#9ca3af', textAlign: 'center', paddingTop: 20 }}>Signature Required</Text>
+                  <Text style={{ fontSize: 9, color: '#9ca3af', textAlign: 'center', paddingTop: 24 }}>No signature captured</Text>
                 )}
               </View>
             </View>
@@ -489,12 +540,20 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
         </View>
 
         {/* Uploaded Images */}
-        {hasItems(formData.uploadedImages) && (
+        {uploadedImageSources.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>DOCUMENTATION</Text>
             <Text style={styles.label}>
-              {formData.uploadedImages.length} completion photo(s) attached
+              {uploadedImageSources.length} completion photo(s) attached
             </Text>
+            <View style={styles.mediaGrid}>
+              {uploadedImageSources.slice(0, 8).map((imageSrc, index) => (
+                <View key={`${imageSrc}-${index}`} style={styles.mediaItem}>
+                  <Image src={imageSrc} style={styles.mediaImage} />
+                  <Text style={styles.mediaCaption}>Photo {index + 1}</Text>
+                </View>
+              ))}
+            </View>
           </View>
         )}
 
@@ -515,3 +574,4 @@ const DiamondRimsPostChecklistPDF: React.FC<DiamondRimsPostChecklistPDFProps> = 
 };
 
 export default DiamondRimsPostChecklistPDF;
+

@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { 
   Document, 
   Page, 
@@ -27,12 +27,12 @@ const styles = StyleSheet.create({
   page: {
     flexDirection: 'column',
     backgroundColor: '#FFFFFF',
-    padding: 30,
+    padding: 22,
     fontFamily: 'Helvetica'
   },
   header: {
-    marginBottom: 20,
-    paddingBottom: 15,
+    marginBottom: 14,
+    paddingBottom: 10,
     borderBottomWidth: 2,
     borderBottomColor: '#1e40af',
     borderBottomStyle: 'solid'
@@ -58,8 +58,8 @@ const styles = StyleSheet.create({
     marginBottom: 10
   },
   section: {
-    marginBottom: 15,
-    padding: 12,
+    marginBottom: 10,
+    padding: 10,
     backgroundColor: '#f8fafc',
     borderRadius: 4,
     borderLeftWidth: 3,
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    marginBottom: 6
+    marginBottom: 4
   },
   col: {
     flexDirection: 'column',
@@ -169,8 +169,8 @@ const styles = StyleSheet.create({
     lineHeight: 1.4
   },
   termsSection: {
-    marginTop: 20,
-    padding: 15,
+    marginTop: 10,
+    padding: 10,
     backgroundColor: '#f1f5f9',
     borderRadius: 4,
     borderWidth: 1,
@@ -189,22 +189,27 @@ const styles = StyleSheet.create({
     marginBottom: 4
   },
   signatureSection: {
-    marginTop: 20,
-    paddingTop: 15,
+    marginTop: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#d1d5db'
   },
   signatureBox: {
-    height: 60,
+    height: 72,
     borderWidth: 1,
     borderColor: '#d1d5db',
     borderRadius: 4,
     marginTop: 5,
     backgroundColor: '#f9fafb'
   },
+  signatureImage: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'contain'
+  },
   footer: {
-    marginTop: 30,
-    paddingTop: 15,
+    marginTop: 12,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
     fontSize: 8,
@@ -219,6 +224,29 @@ const styles = StyleSheet.create({
     right: 0,
     textAlign: 'center',
     color: '#9ca3af'
+  },
+  mediaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 6
+  },
+  mediaItem: {
+    width: '48%',
+    marginRight: '2%',
+    marginBottom: 8
+  },
+  mediaImage: {
+    width: '100%',
+    height: 120,
+    objectFit: 'cover',
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#d1d5db'
+  },
+  mediaCaption: {
+    fontSize: 8,
+    color: '#6b7280',
+    marginTop: 2
   }
 });
 
@@ -243,7 +271,7 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
   
   // Helper function to format date
   const formatDate = (dateString: string) => {
-    if (!dateString) return '—';
+    if (!dateString) return 'â€”';
     try {
       return format(new Date(dateString), 'dd-MMM-yyyy hh:mm a');
     } catch (error) {
@@ -285,13 +313,57 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
   // Get status symbol
   const getStatusSymbol = (status: string) => {
     switch (status) {
-      case 'ok': return '✓';
-      case 'fault': return '✗';
-      case 'n/a': return '—';
+      case 'ok': return 'âœ“';
+      case 'fault': return 'âœ—';
+      case 'n/a': return 'â€”';
       case 'pending': return '?';
       default: return '';
     }
   };
+
+  const apiBaseUrl = String(process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
+  const normalizeImageSource = (value: unknown): string | null => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith('data:image/')) return trimmed;
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    if (trimmed.startsWith('/') && apiBaseUrl) return `${apiBaseUrl}${trimmed}`;
+    return null;
+  };
+
+  const parseAdditionalInfo = (value: unknown) => {
+    if (typeof value !== 'string') return {};
+    const trimmed = value.trim();
+    if (!trimmed.startsWith('{')) return {};
+    try {
+      const parsed = JSON.parse(trimmed);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const additionalInfo = parseAdditionalInfo(formData.additionalInformation);
+  const customerDetails = formData.customerDetails || {};
+  const carDetails = formData.carDetails || {};
+  const installationDetails = formData.installationDetails || additionalInfo.installationDetails || {};
+  const resolvedServiceType = formData.serviceType || additionalInfo.serviceType || 'workshop_installation';
+  const resolvedDeliveryMethod = formData.deliveryPickupMethod || additionalInfo.deliveryPickupMethod || 'customer_pickup';
+  const clientSignatureSrc = normalizeImageSource(formData.clientSignature);
+  const inspectorSignatureSrc = normalizeImageSource(formData.inspectorSignature);
+  const uploadedImageSources = Array.from(
+    new Set(
+      [
+        ...(Array.isArray(formData.uploadedImages) ? formData.uploadedImages : []),
+        ...(Array.isArray(formData.files)
+          ? formData.files.map((file: any) => file?.path || file?.thumbnailPath || file?.url || '').filter(Boolean)
+          : []),
+      ]
+        .map((source) => normalizeImageSource(source))
+        .filter((source): source is string => Boolean(source))
+    )
+  );
 
   return (
     <Document>
@@ -308,12 +380,12 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
         {/* Service Type */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>PRE-CHECKLIST</Text>
-          <Text style={styles.sectionSubtitle}>SERVICE TYPE *Required</Text>
+          <Text style={styles.sectionSubtitle}>SERVICE TYPE</Text>
           <View style={{ flexDirection: 'row', marginTop: 5 }}>
             {['pickup_only', 'workshop_installation', 'mobile_service'].map((type) => (
               <View key={type} style={{ marginRight: 15 }}>
                 <Text style={styles.checkbox}>
-                  {formData.serviceType === type ? '☑' : '☐'} {getServiceTypeLabel(type)}
+                  {resolvedServiceType === type ? 'â˜‘' : 'â˜'} {getServiceTypeLabel(type)}
                 </Text>
               </View>
             ))}
@@ -325,8 +397,8 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
           <Text style={styles.sectionTitle}>INSPECTOR DETAILS</Text>
           <View style={styles.row}>
             <View style={styles.col}>
-              <Text style={styles.label}>INSPECTOR NAME <Text style={styles.required}>*Required</Text></Text>
-              <Text style={styles.value}>{formData.inspectorName || '—'}</Text>
+              <Text style={styles.label}>INSPECTOR NAME </Text>
+              <Text style={styles.value}>{formData.inspectorName || 'â€”'}</Text>
             </View>
           </View>
         </View>
@@ -336,20 +408,20 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
           <Text style={styles.sectionTitle}>CUSTOMER DETAILS</Text>
           <View style={styles.row}>
             <View style={styles.col}>
-              <Text style={styles.label}>NAME <Text style={styles.required}>*Required</Text></Text>
+              <Text style={styles.label}>NAME </Text>
               <Text style={styles.value}>
-                {formData.customerDetails.firstName} {formData.customerDetails.lastName}
+                {`${customerDetails.firstName || ''} ${customerDetails.lastName || ''}`.trim() || customerDetails.name || 'â€”'}
               </Text>
             </View>
           </View>
           <View style={styles.row}>
             <View style={styles.col}>
-              <Text style={styles.label}>EMAIL <Text style={styles.required}>*Required</Text></Text>
-              <Text style={styles.value}>{formData.customerDetails.email || '—'}</Text>
+              <Text style={styles.label}>EMAIL </Text>
+              <Text style={styles.value}>{formData.customerDetails.email || 'â€”'}</Text>
             </View>
             <View style={styles.col}>
-              <Text style={styles.label}>PHONE NO <Text style={styles.required}>*Required</Text></Text>
-              <Text style={styles.value}>{formData.customerDetails.phone || '—'}</Text>
+              <Text style={styles.label}>PHONE NO </Text>
+              <Text style={styles.value}>{customerDetails.mobile || customerDetails.phone || 'â€”'}</Text>
             </View>
           </View>
         </View>
@@ -360,25 +432,25 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>REG NO</Text>
-              <Text style={styles.value}>{formData.carDetails.regNo || '—'}</Text>
+              <Text style={styles.value}>{carDetails.regNo || carDetails.licensePlate || 'â€”'}</Text>
             </View>
             <View style={styles.col}>
               <Text style={styles.label}>MAKE</Text>
-              <Text style={styles.value}>{formData.carDetails.make || '—'}</Text>
+              <Text style={styles.value}>{carDetails.make || carDetails.carMake || 'â€”'}</Text>
             </View>
           </View>
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>YEAR OF MANUFACTURE</Text>
-              <Text style={styles.value}>{formData.carDetails.year || '—'}</Text>
+              <Text style={styles.value}>{carDetails.year || carDetails.yearOfManufacture || 'â€”'}</Text>
             </View>
             <View style={styles.col}>
               <Text style={styles.label}>MODEL</Text>
-              <Text style={styles.value}>{formData.carDetails.model || '—'}</Text>
+              <Text style={styles.value}>{carDetails.model || carDetails.carModel || 'â€”'}</Text>
             </View>
             <View style={styles.col}>
               <Text style={styles.label}>VIN</Text>
-              <Text style={styles.value}>{formData.carDetails.vin || '—'}</Text>
+              <Text style={styles.value}>{formData.carDetails.vin || 'â€”'}</Text>
             </View>
           </View>
         </View>
@@ -389,23 +461,23 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>PRODUCT / SERVICE NEEDED</Text>
-              <Text style={styles.value}>{formData.productServiceNeeded || '—'}</Text>
+              <Text style={styles.value}>{formData.productServiceNeeded || 'â€”'}</Text>
             </View>
           </View>
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>PRODUCT PRICE (KES)</Text>
-              <Text style={styles.value}>{formData.productPrice ? `KES ${formData.productPrice.toLocaleString()}` : '—'}</Text>
+              <Text style={styles.value}>{formData.productPrice ? `KES ${formData.productPrice.toLocaleString()}` : 'â€”'}</Text>
             </View>
             <View style={styles.col}>
               <Text style={styles.label}>SERVICE PRICE (KES)</Text>
-              <Text style={styles.value}>{formData.servicePrice ? `KES ${formData.servicePrice.toLocaleString()}` : '—'}</Text>
+              <Text style={styles.value}>{formData.servicePrice ? `KES ${formData.servicePrice.toLocaleString()}` : 'â€”'}</Text>
             </View>
           </View>
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>ADDITIONAL INFORMATION</Text>
-              <Text style={styles.value}>{formData.additionalInformation || '—'}</Text>
+              <Text style={styles.value}>{formData.additionalInformation || 'â€”'}</Text>
             </View>
           </View>
         </View>
@@ -419,7 +491,7 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 3 }}>
                 {['less_1_hour', '1_2_hours', '3_hours', 'more_3_hours'].map((time) => (
                   <Text key={time} style={{ fontSize: 9, marginRight: 10, marginBottom: 3 }}>
-                    {formData.installationDetails.estimatedTime === time ? '☑' : '☐'} {getInstallationTimeLabel(time)}
+                    {installationDetails.estimatedTime === time ? 'â˜‘' : 'â˜'} {getInstallationTimeLabel(time)}
                   </Text>
                 ))}
               </View>
@@ -428,13 +500,13 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>ASSIGNED TECHNICIAN</Text>
-              <Text style={styles.value}>{formData.installationDetails.assignedTechnician || '—'}</Text>
+              <Text style={styles.value}>{installationDetails.assignedTechnician || 'â€”'}</Text>
             </View>
           </View>
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>WORK START TIME</Text>
-              <Text style={styles.value}>{formatDate(formData.installationDetails.workStartTime)}</Text>
+              <Text style={styles.value}>{formatDate(installationDetails.workStartTime)}</Text>
             </View>
           </View>
         </View>
@@ -480,16 +552,16 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
                 </View>
                 <View style={[styles.tableCell, styles.sideCell]}>
                   <Text style={{ fontSize: 9 }}>
-                    {item.side === 'both' || item.side === 'left' ? '✓' : '—'}
+                    {item.side === 'both' || item.side === 'left' ? 'âœ“' : 'â€”'}
                   </Text>
                 </View>
                 <View style={[styles.tableCell, styles.sideCell]}>
                   <Text style={{ fontSize: 9 }}>
-                    {item.side === 'both' || item.side === 'right' ? '✓' : '—'}
+                    {item.side === 'both' || item.side === 'right' ? 'âœ“' : 'â€”'}
                   </Text>
                 </View>
                 <View style={[styles.tableCell, styles.remarksCell]}>
-                  <Text style={{ fontSize: 8 }}>{item.remarks || '—'}</Text>
+                  <Text style={{ fontSize: 8 }}>{item.remarks || 'â€”'}</Text>
                 </View>
               </View>
             ))}
@@ -517,7 +589,7 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 5 }}>
             {['customer_pickup', 'courier_delivery', 'mobile_delivery_install'].map((method) => (
               <Text key={method} style={{ fontSize: 9, marginRight: 15, marginBottom: 3 }}>
-                {formData.deliveryPickupMethod === method ? '☑' : '☐'} {getDeliveryMethodLabel(method)}
+                {resolvedDeliveryMethod === method ? 'â˜‘' : 'â˜'} {getDeliveryMethodLabel(method)}
               </Text>
             ))}
           </View>
@@ -531,7 +603,7 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
           </Text>
           <View style={{ marginTop: 5 }}>
             <Text style={styles.checkbox}>
-              {formData.acceptDiagnosticCharges ? '☑' : '☐'} I understand that dashboard error diagnosis/clearing incurs additional charges as per the service rate card
+              {formData.acceptDiagnosticCharges ? 'â˜‘' : 'â˜'} I understand that dashboard error diagnosis/clearing incurs additional charges as per the service rate card
             </Text>
           </View>
         </View>
@@ -657,7 +729,7 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
           <Text style={styles.sectionTitle}>TERMS ACCEPTANCE</Text>
           <View style={{ marginTop: 10 }}>
             <Text style={styles.checkbox}>
-              {formData.acceptTerms ? '☑' : '☐'} I accept the Terms and Conditions of Eagle Lights Automotive LTD
+              {formData.acceptTerms ? 'â˜‘' : 'â˜'} I accept the Terms and Conditions of Eagle Lights Automotive LTD
             </Text>
           </View>
         </View>
@@ -666,22 +738,22 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
         <View style={styles.signatureSection}>
           <View style={styles.row}>
             <View style={styles.col}>
-              <Text style={styles.label}>CLIENT SIGNATURE <Text style={styles.required}>*Required</Text></Text>
+              <Text style={styles.label}>CLIENT SIGNATURE </Text>
               <View style={styles.signatureBox}>
-                {formData.clientSignature ? (
-                  <Text style={{ fontSize: 10, color: '#374151', padding: 10 }}>Digitally Signed</Text>
+                {clientSignatureSrc ? (
+                  <Image src={clientSignatureSrc} style={styles.signatureImage} />
                 ) : (
-                  <Text style={{ fontSize: 9, color: '#9ca3af', textAlign: 'center', paddingTop: 20 }}>E-Signature Field</Text>
+                  <Text style={{ fontSize: 9, color: '#9ca3af', textAlign: 'center', paddingTop: 24 }}>No client signature captured</Text>
                 )}
               </View>
             </View>
             <View style={styles.col}>
-              <Text style={styles.label}>INSPECTOR SIGNATURE <Text style={styles.required}>*Required</Text></Text>
+              <Text style={styles.label}>INSPECTOR SIGNATURE </Text>
               <View style={styles.signatureBox}>
-                {formData.inspectorSignature ? (
-                  <Text style={{ fontSize: 10, color: '#374151', padding: 10 }}>Digitally Signed</Text>
+                {inspectorSignatureSrc ? (
+                  <Image src={inspectorSignatureSrc} style={styles.signatureImage} />
                 ) : (
-                  <Text style={{ fontSize: 9, color: '#9ca3af', textAlign: 'center', paddingTop: 20 }}>E-Signature Field</Text>
+                  <Text style={{ fontSize: 9, color: '#9ca3af', textAlign: 'center', paddingTop: 24 }}>No inspector signature captured</Text>
                 )}
               </View>
             </View>
@@ -692,11 +764,23 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>UPLOADS</Text>
           <Text style={styles.label}>Image Upload</Text>
-          <Text style={{ fontSize: 9, color: '#6b7280', marginTop: 5 }}>
-            {formData.uploadedImages && formData.uploadedImages.length > 0 
-              ? `${formData.uploadedImages.length} image(s) uploaded`
-              : 'No images uploaded'}
-          </Text>
+          {uploadedImageSources.length > 0 ? (
+            <>
+              <Text style={{ fontSize: 9, color: '#6b7280', marginTop: 5 }}>
+                {`${uploadedImageSources.length} image(s) uploaded`}
+              </Text>
+              <View style={styles.mediaGrid}>
+                {uploadedImageSources.slice(0, 8).map((imageSrc, index) => (
+                  <View key={`${imageSrc}-${index}`} style={styles.mediaItem}>
+                    <Image src={imageSrc} style={styles.mediaImage} />
+                    <Text style={styles.mediaCaption}>Image {index + 1}</Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          ) : (
+            <Text style={{ fontSize: 9, color: '#6b7280', marginTop: 5 }}>No images uploaded</Text>
+          )}
         </View>
 
         {/* Remarks */}
@@ -711,7 +795,7 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
         <View style={styles.footer}>
           <Text>Generated on: {formatDate(currentDate.toISOString())}</Text>
           <Text>Checklist ID: {existingChecklist?._id?.slice(-8) || 'NEW'}</Text>
-          <Text>Vehicle: {formData.carDetails.regNo || 'Not specified'}</Text>
+          <Text>Vehicle: {carDetails.regNo || carDetails.licensePlate || 'Not specified'}</Text>
           <Text style={styles.pageNumber}>--- Page 2 of 2 ---</Text>
         </View>
       </Page>
@@ -720,3 +804,4 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
 };
 
 export default PreChecklistPDF;
+
