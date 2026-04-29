@@ -1856,10 +1856,13 @@ export default function OpportunitiesContent() {
 
   // Card metrics should reflect backend aggregates, not only the loaded page.
   const cardMetrics = useMemo(() => {
-    const useFilteredStats = hasActiveFilters && !!filteredStats;
-    const byTier = (useFilteredStats ? filteredStats?.byTier : undefined) || {};
+    const isFilteredView = hasActiveFilters;
+    const hasFilteredStats = Boolean(filteredStats);
+    const byTier = (hasFilteredStats ? filteredStats?.byTier : undefined) || {};
     const byStatus = normalizeStatusCounts(
-      (useFilteredStats ? filteredStats?.byStatus : stats?.byStatus) as Record<string, unknown> | undefined,
+      (hasFilteredStats ? filteredStats?.byStatus : !isFilteredView ? stats?.byStatus : undefined) as
+        | Record<string, unknown>
+        | undefined,
     );
     const totalFromStageCounts = Object.values(stageCounts).reduce((sum, count) => sum + Number(count || 0), 0);
     const loadedHotLeads = opportunities.filter((opp) => opp.leadScore?.tier === 'hot').length;
@@ -1885,16 +1888,20 @@ export default function OpportunitiesContent() {
         ? stats.hot
         : undefined;
 
-    const total = useFilteredStats
-      ? Math.max(filteredStats?.total ?? 0, pagination?.total ?? 0, opportunities.length, totalFromStageCounts)
+    const total = isFilteredView
+      ? Math.max(
+          hasFilteredStats ? filteredStats?.total ?? 0 : 0,
+          opportunities.length,
+          totalFromStageCounts,
+        )
       : Math.max(totalFromStats ?? 0, pagination?.total ?? 0, opportunities.length, totalFromStageCounts);
 
-    const hotLeads = useFilteredStats
-      ? Math.max(byTier.hot ?? byTier.HOT ?? 0, loadedHotLeads)
+    const hotLeads = isFilteredView
+      ? Math.max(hasFilteredStats ? byTier.hot ?? byTier.HOT ?? 0 : 0, loadedHotLeads)
       : Math.max(hotFromStats ?? 0, loadedHotLeads);
     const wonCount = byStatus.won || 0;
     const lostCount = byStatus.lost || 0;
-    const activeDeals = useFilteredStats
+    const activeDeals = isFilteredView
       ? Math.max(total - wonCount - lostCount, activeDealsFromStageCounts, 0)
       : Math.max(openFromStats ?? 0, total - wonCount - lostCount, activeDealsFromStageCounts, 0);
     const winRate = total > 0 ? Math.round((wonCount / total) * 100) : 0;
@@ -2376,7 +2383,7 @@ export default function OpportunitiesContent() {
                     </span>
                   ) : stats ? (
                     <>
-                      {stats.totalopportunities} total opportunities
+                      {hasActiveFilters ? cardMetrics.total : stats.totalopportunities} total opportunities
                     </>
                   ) : (
                     'Track and manage your leads & deals'
