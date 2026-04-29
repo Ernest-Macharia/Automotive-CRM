@@ -117,6 +117,33 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     return opportunity.subject || opportunity._id?.slice(0, 8) || '—';
   };
 
+  const renderInspector = (entry: PreChecklist | null) => {
+    if (!entry) return '';
+
+    const intakeInspectorName = String(entry.serviceIntake?.customerServiceRep || '').trim();
+    if (intakeInspectorName) return intakeInspectorName;
+
+    const directInspectorName = String(entry.inspectorName || '').trim();
+    if (directInspectorName) return directInspectorName;
+
+    const inspectedBy: any = entry.inspectedBy;
+    if (inspectedBy && typeof inspectedBy === 'object') {
+      const fullName = `${inspectedBy.firstName || ''} ${inspectedBy.lastName || ''}`.trim();
+      if (fullName) return fullName;
+      const objectDisplayName = String(inspectedBy.name || '').trim();
+      if (objectDisplayName) return objectDisplayName;
+    }
+
+    if (typeof inspectedBy === 'string') {
+      const normalized = inspectedBy.trim();
+      if (normalized && !/^[a-fA-F0-9]{24}$/.test(normalized)) {
+        return normalized;
+      }
+    }
+
+    return '';
+  };
+
   const getStatusColor = (approved: boolean) => {
     return approved 
       ? 'bg-green-100 text-green-800'
@@ -621,15 +648,13 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
                   </p>
                   <p className="text-sm text-gray-800">{renderCustomer(checklist.opportunityId)}</p>
 
-                  {checklist.inspectedBy && checklist.inspectedBy !== 'null' && typeof checklist.inspectedBy === 'string' && (
+                  {renderInspector(checklist) && (
                     <>
                       <p className="text-xs text-gray-500 flex items-center gap-1.5 mt-4 mb-1">
                         <User className="h-3.5 w-3.5" />
-                        Inspected By
+                        Inspector Name
                       </p>
-                      <p className="text-sm text-gray-800">
-                        Technician ({checklist.inspectedBy.slice(0, 8)})
-                      </p>
+                      <p className="text-sm text-gray-800">{renderInspector(checklist)}</p>
                     </>
                   )}
 

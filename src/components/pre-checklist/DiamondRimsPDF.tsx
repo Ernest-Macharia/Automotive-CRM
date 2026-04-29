@@ -334,16 +334,6 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
     }
   };
 
-  // Get suitability label
-  const getSuitabilityLabel = (value: string) => {
-    switch (value) {
-      case 'yes': return 'Yes';
-      case 'no': return 'No';
-      case 'maybe': return 'Maybe';
-      default: return 'Not Specified';
-    }
-  };
-
   const stringifyValue = (value: unknown): string => {
     if (value === null || value === undefined) return '';
     if (typeof value === 'string') return value.trim();
@@ -384,7 +374,49 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
     return declared ? 'Yes' : 'No';
   };
 
+  const isObjectIdLike = (value: unknown): boolean => {
+    if (typeof value !== 'string') return false;
+    return /^[a-fA-F0-9]{24}$/.test(value.trim());
+  };
+
+  const resolveInspectorName = (): string => {
+    const intakeInspectorName = stringifyValue(formData.serviceIntake?.customerServiceRep);
+    if (intakeInspectorName) return intakeInspectorName;
+
+    const directInspectorName = stringifyValue(formData.inspectorName);
+    if (directInspectorName) return directInspectorName;
+
+    const inspectedBy = formData.inspectedBy;
+    if (inspectedBy && typeof inspectedBy === 'object') {
+      const firstName = stringifyValue((inspectedBy as any).firstName);
+      const lastName = stringifyValue((inspectedBy as any).lastName);
+      const fullName = `${firstName} ${lastName}`.trim();
+      if (fullName) return fullName;
+
+      const displayName = stringifyValue((inspectedBy as any).name);
+      if (displayName) return displayName;
+    }
+
+    const inspectedByText = stringifyValue(inspectedBy);
+    if (inspectedByText && !isObjectIdLike(inspectedByText)) {
+      return inspectedByText;
+    }
+
+    return '-';
+  };
+
   const rimOrTireLabel = stringifyValue(formData.rimOrTireSelection) || '-';
+  const resolvedInspectorName = resolveInspectorName();
+  const selectedSuitabilityServices = Array.from(
+    new Set(
+      (Array.isArray(formData.services?.actualService) ? formData.services.actualService : [])
+        .map((service: unknown) => stringifyValue(service))
+        .filter(Boolean)
+    )
+  );
+  const suitabilityServiceSummary = selectedSuitabilityServices.length > 0
+    ? selectedSuitabilityServices.join(', ')
+    : '-';
   const clientSignatureSrc = normalizeImageSource(formData.clientSignature);
   const inspectorSignatureSrc = normalizeImageSource(formData.inspectorSignature);
   const uploadedImageSources = Array.from(
@@ -423,19 +455,15 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
               <Text style={styles.value}>{formatDate(formData.serviceIntake?.date) || 'â€”'}</Text>
             </View>
             <View style={styles.col}>
-              <Text style={styles.label}>CUSTOMER SERVICE REP</Text>
-              <Text style={styles.value}>{formData.serviceIntake?.customerServiceRep || 'â€”'}</Text>
+              <Text style={styles.label}>INSPECTOR NAME</Text>
+              <Text style={styles.value}>{resolvedInspectorName}</Text>
             </View>
           </View>
-          {(hasValue(formData.serviceIntake?.priorityLevel) || hasValue(formData.serviceIntake?.backendAccessCode)) && (
+          {hasValue(formData.serviceIntake?.priorityLevel) && (
             <View style={styles.row}>
               <View style={styles.col}>
                 <Text style={styles.label}>PRIORITY LEVEL</Text>
                 <Text style={styles.value}>{formData.serviceIntake?.priorityLevel || '-'}</Text>
-              </View>
-              <View style={styles.col}>
-                <Text style={styles.label}>BACKEND ACCESS CODE</Text>
-                <Text style={styles.value}>{formData.serviceIntake?.backendAccessCode || '-'}</Text>
               </View>
             </View>
           )}
@@ -671,22 +699,6 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
               </Text>
             </View>
           </View>
-          {(hasValue(formData.declaredValuable?.insuranceRequired) || hasValue(formData.declaredValuable?.insuranceProvider) || hasValue(formData.declaredValuable?.policyNumber)) && (
-            <View style={styles.row}>
-              <View style={styles.col}>
-                <Text style={styles.label}>INSURANCE REQUIRED</Text>
-                <Text style={styles.value}>{formData.declaredValuable?.insuranceRequired ? 'Yes' : 'No'}</Text>
-              </View>
-              <View style={styles.col}>
-                <Text style={styles.label}>INSURANCE PROVIDER</Text>
-                <Text style={styles.value}>{formData.declaredValuable?.insuranceProvider || '-'}</Text>
-              </View>
-              <View style={styles.col}>
-                <Text style={styles.label}>POLICY NUMBER</Text>
-                <Text style={styles.value}>{formData.declaredValuable?.policyNumber || '-'}</Text>
-              </View>
-            </View>
-          )}
           {hasValue(formData.declaredValuable?.notes) && (
             <View style={styles.row}>
               <View style={styles.col}>
@@ -807,46 +819,12 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
         {/* SUITABILITY */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>SUITABILITY</Text>
-          
           <View style={styles.row}>
             <View style={styles.col}>
-              <Text style={styles.label}>SUITABLE FOR SKIMMING</Text>
-              <Text style={styles.value}>{getSuitabilityLabel(formData.suitability?.skimming)}</Text>
-            </View>
-            <View style={styles.col}>
-              <Text style={styles.label}>SUITABLE FOR POWDER COATING</Text>
-              <Text style={styles.value}>{getSuitabilityLabel(formData.suitability?.powderCoating)}</Text>
+              <Text style={styles.label}>SELECTED SERVICE</Text>
+              <Text style={styles.value}>{suitabilityServiceSummary}</Text>
             </View>
           </View>
-
-          <View style={styles.row}>
-            <View style={styles.col}>
-              <Text style={styles.label}>SUITABLE FOR STRAIGHTENING</Text>
-              <Text style={styles.value}>{getSuitabilityLabel(formData.suitability?.straightening)}</Text>
-            </View>
-            <View style={styles.col}>
-              <Text style={styles.label}>SUITABLE FOR WELDING</Text>
-              <Text style={styles.value}>{getSuitabilityLabel(formData.suitability?.welding)}</Text>
-            </View>
-          </View>
-          <View style={styles.row}>
-            <View style={styles.col}>
-              <Text style={styles.label}>SUITABLE FOR DIAMOND CUTTING</Text>
-              <Text style={styles.value}>{getSuitabilityLabel(formData.suitability?.diamondCutting)}</Text>
-            </View>
-          </View>
-          {(hasValue(formData.suitability?.notes) || hasValue(formData.suitability?.recommendations)) && (
-            <View style={styles.row}>
-              <View style={styles.col}>
-                <Text style={styles.label}>SUITABILITY NOTES</Text>
-                <Text style={styles.multiLineValue}>{formData.suitability?.notes || '-'}</Text>
-              </View>
-              <View style={styles.col}>
-                <Text style={styles.label}>RECOMMENDATIONS</Text>
-                <Text style={styles.multiLineValue}>{formData.suitability?.recommendations || '-'}</Text>
-              </View>
-            </View>
-          )}
         </View>
 
         {/* ADDITIONAL INFORMATION */}
@@ -1059,18 +1037,7 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>INSPECTOR NAME</Text>
-              <Text style={styles.value}>{formData.inspectorName || '-'}</Text>
-            </View>
-            <View style={styles.col}>
-              <Text style={styles.label}>CUSTOMER SERVICE REP</Text>
-              <Text style={styles.value}>{formData.serviceIntake?.customerServiceRep || '-'}</Text>
-            </View>
-          </View>
-
-          <View style={styles.row}>
-            <View style={styles.col}>
-              <Text style={styles.label}>INSPECTED BY (USER ID)</Text>
-              <Text style={styles.value}>{formData.inspectedBy || '-'}</Text>
+              <Text style={styles.value}>{resolvedInspectorName}</Text>
             </View>
           </View>
         </View>
@@ -1171,4 +1138,3 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
 };
 
 export default DiamondRimsPDF;
-
