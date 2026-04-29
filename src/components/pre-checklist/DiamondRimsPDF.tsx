@@ -27,12 +27,12 @@ const styles = StyleSheet.create({
   page: {
     flexDirection: 'column',
     backgroundColor: '#FFFFFF',
-    padding: 22,
+    padding: 18,
     fontFamily: 'Helvetica'
   },
   header: {
-    marginBottom: 14,
-    paddingBottom: 10,
+    marginBottom: 10,
+    paddingBottom: 8,
     borderBottomWidth: 2,
     borderBottomColor: '#7c3aed',
     borderBottomStyle: 'solid'
@@ -58,8 +58,8 @@ const styles = StyleSheet.create({
     marginBottom: 10
   },
   section: {
-    marginBottom: 10,
-    padding: 10,
+    marginBottom: 8,
+    padding: 8,
     backgroundColor: '#f8fafc',
     borderRadius: 4,
     borderLeftWidth: 3,
@@ -79,22 +79,22 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    marginBottom: 4
+    marginBottom: 3
   },
   col: {
     flexDirection: 'column',
     flex: 1
   },
   label: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#6b7280',
     marginBottom: 2,
     fontWeight: 'medium'
   },
   value: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: '#111827',
-    marginBottom: 4
+    marginBottom: 3
   },
   required: {
     fontSize: 8,
@@ -155,8 +155,8 @@ const styles = StyleSheet.create({
     lineHeight: 1.4
   },
   termsSection: {
-    marginTop: 10,
-    padding: 15,
+    marginTop: 8,
+    padding: 10,
     backgroundColor: '#f1f5f9',
     borderRadius: 4,
     borderWidth: 1,
@@ -175,13 +175,13 @@ const styles = StyleSheet.create({
     marginBottom: 4
   },
   signatureSection: {
-    marginTop: 10,
-    paddingTop: 10,
+    marginTop: 8,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#d1d5db'
   },
   signatureBox: {
-    height: 72,
+    height: 64,
     borderWidth: 1,
     borderColor: '#d1d5db',
     borderRadius: 4,
@@ -194,8 +194,8 @@ const styles = StyleSheet.create({
     objectFit: 'contain'
   },
   footer: {
-    marginTop: 10,
-    paddingTop: 10,
+    marginTop: 8,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
     fontSize: 8,
@@ -212,9 +212,9 @@ const styles = StyleSheet.create({
     color: '#9ca3af'
   },
   multiLineValue: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: '#111827',
-    marginBottom: 4,
+    marginBottom: 3,
     lineHeight: 1.3
   },
   serviceBadge: {
@@ -259,16 +259,37 @@ const styles = StyleSheet.create({
   },
   mediaImage: {
     width: '100%',
-    height: 120,
+    height: 95,
     objectFit: 'cover',
     borderRadius: 4,
     borderWidth: 1,
     borderColor: '#d1d5db'
   },
+  mediaPlaceholder: {
+    width: '100%',
+    height: 95,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#eef2ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8
+  },
   mediaCaption: {
     fontSize: 8,
     color: '#6b7280',
     marginTop: 2
+  },
+  mediaMeta: {
+    fontSize: 7,
+    color: '#6b7280',
+    marginTop: 1
+  },
+  mediaLink: {
+    fontSize: 8,
+    color: '#2563eb',
+    marginTop: 3
   }
 });
 
@@ -297,10 +318,17 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
     }
   };
 
-  // Helper function to format KES
-  const formatKES = (amount: number) => {
-    if (!amount) return 'KES 0';
-    return `KES ${amount.toLocaleString()}`;
+  // Helper function to format KSH amounts
+  const formatKES = (amount: unknown, currencyCode?: unknown) => {
+    const parsedAmount = typeof amount === 'number' ? amount : Number(amount);
+    const safeAmount = Number.isFinite(parsedAmount) ? parsedAmount : 0;
+    const normalizedCurrency = String(currencyCode || '').trim().toUpperCase();
+    const currencyLabel = normalizedCurrency === 'KES' || normalizedCurrency === 'KSH' ? 'KSH' : 'KSH';
+
+    return `KSH ${safeAmount.toLocaleString('en-KE', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    })}`;
   };
 
   // Check if array has items
@@ -314,14 +342,20 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
   };
 
   const apiBaseUrl = String(process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
-  const normalizeImageSource = (value: unknown): string | null => {
+  const normalizeMediaSource = (value: unknown): string | null => {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim();
     if (!trimmed) return null;
-    if (trimmed.startsWith('data:image/')) return trimmed;
+    if (trimmed.startsWith('data:image/') || trimmed.startsWith('data:video/')) return trimmed;
     if (/^https?:\/\//i.test(trimmed)) return trimmed;
     if (trimmed.startsWith('/') && apiBaseUrl) return `${apiBaseUrl}${trimmed}`;
     return null;
+  };
+
+  const normalizeImageSource = (value: unknown): string | null => {
+    const normalized = normalizeMediaSource(value);
+    if (!normalized || normalized.startsWith('data:video/')) return null;
+    return normalized;
   };
 
   // Get delivery mode label
@@ -340,6 +374,42 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
     if (typeof value === 'number' || typeof value === 'boolean') return String(value);
     return '';
   };
+
+  const toPositiveNumber = (value: unknown): number | null => {
+    const candidate = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(candidate) || candidate <= 0) {
+      return null;
+    }
+    return candidate;
+  };
+
+  const agreedAmountTotal =
+    toPositiveNumber(formData.agreedAmount?.total) ??
+    toPositiveNumber(formData.pricingSnapshot?.total) ??
+    0;
+
+  const mediaEntries = Array.isArray(formData.files)
+    ? formData.files
+        .map((file: any, index: number) => {
+          const src = normalizeMediaSource(file?.path || file?.url || '');
+          const thumbnailSrc = normalizeImageSource(file?.thumbnailPath || '');
+          const mimeType = stringifyValue(file?.mimeType || file?.fileType).toLowerCase();
+          const filename = stringifyValue(file?.originalName || file?.filename || '');
+          const sourceHint = stringifyValue(file?.path || file?.url || '').toLowerCase();
+          const isVideo =
+            mimeType.includes('video') ||
+            /\.(mp4|mov|avi|webm|mkv|m4v|3gp|ogv|ogg)(\?|#|$)/i.test(filename.toLowerCase()) ||
+            /\.(mp4|mov|avi|webm|mkv|m4v|3gp|ogv|ogg)(\?|#|$)/i.test(sourceHint);
+
+          return {
+            src,
+            thumbnailSrc,
+            label: filename || `Attachment ${index + 1}`,
+            isVideo,
+          };
+        })
+        .filter((entry) => Boolean(entry.src))
+    : [];
 
   const resolveRiskAcknowledgement = (riskKey: string): boolean => {
     const associatedRisks = formData.clientUpdate?.associatedRisks;
@@ -417,21 +487,43 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
   const suitabilityServiceSummary = selectedSuitabilityServices.length > 0
     ? selectedSuitabilityServices.join(', ')
     : '-';
+  const hasAnyTireBrandValue = ['fr', 'fl', 'br', 'bl', 'spare'].some((position) =>
+    hasValue(formData.tireBrands?.[position])
+  );
+  const hasAnyTireDotValue = ['fr', 'fl', 'br', 'bl', 'spare'].some((position) => {
+    const dot = formData.tireDOT?.[position];
+    return hasValue(dot?.code) || hasValue(dot?.week) || hasValue(dot?.year) || hasValue(dot?.plant);
+  });
   const clientSignatureSrc = normalizeImageSource(formData.clientSignature);
   const inspectorSignatureSrc = normalizeImageSource(formData.inspectorSignature);
   const uploadedImageSources = Array.from(
     new Set(
       [
         ...(Array.isArray(formData.uploadedImages) ? formData.uploadedImages : []),
-        ...(Array.isArray(formData.files)
-          ? formData.files
-              .map((file: any) => file?.path || file?.thumbnailPath || file?.url || '')
-              .filter(Boolean)
-          : []),
+        ...mediaEntries
+          .filter((entry) => !entry.isVideo)
+          .map((entry) => entry.src),
+        ...mediaEntries
+          .map((entry) => entry.thumbnailSrc)
+          .filter((entry): entry is string => Boolean(entry)),
       ]
         .map((candidate) => normalizeImageSource(candidate))
         .filter((candidate): candidate is string => Boolean(candidate))
     )
+  );
+  const uploadedVideoEntries: Array<{ src: string; label: string; previewSrc: string | null }> = Array.from(
+    new Map<string, { src: string; label: string; previewSrc: string | null }>(
+      mediaEntries
+        .filter((entry) => entry.isVideo)
+        .map((entry) => [
+          entry.src,
+          {
+            src: entry.src as string,
+            label: entry.label || 'Video attachment',
+            previewSrc: entry.thumbnailSrc || null,
+          },
+        ])
+    ).values()
   );
 
   return (
@@ -614,15 +706,17 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
         </View>
 
         {/* POWDER COATING COLOURS */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>POWDER COATING COLOURS</Text>
-          <View style={styles.row}>
-            <View style={styles.col}>
-              <Text style={styles.label}>POWDER COATING COLOUR (RAL)</Text>
-              <Text style={styles.value}>{formData.powderCoating?.colourRAL || 'â€”'}</Text>
+        {hasValue(formData.powderCoating?.colourRAL) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>POWDER COATING COLOURS</Text>
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>POWDER COATING COLOUR (RAL)</Text>
+                <Text style={styles.value}>{formData.powderCoating?.colourRAL || 'â€”'}</Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
 
       </Page>
 
@@ -739,82 +833,86 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
         )}
 
         {/* TIRE BRANDS */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>TIRE BRANDS</Text>
-          
-          <View style={styles.row}>
-            <View style={styles.col}>
-              <Text style={styles.label}>TIRE BRAND - FR (FRONT RIGHT)</Text>
-              <Text style={styles.value}>{formData.tireBrands?.fr || 'â€”'}</Text>
+        {hasAnyTireBrandValue && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>TIRE BRANDS</Text>
+            
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>TIRE BRAND - FR (FRONT RIGHT)</Text>
+                <Text style={styles.value}>{formData.tireBrands?.fr || 'â€”'}</Text>
+              </View>
+              <View style={styles.col}>
+                <Text style={styles.label}>TIRE BRAND - FL (FRONT LEFT)</Text>
+                <Text style={styles.value}>{formData.tireBrands?.fl || 'â€”'}</Text>
+              </View>
             </View>
-            <View style={styles.col}>
-              <Text style={styles.label}>TIRE BRAND - FL (FRONT LEFT)</Text>
-              <Text style={styles.value}>{formData.tireBrands?.fl || 'â€”'}</Text>
-            </View>
-          </View>
 
-          <View style={styles.row}>
-            <View style={styles.col}>
-              <Text style={styles.label}>TIRE BRAND - BR (BACK RIGHT)</Text>
-              <Text style={styles.value}>{formData.tireBrands?.br || 'â€”'}</Text>
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>TIRE BRAND - BR (BACK RIGHT)</Text>
+                <Text style={styles.value}>{formData.tireBrands?.br || 'â€”'}</Text>
+              </View>
+              <View style={styles.col}>
+                <Text style={styles.label}>TIRE BRAND - BL (BACK LEFT)</Text>
+                <Text style={styles.value}>{formData.tireBrands?.bl || 'â€”'}</Text>
+              </View>
             </View>
-            <View style={styles.col}>
-              <Text style={styles.label}>TIRE BRAND - BL (BACK LEFT)</Text>
-              <Text style={styles.value}>{formData.tireBrands?.bl || 'â€”'}</Text>
-            </View>
-          </View>
 
-          <View style={styles.row}>
-            <View style={styles.col}>
-              <Text style={styles.label}>TIRE BRAND - SPARE</Text>
-              <Text style={styles.value}>{formData.tireBrands?.spare || 'â€”'}</Text>
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>TIRE BRAND - SPARE</Text>
+                <Text style={styles.value}>{formData.tireBrands?.spare || 'â€”'}</Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
 
         {/* TIRE DOT NUMBERS */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>TIRE DOT NUMBERS</Text>
-          
-          <View style={styles.row}>
-            <View style={styles.col}>
-              <Text style={styles.label}>TIRE DOT - FR (FRONT RIGHT)</Text>
-              <Text style={styles.value}>
-                {[formData.tireDOT?.fr?.code, formData.tireDOT?.fr?.week && `W${formData.tireDOT?.fr?.week}`, formData.tireDOT?.fr?.year, formData.tireDOT?.fr?.plant].filter(Boolean).join(' | ') || 'â€”'}
-              </Text>
+        {hasAnyTireDotValue && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>TIRE DOT NUMBERS</Text>
+            
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>TIRE DOT - FR (FRONT RIGHT)</Text>
+                <Text style={styles.value}>
+                  {[formData.tireDOT?.fr?.code, formData.tireDOT?.fr?.week && `W${formData.tireDOT?.fr?.week}`, formData.tireDOT?.fr?.year, formData.tireDOT?.fr?.plant].filter(Boolean).join(' | ') || 'â€”'}
+                </Text>
+              </View>
+              <View style={styles.col}>
+                <Text style={styles.label}>TIRE DOT - FL (FRONT LEFT)</Text>
+                <Text style={styles.value}>
+                  {[formData.tireDOT?.fl?.code, formData.tireDOT?.fl?.week && `W${formData.tireDOT?.fl?.week}`, formData.tireDOT?.fl?.year, formData.tireDOT?.fl?.plant].filter(Boolean).join(' | ') || 'â€”'}
+                </Text>
+              </View>
             </View>
-            <View style={styles.col}>
-              <Text style={styles.label}>TIRE DOT - FL (FRONT LEFT)</Text>
-              <Text style={styles.value}>
-                {[formData.tireDOT?.fl?.code, formData.tireDOT?.fl?.week && `W${formData.tireDOT?.fl?.week}`, formData.tireDOT?.fl?.year, formData.tireDOT?.fl?.plant].filter(Boolean).join(' | ') || 'â€”'}
-              </Text>
-            </View>
-          </View>
 
-          <View style={styles.row}>
-            <View style={styles.col}>
-              <Text style={styles.label}>TIRE DOT - BR (BACK RIGHT)</Text>
-              <Text style={styles.value}>
-                {[formData.tireDOT?.br?.code, formData.tireDOT?.br?.week && `W${formData.tireDOT?.br?.week}`, formData.tireDOT?.br?.year, formData.tireDOT?.br?.plant].filter(Boolean).join(' | ') || 'â€”'}
-              </Text>
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>TIRE DOT - BR (BACK RIGHT)</Text>
+                <Text style={styles.value}>
+                  {[formData.tireDOT?.br?.code, formData.tireDOT?.br?.week && `W${formData.tireDOT?.br?.week}`, formData.tireDOT?.br?.year, formData.tireDOT?.br?.plant].filter(Boolean).join(' | ') || 'â€”'}
+                </Text>
+              </View>
+              <View style={styles.col}>
+                <Text style={styles.label}>TIRE DOT - BL (BACK LEFT)</Text>
+                <Text style={styles.value}>
+                  {[formData.tireDOT?.bl?.code, formData.tireDOT?.bl?.week && `W${formData.tireDOT?.bl?.week}`, formData.tireDOT?.bl?.year, formData.tireDOT?.bl?.plant].filter(Boolean).join(' | ') || 'â€”'}
+                </Text>
+              </View>
             </View>
-            <View style={styles.col}>
-              <Text style={styles.label}>TIRE DOT - BL (BACK LEFT)</Text>
-              <Text style={styles.value}>
-                {[formData.tireDOT?.bl?.code, formData.tireDOT?.bl?.week && `W${formData.tireDOT?.bl?.week}`, formData.tireDOT?.bl?.year, formData.tireDOT?.bl?.plant].filter(Boolean).join(' | ') || 'â€”'}
-              </Text>
-            </View>
-          </View>
 
-          <View style={styles.row}>
-            <View style={styles.col}>
-              <Text style={styles.label}>TIRE DOT - SPARE</Text>
-              <Text style={styles.value}>
-                {[formData.tireDOT?.spare?.code, formData.tireDOT?.spare?.week && `W${formData.tireDOT?.spare?.week}`, formData.tireDOT?.spare?.year, formData.tireDOT?.spare?.plant].filter(Boolean).join(' | ') || 'â€”'}
-              </Text>
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <Text style={styles.label}>TIRE DOT - SPARE</Text>
+                <Text style={styles.value}>
+                  {[formData.tireDOT?.spare?.code, formData.tireDOT?.spare?.week && `W${formData.tireDOT?.spare?.week}`, formData.tireDOT?.spare?.year, formData.tireDOT?.spare?.plant].filter(Boolean).join(' | ') || 'â€”'}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
 
         {/* SUITABILITY */}
         <View style={styles.section}>
@@ -1015,7 +1113,7 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
             <View style={styles.col}>
               <Text style={styles.label}>TOTAL AMOUNT</Text>
               <Text style={[styles.value, { fontWeight: 'bold', color: '#7c3aed' }]}>
-                {formatKES(formData.agreedAmount?.total || 0)}
+                {formatKES(agreedAmountTotal, formData.pricingSnapshot?.currency)}
               </Text>
             </View>
           </View>
@@ -1078,16 +1176,34 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
           </View>
         </View>
 
-        {/* UPLOADED IMAGES */}
-        {uploadedImageSources.length > 0 && (
+        {/* UPLOADED MEDIA */}
+        {(uploadedImageSources.length > 0 || uploadedVideoEntries.length > 0) && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>UPLOADED IMAGES</Text>
-            <Text style={styles.label}>{uploadedImageSources.length} image(s) attached</Text>
+            <Text style={styles.sectionTitle}>UPLOADED MEDIA</Text>
+            <Text style={styles.label}>
+              {uploadedImageSources.length} image(s), {uploadedVideoEntries.length} video(s) attached
+            </Text>
             <View style={styles.mediaGrid}>
               {uploadedImageSources.slice(0, 8).map((imageSrc, index) => (
                 <View key={`${imageSrc}-${index}`} style={styles.mediaItem}>
                   <Image src={imageSrc} style={styles.mediaImage} />
                   <Text style={styles.mediaCaption}>Image {index + 1}</Text>
+                </View>
+              ))}
+              {uploadedVideoEntries.slice(0, 4).map((videoEntry, index) => (
+                <View key={`${videoEntry.src}-${index}`} style={styles.mediaItem}>
+                  {videoEntry.previewSrc ? (
+                    <Image src={videoEntry.previewSrc} style={styles.mediaImage} />
+                  ) : (
+                    <View style={styles.mediaPlaceholder}>
+                      <Text style={styles.value}>Video Preview Unavailable</Text>
+                    </View>
+                  )}
+                  <Text style={styles.mediaCaption}>Video {index + 1}</Text>
+                  <Text style={styles.mediaMeta}>{videoEntry.label}</Text>
+                  <Link src={videoEntry.src} style={styles.mediaLink}>
+                    Open video link
+                  </Link>
                 </View>
               ))}
             </View>
@@ -1129,7 +1245,7 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
           <Text>Generated on: {formatDate(currentDate.toISOString())}</Text>
           <Text>Checklist ID: {formData._id?.slice(-8) || 'NEW'}</Text>
           <Text>Vehicle: {formData.carDetails?.licensePlate || 'Not specified'}</Text>
-          <Text>Inspector: {formData.inspectorName || 'Not specified'}</Text>
+          <Text>Inspector: {resolvedInspectorName}</Text>
           <Text style={styles.pageNumber}>--- Page 3 of 3 ---</Text>
         </View>
       </Page>

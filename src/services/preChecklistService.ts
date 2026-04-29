@@ -585,6 +585,9 @@ export interface SendChecklistEmailOptions {
   subject?: string;
   includePdf?: boolean;
   includeSecureLink?: boolean;
+  pdfBase64?: string;
+  pdfFilename?: string;
+  pdfMimeType?: string;
 }
 
 const normalizeObjectId = (value: unknown): string => {
@@ -1289,10 +1292,20 @@ class PreChecklistService {
     id: string,
     options: SendChecklistEmailOptions
   ): Promise<{ success: boolean; message: string; endpoint?: string; fallbackUsed?: boolean }> {
+    const normalizedMessage = options.message || '';
+    const normalizedSubject = options.subject || 'Service Intake Form';
+    const normalizedPdfBase64 =
+      typeof options.pdfBase64 === 'string'
+        ? options.pdfBase64.replace(/^data:application\/pdf;base64,/i, '').trim()
+        : '';
+    const resolvedPdfFilename =
+      options.pdfFilename || `SERVICE-INTAKE-${String(id || '').slice(-8) || 'CHECKLIST'}.pdf`;
+    const resolvedPdfMimeType = options.pdfMimeType || 'application/pdf';
+
     const basePayload = {
       email: options.email,
-      message: options.message,
-      subject: options.subject,
+      message: normalizedMessage,
+      subject: normalizedSubject,
       includePdf: options.includePdf ?? true,
       includeSecureLink: options.includeSecureLink ?? true,
     };
@@ -1304,22 +1317,77 @@ class PreChecklistService {
       `/prechecklists/${id}/email/send-copy`,
       `/prechecklists/${id}/send-client-email`,
       `/prechecklists/${id}/email/send`,
+      `/prechecklists/${id}/send-client-copy`,
+      `/prechecklists/${id}/email/send-client`,
     ];
+
+    const attachmentPayload = normalizedPdfBase64
+      ? {
+          pdfBase64: normalizedPdfBase64,
+          pdfContent: normalizedPdfBase64,
+          pdfFilename: resolvedPdfFilename,
+          pdfMimeType: resolvedPdfMimeType,
+          attachment: {
+            filename: resolvedPdfFilename,
+            content: normalizedPdfBase64,
+            encoding: 'base64',
+            contentType: resolvedPdfMimeType,
+          },
+          attachments: [
+            {
+              filename: resolvedPdfFilename,
+              content: normalizedPdfBase64,
+              encoding: 'base64',
+              contentType: resolvedPdfMimeType,
+            },
+          ],
+        }
+      : {};
 
     const payloadVariants: Array<Record<string, unknown>> = [
       basePayload,
       {
         recipientEmail: options.email,
-        message: options.message,
-        body: options.message,
-        subject: options.subject,
+        message: normalizedMessage,
+        body: normalizedMessage,
+        text: normalizedMessage,
+        subject: normalizedSubject,
         includePdf: options.includePdf ?? true,
       },
       {
         clientEmail: options.email,
-        message: options.message,
-        subject: options.subject,
+        message: normalizedMessage,
+        body: normalizedMessage,
+        subject: normalizedSubject,
         includePdf: options.includePdf ?? true,
+      },
+      {
+        to: options.email,
+        message: normalizedMessage,
+        text: normalizedMessage,
+        subject: normalizedSubject,
+        includePdf: options.includePdf ?? true,
+      },
+      {
+        recipient: options.email,
+        message: normalizedMessage,
+        text: normalizedMessage,
+        subject: normalizedSubject,
+        includePdf: options.includePdf ?? true,
+      },
+      {
+        email: options.email,
+        message: normalizedMessage,
+        subject: normalizedSubject,
+        includePdf: options.includePdf ?? true,
+        ...attachmentPayload,
+      },
+      {
+        recipientEmail: options.email,
+        body: normalizedMessage,
+        subject: normalizedSubject,
+        includePdf: options.includePdf ?? true,
+        ...attachmentPayload,
       },
     ];
 
