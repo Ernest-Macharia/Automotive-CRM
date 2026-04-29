@@ -9,6 +9,8 @@ import { ticketService, Ticket as TicketEntity } from '@/services/ticketService'
 
 function getStatusClass(status: string): string {
   switch (status) {
+    case 'new':
+      return 'bg-purple-100 text-purple-800';
     case 'resolved':
     case 'closed':
       return 'bg-green-100 text-green-800';
@@ -63,7 +65,7 @@ export default function TicketsPage() {
 
   const stats = useMemo(() => {
     const total = tickets.length;
-    const open = tickets.filter(item => (item.status || '').toLowerCase() === 'open').length;
+    const open = tickets.filter(item => ['new', 'open'].includes((item.status || '').toLowerCase())).length;
     const inProgress = tickets.filter(item => (item.status || '').toLowerCase() === 'in_progress').length;
     const resolved = tickets.filter(item => ['resolved', 'closed'].includes((item.status || '').toLowerCase())).length;
     return { total, open, inProgress, resolved };
@@ -136,6 +138,7 @@ export default function TicketsPage() {
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
             >
               <option value="all">All Status</option>
+              <option value="new">New</option>
               <option value="open">Open</option>
               <option value="queued">Queued</option>
               <option value="in_progress">In Progress</option>
