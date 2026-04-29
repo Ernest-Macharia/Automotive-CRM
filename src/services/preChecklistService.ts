@@ -1226,16 +1226,59 @@ class PreChecklistService {
   }
 
   // 8. Request email approval for pre-checklist
-  async requestEmailApproval(id: string, email: string, message?: string): Promise<{ success: boolean; message: string }> {
-    try {
-      return await extendedApiClient.post<{ email: string; message?: string }, { success: boolean; message: string }>(
-        `/prechecklists/${id}/request-email-approval`,
-        { email, message }
-      );
-    } catch (error: any) {
-      console.error(`Error requesting email approval for pre-checklist ${id}:`, error);
-      throw error;
+  async requestEmailApproval(
+    id: string,
+    email: string,
+    message?: string,
+    subject?: string
+  ): Promise<{ success: boolean; message: string }> {
+    const approvalEndpoints = [
+      `/prechecklists/${id}/request-email-approval`,
+      `/prechecklists/${id}/send-approval-email`,
+      `/prechecklists/${id}/email/request-approval`,
+    ];
+
+    const payloadVariants: Array<Record<string, unknown>> = [
+      { email, message, subject },
+      { email, message },
+      { clientEmail: email, message, subject },
+      { recipientEmail: email, message, subject },
+    ];
+
+    let lastError: any = null;
+
+    for (const endpoint of approvalEndpoints) {
+      for (const payload of payloadVariants) {
+        try {
+          const response = await extendedApiClient.post<typeof payload, any>(endpoint, payload);
+          const normalizedSuccess = typeof response?.success === 'boolean' ? response.success : true;
+          const normalizedMessage = response?.message || 'Checklist email request sent successfully';
+
+          if (!normalizedSuccess) {
+            lastError = new Error(normalizedMessage || 'Checklist email request failed');
+            continue;
+          }
+
+          return {
+            success: true,
+            message: normalizedMessage,
+          };
+        } catch (error: any) {
+          lastError = error;
+          const statusCode = parseErrorStatusCode(error);
+          if (statusCode === 401 || statusCode === 403) {
+            throw error;
+          }
+          if (statusCode !== null && statusCode >= 400 && statusCode < 500 && statusCode !== 404 && statusCode !== 405) {
+            continue;
+          }
+          continue;
+        }
+      }
     }
+
+    console.error(`Error requesting email approval for pre-checklist ${id}:`, lastError);
+    throw lastError || new Error('Failed to request checklist email approval');
   }
 
   /**
@@ -1246,7 +1289,7 @@ class PreChecklistService {
     id: string,
     options: SendChecklistEmailOptions
   ): Promise<{ success: boolean; message: string; endpoint?: string; fallbackUsed?: boolean }> {
-    const payload = {
+    const basePayload = {
       email: options.email,
       message: options.message,
       subject: options.subject,
@@ -1254,44 +1297,97 @@ class PreChecklistService {
       includeSecureLink: options.includeSecureLink ?? true,
     };
 
-    // Try to pre-generate the PDF so attachment-enabled endpoints can pick it up.
-    try {
-      await this.generatePDF(id);
-    } catch (pdfError) {
-      console.warn(`Unable to pre-generate checklist PDF for ${id} before email send:`, pdfError);
-    }
-
     const endpoints = [
       `/prechecklists/${id}/send-email`,
       `/prechecklists/${id}/send-pdf-email`,
       `/prechecklists/${id}/send-signed-copy`,
       `/prechecklists/${id}/email/send-copy`,
+      `/prechecklists/${id}/send-client-email`,
+      `/prechecklists/${id}/email/send`,
     ];
 
-    for (const endpoint of endpoints) {
-      try {
-        const response = await extendedApiClient.post<typeof payload, any>(endpoint, payload);
-        const normalizedSuccess =
-          typeof response?.success === 'boolean' ? response.success : true;
-        const normalizedMessage =
-          response?.message || 'Checklist email sent successfully';
-        return {
-          success: normalizedSuccess,
-          message: normalizedMessage,
-          endpoint,
-        };
-      } catch (error: any) {
-        const statusCode = parseErrorStatusCode(error);
-        if (statusCode === 404 || statusCode === 405) {
-          continue;
+    const payloadVariants: Array<Record<string, unknown>> = [
+      basePayload,
+      {
+        recipientEmail: options.email,
+        message: options.message,
+        body: options.message,
+        subject: options.subject,
+        includePdf: options.includePdf ?? true,
+      },
+      {
+        clientEmail: options.email,
+        message: options.message,
+        subject: options.subject,
+        includePdf: options.includePdf ?? true,
+      },
+    ];
+
+    const tryEmailSend = async (): Promise<{ success: boolean; message: string; endpoint?: string } | null> => {
+      let lastAttemptError: any = null;
+
+      for (const endpoint of endpoints) {
+        for (const payload of payloadVariants) {
+          try {
+            const response = await extendedApiClient.post<typeof payload, any>(endpoint, payload);
+            const normalizedSuccess =
+              typeof response?.success === 'boolean' ? response.success : true;
+            const normalizedMessage =
+              response?.message || 'Checklist email sent successfully';
+
+            if (!normalizedSuccess) {
+              lastAttemptError = new Error(normalizedMessage || 'Checklist email endpoint returned unsuccessful response');
+              continue;
+            }
+
+            return {
+              success: true,
+              message: normalizedMessage,
+              endpoint,
+            };
+          } catch (error: any) {
+            lastAttemptError = error;
+            const statusCode = parseErrorStatusCode(error);
+            if (statusCode === 401 || statusCode === 403) {
+              throw error;
+            }
+            if (statusCode !== null && statusCode >= 400 && statusCode < 500 && statusCode !== 404 && statusCode !== 405) {
+              continue;
+            }
+            continue;
+          }
         }
-        throw error;
+      }
+
+      if (lastAttemptError) {
+        console.warn(`Checklist copy email direct endpoints failed for ${id}:`, lastAttemptError);
+      }
+      return null;
+    };
+
+    // First attempt email send without forcing PDF regeneration to avoid duplicate stored copies.
+    const directResult = await tryEmailSend();
+    if (directResult) {
+      return directResult;
+    }
+
+    // If attachment-based delivery still fails, generate server PDF once and retry.
+    if (basePayload.includePdf) {
+      try {
+        await this.generatePDF(id);
+      } catch (pdfError) {
+        console.warn(`Unable to pre-generate checklist PDF for ${id} before retrying email send:`, pdfError);
+      }
+
+      const retryResult = await tryEmailSend();
+      if (retryResult) {
+        return retryResult;
       }
     }
 
-    const fallback = await this.requestEmailApproval(id, options.email, options.message);
+    const fallback = await this.requestEmailApproval(id, options.email, options.message, options.subject);
     return {
-      success: fallback.success,
+      success: Boolean(fallback.success),
       message: fallback.message || 'Checklist email request sent successfully',
       endpoint: `/prechecklists/${id}/request-email-approval`,
       fallbackUsed: true,
