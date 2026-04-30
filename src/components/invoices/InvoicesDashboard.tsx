@@ -77,7 +77,47 @@ export default function InvoicesDashboard() {
   });
   const [statsLoading, setStatsLoading] = useState(true);
   const [importingCsv, setImportingCsv] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadErrorStatus, setLoadErrorStatus] = useState<number | null>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
+
+  const extractErrorStatus = (error: unknown): number | null => {
+    const maybeStatus = (error as any)?.status ?? (error as any)?.response?.status;
+    const parsedStatus = Number(maybeStatus);
+    if (Number.isFinite(parsedStatus) && parsedStatus > 0) {
+      return parsedStatus;
+    }
+
+    const messageMatch = String((error as any)?.message || '').match(/API Error \((\d{3})\)/i);
+    if (!messageMatch) {
+      return null;
+    }
+    const fromMessage = Number(messageMatch[1]);
+    return Number.isFinite(fromMessage) ? fromMessage : null;
+  };
+
+  const extractErrorMessage = (error: unknown): string => {
+    const rawMessage = String((error as any)?.message || '').trim();
+    if (!rawMessage) {
+      return 'Unable to load invoices right now.';
+    }
+
+    const withoutPrefix = rawMessage.replace(/^API Error \(\d{3}\):\s*/i, '').trim();
+    if (withoutPrefix.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(withoutPrefix);
+        const parsedMessage = parsed?.message || parsed?.error;
+        if (parsedMessage) {
+          return String(parsedMessage);
+        }
+      } catch {
+        // Keep normalized string fallback.
+      }
+    }
+
+    const normalized = withoutPrefix.replace(/\s+/g, ' ').trim();
+    return normalized.length > 220 ? `${normalized.slice(0, 217)}...` : normalized;
+  };
 
   const statusOptions = [
     { value: 'all', label: 'All Invoices', color: 'text-gray-600' },
@@ -90,16 +130,35 @@ export default function InvoicesDashboard() {
     { value: PAYMENT_STATUS.PARTIALLY_PAID, label: 'Partially Paid', color: 'text-yellow-600' },
   ];
 
-  const loadInvoices = useCallback(async () => {
+  const loadInvoices = useCallback(async (): Promise<boolean> => {
     try {
       setLoading(true);
+      setLoadError(null);
+      setLoadErrorStatus(null);
       const invoicesData = await invoiceService.getAllInvoices();
       setInvoices(invoicesData);
       calculateStats(invoicesData);
+      return true;
     } catch (error: any) {
       console.error('Error loading invoices:', error);
-      console.error('Full error:', error.message, error.stack);
-      showToast(`Failed to load invoices: ${error.message}`, 'error');
+      const status = extractErrorStatus(error);
+      const normalizedMessage = extractErrorMessage(error);
+
+      if (status === 403) {
+        const permissionMessage =
+          'You do not have permission to view invoices for this organization.';
+        setLoadError(permissionMessage);
+        setLoadErrorStatus(status);
+        setInvoices([]);
+        calculateStats([]);
+        showToast(permissionMessage, 'error');
+        return false;
+      }
+
+      setLoadError(normalizedMessage);
+      setLoadErrorStatus(status);
+      showToast(`Failed to load invoices: ${normalizedMessage}`, 'error');
+      return false;
     } finally {
       setLoading(false);
       setStatsLoading(false);
@@ -167,8 +226,10 @@ export default function InvoicesDashboard() {
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
-      await loadInvoices();
-      showToast('Invoices refreshed', 'success');
+      const loaded = await loadInvoices();
+      if (loaded) {
+        showToast('Invoices refreshed', 'success');
+      }
     } catch (error) {
       console.error('Error refreshing:', error);
     } finally {
@@ -611,6 +672,11 @@ Created: ${formatDate(invoice.createdAt)}
 
             {/* Invoices Table - Scrollable */}
             <div className="p-0 md:p-1">
+              {loadError && (
+                <div className="mx-3 mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {loadError}
+                </div>
+              )}
               {loading ? (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
@@ -645,19 +711,25 @@ Created: ${formatDate(invoice.createdAt)}
                   <div className="inline-flex items-center justify-center w-12 h-12 md:w-16 md:h-16 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 mb-4">
                     <Receipt className="h-6 w-6 md:h-8 md:w-8 text-gray-600" />
                   </div>
-                  <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-2">No invoices found</h3>
+                  <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-2">
+                    {loadErrorStatus === 403 ? 'Invoices access restricted' : 'No invoices found'}
+                  </h3>
                   <p className="text-gray-500 text-sm md:text-base mb-6 max-w-md mx-auto">
-                    {searchTerm || filterStatus !== 'all' 
-                      ? 'Try changing your search or filters' 
-                      : 'Create your first invoice to get started'}
+                    {loadErrorStatus === 403
+                      ? 'Your role currently does not allow invoice viewing. Contact your administrator to grant invoices.read permission.'
+                      : searchTerm || filterStatus !== 'all'
+                        ? 'Try changing your search or filters'
+                        : 'Create your first invoice to get started'}
                   </p>
-                  <Link
-                    href="/invoices/create"
-                    className="px-5 py-2.5 md:px-6 md:py-3 rounded-lg md:rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 font-medium inline-flex items-center gap-2"
-                  >
-                    <Plus className="h-4 w-4 md:h-5 md:w-5" />
-                    Create New Invoice
-                  </Link>
+                  {loadErrorStatus !== 403 && (
+                    <Link
+                      href="/invoices/create"
+                      className="px-5 py-2.5 md:px-6 md:py-3 rounded-lg md:rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 font-medium inline-flex items-center gap-2"
+                    >
+                      <Plus className="h-4 w-4 md:h-5 md:w-5" />
+                      Create New Invoice
+                    </Link>
+                  )}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
