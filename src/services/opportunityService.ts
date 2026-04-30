@@ -29,6 +29,8 @@ export interface Opportunity {
     companyName?: string;
     phone?: string;
     secondaryPhone?: string;
+    country?: string;
+    location?: string;
     _id: string;
     id: string;
     companyAddress?: string;
@@ -118,6 +120,8 @@ export interface CreateOpportunityData {
     email?: string;
     phone?: string;
     secondaryPhone?: string;
+    country?: string;
+    location?: string;
     companyName?: string;
     companyAddress?: string;
     companyTaxId?: string;
@@ -178,6 +182,8 @@ export interface UpdateOpportunityData {
     email?: string;
     phone?: string;
     secondaryPhone?: string;
+    country?: string;
+    location?: string;
     companyName?: string;
     companyAddress?: string;
     companyTaxId?: string;
@@ -1165,6 +1171,8 @@ class OpportunityService {
         email: customer?.email || undefined,
         companyName: customer?.companyName || undefined,
         phone: customer?.phone || undefined,
+        country: customer?.country || undefined,
+        location: customer?.location || undefined,
         _id: String(customer?._id || customer?.id || ''),
         id: String(customer?.id || customer?._id || ''),
       },

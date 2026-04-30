@@ -18,7 +18,9 @@ import {
   AlertTriangle,
   CreditCard,
   Wrench,
-  ShoppingBag
+  ShoppingBag,
+  Globe,
+  MapPin
 } from 'lucide-react';
 import { Opportunity } from '@/services/opportunityService';
 import { workOrderService } from '@/services/workOrderService';
@@ -421,6 +423,30 @@ export default function SuccessModal({
                         <div className="flex-1">
                           <div className="text-sm text-gray-600">Secondary Number</div>
                           <div className="font-medium text-gray-800">{opportunity.customer.secondaryPhone}</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {opportunity.customer?.country && (
+                      <div className="flex items-center gap-3 p-3 bg-white/50 rounded-lg border border-gray-100">
+                        <div className="p-2 bg-cyan-50 rounded-lg">
+                          <Globe className="h-4 w-4 text-cyan-500" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm text-gray-600">Country</div>
+                          <div className="font-medium text-gray-800">{opportunity.customer.country}</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {opportunity.customer?.location && (
+                      <div className="flex items-center gap-3 p-3 bg-white/50 rounded-lg border border-gray-100">
+                        <div className="p-2 bg-orange-50 rounded-lg">
+                          <MapPin className="h-4 w-4 text-orange-500" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-sm text-gray-600">Location</div>
+                          <div className="font-medium text-gray-800">{opportunity.customer.location}</div>
                         </div>
                       </div>
                     )}

@@ -7,7 +7,7 @@ import {
   Upload, Clock, Shield, Briefcase, Sparkles, ChevronRight,
   ArrowRight, ChevronLeft, Save, Package, Settings, ShoppingBag,
   Layers, Box, Wrench, Zap, AlertTriangle, Search, ChevronUp,
-  Globe, Settings as SettingsIcon, Palette, Contact
+  Globe, MapPin, Settings as SettingsIcon, Palette, Contact
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { CreateOpportunityData, opportunityService, SimilarOpportunitiesRequest } from '@/services/opportunityService';
@@ -80,6 +80,8 @@ interface OpportunityFormData {
   email: string;
   phone: string;
   secondaryPhone: string;
+  customerCountry: string;
+  customerLocation: string;
   phoneCode: string;
   vehicles: Vehicle[];
   servicesProducts: ServiceProduct[];
@@ -279,6 +281,8 @@ export default function CreateOpportunityPage() {
     email: '',
     phone: '',
     secondaryPhone: '',
+    customerCountry: '',
+    customerLocation: '',
     phoneCode: '+254',
     vehicles: [{
       id: '1',
@@ -1000,6 +1004,8 @@ export default function CreateOpportunityPage() {
           secondaryPhone: formData.secondaryPhone
             ? normalizePhoneForStorage(formData.phoneCode, formData.secondaryPhone)
             : undefined,
+          country: formData.customerCountry.trim() || undefined,
+          location: formData.customerLocation.trim() || undefined,
           companyName: !isIndividual ? formData.companyName : undefined,
           ...(formData.accountType === 'organization' && {
             contactPersonName: formData.contactPersonName || undefined,
@@ -1319,6 +1325,8 @@ export default function CreateOpportunityPage() {
       email: '',
       phone: '',
       secondaryPhone: '',
+      customerCountry: '',
+      customerLocation: '',
       phoneCode: '+254',
       vehicles: [{
         id: '1',
@@ -1369,10 +1377,13 @@ export default function CreateOpportunityPage() {
     const savedDraft = localStorage.getItem('opportunityDraft');
     if (savedDraft) {
       const parsedDraft = JSON.parse(savedDraft);
-      setFormData({
+      setFormData((prev) => ({
+        ...prev,
         ...parsedDraft,
         source: normalizeSourceForForm(parsedDraft?.source),
-      });
+        customerCountry: typeof parsedDraft?.customerCountry === 'string' ? parsedDraft.customerCountry : '',
+        customerLocation: typeof parsedDraft?.customerLocation === 'string' ? parsedDraft.customerLocation : '',
+      }));
     }
   }, []);
 
@@ -1984,6 +1995,41 @@ export default function CreateOpportunityPage() {
                         <p className="text-xs text-gray-500 mt-1">
                           Secondary Number: {formData.secondaryPhone ? `${formData.phoneCode}${formData.secondaryPhone}` : 'Not provided'}
                         </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Country
+                        </label>
+                        <div className="relative">
+                          <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <input
+                            {...getFieldIdentifiers('customerCountry')}
+                            type="text"
+                            value={formData.customerCountry}
+                            onChange={(e) => handleInputChange('customerCountry', e.target.value)}
+                            placeholder="e.g., Kenya"
+                            className="pl-10 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Location
+                        </label>
+                        <div className="relative">
+                          <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <input
+                            {...getFieldIdentifiers('customerLocation')}
+                            type="text"
+                            value={formData.customerLocation}
+                            onChange={(e) => handleInputChange('customerLocation', e.target.value)}
+                            placeholder="e.g., Nairobi, Westlands"
+                            className="pl-10 pr-4 py-3 w-full rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                          />
+                        </div>
                       </div>
                     </div>
                     <div>
@@ -2966,6 +3012,12 @@ export default function CreateOpportunityPage() {
                           </p>
                           <p className="text-sm">
                             <span className="font-medium">Phone:</span> {formData.phoneCode}{formData.phone}
+                          </p>
+                          <p className="text-sm">
+                            <span className="font-medium">Country:</span> {formData.customerCountry || 'Not provided'}
+                          </p>
+                          <p className="text-sm">
+                            <span className="font-medium">Location:</span> {formData.customerLocation || 'Not provided'}
                           </p>
                           {formData.secondaryPhone && (
                             <p className="text-sm">
