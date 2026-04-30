@@ -692,6 +692,43 @@ const parseErrorStatusCode = (error: any): number | null => {
   return Number.isFinite(parsedStatus) ? parsedStatus : null;
 };
 
+const parseApiErrorMessage = (error: any, fallback: string): string => {
+  const rawMessage = String(error?.message || '').trim();
+  if (!rawMessage) {
+    return fallback;
+  }
+
+  const withoutPrefix = rawMessage.replace(/^API Error \(\d{3}\):\s*/i, '').trim();
+  if (!withoutPrefix) {
+    return fallback;
+  }
+
+  if (withoutPrefix.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(withoutPrefix);
+      const parsedMessage = parsed?.message || parsed?.error;
+      if (parsedMessage) {
+        return String(parsedMessage);
+      }
+    } catch {
+      // Ignore parse errors and continue with normalized text.
+    }
+  }
+
+  const looksLikeHtml = /<(?:!DOCTYPE|html|head|body|title|meta|style|script)\b/i.test(withoutPrefix);
+  if (looksLikeHtml) {
+    const flattened = withoutPrefix
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return flattened || fallback;
+  }
+
+  return withoutPrefix;
+};
+
 const shouldRetryChecklistCreateWithoutMedia = (error: any): boolean => {
   const statusCode = parseErrorStatusCode(error);
   if (!statusCode) {
@@ -1198,13 +1235,91 @@ class PreChecklistService {
   }
 
   // 6. Delete a pre-checklist
-  async deletePreChecklist(id: string): Promise<{ message: string }> {
-    try {
-      return await extendedApiClient.delete<{ message: string }>(`/prechecklists/${id}`);
-    } catch (error) {
-      console.error(`Error deleting pre-checklist ${id}:`, error);
-      throw error;
+  async deletePreChecklist(id: string): Promise<{ message: string; endpoint?: string; fallbackUsed?: boolean }> {
+    const checklistId = String(id || '').trim();
+    if (!checklistId) {
+      throw new Error('Checklist ID is required for deletion');
     }
+
+    const deleteEndpoints = [
+      `/prechecklists/${checklistId}`,
+      `/prechecklists/${checklistId}/delete`,
+      `/pre-checklists/${checklistId}`,
+      `/pre-checklists/${checklistId}/delete`,
+    ];
+
+    const softDeleteVariants: Array<{
+      endpoint: string;
+      payload: Record<string, unknown>;
+      method: 'PATCH' | 'POST';
+    }> = [
+      {
+        endpoint: `/prechecklists/${checklistId}`,
+        payload: { status: 'deleted', remarks: 'Deleted by user action' },
+        method: 'PATCH',
+      },
+      {
+        endpoint: `/prechecklists/${checklistId}/status`,
+        payload: { status: 'deleted' },
+        method: 'PATCH',
+      },
+      {
+        endpoint: `/prechecklists/${checklistId}/archive`,
+        payload: { archived: true, status: 'deleted' },
+        method: 'POST',
+      },
+      {
+        endpoint: `/prechecklists/${checklistId}/cancel`,
+        payload: { status: 'cancelled', remarks: 'Cancelled by user action' },
+        method: 'PATCH',
+      },
+    ];
+
+    let lastError: any = null;
+
+    for (const endpoint of deleteEndpoints) {
+      try {
+        const response = await extendedApiClient.delete<any>(endpoint);
+        return {
+          message: response?.message || 'Pre-checklist deleted successfully',
+          endpoint,
+        };
+      } catch (error: any) {
+        lastError = error;
+        const statusCode = parseErrorStatusCode(error);
+
+        if (statusCode === 401 || statusCode === 403) {
+          throw new Error('You do not have permission to delete this pre-checklist');
+        }
+
+        // Continue trying alternate endpoint variants.
+      }
+    }
+
+    for (const variant of softDeleteVariants) {
+      try {
+        const response =
+          variant.method === 'PATCH'
+            ? await extendedApiClient.patch<Record<string, unknown>, any>(variant.endpoint, variant.payload)
+            : await extendedApiClient.post<Record<string, unknown>, any>(variant.endpoint, variant.payload);
+
+        return {
+          message: response?.message || 'Pre-checklist removed successfully',
+          endpoint: variant.endpoint,
+          fallbackUsed: true,
+        };
+      } catch (error: any) {
+        lastError = error;
+        const statusCode = parseErrorStatusCode(error);
+
+        if (statusCode === 401 || statusCode === 403) {
+          throw new Error('You do not have permission to delete this pre-checklist');
+        }
+      }
+    }
+
+    console.error(`Error deleting pre-checklist ${checklistId}:`, lastError);
+    throw new Error(parseApiErrorMessage(lastError, 'Failed to delete pre-checklist'));
   }
 
   // 7. Sign a pre-checklist

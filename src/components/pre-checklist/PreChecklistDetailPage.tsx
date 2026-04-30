@@ -270,6 +270,28 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     return withoutPrefix || 'Failed to send checklist email';
   }, []);
 
+  const getActionErrorMessage = useCallback((error: unknown, fallback: string): string => {
+    const raw = String((error as any)?.message || '').trim();
+    if (!raw) return fallback;
+
+    const withoutPrefix = raw.replace(/^API Error \(\d{3}\):\s*/i, '').trim();
+    if (!withoutPrefix) return fallback;
+
+    if (withoutPrefix.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(withoutPrefix);
+        const parsedMessage = parsed?.message || parsed?.error;
+        if (parsedMessage) {
+          return String(parsedMessage);
+        }
+      } catch {
+        // Keep normalized text.
+      }
+    }
+
+    return withoutPrefix;
+  }, []);
+
   const buildCustomerEmailMessage = useCallback((entry: PreChecklist) => {
     const variant = getChecklistVariant(entry);
     const companyName = variant === 'diamond_rims' ? 'Diamond Rimz' : 'Eagle Lights';
@@ -356,7 +378,7 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
       router.push('/orders/work-orders');
     } catch (error) {
       console.error('Error deleting pre-checklist:', error);
-      showToast('Failed to delete pre-checklist', 'error');
+      showToast(getActionErrorMessage(error, 'Failed to delete pre-checklist'), 'error');
     } finally {
       setUpdating(false);
     }
