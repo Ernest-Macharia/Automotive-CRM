@@ -589,6 +589,84 @@ interface BackendValidateWithDuplicatesData {
   };
 }
 
+const RETRYABLE_UPSTREAM_STATUS_CODES = new Set([502, 503, 504]);
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const collapseWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
+
+const truncateText = (value: string, limit: number = 220): string => {
+  if (value.length <= limit) {
+    return value;
+  }
+  return `${value.slice(0, Math.max(0, limit - 3))}...`;
+};
+
+const normalizeOpportunityApiErrorMessage = (
+  status: number,
+  rawErrorText: string,
+  statusText?: string
+): string => {
+  const sourceText = String(rawErrorText || '').trim();
+
+  if (sourceText.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(sourceText);
+      const parsedMessage =
+        parsed?.message ||
+        parsed?.error ||
+        parsed?.details?.message ||
+        parsed?.details?.error;
+      if (parsedMessage) {
+        return truncateText(collapseWhitespace(String(parsedMessage)));
+      }
+    } catch {
+      // Ignore JSON parsing failures and continue with string normalization.
+    }
+  }
+
+  const looksLikeHtml = /<(?:!DOCTYPE|html|head|body|title|meta|style|script)\b/i.test(sourceText);
+  if (looksLikeHtml) {
+    const flattenedHtmlMessage = collapseWhitespace(
+      sourceText
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+    );
+    const hasUpstreamTimeoutHint = /no_healthy_upstream|connection_timed_out|connection_timeout|upstream/i.test(
+      sourceText
+    );
+
+    if (status === 504 || hasUpstreamTimeoutHint) {
+      return 'Service temporarily unavailable (504 upstream timeout). Please retry in a few seconds.';
+    }
+
+    return truncateText(flattenedHtmlMessage || `Request failed with status ${status}`);
+  }
+
+  const normalized = collapseWhitespace(sourceText);
+  if (status === 504 && /upstream|timeout/i.test(normalized)) {
+    return 'Service temporarily unavailable (504 upstream timeout). Please retry in a few seconds.';
+  }
+
+  if (normalized) {
+    return truncateText(normalized);
+  }
+
+  return statusText ? `Request failed: ${statusText}` : `Request failed with status ${status}`;
+};
+
+const shouldRetryOpportunityRequest = (
+  method: string,
+  status: number,
+  attempt: number,
+  maxAttempts: number
+): boolean => {
+  if (method !== 'GET') return false;
+  if (attempt >= maxAttempts) return false;
+  return RETRYABLE_UPSTREAM_STATUS_CODES.has(status);
+};
+
 // Extended ApiClient with headers support
 class ExtendedApiClient {
   private getApiBaseUrl(): string {
@@ -628,34 +706,53 @@ class ExtendedApiClient {
       credentials: 'include',
     };
 
-    const response = await fetch(url, config);
+    const method = String(config.method || 'GET').toUpperCase();
+    const maxAttempts = method === 'GET' ? 3 : 1;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      const suppressLog = response.status === 403 && endpoint.startsWith('/opportunities/sla/status-summary');
-      if (!suppressLog) {
-        console.error('API Error Response:', errorText);
-      }
-      
-      if (response.status === 401) {
-        handleUnauthorizedRedirect();
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const response = await fetch(url, config);
+
+      if (!response.ok) {
+        const rawErrorText = await response.text();
+        const normalizedErrorText = normalizeOpportunityApiErrorMessage(
+          response.status,
+          rawErrorText,
+          response.statusText
+        );
+
+        const suppressLog = response.status === 403 && endpoint.startsWith('/opportunities/sla/status-summary');
+        if (!suppressLog) {
+          console.error('API Error Response:', normalizedErrorText);
+        }
+
+        if (response.status === 401) {
+          handleUnauthorizedRedirect();
+        }
+
+        if (shouldRetryOpportunityRequest(method, response.status, attempt, maxAttempts)) {
+          await sleep(350 * attempt);
+          continue;
+        }
+
+        const error = new Error(`API Error (${response.status}): ${normalizedErrorText}`);
+        (error as any).status = response.status;
+        (error as any).response = {
+          status: response.status,
+          statusText: response.statusText,
+          data: rawErrorText,
+        };
+        throw error;
       }
 
-      const error = new Error(`API Error (${response.status}): ${errorText || response.statusText}`);
-      (error as any).status = response.status;
-      (error as any).response = {
-        status: response.status,
-        statusText: response.statusText,
-        data: errorText,
-      };
-      throw error;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        return response.json();
+      }
+
+      return {} as T;
     }
-    
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      return response.json();
-    }
-    return {} as T;
+
+    throw new Error('API Error: request failed after retry attempts');
   }
 
   async get<T>(endpoint: string, params?: Record<string, string>, headers?: Record<string, string>): Promise<T> {
