@@ -750,6 +750,10 @@ export default function HeadlightPostChecklistCreatePage({
   const handleCancel = () => {
     if (source === 'workflow' && workOrderId) {
       router.push(`/orders/work-orders/${workOrderId}`);
+    } else if (source === 'prechecklist' && preChecklistId) {
+      router.push(`/pre-checklist/${preChecklistId}`);
+    } else if (source === 'opportunity' && opportunityId) {
+      router.push(`/opportunities/${opportunityId}`);
     } else {
       router.push('/postchecklists');
     }

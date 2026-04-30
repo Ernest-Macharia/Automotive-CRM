@@ -200,6 +200,21 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     return 'headlight';
   }, []);
 
+  const resolveEntityId = useCallback((value: unknown): string => {
+    if (!value) return '';
+
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+
+    if (typeof value === 'object') {
+      const entity = value as { _id?: string; id?: string };
+      return String(entity._id || entity.id || '').trim();
+    }
+
+    return '';
+  }, []);
+
   const buildChecklistPdfBlob = useCallback(async (entry: PreChecklist): Promise<Blob> => {
     const variant = getChecklistVariant(entry);
 
@@ -503,6 +518,35 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     } finally {
       setUpdating(false);
     }
+  };
+
+  const handleCreatePostChecklist = () => {
+    if (!checklist) return;
+
+    const params = new URLSearchParams();
+    const checklistVariant = getChecklistVariant(checklist);
+    const clientType = checklistVariant === 'diamond_rims' ? 'diamond-rims' : 'eagle-lights';
+    const opportunityId = resolveEntityId(checklist.opportunityId);
+    const vehicleId = resolveEntityId(checklist.vehicleId);
+    const workOrderId = resolveEntityId((checklist as any).workOrderId);
+
+    params.set('clientType', clientType);
+    params.set('source', 'prechecklist');
+    params.set('preChecklistId', checklist._id);
+
+    if (opportunityId) {
+      params.set('opportunityId', opportunityId);
+    }
+
+    if (vehicleId) {
+      params.set('vehicleId', vehicleId);
+    }
+
+    if (workOrderId) {
+      params.set('workOrderId', workOrderId);
+    }
+
+    router.push(`/post-checklist/create?${params.toString()}`);
   };
 
   const handleUpdateItemStatus = async (itemIndex: number, status: 'ok' | 'fault' | 'n/a') => {
@@ -873,6 +917,15 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
                 >
                   <Trash2 className="h-4 w-4" />
                   Delete Checklist
+                </button>
+
+                <button
+                  onClick={handleCreatePostChecklist}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-purple-300 text-purple-700 text-sm font-medium rounded-lg hover:bg-purple-50 disabled:opacity-60"
+                  disabled={updating}
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  Create Post Checklist
                 </button>
               </div>
 
