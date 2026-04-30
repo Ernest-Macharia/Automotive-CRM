@@ -1025,6 +1025,27 @@ export default function OpportunitiesContent() {
   const [organizationNameMap, setOrganizationNameMap] = useState<Record<string, string>>({});
   const csvInputRef = useRef<HTMLInputElement>(null);
   const { user: currentUser } = useCurrentUser();
+
+  const formatLoadErrorMessage = useCallback((errorLike: any): string => {
+    const raw = String(errorLike?.message || '').trim();
+    if (!raw) {
+      return 'Failed to load opportunities. Please try again.';
+    }
+
+    const withoutApiPrefix = raw.replace(/^API Error \(\d{3}\):\s*/i, '').trim();
+    const normalized = withoutApiPrefix.replace(/\s+/g, ' ').trim();
+
+    if (
+      /API Error \(504\)/i.test(raw) ||
+      /no_healthy_upstream|connection_timed_out|connection_timeout|upstream timeout|temporarily unavailable/i.test(
+        normalized
+      )
+    ) {
+      return 'Service temporarily unavailable. Please retry in a few seconds.';
+    }
+
+    return normalized.length > 220 ? `${normalized.slice(0, 217)}...` : normalized;
+  }, []);
   
   const [filters, setFilters] = useState<FilterParams>({
     status: undefined,
@@ -1699,9 +1720,9 @@ export default function OpportunitiesContent() {
         showToast('You do not have access to this organization', 'error', 5000);
         setError(null); // Clear general error
       } else {
-        setError(err.message || 'Failed to fetch opportunities');
+        setError(formatLoadErrorMessage(err));
         setFilteredStats(null);
-        showToast('Failed to load opportunities', 'error', 3000);
+        showToast(formatLoadErrorMessage(err), 'error', 4000);
       }
     } finally {
       if (!isLatestRequest()) {
@@ -1713,7 +1734,7 @@ export default function OpportunitiesContent() {
       setStatsLoading(false);
       setSearchLoading(false);
     }
-  }, [memoizedFilters, memoizedAdvancedFilters, hasActiveFilters, showToast, getAvatarColor, getLeadScoreTier, getStageColor, getChildCounts, syncLoadedOpportunityIds]);
+  }, [memoizedFilters, memoizedAdvancedFilters, hasActiveFilters, showToast, getAvatarColor, getLeadScoreTier, getStageColor, getChildCounts, syncLoadedOpportunityIds, formatLoadErrorMessage]);
 
   // Fetch overview stats
   const fetchOverview = useCallback(async () => {
