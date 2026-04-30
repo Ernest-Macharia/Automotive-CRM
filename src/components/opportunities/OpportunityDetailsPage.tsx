@@ -26,7 +26,7 @@ import {
   RefreshCw, BarChart, CheckSquare, Copy, Download,
   Share2, Link, Tag, Percent, DollarSign, Package,
   Wrench, Truck, ClipboardList, CheckCircle2, XCircle,
-  Menu, MoreVertical, Lock
+  Menu, MoreVertical, Lock, Globe, MapPin
 } from 'lucide-react';
 
 // ... (keep all your existing interfaces and configs) ...
@@ -1594,6 +1594,30 @@ export default function OpportunityDetailsPage({ opportunityId, onBack }: Opport
                         <div>
                           <div className="text-xs text-gray-500">Email</div>
                           <div className="text-sm font-medium text-gray-900 truncate">{opportunity.customer.email}</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {opportunity.customer?.country && (
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-cyan-50 rounded-lg">
+                          <Globe className="h-4 w-4 text-cyan-600" />
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500">Country</div>
+                          <div className="text-sm font-medium text-gray-900">{opportunity.customer.country}</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {opportunity.customer?.location && (
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-orange-50 rounded-lg">
+                          <MapPin className="h-4 w-4 text-orange-600" />
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500">Location</div>
+                          <div className="text-sm font-medium text-gray-900">{opportunity.customer.location}</div>
                         </div>
                       </div>
                     )}

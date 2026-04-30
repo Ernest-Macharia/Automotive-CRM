@@ -6,7 +6,7 @@ import {
   ArrowLeft, Save, X, Building, User, Phone, Mail, Car,
   Trash2, Plus, Search, ChevronDown, ChevronUp, AlertCircle,
   Loader2, FileText, DollarSign, Tag, Check, Sparkles,
-  Settings as SettingsIcon, Package, Settings
+  Settings as SettingsIcon, Package, Settings, Globe, MapPin
 } from 'lucide-react';
 import { opportunityService, Opportunity as ApiOpportunity, UpdateOpportunityData } from '@/services/opportunityService';
 import { useToast } from '@/contexts/ToastContext';
@@ -47,6 +47,8 @@ interface CustomerForm {
   email: string;
   phone: string;
   secondaryPhone: string;
+  country?: string;
+  location?: string;
   companyName: string;
   contactPersonName?: string;
   contactPersonPhone?: string;
@@ -285,6 +287,8 @@ export default function EditOpportunityPage() {
         email: '',
         phone: '',
         secondaryPhone: '',
+        country: '',
+        location: '',
         companyName: '',
         contactPersonName: '',
       contactPersonPhone: '',
@@ -437,6 +441,8 @@ export default function EditOpportunityPage() {
             getSafeCustomerField(customer, 'secondaryPhone'),
             phoneCode
           ),
+          country: getSafeCustomerField(customer, 'country'),
+          location: getSafeCustomerField(customer, 'location'),
           companyName: getSafeCustomerField(customer, 'companyName'),
           contactPersonName: getSafeCustomerField(customer, 'contactPersonName'),
           contactPersonPhone: normalizePhoneForInput(
@@ -678,6 +684,8 @@ export default function EditOpportunityPage() {
           email: formData.customer.email || undefined,
           phone: formatPhoneForApi(formData.customer.phone, formData.phoneCode),
           secondaryPhone: formatPhoneForApi(formData.customer.secondaryPhone, formData.phoneCode),
+          country: formData.customer.country?.trim() || undefined,
+          location: formData.customer.location?.trim() || undefined,
           ...(formData.type === 'organization' && {
             companyName: formData.customer.companyName,
             contactPersonName: formData.customer.contactPersonName || undefined,
@@ -1310,6 +1318,40 @@ export default function EditOpportunityPage() {
                     <p className="text-xs text-gray-500 mt-1">
                       Secondary Number: {formData.customer.secondaryPhone ? `${formData.phoneCode}${formData.customer.secondaryPhone}` : 'Not provided'}
                     </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Country
+                    </label>
+                    <div className="relative">
+                      <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        {...getFieldIdentifiers('customer.country')}
+                        type="text"
+                        value={formData.customer.country || ''}
+                        onChange={(e) => handleCustomerChange('country', e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        placeholder="e.g., Kenya"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Location
+                    </label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        {...getFieldIdentifiers('customer.location')}
+                        type="text"
+                        value={formData.customer.location || ''}
+                        onChange={(e) => handleCustomerChange('location', e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        placeholder="e.g., Nairobi, Westlands"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2027,6 +2069,12 @@ export default function EditOpportunityPage() {
                     <p className="text-sm">
                       <span className="font-medium">Phone:</span> {formData.phoneCode}{formData.customer.phone}
                     </p>
+                    <p className="text-sm">
+                      <span className="font-medium">Country:</span> {formData.customer.country || 'Not provided'}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-medium">Location:</span> {formData.customer.location || 'Not provided'}
+                    </p>
                     {formData.customer.secondaryPhone && (
                       <p className="text-sm">
                         <span className="font-medium">Secondary Number:</span> {formData.phoneCode}{formData.customer.secondaryPhone}
@@ -2108,4 +2156,3 @@ export default function EditOpportunityPage() {
     </div>
   );
 }
-
