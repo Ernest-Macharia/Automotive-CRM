@@ -114,7 +114,15 @@ export default function TicketDetailPage({ id }: TicketDetailPageProps) {
     if (!ticket || !selectedStatus) return;
     try {
       setSaving(true);
-      const updated = await ticketService.updateTicketStatus(id, { status: selectedStatus });
+      const ticketIdCandidates = [ticket._id, ticket.id, id].filter(
+        (value): value is string => typeof value === 'string' && value.trim().length > 0
+      );
+      const primaryTicketId = ticketIdCandidates[0] || id;
+      const updated = await ticketService.updateTicketStatus(
+        primaryTicketId,
+        { status: selectedStatus },
+        { alternateIds: ticketIdCandidates }
+      );
       setTicket(updated);
       setSelectedStatus(updated.status || selectedStatus);
       showToast('Ticket status updated', 'success');
@@ -127,9 +135,18 @@ export default function TicketDetailPage({ id }: TicketDetailPageProps) {
   };
 
   const handleQueueTicket = async () => {
+    if (!ticket) return;
     try {
       setSaving(true);
-      const updated = await ticketService.queueTicket(id, {});
+      const ticketIdCandidates = [ticket._id, ticket.id, id].filter(
+        (value): value is string => typeof value === 'string' && value.trim().length > 0
+      );
+      const primaryTicketId = ticketIdCandidates[0] || id;
+      const updated = await ticketService.queueTicket(
+        primaryTicketId,
+        {},
+        { alternateIds: ticketIdCandidates }
+      );
       setTicket(updated);
       setSelectedStatus(updated.status || 'queued');
       showToast('Ticket queued', 'success');

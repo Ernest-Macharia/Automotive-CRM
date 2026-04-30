@@ -71,8 +71,57 @@ export interface AddTicketReplyData {
   isInternal?: boolean;
 }
 
+export interface TicketMutationOptions {
+  alternateIds?: string[];
+}
+
 class TicketService {
   private basePath = '/tickets';
+  private mutationBasePaths = ['/tickets', '/ticket'];
+
+  private getMutationBasePaths(): string[] {
+    const unique = new Set<string>();
+
+    const addBasePath = (value: string) => {
+      if (!value || typeof value !== 'string') return;
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      unique.add(trimmed.startsWith('/') ? trimmed : `/${trimmed}`);
+    };
+
+    addBasePath(this.basePath);
+    this.mutationBasePaths.forEach(addBasePath);
+
+    return Array.from(unique);
+  }
+
+  private getTicketIdCandidates(primaryId: string, alternateIds: string[] = []): string[] {
+    const unique = new Set<string>();
+
+    const addCandidate = (value: string) => {
+      if (!value || typeof value !== 'string') return;
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      unique.add(trimmed);
+    };
+
+    addCandidate(primaryId);
+    alternateIds.forEach(addCandidate);
+
+    return Array.from(unique);
+  }
+
+  private shouldTryAnotherMutationAttempt(status: number | undefined): boolean {
+    if (status === undefined) {
+      return false;
+    }
+
+    if (status === 401 || status === 403) {
+      return false;
+    }
+
+    return status === 400 || status === 404 || status === 405 || status === 415 || status === 422;
+  }
 
   private getErrorStatus(error: unknown): number | undefined {
     if (!error || typeof error !== 'object') return undefined;
@@ -100,7 +149,7 @@ class TicketService {
         }
 
         // Keep trying compatible endpoints/payload formats for common API mismatches.
-        if (status !== undefined && status < 400) {
+        if (!this.shouldTryAnotherMutationAttempt(status)) {
           break;
         }
       }
@@ -241,56 +290,119 @@ class TicketService {
     }
   }
 
-  async queueTicket(id: string, data: UpdateTicketQueueData = {}): Promise<Ticket> {
+  async queueTicket(
+    id: string,
+    data: UpdateTicketQueueData = {},
+    options: TicketMutationOptions = {}
+  ): Promise<Ticket> {
     try {
+      const ticketIdCandidates = this.getTicketIdCandidates(id, options.alternateIds || []);
+      if (ticketIdCandidates.length === 0) {
+        throw new Error('Ticket id is required to queue a ticket.');
+      }
+      const basePaths = this.getMutationBasePaths();
       const normalizedQueue = data.queue?.trim();
       const queuePayload: UpdateTicketQueueData = {
         ...(normalizedQueue ? { queue: normalizedQueue } : {}),
         ...(data.note ? { note: data.note } : {}),
       };
+      const attempts: Array<() => Promise<unknown>> = [];
+
+      for (const ticketId of ticketIdCandidates) {
+        const safeId = encodeURIComponent(ticketId);
+        for (const basePath of basePaths) {
+          attempts.push(() =>
+            apiClient.patch<UpdateTicketQueueData, unknown>(
+              `${basePath}/${safeId}/queue`,
+              queuePayload
+            )
+          );
+          attempts.push(() =>
+            apiClient.post<UpdateTicketQueueData, unknown>(
+              `${basePath}/${safeId}/queue`,
+              queuePayload
+            )
+          );
+          attempts.push(() =>
+            apiClient.patch<UpdateTicketQueueData, unknown>(
+              `${basePath}/queue/${safeId}`,
+              queuePayload
+            )
+          );
+          attempts.push(() =>
+            apiClient.post<UpdateTicketQueueData, unknown>(
+              `${basePath}/queue/${safeId}`,
+              queuePayload
+            )
+          );
+          attempts.push(() =>
+            apiClient.patch<UpdateTicketQueueData, unknown>(
+              `${basePath}/${safeId}/queue-ticket`,
+              queuePayload
+            )
+          );
+          attempts.push(() =>
+            apiClient.post<UpdateTicketQueueData, unknown>(
+              `${basePath}/${safeId}/queue-ticket`,
+              queuePayload
+            )
+          );
+          attempts.push(() =>
+            apiClient.patch<UpdateTicketStatusData, unknown>(
+              `${basePath}/${safeId}/status`,
+              { status: 'queued', ...(data.note ? { note: data.note } : {}) }
+            )
+          );
+          attempts.push(() =>
+            apiClient.put<UpdateTicketStatusData, unknown>(
+              `${basePath}/${safeId}/status`,
+              { status: 'queued', ...(data.note ? { note: data.note } : {}) }
+            )
+          );
+          attempts.push(() =>
+            apiClient.patch<Record<string, never>, unknown>(
+              `${basePath}/${safeId}/status/queued`,
+              {}
+            )
+          );
+          attempts.push(() =>
+            apiClient.patch<Record<string, unknown>, unknown>(
+              `${basePath}/status/${safeId}`,
+              { status: 'queued', ...(data.note ? { note: data.note } : {}) }
+            )
+          );
+          attempts.push(() =>
+            apiClient.patch<Record<string, unknown>, unknown>(
+              `${basePath}/status/queued/${safeId}`,
+              data.note ? { note: data.note } : {}
+            )
+          );
+          attempts.push(() =>
+            apiClient.patch<Record<string, unknown>, unknown>(
+              `${basePath}/${safeId}`,
+              {
+                status: 'queued',
+                ...(normalizedQueue ? { queue: normalizedQueue } : {}),
+                ...(data.note ? { note: data.note } : {}),
+              }
+            )
+          );
+          attempts.push(() =>
+            apiClient.put<Record<string, unknown>, unknown>(
+              `${basePath}/${safeId}`,
+              {
+                status: 'queued',
+                ...(normalizedQueue ? { queue: normalizedQueue } : {}),
+                ...(data.note ? { note: data.note } : {}),
+              }
+            )
+          );
+        }
+      }
 
       const response = await this.tryMutationWithFallback(
-        [
-          () =>
-            apiClient.patch<UpdateTicketQueueData, unknown>(
-              `${this.basePath}/${id}/queue`,
-              queuePayload
-            ),
-          () =>
-            apiClient.post<UpdateTicketQueueData, unknown>(
-              `${this.basePath}/${id}/queue`,
-              queuePayload
-            ),
-          () =>
-            apiClient.patch<UpdateTicketStatusData, unknown>(
-              `${this.basePath}/${id}/status`,
-              { status: 'queued', ...(data.note ? { note: data.note } : {}) }
-            ),
-          () =>
-            apiClient.patch<Record<string, never>, unknown>(
-              `${this.basePath}/${id}/status/queued`,
-              {}
-            ),
-          () =>
-            apiClient.patch<Record<string, unknown>, unknown>(
-              `${this.basePath}/${id}`,
-              {
-                status: 'queued',
-                ...(normalizedQueue ? { queue: normalizedQueue } : {}),
-                ...(data.note ? { note: data.note } : {}),
-              }
-            ),
-          () =>
-            apiClient.put<Record<string, unknown>, unknown>(
-              `${this.basePath}/${id}`,
-              {
-                status: 'queued',
-                ...(normalizedQueue ? { queue: normalizedQueue } : {}),
-                ...(data.note ? { note: data.note } : {}),
-              }
-            ),
-        ],
-        `queueing ticket ${id}`
+        attempts,
+        `queueing ticket ${ticketIdCandidates.join(', ')}`
       );
       return this.normalizeTicket(this.unwrapTicketPayload(response));
     } catch (error) {
@@ -299,39 +411,103 @@ class TicketService {
     }
   }
 
-  async updateTicketStatus(id: string, data: UpdateTicketStatusData): Promise<Ticket> {
+  async updateTicketStatus(
+    id: string,
+    data: UpdateTicketStatusData,
+    options: TicketMutationOptions = {}
+  ): Promise<Ticket> {
     try {
+      const ticketIdCandidates = this.getTicketIdCandidates(id, options.alternateIds || []);
+      if (ticketIdCandidates.length === 0) {
+        throw new Error('Ticket id is required to update ticket status.');
+      }
+      const basePaths = this.getMutationBasePaths();
       const normalizedStatus = (data.status || '').toString().trim().toLowerCase() || 'open';
       const notePayload = data.note ? { note: data.note } : {};
-      const response = await this.tryMutationWithFallback(
-        [
-          () =>
+      const safeStatus = encodeURIComponent(normalizedStatus);
+      const attempts: Array<() => Promise<unknown>> = [];
+
+      for (const ticketId of ticketIdCandidates) {
+        const safeId = encodeURIComponent(ticketId);
+        for (const basePath of basePaths) {
+          attempts.push(() =>
             apiClient.patch<UpdateTicketStatusData, unknown>(
-              `${this.basePath}/${id}/status`,
+              `${basePath}/${safeId}/status`,
               { status: normalizedStatus, ...notePayload }
-            ),
-          () =>
-            apiClient.patch<Record<string, unknown>, unknown>(
-              `${this.basePath}/${id}/status/${encodeURIComponent(normalizedStatus)}`,
-              notePayload
-            ),
-          () =>
+            )
+          );
+          attempts.push(() =>
             apiClient.put<UpdateTicketStatusData, unknown>(
-              `${this.basePath}/${id}/status`,
+              `${basePath}/${safeId}/status`,
               { status: normalizedStatus, ...notePayload }
-            ),
-          () =>
+            )
+          );
+          attempts.push(() =>
             apiClient.patch<Record<string, unknown>, unknown>(
-              `${this.basePath}/${id}`,
+              `${basePath}/${safeId}/status/${safeStatus}`,
+              notePayload
+            )
+          );
+          attempts.push(() =>
+            apiClient.patch<Record<string, unknown>, unknown>(
+              `${basePath}/status/${safeId}`,
               { status: normalizedStatus, ...notePayload }
-            ),
-          () =>
+            )
+          );
+          attempts.push(() =>
             apiClient.put<Record<string, unknown>, unknown>(
-              `${this.basePath}/${id}`,
+              `${basePath}/status/${safeId}`,
               { status: normalizedStatus, ...notePayload }
-            ),
-        ],
-        `updating status for ticket ${id}`
+            )
+          );
+          attempts.push(() =>
+            apiClient.patch<Record<string, unknown>, unknown>(
+              `${basePath}/status/${safeStatus}/${safeId}`,
+              notePayload
+            )
+          );
+          attempts.push(() =>
+            apiClient.patch<Record<string, unknown>, unknown>(
+              `${basePath}/update-status/${safeId}`,
+              { status: normalizedStatus, ...notePayload }
+            )
+          );
+          attempts.push(() =>
+            apiClient.put<Record<string, unknown>, unknown>(
+              `${basePath}/update-status/${safeId}`,
+              { status: normalizedStatus, ...notePayload }
+            )
+          );
+          attempts.push(() =>
+            apiClient.patch<Record<string, unknown>, unknown>(
+              `${basePath}/${safeId}/update-status`,
+              { status: normalizedStatus, ...notePayload }
+            )
+          );
+          attempts.push(() =>
+            apiClient.post<Record<string, unknown>, unknown>(
+              `${basePath}/${safeId}/update-status`,
+              { status: normalizedStatus, ...notePayload }
+            )
+          );
+          attempts.push(() =>
+            apiClient.patch<Record<string, unknown>, unknown>(
+              `${basePath}/${safeId}`,
+              { status: normalizedStatus, ...notePayload }
+            )
+          );
+          attempts.push(() =>
+            apiClient.put<Record<string, unknown>, unknown>(
+              `${basePath}/${safeId}`,
+              { status: normalizedStatus, ...notePayload }
+            )
+          );
+        }
+      }
+
+      const response = await this.tryMutationWithFallback(
+        attempts,
+        `updating status for ticket ${ticketIdCandidates.join(', ')}`
       );
       return this.normalizeTicket(this.unwrapTicketPayload(response));
     } catch (error) {
