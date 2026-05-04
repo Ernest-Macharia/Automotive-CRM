@@ -203,6 +203,11 @@ export default function DiamondRimsPostChecklistCreatePage({
     return resolveEntityId(jobCards[0]);
   }, [resolveEntityId]);
 
+  const resolvedPreChecklistId =
+    resolveEntityId((preChecklist as { _id?: string; id?: string } | null)?._id) ||
+    resolveEntityId((preChecklist as { _id?: string; id?: string } | null)?.id) ||
+    resolveEntityId(preChecklistId);
+
   // POST CHECKLIST FORM STATE
   const [formData, setFormData] = useState({
     checklistType: 'diamond_rims_post',
@@ -588,10 +593,12 @@ export default function DiamondRimsPostChecklistCreatePage({
 
       if (preChecklistResult.status === 'fulfilled' && preChecklistResult.value) {
         const preCheck = preChecklistResult.value;
+        const normalizedPreChecklistId =
+          resolveEntityId(preCheck?._id) || resolveEntityId(preCheck?.id) || resolveEntityId(preChecklistId);
         setPreChecklist(preCheck);
         setFormData(prev => ({
           ...prev,
-          preChecklistId,
+          preChecklistId: normalizedPreChecklistId,
         }));
       } else if (preChecklistResult.status === 'rejected') {
         console.error('Error loading pre-checklist:', preChecklistResult.reason);
@@ -1218,8 +1225,8 @@ export default function DiamondRimsPostChecklistCreatePage({
   const handleCancel = () => {
     if (workOrderId) {
       router.push(`/orders/work-orders/${workOrderId}`);
-    } else if (source === 'prechecklist' && preChecklistId) {
-      router.push(`/pre-checklist/${preChecklistId}`);
+    } else if (source === 'prechecklist' && resolvedPreChecklistId) {
+      router.push(`/pre-checklist/${resolvedPreChecklistId}`);
     } else if (source === 'opportunity' && opportunityId) {
       router.push(`/opportunities/${opportunityId}`);
     } else {
@@ -1415,7 +1422,7 @@ export default function DiamondRimsPostChecklistCreatePage({
                     Data populated from Pre-Checklist: <strong>#{preChecklist._id?.slice(-6)}</strong>
                   </span>
                   <Link
-                    href={`/pre-checklist/${preChecklistId}`}
+                    href={resolvedPreChecklistId ? `/pre-checklist/${resolvedPreChecklistId}` : '/pre-checklist'}
                     className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 transition-colors flex items-center gap-1"
                   >
                     <ExternalLinkIcon className="h-3 w-3" />
