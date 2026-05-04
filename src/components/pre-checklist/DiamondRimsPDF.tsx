@@ -562,33 +562,6 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
     ).values()
   );
 
-  const hasDeliveryAccessoriesContent =
-    hasValue(formData.deliveryMode) ||
-    formData.tpmsSensorsFitted === true ||
-    hasValue(formData.wheelNutsTotal) ||
-    hasValue(formData.nozzleCapsTotal) ||
-    hasValue(formData.nozzleCapsType) ||
-    hasValue(formData.lockNutsTotal) ||
-    hasValue(formData.centerCaps?.quantity) ||
-    hasValue(formData.centerCaps?.condition) ||
-    hasValue(formData.centerCaps?.type) ||
-    hasValue(formData.rimOrTireSelection) ||
-    (formData.declaredValuable && typeof formData.declaredValuable === 'object');
-
-  const hasRimsTiresSection =
-    hasValue(formData.rimOrTireSelection) ||
-    hasValue(formData.rimsDetails?.size) ||
-    hasValue(formData.tiresDetails?.size) ||
-    hasValue(formData.tiresDetails?.treadDepth);
-
-  const shouldRenderSecondPage =
-    hasDeliveryAccessoriesContent ||
-    hasRimsTiresSection ||
-    hasAnyTireBrandValue ||
-    hasAnyTireDotValue ||
-    selectedSuitabilityServices.length > 0 ||
-    hasValue(formData.additionalInformation);
-
   const mustKnowPoints: string[] = [
     'Entire process explained to the customer.',
     "Tyres, caps, locknuts, sensors, and other items are accepted at the client's own risk.",
@@ -802,24 +775,9 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
           </View>
         )}
 
-      </Page>
-
-      {/* Second Page */}
-      {shouldRenderSecondPage && (
-      <Page size="A4" style={styles.page}>
-        {/* Header for Page 2 */}
-        <View style={styles.header}>
-          <Text style={styles.companyName}>DIAMOND RIMZ LTD</Text>
-          <Text style={styles.title}>SERVICE INTAKE FORM (CONTINUED)</Text>
-          <Text style={styles.subtitle}>
-            Checklist ID: {formData._id?.slice(-8) || 'NEW'} | Date: {formatDate(currentDate.toISOString())}
-          </Text>
-        </View>
-
         {/* DELIVERY & ACCESSORIES */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>DELIVERY & ACCESSORIES</Text>
-          
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>DELIVERY MODE</Text>
@@ -830,7 +788,6 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
               <Text style={styles.value}>{formData.tpmsSensorsFitted ? 'Yes' : 'No'}</Text>
             </View>
           </View>
-
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>TOTAL NUMBER OF WHEEL NUTS</Text>
@@ -841,7 +798,6 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
               <Text style={styles.value}>{formData.nozzleCapsTotal || 'â€”'}</Text>
             </View>
           </View>
-
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>NOZZLE CAPS TYPE</Text>
@@ -852,7 +808,6 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
               <Text style={styles.value}>{formData.lockNutsTotal || 'â€”'}</Text>
             </View>
           </View>
-
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>CENTER CAPS</Text>
@@ -863,7 +818,6 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
               <Text style={styles.value}>{rimOrTireLabel}</Text>
             </View>
           </View>
-
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>DECLARED VALUABLE</Text>
@@ -888,7 +842,6 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
           )}
         </View>
 
-        {/* RIMS / TIRES DETAILS */}
         {(hasValue(formData.rimOrTireSelection) || hasValue(formData.rimsDetails?.size) || hasValue(formData.tiresDetails?.size)) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>RIMS / TIRES DETAILS</Text>
@@ -917,11 +870,9 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
           </View>
         )}
 
-        {/* TIRE BRANDS */}
         {hasAnyTireBrandValue && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>TIRE BRANDS</Text>
-            
             <View style={styles.row}>
               <View style={styles.col}>
                 <Text style={styles.label}>TIRE BRAND - FR (FRONT RIGHT)</Text>
@@ -932,7 +883,6 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
                 <Text style={styles.value}>{formData.tireBrands?.fl || 'â€”'}</Text>
               </View>
             </View>
-
             <View style={styles.row}>
               <View style={styles.col}>
                 <Text style={styles.label}>TIRE BRAND - BR (BACK RIGHT)</Text>
@@ -943,7 +893,6 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
                 <Text style={styles.value}>{formData.tireBrands?.bl || 'â€”'}</Text>
               </View>
             </View>
-
             <View style={styles.row}>
               <View style={styles.col}>
                 <Text style={styles.label}>TIRE BRAND - SPARE</Text>
@@ -953,11 +902,9 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
           </View>
         )}
 
-        {/* TIRE DOT NUMBERS */}
         {hasAnyTireDotValue && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>TIRE DOT NUMBERS</Text>
-            
             <View style={styles.row}>
               <View style={styles.col}>
                 <Text style={styles.label}>TIRE DOT - FR (FRONT RIGHT)</Text>
@@ -972,7 +919,6 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
                 </Text>
               </View>
             </View>
-
             <View style={styles.row}>
               <View style={styles.col}>
                 <Text style={styles.label}>TIRE DOT - BR (BACK RIGHT)</Text>
@@ -987,7 +933,6 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
                 </Text>
               </View>
             </View>
-
             <View style={styles.row}>
               <View style={styles.col}>
                 <Text style={styles.label}>TIRE DOT - SPARE</Text>
@@ -999,7 +944,6 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
           </View>
         )}
 
-        {/* SUITABILITY */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>SUITABILITY</Text>
           <View style={styles.row}>
@@ -1010,7 +954,6 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
           </View>
         </View>
 
-        {/* ADDITIONAL INFORMATION */}
         {hasValue(formData.additionalInformation) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>ADDITIONAL INFORMATION</Text>
@@ -1019,7 +962,7 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
         )}
 
       </Page>
-      )}
+      
 
       {/* Third Page - Terms, Agreements, and Signatures */}
       <Page size="A4" style={styles.page}>

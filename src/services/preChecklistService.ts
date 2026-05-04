@@ -1434,6 +1434,9 @@ class PreChecklistService {
       `/prechecklists/${id}/email/send`,
       `/prechecklists/${id}/send-client-copy`,
       `/prechecklists/${id}/email/send-client`,
+      `/prechecklists/${id}/send-to-client-email`,
+      `/prechecklists/${id}/email/send-to-client`,
+      `/prechecklists/${id}/notify-client`,
     ];
 
     const attachmentPayload = normalizedPdfBase64
@@ -1554,18 +1557,10 @@ class PreChecklistService {
       return directResult;
     }
 
-    // If attachment-based delivery still fails, generate server PDF once and retry.
-    if (basePayload.includePdf) {
-      try {
-        await this.generatePDF(id);
-      } catch (pdfError) {
-        console.warn(`Unable to pre-generate checklist PDF for ${id} before retrying email send:`, pdfError);
-      }
-
-      const retryResult = await tryEmailSend();
-      if (retryResult) {
-        return retryResult;
-      }
+    // Try once more without forcing backend PDF regeneration to avoid duplicate copies.
+    const retryResult = await tryEmailSend();
+    if (retryResult) {
+      return retryResult;
     }
 
     const fallback = await this.requestEmailApproval(id, options.email, options.message, options.subject);
@@ -1614,18 +1609,61 @@ class PreChecklistService {
     }
   }
 
-  async approvePreChecklist(id: string, remarks?: string): Promise<PreChecklist> {
+  async approvePreChecklist(id: string, approvedByOrRemarks?: string, remarksArg?: string): Promise<PreChecklist> {
     try {
-      return await extendedApiClient.patch<{
-        approved: boolean;
-        remarks?: string;
-      }, PreChecklist>(
-        `/prechecklists/${id}/approve`, 
-        { 
-          approved: true,
-          remarks
+      const normalizedApprovedByOrRemarks = String(approvedByOrRemarks || '').trim();
+      const normalizedRemarksArg = String(remarksArg || '').trim();
+      const resemblesUserIdOrEmail =
+        /^[a-fA-F0-9]{24}$/.test(normalizedApprovedByOrRemarks) ||
+        normalizedApprovedByOrRemarks.includes('@');
+
+      const approvedBy = resemblesUserIdOrEmail
+        ? normalizedApprovedByOrRemarks
+        : '';
+      const remarks = normalizedRemarksArg || (!resemblesUserIdOrEmail ? normalizedApprovedByOrRemarks : '');
+
+      const payloadVariants: Array<Record<string, unknown>> = [
+        { approved: true, approvedBy, remarks },
+        { approved: true, approvedBy },
+        { approved: true, remarks },
+        { approved: true },
+        { status: 'approved', approvedBy, remarks },
+      ];
+      const endpoints: Array<{ path: string; method: 'patch' | 'post' }> = [
+        { path: `/prechecklists/${id}/approve`, method: 'patch' },
+        { path: `/prechecklists/${id}/approve`, method: 'post' },
+        { path: `/prechecklists/${id}/approval`, method: 'patch' },
+        { path: `/prechecklists/${id}/approval`, method: 'post' },
+      ];
+
+      let lastError: any = null;
+      for (const endpoint of endpoints) {
+        for (const payload of payloadVariants) {
+          try {
+            if (endpoint.method === 'patch') {
+              return await extendedApiClient.patch<Record<string, unknown>, PreChecklist>(
+                endpoint.path,
+                payload
+              );
+            }
+            return await extendedApiClient.post<Record<string, unknown>, PreChecklist>(
+              endpoint.path,
+              payload
+            );
+          } catch (error: any) {
+            lastError = error;
+            const statusCode = parseErrorStatusCode(error);
+            if (statusCode === 401 || statusCode === 403) {
+              throw error;
+            }
+            if (statusCode !== null && statusCode >= 400 && statusCode < 500 && statusCode !== 404 && statusCode !== 405) {
+              continue;
+            }
+          }
         }
-      );
+      }
+
+      throw lastError || new Error('Failed to approve pre-checklist');
     } catch (error) {
       console.error(`Error approving pre-checklist ${id}:`, error);
       throw error;
