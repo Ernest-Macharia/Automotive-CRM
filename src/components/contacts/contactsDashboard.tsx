@@ -118,6 +118,113 @@ const parseFiniteNumber = (value: unknown): number | undefined => {
   return undefined;
 };
 
+const normalizeDigits = (value?: string): string => String(value || '').replace(/\D+/g, '');
+
+const buildPhoneSearchCandidates = (value?: string): string[] => {
+  const digits = normalizeDigits(value);
+  if (digits.length < 7) return [];
+
+  const candidates = new Set<string>([digits]);
+
+  if (digits.startsWith('0') && digits.length > 7) {
+    candidates.add(digits.slice(1));
+  }
+
+  if (digits.startsWith('254') && digits.length >= 12) {
+    const lastNine = digits.slice(-9);
+    candidates.add(lastNine);
+    candidates.add(`0${lastNine}`);
+  }
+
+  if (digits.length === 9) {
+    candidates.add(`0${digits}`);
+    candidates.add(`254${digits}`);
+  }
+
+  return Array.from(candidates).filter((candidate) => candidate.length >= 7);
+};
+
+const getContactPhoneCandidates = (contact: OpportunityContact): string[] => {
+  const opportunityCustomer = contact.opportunity?.customer || {};
+  const rawValues = [
+    contact.phone,
+    (contact as any).secondaryPhone,
+    (contact as any).companyPhone,
+    (contact as any).contactPersonPhone,
+    opportunityCustomer.phone,
+    opportunityCustomer.secondaryPhone,
+    opportunityCustomer.companyPhone,
+    opportunityCustomer.contactPersonPhone,
+  ];
+
+  const candidates = new Set<string>();
+  rawValues.forEach((value) => {
+    const digits = normalizeDigits(value);
+    if (!digits) return;
+
+    candidates.add(digits);
+    buildPhoneSearchCandidates(digits).forEach((candidate) => candidates.add(candidate));
+    if (digits.startsWith('254')) {
+      candidates.add(`+${digits}`);
+    }
+  });
+
+  return Array.from(candidates);
+};
+
+const matchesContactSearchTerm = (contact: OpportunityContact, rawSearchTerm: string): boolean => {
+  const searchTerm = String(rawSearchTerm || '').trim();
+  if (!searchTerm) return true;
+
+  const normalizedSearch = searchTerm.toLowerCase();
+  const textHaystack = [
+    contact.name,
+    contact.email,
+    contact.companyName,
+    contact.opportunity?.subject,
+    contact.opportunity?.customer?.name,
+    contact.opportunity?.customer?.email,
+  ]
+    .map((value) => String(value || '').toLowerCase().trim())
+    .filter(Boolean)
+    .join(' ');
+
+  const terms = normalizedSearch.split(/\s+/).filter(Boolean);
+  const textMatch = terms.length > 0 && terms.every((term) => textHaystack.includes(term));
+  if (textMatch) return true;
+
+  const searchDigits = normalizeDigits(searchTerm);
+  if (searchDigits.length < 7) return false;
+
+  const searchCandidates = new Set<string>([
+    searchDigits,
+    ...buildPhoneSearchCandidates(searchDigits),
+    ...buildPhoneSearchCandidates(searchDigits).map((candidate) =>
+      candidate.startsWith('254') ? `+${candidate}` : candidate,
+    ),
+  ]);
+  const contactCandidates = getContactPhoneCandidates(contact);
+
+  for (const searchCandidate of searchCandidates) {
+    const normalizedCandidate = normalizeDigits(searchCandidate);
+    if (!normalizedCandidate) continue;
+
+    for (const contactCandidate of contactCandidates) {
+      const normalizedContactCandidate = normalizeDigits(contactCandidate);
+      if (!normalizedContactCandidate) continue;
+
+      if (
+        normalizedContactCandidate.includes(normalizedCandidate) ||
+        normalizedCandidate.includes(normalizedContactCandidate)
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+};
+
 // Pagination interface
 interface PaginationInfo {
   currentPage: number;
@@ -858,12 +965,7 @@ export default function ContactsDashboard() {
   // Apply filters and update pagination
   const applyFilters = useCallback(() => {
     const filtered = contacts.filter(contact => {
-      const matchesSearch = 
-        contact.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.phone?.includes(searchTerm) ||
-        contact.companyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contact.opportunity?.subject?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = matchesContactSearchTerm(contact, searchTerm);
       
       const matchesType = filterType === 'all' || contact.type === filterType;
       
