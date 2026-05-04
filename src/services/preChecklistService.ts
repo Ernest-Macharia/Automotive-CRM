@@ -1401,7 +1401,8 @@ class PreChecklistService {
 
   /**
    * Send checklist copy email with PDF attachment when supported by backend.
-   * Falls back to request-email-approval flow if dedicated email endpoints are unavailable.
+   * This intentionally avoids the legacy approval route because that endpoint is
+   * not available in production and creates a noisy 404/405 for users.
    */
   async sendChecklistCopyEmail(
     id: string,
@@ -1427,16 +1428,27 @@ class PreChecklistService {
 
     const endpoints = [
       `/prechecklists/${id}/send-email`,
+      `/prechecklists/${id}/email`,
+      `/prechecklists/${id}/send`,
       `/prechecklists/${id}/send-pdf-email`,
       `/prechecklists/${id}/send-signed-copy`,
       `/prechecklists/${id}/email/send-copy`,
       `/prechecklists/${id}/send-client-email`,
+      `/prechecklists/${id}/client-email`,
+      `/prechecklists/${id}/send-client`,
       `/prechecklists/${id}/email/send`,
       `/prechecklists/${id}/send-client-copy`,
       `/prechecklists/${id}/email/send-client`,
+      `/prechecklists/${id}/send-to-client`,
       `/prechecklists/${id}/send-to-client-email`,
       `/prechecklists/${id}/email/send-to-client`,
       `/prechecklists/${id}/notify-client`,
+      `/prechecklists/send-email/${id}`,
+      `/prechecklists/send-client-email/${id}`,
+      `/prechecklists/email/${id}`,
+      `/pre-checklists/${id}/send-email`,
+      `/pre-checklists/${id}/email`,
+      `/pre-checklists/${id}/send-client-email`,
     ];
 
     const attachmentPayload = normalizedPdfBase64
@@ -1551,25 +1563,14 @@ class PreChecklistService {
       return null;
     };
 
-    // First attempt email send without forcing PDF regeneration to avoid duplicate stored copies.
     const directResult = await tryEmailSend();
     if (directResult) {
       return directResult;
     }
 
-    // Try once more without forcing backend PDF regeneration to avoid duplicate copies.
-    const retryResult = await tryEmailSend();
-    if (retryResult) {
-      return retryResult;
-    }
-
-    const fallback = await this.requestEmailApproval(id, options.email, options.message, options.subject);
-    return {
-      success: Boolean(fallback.success),
-      message: fallback.message || 'Checklist email request sent successfully',
-      endpoint: `/prechecklists/${id}/request-email-approval`,
-      fallbackUsed: true,
-    };
+    throw new Error(
+      'Checklist email backend endpoint is not available. Backend should expose POST /api/v1/prechecklists/:id/send-email and accept recipient email, subject, message, and optional pdfBase64 attachment.'
+    );
   }
 
   // 9. Approve pre-checklist via email token
@@ -1663,7 +1664,16 @@ class PreChecklistService {
         }
       }
 
-      throw lastError || new Error('Failed to approve pre-checklist');
+      if (lastError) {
+        console.warn(`Dedicated approval routes failed for pre-checklist ${id}; falling back to checklist update.`, lastError);
+      }
+
+      return await this.updatePreChecklist(id, {
+        approved: true,
+        approvedBy,
+        approvedAt: new Date().toISOString(),
+        ...(remarks ? { remarks } : {}),
+      });
     } catch (error) {
       console.error(`Error approving pre-checklist ${id}:`, error);
       throw error;
