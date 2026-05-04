@@ -26,7 +26,7 @@ import {
   Tag,
   Mail
 } from 'lucide-react';
-import { preChecklistService, PreChecklist } from '@/services/preChecklistService';
+import { preChecklistService, PreChecklist, ChecklistFile } from '@/services/preChecklistService';
 import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -215,20 +215,111 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     return '';
   }, []);
 
+  const blobToDataUrl = useCallback((blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = typeof reader.result === 'string' ? reader.result : '';
+        if (!result) {
+          reject(new Error('Failed to convert blob to data URL'));
+          return;
+        }
+        resolve(result);
+      };
+      reader.onerror = () => reject(new Error('Failed to convert blob to data URL'));
+      reader.readAsDataURL(blob);
+    });
+  }, []);
+
+  const enrichChecklistMediaForPdf = useCallback(async (entry: PreChecklist): Promise<PreChecklist> => {
+    const cloned = { ...entry } as PreChecklist & { uploadedImages?: string[]; files?: ChecklistFile[] };
+    const sourceFiles = Array.isArray(cloned.files) ? [...cloned.files] : [];
+    if (sourceFiles.length === 0) {
+      return cloned;
+    }
+
+    const imageFiles = sourceFiles
+      .filter((file) => String(file?.mimeType || file?.fileType || '').toLowerCase().includes('image'))
+      .slice(0, 8);
+    const videoFiles = sourceFiles
+      .filter((file) => String(file?.mimeType || file?.fileType || '').toLowerCase().includes('video'))
+      .slice(0, 4);
+
+    const fileDataById = new Map<string, { imageDataUrl?: string; thumbnailDataUrl?: string }>();
+
+    await Promise.all(
+      imageFiles.map(async (file) => {
+        const fileId = String(file?._id || '').trim();
+        if (!fileId) return;
+        try {
+          const fileBlob = await preChecklistService.downloadFile(fileId);
+          const fileDataUrl = await blobToDataUrl(fileBlob);
+          fileDataById.set(fileId, {
+            ...(fileDataById.get(fileId) || {}),
+            imageDataUrl: fileDataUrl,
+          });
+        } catch (error) {
+          console.warn(`Unable to hydrate image file ${fileId} for PDF`, error);
+        }
+      })
+    );
+
+    await Promise.all(
+      videoFiles.map(async (file) => {
+        const fileId = String(file?._id || '').trim();
+        if (!fileId) return;
+        try {
+          const thumbnailBlob = await preChecklistService.getFileThumbnail(fileId);
+          const thumbnailDataUrl = await blobToDataUrl(thumbnailBlob);
+          fileDataById.set(fileId, {
+            ...(fileDataById.get(fileId) || {}),
+            thumbnailDataUrl,
+          });
+        } catch (error) {
+          console.warn(`Unable to hydrate video thumbnail ${fileId} for PDF`, error);
+        }
+      })
+    );
+
+    cloned.files = sourceFiles.map((file) => {
+      const fileId = String(file?._id || '').trim();
+      const hydrated = fileDataById.get(fileId);
+      if (!hydrated) return file;
+
+      return {
+        ...file,
+        ...(hydrated.imageDataUrl ? { path: hydrated.imageDataUrl, url: hydrated.imageDataUrl } : {}),
+        ...(hydrated.thumbnailDataUrl ? { thumbnailPath: hydrated.thumbnailDataUrl } : {}),
+      } as ChecklistFile;
+    });
+
+    const hydratedUploadedImages = cloned.files
+      .filter((file) => String(file?.mimeType || file?.fileType || '').toLowerCase().includes('image'))
+      .map((file) => String((file as any).path || (file as any).url || '').trim())
+      .filter((item) => item.startsWith('data:image/'));
+
+    if (hydratedUploadedImages.length > 0) {
+      cloned.uploadedImages = Array.from(new Set([...(Array.isArray(cloned.uploadedImages) ? cloned.uploadedImages : []), ...hydratedUploadedImages]));
+    }
+
+    return cloned;
+  }, [blobToDataUrl]);
+
   const buildChecklistPdfBlob = useCallback(async (entry: PreChecklist): Promise<Blob> => {
     const variant = getChecklistVariant(entry);
+    const pdfReadyEntry = await enrichChecklistMediaForPdf(entry);
 
     if (variant === 'diamond_rims') {
       return pdf(
         <DiamondRimsPDF
-          formData={entry}
-          opportunity={typeof entry.opportunityId === 'object' ? entry.opportunityId : undefined}
-          vehicle={typeof entry.vehicleId === 'object' ? entry.vehicleId : undefined}
+          formData={pdfReadyEntry}
+          opportunity={typeof pdfReadyEntry.opportunityId === 'object' ? pdfReadyEntry.opportunityId : undefined}
+          vehicle={typeof pdfReadyEntry.vehicleId === 'object' ? pdfReadyEntry.vehicleId : undefined}
         />
       ).toBlob();
     }
 
-    const stats = (entry.inspectionItems || []).reduce(
+    const stats = (pdfReadyEntry.inspectionItems || []).reduce(
       (acc, item) => {
         const normalized = String(item?.status || '').toLowerCase();
         if (normalized === 'ok') acc.ok += 1;
@@ -243,14 +334,14 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
 
     return pdf(
       <PreChecklistPDF
-        formData={entry}
+        formData={pdfReadyEntry}
         stats={stats}
-        existingChecklist={entry}
-        opportunity={typeof entry.opportunityId === 'object' ? entry.opportunityId : undefined}
-        vehicle={typeof entry.vehicleId === 'object' ? entry.vehicleId : undefined}
+        existingChecklist={pdfReadyEntry}
+        opportunity={typeof pdfReadyEntry.opportunityId === 'object' ? pdfReadyEntry.opportunityId : undefined}
+        vehicle={typeof pdfReadyEntry.vehicleId === 'object' ? pdfReadyEntry.vehicleId : undefined}
       />
     ).toBlob();
-  }, [getChecklistVariant]);
+  }, [enrichChecklistMediaForPdf, getChecklistVariant]);
 
   const blobToBase64 = useCallback((blob: Blob): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -346,7 +437,7 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
       showToast('Pre-checklist approved successfully', 'success');
     } catch (error) {
       console.error('Error approving pre-checklist:', error);
-      showToast('Failed to approve pre-checklist', 'error');
+      showToast(getActionErrorMessage(error, 'Failed to approve pre-checklist'), 'error');
     } finally {
       setUpdating(false);
     }
