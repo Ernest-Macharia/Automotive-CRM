@@ -232,7 +232,7 @@ async function compressChecklistImage(file: File, maxDimension = 1600, quality =
       canvas.width = Math.max(1, Math.round(image.width * scale));
       canvas.height = Math.max(1, Math.round(image.height * scale));
 
-      const context = canvas.getContext('2d');
+      const context = canvas.getContext('2d', { willReadFrequently: true });
       if (!context) {
         resolve(sourceDataUrl);
         return;
@@ -1799,6 +1799,7 @@ export default function DiamondRimsPreChecklistCreatePage({
 
       const response = await preChecklistService.sendChecklistCopyEmail(resolvedChecklistId, {
         email: formData.clientEmail.trim(),
+        clientName,
         subject: emailSubject,
         message: emailMessage,
         includePdf: true,
@@ -1831,19 +1832,59 @@ export default function DiamondRimsPreChecklistCreatePage({
     }
     
     try {
-      // Get the trimmed canvas (removes empty space)
-      const trimmedCanvas = sigRef.current.getTrimmedCanvas();
-      
-      // If trimmed canvas has no width/height, return null
-      if (trimmedCanvas.width === 0 || trimmedCanvas.height === 0) {
+      const sourceCanvas = sigRef.current.getCanvas();
+      const sourceWidth = sourceCanvas.width;
+      const sourceHeight = sourceCanvas.height;
+
+      if (sourceWidth === 0 || sourceHeight === 0) {
         return null;
       }
-      
-      // Create a new canvas with padding
+
+      // Read pixels from a dedicated readback canvas so Chrome can optimize getImageData.
+      const readCanvas = document.createElement('canvas');
+      readCanvas.width = sourceWidth;
+      readCanvas.height = sourceHeight;
+      const readCtx = readCanvas.getContext('2d', { willReadFrequently: true });
+      if (!readCtx) return null;
+      readCtx.drawImage(sourceCanvas, 0, 0);
+
+      const imageData = readCtx.getImageData(0, 0, sourceWidth, sourceHeight);
+      const pixels = imageData.data;
+      let top = sourceHeight;
+      let right = 0;
+      let bottom = 0;
+      let left = sourceWidth;
+      let hasInk = false;
+
+      for (let y = 0; y < sourceHeight; y += 1) {
+        for (let x = 0; x < sourceWidth; x += 1) {
+          const index = (y * sourceWidth + x) * 4;
+          const alpha = pixels[index + 3];
+          const red = pixels[index];
+          const green = pixels[index + 1];
+          const blue = pixels[index + 2];
+          const isVisibleInk = alpha > 0 && !(red > 245 && green > 245 && blue > 245);
+
+          if (isVisibleInk) {
+            hasInk = true;
+            if (x < left) left = x;
+            if (x > right) right = x;
+            if (y < top) top = y;
+            if (y > bottom) bottom = y;
+          }
+        }
+      }
+
+      if (!hasInk) {
+        return null;
+      }
+
+      const trimmedWidth = Math.max(1, right - left + 1);
+      const trimmedHeight = Math.max(1, bottom - top + 1);
       const padding = 20;
       const paddedCanvas = document.createElement('canvas');
-      paddedCanvas.width = trimmedCanvas.width + (padding * 2);
-      paddedCanvas.height = trimmedCanvas.height + (padding * 2);
+      paddedCanvas.width = trimmedWidth + (padding * 2);
+      paddedCanvas.height = trimmedHeight + (padding * 2);
       
       const ctx = paddedCanvas.getContext('2d');
       if (!ctx) return null;
@@ -1853,7 +1894,17 @@ export default function DiamondRimsPreChecklistCreatePage({
       ctx.fillRect(0, 0, paddedCanvas.width, paddedCanvas.height);
       
       // Draw the trimmed signature centered with padding
-      ctx.drawImage(trimmedCanvas, padding, padding);
+      ctx.drawImage(
+        sourceCanvas,
+        left,
+        top,
+        trimmedWidth,
+        trimmedHeight,
+        padding,
+        padding,
+        trimmedWidth,
+        trimmedHeight
+      );
       
       return paddedCanvas;
     } catch (error) {
@@ -2593,8 +2644,13 @@ export default function DiamondRimsPreChecklistCreatePage({
 
       try {
         await syncOpportunityFromChecklist(resolvedOpportunityId, sanitizedCustomerEmail);
-      } catch (syncError) {
-        console.error('Error syncing checklist details to opportunity:', syncError);
+      } catch (syncError: any) {
+        const syncMessage = String(syncError?.message || '');
+        if (syncMessage.includes('409') || syncMessage.toLowerCase().includes('already matches')) {
+          console.warn('Skipped opportunity detail sync because the backend detected an existing matching active opportunity.');
+        } else {
+          console.error('Error syncing checklist details to opportunity:', syncError);
+        }
       }
 
       if (workOrderId) {
