@@ -68,6 +68,7 @@ import TermsModal from '@/components/pre-checklist/TermsModal';
 import DiamondRimsPostChecklistPDF from './DiamondRimsPostChecklistPDF';
 import * as XLSX from 'xlsx';
 import { preChecklistService } from '@/services/preChecklistService';
+import { jobCardService } from '@/services/jobCardService';
 import FileUploadSection from '@/components/pre-checklist/FileUploadSection';
 import { ChecklistFile } from '@/services/preChecklistService';
 import { serviceService, Service } from '@/services/serviceService';
@@ -180,6 +181,27 @@ export default function DiamondRimsPostChecklistCreatePage({
   const technicianDropdownRef = useRef<HTMLDivElement>(null);
   const serviceDropdownRef = useRef<HTMLDivElement>(null);
   const draftRestoredRef = useRef(false);
+
+  const resolveEntityId = useCallback((value: unknown): string => {
+    if (!value) return '';
+
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+
+    if (typeof value === 'object') {
+      const entity = value as { _id?: string; id?: string };
+      return String(entity._id || entity.id || '').trim();
+    }
+
+    return '';
+  }, []);
+
+  const extractFirstJobCardId = useCallback((jobCards: unknown): string => {
+    if (!Array.isArray(jobCards) || jobCards.length === 0) return '';
+
+    return resolveEntityId(jobCards[0]);
+  }, [resolveEntityId]);
 
   // POST CHECKLIST FORM STATE
   const [formData, setFormData] = useState({
@@ -1022,23 +1044,56 @@ export default function DiamondRimsPostChecklistCreatePage({
         return;
       }
 
-      // Get jobCard ID from workOrder.jobCards (array of job cards)
-      let jobCardId = '';
-      
-      if (workOrder?.jobCards && Array.isArray(workOrder.jobCards) && workOrder.jobCards.length > 0) {
-        // If jobCards is an array of objects with _id
-        if (typeof workOrder.jobCards[0] === 'object') {
-          jobCardId = (workOrder.jobCards[0] as any)._id || '';
-        } else {
-          // If jobCards is an array of strings
-          jobCardId = workOrder.jobCards[0] as string || '';
+      const effectiveOpportunityId =
+        formData.opportunityId ||
+        opportunityId ||
+        resolveEntityId(preChecklist?.opportunityId) ||
+        resolveEntityId(workOrder?.opportunityId);
+
+      let resolvedWorkOrderId = formData.workOrderId || workOrderId || '';
+      let jobCardId =
+        extractFirstJobCardId(workOrder?.jobCards) ||
+        resolveEntityId((formData as any).tempJobCardId) ||
+        resolveEntityId(searchParams.get('jobCardId'));
+
+      // Recover missing work-order/job-card context from opportunity linkage.
+      if ((!jobCardId || !resolvedWorkOrderId) && effectiveOpportunityId) {
+        try {
+          const relatedWorkOrders = await workOrderService.getWorkOrdersByOpportunity(effectiveOpportunityId);
+          const matchedPreChecklistWorkOrder = preChecklistId
+            ? relatedWorkOrders.find((wo) =>
+                resolveEntityId(wo.preChecklistId) === preChecklistId &&
+                Boolean(extractFirstJobCardId(wo.jobCards))
+              )
+            : undefined;
+          const matchedRouteWorkOrder = resolvedWorkOrderId
+            ? relatedWorkOrders.find((wo) => wo._id === resolvedWorkOrderId && Boolean(extractFirstJobCardId(wo.jobCards)))
+            : undefined;
+          const firstWorkOrderWithJobCard = relatedWorkOrders.find((wo) => Boolean(extractFirstJobCardId(wo.jobCards)));
+
+          const fallbackWorkOrder =
+            matchedPreChecklistWorkOrder ||
+            matchedRouteWorkOrder ||
+            firstWorkOrderWithJobCard;
+
+          if (fallbackWorkOrder) {
+            resolvedWorkOrderId = resolvedWorkOrderId || fallbackWorkOrder._id;
+            jobCardId = jobCardId || extractFirstJobCardId(fallbackWorkOrder.jobCards);
+            setWorkOrder((prev: any) => prev || fallbackWorkOrder);
+          }
+        } catch (workOrderLookupError) {
+          console.warn('Unable to resolve work order/job card from opportunity:', workOrderLookupError);
         }
       }
-      
-      // If not in workOrder, try to get from URL params
-      const urlJobCardId = searchParams.get('jobCardId');
-      if (urlJobCardId) {
-        jobCardId = urlJobCardId;
+
+      // Final fallback: pull a job card directly from opportunity.
+      if (!jobCardId && effectiveOpportunityId) {
+        try {
+          const opportunityJobCards = await jobCardService.getJobCardsByOpportunity(effectiveOpportunityId);
+          jobCardId = resolveEntityId(opportunityJobCards[0]?._id || opportunityJobCards[0]?.id);
+        } catch (jobCardLookupError) {
+          console.warn('Unable to resolve job card directly from opportunity:', jobCardLookupError);
+        }
       }
 
       // Get vehicle ID - PRIORITIZE from formData, then from vehicle object, then from pre-checklist
@@ -1071,12 +1126,12 @@ export default function DiamondRimsPostChecklistCreatePage({
       }
 
       if (!jobCardId) {
-        showToast('Job Card ID is required. Please ensure this post-checklist is linked to a work order with job cards.', 'error');
+        showToast('No job card found for this client. Please create/link a job card, then submit again.', 'error');
         setSubmitting(false);
         return;
       }
 
-      if (!formData.opportunityId && !opportunityId) {
+      if (!effectiveOpportunityId) {
         showToast('Opportunity ID is required.', 'error');
         setSubmitting(false);
         return;
@@ -1086,9 +1141,9 @@ export default function DiamondRimsPostChecklistCreatePage({
       const submissionData = {
         ...formData,
         checklistType: 'diamond_rims_post',
-        opportunityId: formData.opportunityId || opportunityId,
+        opportunityId: effectiveOpportunityId,
         vehicleId: finalVehicleId, // Use the validated vehicle ID
-        workOrderId: formData.workOrderId || workOrderId || '',
+        workOrderId: resolvedWorkOrderId,
         jobCardId: jobCardId,
         approved: false,
         completed: true,
@@ -1360,7 +1415,7 @@ export default function DiamondRimsPostChecklistCreatePage({
                     Data populated from Pre-Checklist: <strong>#{preChecklist._id?.slice(-6)}</strong>
                   </span>
                   <Link
-                    href={`/pre-checklist/diamond-rims/${preChecklistId}`}
+                    href={`/pre-checklist/${preChecklistId}`}
                     className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 transition-colors flex items-center gap-1"
                   >
                     <ExternalLinkIcon className="h-3 w-3" />
