@@ -742,7 +742,11 @@ export default function WorkOrdersList() {
         {/* Stage Distribution */}
         {stageStats ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-3">
+            <Link
+              href="/pre-checklist"
+              className="block bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-3 hover:shadow-md hover:-translate-y-0.5 transition"
+              aria-label="Open pre-checklists"
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-purple-700 font-medium">Pre-Checklist</p>
@@ -750,8 +754,12 @@ export default function WorkOrdersList() {
                 </div>
                 <ClipboardCheck className="h-5 w-5 text-purple-600" />
               </div>
-            </div>
-            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 rounded-xl p-3">
+            </Link>
+            <Link
+              href="/job-cards"
+              className="block bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 rounded-xl p-3 hover:shadow-md hover:-translate-y-0.5 transition"
+              aria-label="Open job cards"
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-indigo-700 font-medium">Job Cards</p>
@@ -759,8 +767,12 @@ export default function WorkOrdersList() {
                 </div>
                 <Wrench className="h-5 w-5 text-indigo-600" />
               </div>
-            </div>
-            <div className="bg-gradient-to-br from-teal-50 to-teal-100 border border-teal-200 rounded-xl p-3">
+            </Link>
+            <Link
+              href="/post-checklist"
+              className="block bg-gradient-to-br from-teal-50 to-teal-100 border border-teal-200 rounded-xl p-3 hover:shadow-md hover:-translate-y-0.5 transition"
+              aria-label="Open post-checklists"
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-teal-700 font-medium">Post-Checklist</p>
@@ -768,8 +780,12 @@ export default function WorkOrdersList() {
                 </div>
                 <ClipboardList className="h-5 w-5 text-teal-600" />
               </div>
-            </div>
-            <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-3">
+            </Link>
+            <Link
+              href="/invoices"
+              className="block bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-3 hover:shadow-md hover:-translate-y-0.5 transition"
+              aria-label="Open invoices"
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-amber-700 font-medium">Invoice</p>
@@ -777,7 +793,7 @@ export default function WorkOrdersList() {
                 </div>
                 <Receipt className="h-5 w-5 text-amber-600" />
               </div>
-            </div>
+            </Link>
           </div>
         ) : (
           <StageStatsSkeleton />
