@@ -144,6 +144,62 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     return '';
   };
 
+  const isValidEmail = useCallback((value: unknown): value is string => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+  }, []);
+
+  const resolveClientEmail = useCallback((entry: PreChecklist | null): string => {
+    if (!entry) {
+      return '';
+    }
+
+    const opportunityCustomer =
+      typeof entry.opportunityId === 'object' ? entry.opportunityId?.customer : undefined;
+
+    const candidates = [
+      entry.clientEmail,
+      entry.customerDetails?.email,
+      opportunityCustomer?.email,
+      opportunityCustomer?.companyEmail,
+      opportunityCustomer?.contactPersonEmail,
+    ];
+
+    return (
+      candidates
+        .map((candidate) => String(candidate || '').trim())
+        .find((candidate) => isValidEmail(candidate)) || ''
+    );
+  }, [isValidEmail]);
+
+  const resolveClientName = useCallback((entry: PreChecklist | null): string => {
+    if (!entry) {
+      return 'Client';
+    }
+
+    const detailsName = String(entry.customerDetails?.name || '').trim();
+    if (detailsName) {
+      return detailsName;
+    }
+
+    const fullName =
+      `${entry.customerDetails?.firstName || ''} ${entry.customerDetails?.lastName || ''}`.trim();
+    if (fullName) {
+      return fullName;
+    }
+
+    const opportunityCustomer =
+      typeof entry.opportunityId === 'object' ? entry.opportunityId?.customer : undefined;
+
+    return (
+      String(
+        opportunityCustomer?.contactPersonName ||
+        opportunityCustomer?.name ||
+        opportunityCustomer?.companyName ||
+        ''
+      ).trim() || 'Client'
+    );
+  }, []);
+
   const getStatusColor = (approved: boolean) => {
     return approved 
       ? 'bg-green-100 text-green-800'
@@ -552,24 +608,41 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
   const handleSendChecklistEmail = async () => {
     if (!checklist) return;
 
-    const recipient =
-      checklist.clientEmail ||
-      checklist.customerDetails?.email ||
-      (typeof checklist.opportunityId === 'object' ? checklist.opportunityId?.customer?.email : '') ||
-      '';
+    let recipient = resolveClientEmail(checklist);
 
-    if (!recipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
-      showToast('A valid client email is required before sending', 'error');
-      return;
+    if (!recipient) {
+      const enteredEmail = window
+        .prompt(
+          'No client email found on this checklist/opportunity. Enter a valid email to send.',
+          checklist.customerDetails?.email || ''
+        )
+        ?.trim();
+
+      if (!isValidEmail(enteredEmail)) {
+        showToast('No client email found on this checklist/opportunity. Enter a valid email to send.', 'error');
+        return;
+      }
+
+      recipient = enteredEmail;
+
+      setChecklist((current) =>
+        current
+          ? {
+              ...current,
+              clientEmail: recipient,
+              customerDetails: {
+                ...(current.customerDetails || {}),
+                email: recipient,
+              },
+            }
+          : current
+      );
     }
 
     try {
       setUpdating(true);
 
-      const customerName =
-        `${checklist.customerDetails?.firstName || ''} ${checklist.customerDetails?.lastName || ''}`.trim() ||
-        (typeof checklist.opportunityId === 'object' ? checklist.opportunityId?.customer?.name : '') ||
-        'Client';
+      const customerName = resolveClientName(checklist);
       const vehicleLabel =
         checklist.carDetails?.licensePlate ||
         (typeof checklist.vehicleId === 'object'
@@ -615,10 +688,7 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     } catch (error) {
       console.error('Error sending checklist email through backend, opening local email fallback:', error);
 
-      const customerName =
-        `${checklist.customerDetails?.firstName || ''} ${checklist.customerDetails?.lastName || ''}`.trim() ||
-        (typeof checklist.opportunityId === 'object' ? checklist.opportunityId?.customer?.name : '') ||
-        'Client';
+      const customerName = resolveClientName(checklist);
       const vehicleLabel =
         checklist.carDetails?.licensePlate ||
         (typeof checklist.vehicleId === 'object'
