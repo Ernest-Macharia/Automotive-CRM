@@ -1,5 +1,5 @@
 ﻿import React from 'react';
-import { 
+import {
   Document, 
   Page, 
   Text, 
@@ -10,6 +10,7 @@ import {
   Link
 } from '@react-pdf/renderer';
 import { format } from 'date-fns';
+import { API_BASE_URL } from '@/lib/api/config';
 
 // Register fonts (you can use custom fonts if needed)
 Font.register({
@@ -247,6 +248,27 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: '#6b7280',
     marginTop: 2
+  },
+  mediaMeta: {
+    fontSize: 7,
+    color: '#6b7280',
+    marginTop: 1
+  },
+  mediaLink: {
+    fontSize: 8,
+    color: '#2563eb',
+    marginTop: 3
+  },
+  mediaPlaceholder: {
+    width: '100%',
+    height: 120,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#eef2ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8
   }
 });
 
@@ -321,15 +343,27 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
     }
   };
 
-  const apiBaseUrl = String(process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
-  const normalizeImageSource = (value: unknown): string | null => {
+  const apiBaseUrl = String(process.env.NEXT_PUBLIC_API_URL || API_BASE_URL || '').replace(/\/+$/, '');
+  const normalizeMediaSource = (value: unknown): string | null => {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim();
     if (!trimmed) return null;
-    if (trimmed.startsWith('data:image/')) return trimmed;
+    if (trimmed.startsWith('data:image/') || trimmed.startsWith('data:video/')) return trimmed;
     if (/^https?:\/\//i.test(trimmed)) return trimmed;
-    if (trimmed.startsWith('/') && apiBaseUrl) return `${apiBaseUrl}${trimmed}`;
+    if (trimmed.startsWith('/')) {
+      if (apiBaseUrl) return `${apiBaseUrl}${trimmed}`;
+      return trimmed;
+    }
+    if (apiBaseUrl && !trimmed.startsWith('blob:')) {
+      return `${apiBaseUrl}/${trimmed.replace(/^\/+/, '')}`;
+    }
     return null;
+  };
+
+  const normalizeImageSource = (value: unknown): string | null => {
+    const normalized = normalizeMediaSource(value);
+    if (!normalized || normalized.startsWith('data:video/')) return null;
+    return normalized;
   };
 
   const parseAdditionalInfo = (value: unknown) => {
@@ -352,17 +386,57 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
   const resolvedDeliveryMethod = formData.deliveryPickupMethod || additionalInfo.deliveryPickupMethod || 'customer_pickup';
   const clientSignatureSrc = normalizeImageSource(formData.clientSignature);
   const inspectorSignatureSrc = normalizeImageSource(formData.inspectorSignature);
+  const mediaEntries = Array.isArray(formData.files)
+    ? formData.files
+        .map((file: any, index: number) => {
+          const src = normalizeMediaSource(file?.path || file?.url || '');
+          const thumbnailSrc = normalizeImageSource(file?.thumbnailPath || '');
+          const mimeType = String(file?.mimeType || file?.fileType || '').toLowerCase();
+          const filename = String(file?.originalName || file?.filename || '').trim();
+          const sourceHint = String(file?.path || file?.url || '').toLowerCase();
+          const isVideo =
+            mimeType.includes('video') ||
+            /\.(mp4|mov|avi|webm|mkv|m4v|3gp|ogv|ogg)(\?|#|$)/i.test(filename.toLowerCase()) ||
+            /\.(mp4|mov|avi|webm|mkv|m4v|3gp|ogv|ogg)(\?|#|$)/i.test(sourceHint);
+
+          return {
+            src,
+            thumbnailSrc,
+            label: filename || `Attachment ${index + 1}`,
+            isVideo,
+          };
+        })
+        .filter((entry) => Boolean(entry.src))
+    : [];
+
   const uploadedImageSources = Array.from(
     new Set(
       [
         ...(Array.isArray(formData.uploadedImages) ? formData.uploadedImages : []),
-        ...(Array.isArray(formData.files)
-          ? formData.files.map((file: any) => file?.path || file?.thumbnailPath || file?.url || '').filter(Boolean)
-          : []),
+        ...mediaEntries
+          .filter((entry) => !entry.isVideo)
+          .map((entry) => entry.src),
+        ...mediaEntries
+          .map((entry) => entry.thumbnailSrc)
+          .filter((entry): entry is string => Boolean(entry)),
       ]
         .map((source) => normalizeImageSource(source))
         .filter((source): source is string => Boolean(source))
     )
+  );
+  const uploadedVideoEntries: Array<{ src: string; label: string; previewSrc: string | null }> = Array.from(
+    new Map<string, { src: string; label: string; previewSrc: string | null }>(
+      mediaEntries
+        .filter((entry) => entry.isVideo)
+        .map((entry) => [
+          entry.src,
+          {
+            src: entry.src as string,
+            label: entry.label || 'Video attachment',
+            previewSrc: entry.thumbnailSrc || null,
+          },
+        ])
+    ).values()
   );
 
   return (
@@ -763,11 +837,11 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
         {/* Uploads Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>UPLOADS</Text>
-          <Text style={styles.label}>Image Upload</Text>
-          {uploadedImageSources.length > 0 ? (
+          <Text style={styles.label}>Images & Videos</Text>
+          {(uploadedImageSources.length > 0 || uploadedVideoEntries.length > 0) ? (
             <>
               <Text style={{ fontSize: 9, color: '#6b7280', marginTop: 5 }}>
-                {`${uploadedImageSources.length} image(s) uploaded`}
+                {`${uploadedImageSources.length} image(s), ${uploadedVideoEntries.length} video(s) attached`}
               </Text>
               <View style={styles.mediaGrid}>
                 {uploadedImageSources.slice(0, 8).map((imageSrc, index) => (
@@ -776,10 +850,26 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
                     <Text style={styles.mediaCaption}>Image {index + 1}</Text>
                   </View>
                 ))}
+                {uploadedVideoEntries.slice(0, 4).map((videoEntry, index) => (
+                  <View key={`${videoEntry.src}-${index}`} style={styles.mediaItem}>
+                    {videoEntry.previewSrc ? (
+                      <Image src={videoEntry.previewSrc} style={styles.mediaImage} />
+                    ) : (
+                      <View style={styles.mediaPlaceholder}>
+                        <Text style={styles.value}>Video Preview Unavailable</Text>
+                      </View>
+                    )}
+                    <Text style={styles.mediaCaption}>Video {index + 1}</Text>
+                    <Text style={styles.mediaMeta}>{videoEntry.label}</Text>
+                    <Link src={videoEntry.src} style={styles.mediaLink}>
+                      Open video link
+                    </Link>
+                  </View>
+                ))}
               </View>
             </>
           ) : (
-            <Text style={{ fontSize: 9, color: '#6b7280', marginTop: 5 }}>No images uploaded</Text>
+            <Text style={{ fontSize: 9, color: '#6b7280', marginTop: 5 }}>No images or videos uploaded</Text>
           )}
         </View>
 
@@ -804,4 +894,3 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
 };
 
 export default PreChecklistPDF;
-

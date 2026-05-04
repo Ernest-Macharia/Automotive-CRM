@@ -10,6 +10,7 @@ import {
   Link
 } from '@react-pdf/renderer';
 import { format } from 'date-fns';
+import { API_BASE_URL } from '@/lib/api/config';
 
 // Register fonts
 Font.register({
@@ -26,50 +27,58 @@ Font.register({
 const styles = StyleSheet.create({
   page: {
     flexDirection: 'column',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#f5f7fb',
     padding: 18,
     fontFamily: 'Helvetica'
   },
   header: {
     marginBottom: 10,
-    paddingBottom: 8,
-    borderBottomWidth: 2,
-    borderBottomColor: '#7c3aed',
-    borderBottomStyle: 'solid'
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#1e1b4b',
+    borderWidth: 1,
+    borderColor: '#312e81'
   },
   companyName: {
-    fontSize: 24,
+    fontSize: 21,
     fontWeight: 'bold',
-    color: '#7c3aed',
+    color: '#c4b5fd',
     textAlign: 'center',
-    marginBottom: 5
+    letterSpacing: 0.4
   },
   title: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: 'bold',
-    color: '#000000',
+    color: '#ffffff',
     textAlign: 'center',
-    marginBottom: 10
+    marginTop: 2,
+    marginBottom: 8
   },
   subtitle: {
-    fontSize: 12,
-    color: '#666666',
+    fontSize: 10,
+    color: '#d1d5db',
     textAlign: 'center',
-    marginBottom: 10
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: '#312e81'
   },
   section: {
-    marginBottom: 8,
+    marginBottom: 7,
     padding: 8,
-    backgroundColor: '#f8fafc',
-    borderRadius: 4,
-    borderLeftWidth: 3,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dbe3ef',
+    borderLeftWidth: 4,
     borderLeftColor: '#7c3aed'
   },
   sectionTitle: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#7c3aed',
-    marginBottom: 8
+    color: '#5b21b6',
+    marginBottom: 8,
+    letterSpacing: 0.2
   },
   sectionSubtitle: {
     fontSize: 12,
@@ -155,12 +164,12 @@ const styles = StyleSheet.create({
     lineHeight: 1.4
   },
   termsSection: {
-    marginTop: 8,
+    marginTop: 7,
     padding: 10,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 4,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#cbd5e1'
+    borderColor: '#dbe3ef'
   },
   termsTitle: {
     fontSize: 12,
@@ -173,6 +182,27 @@ const styles = StyleSheet.create({
     color: '#374151',
     lineHeight: 1.3,
     marginBottom: 4
+  },
+  bulletList: {
+    marginTop: 2
+  },
+  bulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 4
+  },
+  bulletMarker: {
+    width: 12,
+    fontSize: 10,
+    color: '#7c3aed',
+    fontWeight: 'bold',
+    paddingTop: 1
+  },
+  bulletText: {
+    flex: 1,
+    fontSize: 8,
+    lineHeight: 1.3,
+    color: '#374151'
   },
   signatureSection: {
     marginTop: 8,
@@ -341,14 +371,20 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
     return value !== undefined && value !== null && value !== '';
   };
 
-  const apiBaseUrl = String(process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
+  const apiBaseUrl = String(process.env.NEXT_PUBLIC_API_URL || API_BASE_URL || '').replace(/\/+$/, '');
   const normalizeMediaSource = (value: unknown): string | null => {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim();
     if (!trimmed) return null;
     if (trimmed.startsWith('data:image/') || trimmed.startsWith('data:video/')) return trimmed;
     if (/^https?:\/\//i.test(trimmed)) return trimmed;
-    if (trimmed.startsWith('/') && apiBaseUrl) return `${apiBaseUrl}${trimmed}`;
+    if (trimmed.startsWith('/')) {
+      if (apiBaseUrl) return `${apiBaseUrl}${trimmed}`;
+      return trimmed;
+    }
+    if (apiBaseUrl && !trimmed.startsWith('blob:')) {
+      return `${apiBaseUrl}/${trimmed.replace(/^\/+/, '')}`;
+    }
     return null;
   };
 
@@ -524,6 +560,54 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
           },
         ])
     ).values()
+  );
+
+  const hasDeliveryAccessoriesContent =
+    hasValue(formData.deliveryMode) ||
+    formData.tpmsSensorsFitted === true ||
+    hasValue(formData.wheelNutsTotal) ||
+    hasValue(formData.nozzleCapsTotal) ||
+    hasValue(formData.nozzleCapsType) ||
+    hasValue(formData.lockNutsTotal) ||
+    hasValue(formData.centerCaps?.quantity) ||
+    hasValue(formData.centerCaps?.condition) ||
+    hasValue(formData.centerCaps?.type) ||
+    hasValue(formData.rimOrTireSelection) ||
+    (formData.declaredValuable && typeof formData.declaredValuable === 'object');
+
+  const hasRimsTiresSection =
+    hasValue(formData.rimOrTireSelection) ||
+    hasValue(formData.rimsDetails?.size) ||
+    hasValue(formData.tiresDetails?.size) ||
+    hasValue(formData.tiresDetails?.treadDepth);
+
+  const shouldRenderSecondPage =
+    hasDeliveryAccessoriesContent ||
+    hasRimsTiresSection ||
+    hasAnyTireBrandValue ||
+    hasAnyTireDotValue ||
+    selectedSuitabilityServices.length > 0 ||
+    hasValue(formData.additionalInformation);
+
+  const mustKnowPoints: string[] = [
+    'Entire process explained to the customer.',
+    "Tyres, caps, locknuts, sensors, and other items are accepted at the client's own risk.",
+    "Personal belongings left in or with the vehicle/rims remain the client's responsibility.",
+    'Completion timelines are estimates only.',
+    'Diamond Rimz will not release any item until full payment is received.',
+    'Uncollected rims/parts after 5 days attract storage fee of KES 500 per day per part.',
+    "Rims not collected within 12 hours after completion notice are stored at the client's risk.",
+  ];
+
+  const renderBulletList = (items: string[], marker = '◆') => (
+    <View style={styles.bulletList}>
+      {items.map((item, index) => (
+        <View key={`${item}-${index}`} style={styles.bulletRow}>
+          <Text style={styles.bulletMarker}>{marker}</Text>
+          <Text style={styles.bulletText}>{item}</Text>
+        </View>
+      ))}
+    </View>
   );
 
   return (
@@ -721,6 +805,7 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
       </Page>
 
       {/* Second Page */}
+      {shouldRenderSecondPage && (
       <Page size="A4" style={styles.page}>
         {/* Header for Page 2 */}
         <View style={styles.header}>
@@ -934,6 +1019,7 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
         )}
 
       </Page>
+      )}
 
       {/* Third Page - Terms, Agreements, and Signatures */}
       <Page size="A4" style={styles.page}>
@@ -949,57 +1035,25 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
         {/* MUST KNOW SECTION */}
         <View style={styles.termsSection}>
           <Text style={styles.termsTitle}>MUST KNOW</Text>
-          <Text style={styles.termsContent}>
-            1. Entire Process Explained to the Customers.
-          </Text>
-          <Text style={styles.termsContent}>
-            2. Tyres, caps, locknuts, sensors, and other items are accepted at the client's own risk.
-          </Text>
-          <Text style={styles.termsContent}>
-            3. Personal belongings left in or with the vehicle/rims are the client's responsibility.
-          </Text>
-          <Text style={styles.termsContent}>
-            4. Completion timelines are estimates only.
-          </Text>
-          <Text style={styles.termsContent}>
-            5. Diamond Rimz will not release any item until full payment is received.
-          </Text>
-          <Text style={styles.termsContent}>
-            6. Uncollected rims/parts after 5 days will attract a storage fee of KES 500 per day per part.
-          </Text>
-          <Text style={styles.termsContent}>
-            7. Rims not collected within 12 hours of completion notification are stored at the client's risk.
-          </Text>
+          {renderBulletList(mustKnowPoints)}
           
           <View style={{ marginTop: 10 }}>
             <Text style={styles.checkbox}>
-              {formData.mustKnowAccepted ? 'â˜‘' : 'â˜'} I acknowledge and understand all the above points *
+              {formData.mustKnowAccepted ? '☑' : '☐'} I acknowledge and understand all the above points
             </Text>
           </View>
           {formData.clientUpdate?.mustKnows && (
             <View style={{ marginTop: 8 }}>
               <Text style={styles.label}>CLIENT MUST-KNOW ACKNOWLEDGEMENTS</Text>
-              <Text style={styles.termsContent}>
-                {formData.clientUpdate.mustKnows.processExplained ? 'â˜‘' : 'â˜'} Process explained
-              </Text>
-              <Text style={styles.termsContent}>
-                {formData.clientUpdate.mustKnows.clientRiskAcceptance ? 'â˜‘' : 'â˜'} Risk acceptance confirmed
-              </Text>
-              <Text style={styles.termsContent}>
-                {formData.clientUpdate.mustKnows.personalBelongings ? 'â˜‘' : 'â˜'} Personal belongings disclosure
-              </Text>
-              <Text style={styles.termsContent}>
-                {formData.clientUpdate.mustKnows.timelineEstimates ? 'â˜‘' : 'â˜'} Timeline estimate acknowledged
-              </Text>
-              <Text style={styles.termsContent}>
-                {formData.clientUpdate.mustKnows.fullPaymentRequired ? 'â˜‘' : 'â˜'} Full payment requirement acknowledged
-              </Text>
-              <Text style={styles.termsContent}>
-                {formData.clientUpdate.mustKnows.storageFees ? 'â˜‘' : 'â˜'} Storage fee notice acknowledged
-              </Text>
-              <Text style={styles.termsContent}>
-                {formData.clientUpdate.mustKnows.storageRisk ? 'â˜‘' : 'â˜'} Storage risk acknowledged
-              </Text>
+              {renderBulletList([
+                `${formData.clientUpdate.mustKnows.processExplained ? '☑' : '☐'} Process explained`,
+                `${formData.clientUpdate.mustKnows.clientRiskAcceptance ? '☑' : '☐'} Risk acceptance confirmed`,
+                `${formData.clientUpdate.mustKnows.personalBelongings ? '☑' : '☐'} Personal belongings disclosure`,
+                `${formData.clientUpdate.mustKnows.timelineEstimates ? '☑' : '☐'} Timeline estimate acknowledged`,
+                `${formData.clientUpdate.mustKnows.fullPaymentRequired ? '☑' : '☐'} Full payment requirement acknowledged`,
+                `${formData.clientUpdate.mustKnows.storageFees ? '☑' : '☐'} Storage fee notice acknowledged`,
+                `${formData.clientUpdate.mustKnows.storageRisk ? '☑' : '☐'} Storage risk acknowledged`,
+              ], '●')}
             </View>
           )}
         </View>
@@ -1017,23 +1071,15 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
               <Text style={[styles.termsContent, { fontWeight: 'bold', color: '#92400e' }]}>
                 Brake Disc Skimming Risks:
               </Text>
-              <Text style={styles.termsContent}>
-                â€¢ Skimming is only possible if your brake disc still has enough thickness above the manufacturer's minimum spec
-              </Text>
-              <Text style={styles.termsContent}>
-                â€¢ If your disc is cracked, heat-damaged, or severely warped, skimming may worsen the condition â€” replacement is advised
-              </Text>
-              <Text style={styles.termsContent}>
-                â€¢ We recommend fitting new brake pads with skimmed discs. Old or uneven pads can reduce braking effectiveness.
-              </Text>
-              <Text style={styles.termsContent}>
-                â€¢ Noise or squealing may continue post-skimming if poor-quality or worn pads are used.
-              </Text>
-              <Text style={styles.termsContent}>
-                â€¢ We do not guarantee results if the disc has been skimmed before or has unknown machining history.
-              </Text>
+              {renderBulletList([
+                "Skimming is possible only when disc thickness remains above manufacturer's minimum spec.",
+                'If a disc is cracked, heat-damaged, or severely warped, skimming may worsen condition and replacement is advised.',
+                'Fitting new brake pads with skimmed discs is recommended. Old/uneven pads can reduce braking effectiveness.',
+                'Noise or squealing may continue post-skimming if poor-quality or worn pads are used.',
+                'Results are not guaranteed if a disc was skimmed before or has unknown machining history.',
+              ])}
               <Text style={{ marginTop: 5, fontSize: 8 }}>
-                {resolveRiskAcknowledgement('brakeDiscSkimming') ? 'â˜‘ Accepted' : 'â˜ Not Accepted'}
+                {resolveRiskAcknowledgement('brakeDiscSkimming') ? '☑ Accepted' : '☐ Not Accepted'}
               </Text>
             </View>
           )}
@@ -1044,29 +1090,17 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
               <Text style={[styles.termsContent, { fontWeight: 'bold', color: '#92400e' }]}>
                 Powder Coating Risks:
               </Text>
-              <Text style={styles.termsContent}>
-                â€¢ Exclusion of hidden flaws (scratches, gouges, casting pits)
-              </Text>
-              <Text style={styles.termsContent}>
-                â€¢ No warranty for high-heat areas (engine, brake)
-              </Text>
-              <Text style={styles.termsContent}>
-                â€¢ Colour match disclaimer (shade, lighting, material)
-              </Text>
-              <Text style={styles.termsContent}>
-                â€¢ No guarantee of OEM matching
-              </Text>
-              <Text style={styles.termsContent}>
-                â€¢ Hidden flaws may appear after stripping/blasting
-              </Text>
-              <Text style={styles.termsContent}>
-                â€¢ Redo policy (only for technical failure, not color dissatisfaction)
-              </Text>
-              <Text style={styles.termsContent}>
-                â€¢ Customer aesthetic dissatisfaction not a valid claim
-              </Text>
+              {renderBulletList([
+                'Hidden flaws such as scratches, gouges, or casting pits are excluded.',
+                'No warranty for high-heat zones (engine/brake areas).',
+                'Colour match may vary by shade, lighting, and material.',
+                'OEM colour matching is not guaranteed.',
+                'Hidden flaws may become visible after stripping/blasting.',
+                'Redo applies only for technical failure, not colour dissatisfaction.',
+                'Aesthetic dissatisfaction alone is not a valid claim.',
+              ])}
               <Text style={{ marginTop: 5, fontSize: 8 }}>
-                {resolveRiskAcknowledgement('powderCoating') ? 'â˜‘ Accepted' : 'â˜ Not Accepted'}
+                {resolveRiskAcknowledgement('powderCoating') ? '☑ Accepted' : '☐ Not Accepted'}
               </Text>
             </View>
           )}
@@ -1077,29 +1111,17 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
               <Text style={[styles.termsContent, { fontWeight: 'bold', color: '#92400e' }]}>
                 Straightening Risks:
               </Text>
-              <Text style={styles.termsContent}>
-                â€¢ Cracked rims should not be straightened.
-              </Text>
-              <Text style={styles.termsContent}>
-                â€¢ Welded rims are at high risk of failure during straightening.
-              </Text>
-              <Text style={styles.termsContent}>
-                â€¢ Severely bent rims may not return to true shape.
-              </Text>
-              <Text style={styles.termsContent}>
-                â€¢ Rims that have been straightened multiple times may fatigue.
-              </Text>
-              <Text style={styles.termsContent}>
-                â€¢ Out-of-round rims may remain slightly distorted even after straightening.
-              </Text>
-              <Text style={styles.termsContent}>
-                â€¢ There is no warranty on straightening services.
-              </Text>
-              <Text style={styles.termsContent}>
-                â€¢ Rims may crack during straightening
-              </Text>
+              {renderBulletList([
+                'Cracked rims should not be straightened.',
+                'Welded rims carry high failure risk during straightening.',
+                'Severely bent rims may not return to true shape.',
+                'Rims straightened multiple times may fatigue.',
+                'Out-of-round rims may remain slightly distorted even after straightening.',
+                'No warranty applies to straightening services.',
+                'Rims may crack during straightening.',
+              ])}
               <Text style={{ marginTop: 5, fontSize: 8 }}>
-                {resolveRiskAcknowledgement('straightening') ? 'â˜‘ Accepted' : 'â˜ Not Accepted'}
+                {resolveRiskAcknowledgement('straightening') ? '☑ Accepted' : '☐ Not Accepted'}
               </Text>
             </View>
           )}
@@ -1246,7 +1268,6 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
           <Text>Checklist ID: {formData._id?.slice(-8) || 'NEW'}</Text>
           <Text>Vehicle: {formData.carDetails?.licensePlate || 'Not specified'}</Text>
           <Text>Inspector: {resolvedInspectorName}</Text>
-          <Text style={styles.pageNumber}>--- Page 3 of 3 ---</Text>
         </View>
       </Page>
     </Document>
