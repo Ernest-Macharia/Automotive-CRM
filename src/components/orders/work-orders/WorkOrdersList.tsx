@@ -497,6 +497,23 @@ export default function WorkOrdersList() {
     }
   }, []);
 
+  const getStageRoute = useCallback((stage?: string) => {
+    switch (stage) {
+      case 'pre_checklist':
+        return '/pre-checklist';
+      case 'job_card':
+        return '/job-cards';
+      case 'post_checklist':
+        return '/post-checklist';
+      case 'invoice':
+      case 'ready_for_invoice':
+      case 'completed':
+        return '/invoices';
+      default:
+        return null;
+    }
+  }, []);
+
   const formatDate = useCallback((dateString: string) => {
     if (!dateString) return 'N/A';
     try {
@@ -1024,9 +1041,19 @@ export default function WorkOrdersList() {
                       </td>
 
                       <td className="py-4 px-4">
-                        <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          {order.currentStage?.replace(/_/g, ' ') || 'N/A'}
-                        </span>
+                        {getStageRoute(order.currentStage) ? (
+                          <Link
+                            href={getStageRoute(order.currentStage) || '/orders/work-orders'}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors"
+                          >
+                            {order.currentStage?.replace(/_/g, ' ') || 'N/A'}
+                          </Link>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            {order.currentStage?.replace(/_/g, ' ') || 'N/A'}
+                          </span>
+                        )}
                       </td>
 
                       <td className="py-4 px-4 font-semibold text-gray-900">
