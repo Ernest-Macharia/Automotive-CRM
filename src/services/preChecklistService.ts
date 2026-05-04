@@ -80,6 +80,9 @@ export interface PreChecklist {
       email?: string;
       phone?: string;
       companyName?: string;
+      companyEmail?: string;
+      contactPersonName?: string;
+      contactPersonEmail?: string;
     };
   };
   vehicleId: string | {
@@ -121,10 +124,10 @@ export interface PreChecklist {
   
   customerDetails?: {
     name?: string;
-    firstName: string;
-    lastName: string;
-    mobile: string;
-    email: string;
+    firstName?: string;
+    lastName?: string;
+    mobile?: string;
+    email?: string;
   };
   
   carDetails?: {
@@ -327,10 +330,10 @@ export interface CreatePreChecklistDto {
   
   customerDetails?: {
     name?: string;
-    firstName: string;
-    lastName: string;
-    mobile: string;
-    email: string;
+    firstName?: string;
+    lastName?: string;
+    mobile?: string;
+    email?: string;
   };
   
   carDetails?: {
@@ -494,13 +497,16 @@ export interface UpdatePreChecklistDto {
     subtotal?: number;
     total?: number;
   };
+  clientEmail?: string;
   serviceType?: 'pickup_only' | 'workshop_installation' | 'mobile_service';
   inspectorName?: string;
   customerDetails?: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
+    name?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    mobile?: string;
   };
   carDetails?: {
     regNo: string;
@@ -1402,8 +1408,7 @@ class PreChecklistService {
 
   /**
    * Send checklist copy email with PDF attachment when supported by backend.
-   * This intentionally avoids the legacy approval route because that endpoint is
-   * not available in production and creates a noisy 404/405 for users.
+   * Falls back to the approval-email flow when copy-email endpoints are unavailable.
    */
   async sendChecklistCopyEmail(
     id: string,
@@ -1437,8 +1442,12 @@ class PreChecklistService {
 
     const endpoints = [
       `/prechecklists/${id}/send-email`,
+      `/prechecklists/${id}/send-pdf-email`,
+      `/prechecklists/${id}/send-signed-copy`,
       `/prechecklists/${id}/send-client-email`,
+      `/prechecklists/${id}/send-client-copy`,
       `/prechecklists/${id}/email/send`,
+      `/prechecklists/${id}/email/send-copy`,
       `/prechecklists/${id}/email/send-client`,
     ];
 
@@ -1512,8 +1521,31 @@ class PreChecklistService {
       return directResult;
     }
 
+    try {
+      const approvalFallback = await this.requestEmailApproval(
+        id,
+        options.email,
+        normalizedMessage,
+        normalizedSubject,
+        resolvedClientName
+      );
+
+      return {
+        success: approvalFallback.success,
+        message:
+          approvalFallback.message || 'Checklist email sent using approval flow fallback',
+        endpoint: `/prechecklists/${id}/request-email-approval`,
+        fallbackUsed: true,
+      };
+    } catch (fallbackError: any) {
+      const statusCode = parseErrorStatusCode(fallbackError);
+      if (statusCode === 401 || statusCode === 403) {
+        throw fallbackError;
+      }
+    }
+
     const unavailableError = new Error(
-      'Checklist email backend endpoint is not available. Backend should expose POST /api/v1/prechecklists/:id/send-email and accept recipient email, subject, message, and optional pdfBase64 attachment.'
+      'Checklist email backend endpoint is not available and the approval email fallback also failed.'
     );
     (unavailableError as any).code = 'CHECKLIST_EMAIL_BACKEND_UNAVAILABLE';
     throw unavailableError;
