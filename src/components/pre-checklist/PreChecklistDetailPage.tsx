@@ -356,24 +356,29 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     });
   }, []);
 
-  const normalizeApiErrorMessage = useCallback((error: unknown): string => {
-    const raw = String((error as any)?.message || '').trim();
-    if (!raw) return 'Failed to send checklist email';
+  const downloadChecklistPdf = useCallback((blob: Blob, filename: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 30_000);
+  }, []);
 
-    const withoutPrefix = raw.replace(/^API Error \(\d{3}\):\s*/i, '').trim();
-    if (withoutPrefix.startsWith('{')) {
-      try {
-        const parsed = JSON.parse(withoutPrefix);
-        const parsedMessage = parsed?.message || parsed?.error || parsed?.statusCode;
-        if (parsedMessage) {
-          return String(parsedMessage);
-        }
-      } catch {
-        // Keep original message when payload isn't valid JSON.
-      }
-    }
-
-    return withoutPrefix || 'Failed to send checklist email';
+  const openClientEmailDraft = useCallback((
+    recipient: string,
+    subject: string,
+    message: string,
+    filename: string,
+    pdfDownloaded: boolean
+  ) => {
+    const attachmentInstruction = pdfDownloaded
+      ? `\n\nThe PDF file (${filename}) has been downloaded on this device. Please attach it before sending.`
+      : '\n\nPlease attach the checklist PDF before sending.';
+    const mailto = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(`${message}${attachmentInstruction}`)}`;
+    window.location.href = mailto;
   }, []);
 
   const getActionErrorMessage = useCallback((error: unknown, fallback: string): string => {
@@ -571,26 +576,30 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
           ? `${checklist.vehicleId?.make || ''} ${checklist.vehicleId?.model || ''}`.trim()
           : '') ||
         'Service Intake';
+      const subject = `SERVICE INTAKE FORM - ${customerName} - ${vehicleLabel}`;
+      const message = buildCustomerEmailMessage(checklist);
+      const fileSafeCustomerName = customerName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+      const fileSafeVehicle = vehicleLabel.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+      const pdfFilename = `SERVICE-INTAKE-${fileSafeCustomerName || 'CLIENT'}-${fileSafeVehicle || 'VEHICLE'}.pdf`;
 
+      let attachmentBlob: Blob | undefined;
       let pdfBase64: string | undefined;
       try {
-        const attachmentBlob = await buildChecklistPdfBlob(checklist);
+        attachmentBlob = await buildChecklistPdfBlob(checklist);
         pdfBase64 = await blobToBase64(attachmentBlob);
       } catch (attachmentError) {
         console.warn('Failed to pre-build local PDF attachment, continuing with server-side email flow:', attachmentError);
       }
 
-      const fileSafeCustomerName = customerName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
-      const fileSafeVehicle = vehicleLabel.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
-
       const response = await preChecklistService.sendChecklistCopyEmail(checklist._id, {
         email: recipient,
-        subject: `SERVICE INTAKE FORM - ${customerName} - ${vehicleLabel}`,
-        message: buildCustomerEmailMessage(checklist),
+        clientName: customerName,
+        subject,
+        message,
         includePdf: true,
         includeSecureLink: false,
         pdfBase64,
-        pdfFilename: `SERVICE-INTAKE-${fileSafeCustomerName || 'CLIENT'}-${fileSafeVehicle || 'VEHICLE'}.pdf`,
+        pdfFilename,
         pdfMimeType: 'application/pdf',
       });
 
@@ -604,8 +613,40 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
         showToast('Checklist email sent to client', 'success');
       }
     } catch (error) {
-      console.error('Error sending checklist email:', error);
-      showToast(normalizeApiErrorMessage(error), 'error');
+      console.error('Error sending checklist email through backend, opening local email fallback:', error);
+
+      const customerName =
+        `${checklist.customerDetails?.firstName || ''} ${checklist.customerDetails?.lastName || ''}`.trim() ||
+        (typeof checklist.opportunityId === 'object' ? checklist.opportunityId?.customer?.name : '') ||
+        'Client';
+      const vehicleLabel =
+        checklist.carDetails?.licensePlate ||
+        (typeof checklist.vehicleId === 'object'
+          ? `${checklist.vehicleId?.make || ''} ${checklist.vehicleId?.model || ''}`.trim()
+          : '') ||
+        'Service Intake';
+      const subject = `SERVICE INTAKE FORM - ${customerName} - ${vehicleLabel}`;
+      const message = buildCustomerEmailMessage(checklist);
+      const fileSafeCustomerName = customerName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+      const fileSafeVehicle = vehicleLabel.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+      const pdfFilename = `SERVICE-INTAKE-${fileSafeCustomerName || 'CLIENT'}-${fileSafeVehicle || 'VEHICLE'}.pdf`;
+
+      let pdfDownloaded = false;
+      try {
+        const fallbackBlob = await buildChecklistPdfBlob(checklist);
+        downloadChecklistPdf(fallbackBlob, pdfFilename);
+        pdfDownloaded = true;
+      } catch (downloadError) {
+        console.error('Failed to build fallback checklist PDF for email draft:', downloadError);
+      }
+
+      openClientEmailDraft(recipient, subject, message, pdfFilename, pdfDownloaded);
+      showToast(
+        pdfDownloaded
+          ? 'Email draft opened and PDF downloaded. Attach the PDF before sending.'
+          : 'Email draft opened, but the PDF could not be generated locally. Attach the checklist PDF before sending.',
+        pdfDownloaded ? 'info' : 'warning'
+      );
     } finally {
       setUpdating(false);
     }

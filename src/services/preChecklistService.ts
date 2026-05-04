@@ -581,6 +581,7 @@ export interface SignedPreChecklist {
 
 export interface SendChecklistEmailOptions {
   email: string;
+  clientName?: string;
   message?: string;
   subject?: string;
   includePdf?: boolean;
@@ -1348,7 +1349,8 @@ class PreChecklistService {
     id: string,
     email: string,
     message?: string,
-    subject?: string
+    subject?: string,
+    clientName?: string
   ): Promise<{ success: boolean; message: string }> {
     const approvalEndpoints = [
       `/prechecklists/${id}/request-email-approval`,
@@ -1356,42 +1358,41 @@ class PreChecklistService {
       `/prechecklists/${id}/email/request-approval`,
     ];
 
-    const payloadVariants: Array<Record<string, unknown>> = [
-      { email, message, subject },
-      { email, message },
-      { clientEmail: email, message, subject },
-      { recipientEmail: email, message, subject },
-    ];
+    const resolvedClientName = String(clientName || 'Client').trim() || 'Client';
+    const payload = {
+      email,
+      clientEmail: email,
+      recipientEmail: email,
+      clientName: resolvedClientName,
+      customerName: resolvedClientName,
+      message,
+      subject,
+    };
 
     let lastError: any = null;
 
     for (const endpoint of approvalEndpoints) {
-      for (const payload of payloadVariants) {
-        try {
-          const response = await extendedApiClient.post<typeof payload, any>(endpoint, payload);
-          const normalizedSuccess = typeof response?.success === 'boolean' ? response.success : true;
-          const normalizedMessage = response?.message || 'Checklist email request sent successfully';
+      try {
+        const response = await extendedApiClient.post<typeof payload, any>(endpoint, payload);
+        const normalizedSuccess = typeof response?.success === 'boolean' ? response.success : true;
+        const normalizedMessage = response?.message || 'Checklist email request sent successfully';
 
-          if (!normalizedSuccess) {
-            lastError = new Error(normalizedMessage || 'Checklist email request failed');
-            continue;
-          }
-
-          return {
-            success: true,
-            message: normalizedMessage,
-          };
-        } catch (error: any) {
-          lastError = error;
-          const statusCode = parseErrorStatusCode(error);
-          if (statusCode === 401 || statusCode === 403) {
-            throw error;
-          }
-          if (statusCode !== null && statusCode >= 400 && statusCode < 500 && statusCode !== 404 && statusCode !== 405) {
-            continue;
-          }
+        if (!normalizedSuccess) {
+          lastError = new Error(normalizedMessage || 'Checklist email request failed');
           continue;
         }
+
+        return {
+          success: true,
+          message: normalizedMessage,
+        };
+      } catch (error: any) {
+        lastError = error;
+        const statusCode = parseErrorStatusCode(error);
+        if (statusCode === 401 || statusCode === 403) {
+          throw error;
+        }
+        continue;
       }
     }
 
@@ -1417,10 +1418,18 @@ class PreChecklistService {
     const resolvedPdfFilename =
       options.pdfFilename || `SERVICE-INTAKE-${String(id || '').slice(-8) || 'CHECKLIST'}.pdf`;
     const resolvedPdfMimeType = options.pdfMimeType || 'application/pdf';
+    const resolvedClientName = String(options.clientName || 'Client').trim() || 'Client';
 
     const basePayload = {
       email: options.email,
+      clientEmail: options.email,
+      recipientEmail: options.email,
+      to: options.email,
+      clientName: resolvedClientName,
+      customerName: resolvedClientName,
       message: normalizedMessage,
+      body: normalizedMessage,
+      text: normalizedMessage,
       subject: normalizedSubject,
       includePdf: options.includePdf ?? true,
       includeSecureLink: options.includeSecureLink ?? true,
@@ -1428,27 +1437,9 @@ class PreChecklistService {
 
     const endpoints = [
       `/prechecklists/${id}/send-email`,
-      `/prechecklists/${id}/email`,
-      `/prechecklists/${id}/send`,
-      `/prechecklists/${id}/send-pdf-email`,
-      `/prechecklists/${id}/send-signed-copy`,
-      `/prechecklists/${id}/email/send-copy`,
       `/prechecklists/${id}/send-client-email`,
-      `/prechecklists/${id}/client-email`,
-      `/prechecklists/${id}/send-client`,
       `/prechecklists/${id}/email/send`,
-      `/prechecklists/${id}/send-client-copy`,
       `/prechecklists/${id}/email/send-client`,
-      `/prechecklists/${id}/send-to-client`,
-      `/prechecklists/${id}/send-to-client-email`,
-      `/prechecklists/${id}/email/send-to-client`,
-      `/prechecklists/${id}/notify-client`,
-      `/prechecklists/send-email/${id}`,
-      `/prechecklists/send-client-email/${id}`,
-      `/prechecklists/email/${id}`,
-      `/pre-checklists/${id}/send-email`,
-      `/pre-checklists/${id}/email`,
-      `/pre-checklists/${id}/send-client-email`,
     ];
 
     const attachmentPayload = normalizedPdfBase64
@@ -1474,86 +1465,39 @@ class PreChecklistService {
         }
       : {};
 
-    const payloadVariants: Array<Record<string, unknown>> = [
-      basePayload,
-      {
-        recipientEmail: options.email,
-        message: normalizedMessage,
-        body: normalizedMessage,
-        text: normalizedMessage,
-        subject: normalizedSubject,
-        includePdf: options.includePdf ?? true,
-      },
-      {
-        clientEmail: options.email,
-        message: normalizedMessage,
-        body: normalizedMessage,
-        subject: normalizedSubject,
-        includePdf: options.includePdf ?? true,
-      },
-      {
-        to: options.email,
-        message: normalizedMessage,
-        text: normalizedMessage,
-        subject: normalizedSubject,
-        includePdf: options.includePdf ?? true,
-      },
-      {
-        recipient: options.email,
-        message: normalizedMessage,
-        text: normalizedMessage,
-        subject: normalizedSubject,
-        includePdf: options.includePdf ?? true,
-      },
-      {
-        email: options.email,
-        message: normalizedMessage,
-        subject: normalizedSubject,
-        includePdf: options.includePdf ?? true,
-        ...attachmentPayload,
-      },
-      {
-        recipientEmail: options.email,
-        body: normalizedMessage,
-        subject: normalizedSubject,
-        includePdf: options.includePdf ?? true,
-        ...attachmentPayload,
-      },
-    ];
+    const payload = {
+      ...basePayload,
+      ...attachmentPayload,
+    };
 
     const tryEmailSend = async (): Promise<{ success: boolean; message: string; endpoint?: string } | null> => {
       let lastAttemptError: any = null;
 
       for (const endpoint of endpoints) {
-        for (const payload of payloadVariants) {
-          try {
-            const response = await extendedApiClient.post<typeof payload, any>(endpoint, payload);
-            const normalizedSuccess =
-              typeof response?.success === 'boolean' ? response.success : true;
-            const normalizedMessage =
-              response?.message || 'Checklist email sent successfully';
+        try {
+          const response = await extendedApiClient.post<typeof payload, any>(endpoint, payload);
+          const normalizedSuccess =
+            typeof response?.success === 'boolean' ? response.success : true;
+          const normalizedMessage =
+            response?.message || 'Checklist email sent successfully';
 
-            if (!normalizedSuccess) {
-              lastAttemptError = new Error(normalizedMessage || 'Checklist email endpoint returned unsuccessful response');
-              continue;
-            }
-
-            return {
-              success: true,
-              message: normalizedMessage,
-              endpoint,
-            };
-          } catch (error: any) {
-            lastAttemptError = error;
-            const statusCode = parseErrorStatusCode(error);
-            if (statusCode === 401 || statusCode === 403) {
-              throw error;
-            }
-            if (statusCode !== null && statusCode >= 400 && statusCode < 500 && statusCode !== 404 && statusCode !== 405) {
-              continue;
-            }
+          if (!normalizedSuccess) {
+            lastAttemptError = new Error(normalizedMessage || 'Checklist email endpoint returned unsuccessful response');
             continue;
           }
+
+          return {
+            success: true,
+            message: normalizedMessage,
+            endpoint,
+          };
+        } catch (error: any) {
+          lastAttemptError = error;
+          const statusCode = parseErrorStatusCode(error);
+          if (statusCode === 401 || statusCode === 403) {
+            throw error;
+          }
+          continue;
         }
       }
 
@@ -1568,9 +1512,11 @@ class PreChecklistService {
       return directResult;
     }
 
-    throw new Error(
+    const unavailableError = new Error(
       'Checklist email backend endpoint is not available. Backend should expose POST /api/v1/prechecklists/:id/send-email and accept recipient email, subject, message, and optional pdfBase64 attachment.'
     );
+    (unavailableError as any).code = 'CHECKLIST_EMAIL_BACKEND_UNAVAILABLE';
+    throw unavailableError;
   }
 
   // 9. Approve pre-checklist via email token
