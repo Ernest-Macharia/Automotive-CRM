@@ -28,12 +28,12 @@ const styles = StyleSheet.create({
   page: {
     flexDirection: 'column',
     backgroundColor: '#f5f7fb',
-    padding: 18,
+    padding: 14,
     fontFamily: 'Helvetica'
   },
   header: {
-    marginBottom: 10,
-    padding: 12,
+    marginBottom: 8,
+    padding: 10,
     borderRadius: 8,
     backgroundColor: '#1e1b4b',
     borderWidth: 1,
@@ -64,8 +64,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#312e81'
   },
   section: {
-    marginBottom: 7,
-    padding: 8,
+    marginBottom: 5,
+    padding: 7,
     backgroundColor: '#ffffff',
     borderRadius: 8,
     borderWidth: 1,
@@ -74,10 +74,10 @@ const styles = StyleSheet.create({
     borderLeftColor: '#7c3aed'
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
     color: '#5b21b6',
-    marginBottom: 8,
+    marginBottom: 6,
     letterSpacing: 0.2
   },
   sectionSubtitle: {
@@ -164,8 +164,8 @@ const styles = StyleSheet.create({
     lineHeight: 1.4
   },
   termsSection: {
-    marginTop: 7,
-    padding: 10,
+    marginTop: 5,
+    padding: 8,
     backgroundColor: '#ffffff',
     borderRadius: 8,
     borderWidth: 1,
@@ -205,13 +205,13 @@ const styles = StyleSheet.create({
     color: '#374151'
   },
   signatureSection: {
-    marginTop: 8,
-    paddingTop: 8,
+    marginTop: 6,
+    paddingTop: 6,
     borderTopWidth: 1,
     borderTopColor: '#d1d5db'
   },
   signatureBox: {
-    height: 64,
+    height: 58,
     borderWidth: 1,
     borderColor: '#d1d5db',
     borderRadius: 4,
@@ -224,8 +224,8 @@ const styles = StyleSheet.create({
     objectFit: 'contain'
   },
   footer: {
-    marginTop: 8,
-    paddingTop: 8,
+    marginTop: 6,
+    paddingTop: 6,
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
     fontSize: 8,
@@ -285,11 +285,11 @@ const styles = StyleSheet.create({
   mediaItem: {
     width: '48%',
     marginRight: '2%',
-    marginBottom: 8
+    marginBottom: 6
   },
   mediaImage: {
     width: '100%',
-    height: 95,
+    height: 82,
     objectFit: 'cover',
     borderRadius: 4,
     borderWidth: 1,
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   },
   mediaPlaceholder: {
     width: '100%',
-    height: 95,
+    height: 82,
     borderRadius: 4,
     borderWidth: 1,
     borderColor: '#d1d5db',
@@ -961,18 +961,8 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
           </View>
         )}
 
-      </Page>
-      
-
-      {/* Third Page - Terms, Agreements, and Signatures */}
-      <Page size="A4" style={styles.page}>
-        {/* Header for Page 3 */}
-        <View style={styles.header}>
-          <Text style={styles.companyName}>DIAMOND RIMZ LTD</Text>
-          <Text style={styles.title}>TERMS, AGREEMENTS & SIGNATURES</Text>
-          <Text style={styles.subtitle}>
-            Checklist ID: {formData._id?.slice(-8) || 'NEW'} | Date: {formatDate(currentDate.toISOString())}
-          </Text>
+        <View style={[styles.section, { backgroundColor: '#ede9fe', borderLeftColor: '#4c1d95' }]}>
+          <Text style={styles.sectionTitle}>TERMS, AGREEMENTS & SIGNATURES</Text>
         </View>
 
         {/* MUST KNOW SECTION */}

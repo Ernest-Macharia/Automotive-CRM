@@ -28,12 +28,12 @@ const styles = StyleSheet.create({
   page: {
     flexDirection: 'column',
     backgroundColor: '#FFFFFF',
-    padding: 22,
+    padding: 16,
     fontFamily: 'Helvetica'
   },
   header: {
-    marginBottom: 14,
-    paddingBottom: 10,
+    marginBottom: 9,
+    paddingBottom: 8,
     borderBottomWidth: 2,
     borderBottomColor: '#1e40af',
     borderBottomStyle: 'solid'
@@ -59,18 +59,18 @@ const styles = StyleSheet.create({
     marginBottom: 10
   },
   section: {
-    marginBottom: 10,
-    padding: 10,
+    marginBottom: 6,
+    padding: 8,
     backgroundColor: '#f8fafc',
     borderRadius: 4,
     borderLeftWidth: 3,
     borderLeftColor: '#1e40af'
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
     color: '#1e40af',
-    marginBottom: 8
+    marginBottom: 6
   },
   sectionSubtitle: {
     fontSize: 12,
@@ -170,8 +170,8 @@ const styles = StyleSheet.create({
     lineHeight: 1.4
   },
   termsSection: {
-    marginTop: 10,
-    padding: 10,
+    marginTop: 6,
+    padding: 8,
     backgroundColor: '#f1f5f9',
     borderRadius: 4,
     borderWidth: 1,
@@ -190,13 +190,13 @@ const styles = StyleSheet.create({
     marginBottom: 4
   },
   signatureSection: {
-    marginTop: 10,
-    paddingTop: 10,
+    marginTop: 6,
+    paddingTop: 6,
     borderTopWidth: 1,
     borderTopColor: '#d1d5db'
   },
   signatureBox: {
-    height: 72,
+    height: 58,
     borderWidth: 1,
     borderColor: '#d1d5db',
     borderRadius: 4,
@@ -209,8 +209,8 @@ const styles = StyleSheet.create({
     objectFit: 'contain'
   },
   footer: {
-    marginTop: 12,
-    paddingTop: 10,
+    marginTop: 7,
+    paddingTop: 7,
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
     fontSize: 8,
@@ -234,11 +234,11 @@ const styles = StyleSheet.create({
   mediaItem: {
     width: '48%',
     marginRight: '2%',
-    marginBottom: 8
+    marginBottom: 6
   },
   mediaImage: {
     width: '100%',
-    height: 120,
+    height: 86,
     objectFit: 'cover',
     borderRadius: 4,
     borderWidth: 1,
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
   },
   mediaPlaceholder: {
     width: '100%',
-    height: 120,
+    height: 86,
     borderRadius: 4,
     borderWidth: 1,
     borderColor: '#d1d5db',
@@ -682,19 +682,8 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
           </View>
         </View>
 
-        {/* Page Break for terms if needed */}
-        <View style={{ marginTop: 15 }}>
-          <Text style={styles.footer}>--- Page 1 of 2 ---</Text>
-        </View>
-      </Page>
-
-      {/* Second Page for Terms */}
-      <Page size="A4" style={styles.page}>
-        {/* Terms and Conditions Header */}
-        <View style={styles.header}>
-          <Text style={styles.companyName}>Eagle Lights Automotive LTD</Text>
-          <Text style={styles.title}>TERMS AND CONDITIONS</Text>
-          <Text style={styles.subtitle}>Headlight Pre-Service Inspection Checklist</Text>
+        <View style={[styles.section, { backgroundColor: '#eff6ff', borderLeftColor: '#1d4ed8' }]}>
+          <Text style={styles.sectionTitle}>TERMS AND CONDITIONS</Text>
         </View>
 
         {/* Personal Items Terms */}

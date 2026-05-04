@@ -27,6 +27,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { preChecklistService, PreChecklist } from '@/services/preChecklistService';
+import { postChecklistService, PostChecklist } from '@/services/postChecklistService';
 import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -36,8 +37,10 @@ export default function PreChecklistDashboard() {
   const { showToast } = useToast();
 
   const [checklists, setChecklists] = useState<PreChecklist[]>([]);
+  const [postChecklists, setPostChecklists] = useState<PostChecklist[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [formsPanelFilter, setFormsPanelFilter] = useState<'all' | 'pre' | 'post'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'approved' | 'pending'>('all');
   const [sortField, setSortField] = useState<'createdAt' | 'updatedAt'>('createdAt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -80,12 +83,30 @@ export default function PreChecklistDashboard() {
   const loadChecklists = async () => {
     try {
       setLoading(true);
-      const data = await preChecklistService.getAllPreChecklists();
-      setChecklists(data);
-      calculateStats(data);
+      const [preResult, postResult] = await Promise.allSettled([
+        preChecklistService.getAllPreChecklists(),
+        postChecklistService.getAllPostChecklists(),
+      ]);
+
+      if (preResult.status === 'fulfilled') {
+        setChecklists(preResult.value);
+        calculateStats(preResult.value);
+      } else {
+        console.error('Error loading pre-checklists:', preResult.reason);
+        showToast('Failed to load pre-checklists', 'error');
+        setChecklists([]);
+        calculateStats([]);
+      }
+
+      if (postResult.status === 'fulfilled') {
+        setPostChecklists(postResult.value);
+      } else {
+        console.error('Error loading post-checklists:', postResult.reason);
+        setPostChecklists([]);
+      }
     } catch (error) {
-      console.error('Error loading pre-checklists:', error);
-      showToast('Failed to load pre-checklists', 'error');
+      console.error('Error loading checklist forms:', error);
+      showToast('Failed to load checklist forms', 'error');
     } finally {
       setLoading(false);
     }
@@ -234,6 +255,56 @@ export default function PreChecklistDashboard() {
     return format(new Date(dateString), 'MMM dd, yyyy');
   };
 
+  const resolveEntityName = (value: unknown, fallback = 'Unlinked customer') => {
+    if (!value || typeof value !== 'object') return fallback;
+    const entity = value as any;
+    return entity.customer?.name || entity.subject || entity.name || fallback;
+  };
+
+  const resolveVehicleLabel = (value: unknown, fallback = 'No vehicle') => {
+    if (!value || typeof value !== 'object') return fallback;
+    const entity = value as any;
+    const plate = entity.registrationNumber || entity.licensePlate || entity.regNo;
+    const model = [entity.make, entity.model].filter(Boolean).join(' ');
+    return [model, plate && `(${plate})`].filter(Boolean).join(' ') || fallback;
+  };
+
+  const createdForms = [
+    ...checklists.map((checklist) => ({
+      id: checklist._id,
+      type: 'pre' as const,
+      label: 'Pre-Checklist',
+      title:
+        `${checklist.customerDetails?.firstName || ''} ${checklist.customerDetails?.lastName || ''}`.trim() ||
+        resolveEntityName(checklist.opportunityId),
+      vehicle:
+        [checklist.carDetails?.carMake, checklist.carDetails?.carModel, checklist.carDetails?.licensePlate && `(${checklist.carDetails.licensePlate})`]
+          .filter(Boolean)
+          .join(' ') || resolveVehicleLabel(checklist.vehicleId),
+      createdAt: checklist.createdAt || checklist.updatedAt || '',
+      approved: Boolean(checklist.approved),
+      href: `/pre-checklist/${checklist._id}`,
+    })),
+    ...postChecklists.map((checklist) => ({
+      id: checklist._id,
+      type: 'post' as const,
+      label: 'Post-Checklist',
+      title:
+        checklist.customerName ||
+        `${checklist.customerDetails?.firstName || ''} ${checklist.customerDetails?.lastName || ''}`.trim() ||
+        resolveEntityName(checklist.opportunityId),
+      vehicle:
+        [checklist.vehicleDetails?.make, checklist.vehicleDetails?.model, checklist.vehicleDetails?.regNo && `(${checklist.vehicleDetails.regNo})`]
+          .filter(Boolean)
+          .join(' ') || resolveVehicleLabel(checklist.vehicleId),
+      createdAt: String(checklist.createdAt || checklist.updatedAt || ''),
+      approved: Boolean(checklist.approved),
+      href: `/post-checklist/${checklist._id}`,
+    })),
+  ]
+    .filter((form) => formsPanelFilter === 'all' || form.type === formsPanelFilter)
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
   const getStatusBadge = (approved: boolean) => {
     return approved ? (
       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -317,6 +388,77 @@ export default function PreChecklistDashboard() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Created Forms Panel */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-200 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">All Created Forms</h2>
+              <p className="text-xs text-gray-500">
+                {checklists.length + postChecklists.length} form{checklists.length + postChecklists.length === 1 ? '' : 's'} created across pre and post checklists
+              </p>
+            </div>
+            <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+              {[
+                { value: 'all', label: 'All' },
+                { value: 'pre', label: 'Pre' },
+                { value: 'post', label: 'Post' },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setFormsPanelFilter(option.value as 'all' | 'pre' | 'post')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition ${
+                    formsPanelFilter === option.value
+                      ? 'bg-white text-blue-700 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {createdForms.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-gray-500">
+              No forms have been created yet.
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+              {createdForms.slice(0, 30).map((form) => (
+                <Link
+                  key={`${form.type}-${form.id}`}
+                  href={form.href}
+                  className="px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition"
+                >
+                  <div className={`p-2 rounded-lg ${form.type === 'pre' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium text-gray-900 truncate">{form.title}</p>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                        form.type === 'pre' ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700'
+                      }`}>
+                        {form.label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 truncate">{form.vehicle}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs text-gray-500">{formatDate(form.createdAt)}</p>
+                    <p className={`text-[11px] font-medium ${form.approved ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {form.approved ? 'Approved' : 'Pending'}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

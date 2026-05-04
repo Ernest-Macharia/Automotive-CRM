@@ -249,7 +249,7 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
 
     await Promise.all(
       imageFiles.map(async (file) => {
-        const fileId = String(file?._id || '').trim();
+        const fileId = String(file?._id || (file as any)?.id || '').trim();
         if (!fileId) return;
         try {
           const fileBlob = await preChecklistService.downloadFile(fileId);
@@ -266,7 +266,7 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
 
     await Promise.all(
       videoFiles.map(async (file) => {
-        const fileId = String(file?._id || '').trim();
+        const fileId = String(file?._id || (file as any)?.id || '').trim();
         if (!fileId) return;
         try {
           const thumbnailBlob = await preChecklistService.getFileThumbnail(fileId);
@@ -282,7 +282,7 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     );
 
     cloned.files = sourceFiles.map((file) => {
-      const fileId = String(file?._id || '').trim();
+      const fileId = String(file?._id || (file as any)?.id || '').trim();
       const hydrated = fileDataById.get(fileId);
       if (!hydrated) return file;
 
