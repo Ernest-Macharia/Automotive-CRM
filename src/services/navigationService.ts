@@ -21,8 +21,18 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     permission: 'jobs.read',
     children: [
       {
+        href: '/pre-checklist',
+        label: 'All Checklists',
+        permission: 'jobs.read',
+      },
+      {
         href: '/pre-checklist/create?clientType=diamond-rims&source=sidebar',
-        label: 'Checklist',
+        label: 'Create Checklist',
+        permission: 'jobs.read',
+      },
+      {
+        href: '/post-checklist',
+        label: 'Post Checklists',
         permission: 'jobs.read',
       },
     ],
@@ -33,6 +43,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { href: '/contacts', label: 'Contacts', icon: 'Users', permission: 'contacts.read' },
   { href: '/services', label: 'Services', icon: 'Settings', permission: 'services.read' },
   { href: '/products', label: 'Products', icon: 'Package', permission: 'products.read' },
+  { href: '/pre-checklist', label: 'Checklists', icon: 'ClipboardCheck', permission: 'jobs.read' },
   { href: '/kpi', label: 'KPI Reports', icon: 'Settings', permission: 'reports.generate' },
   { href: '/reports', label: 'Analytics', icon: 'BarChart3', permission: 'dashboard.view' },
   { href: '/quotes', label: 'Quotes', icon: 'FileText', permission: 'quotes.read' },

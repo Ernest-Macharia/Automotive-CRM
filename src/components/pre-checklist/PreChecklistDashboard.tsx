@@ -353,8 +353,8 @@ export default function PreChecklistDashboard() {
               <ClipboardCheck className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">Pre-Service Checklists</h1>
-              <p className="text-blue-100 text-sm">Manage vehicle pre-service inspections</p>
+              <h1 className="text-xl font-bold text-white">Checklist History</h1>
+              <p className="text-blue-100 text-sm">Browse all created pre and post service checklists</p>
             </div>
           </div>
 
@@ -429,7 +429,7 @@ export default function PreChecklistDashboard() {
             </div>
           ) : (
             <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
-              {createdForms.slice(0, 30).map((form) => (
+              {createdForms.map((form) => (
                 <Link
                   key={`${form.type}-${form.id}`}
                   href={form.href}
