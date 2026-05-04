@@ -368,6 +368,139 @@ const normalizeBoardOpportunity = (opp: ExtendedOpportunity): ExtendedOpportunit
   };
 };
 
+const normalizeDigits = (value?: string): string => String(value || '').replace(/\D+/g, '');
+
+const getOpportunitySearchText = (opportunity: ExtendedOpportunity): string => {
+  const customer = opportunity.customer || ({} as Opportunity['customer']);
+  return [
+    opportunity.subject,
+    customer.name,
+    customer.email,
+    customer.companyName,
+    customer.phone,
+    customer.secondaryPhone,
+    customer.companyPhone,
+    customer.contactPersonPhone,
+    customer.contactPersonName,
+    customer.contactPersonEmail,
+  ]
+    .map((value) => String(value || '').toLowerCase().trim())
+    .filter(Boolean)
+    .join(' ');
+};
+
+const getOpportunityPhoneCandidates = (opportunity: ExtendedOpportunity): string[] => {
+  const customer = opportunity.customer || ({} as Opportunity['customer']);
+  const phoneValues = [
+    customer.phone,
+    customer.secondaryPhone,
+    customer.companyPhone,
+    customer.contactPersonPhone,
+  ];
+
+  const candidates = new Set<string>();
+
+  phoneValues.forEach((phoneValue) => {
+    const digits = normalizeDigits(phoneValue);
+    if (!digits) return;
+
+    candidates.add(digits);
+    buildPhoneSearchCandidates(digits).forEach((candidate) => candidates.add(candidate));
+    if (digits.startsWith('254')) {
+      candidates.add(`+${digits}`);
+    }
+  });
+
+  return Array.from(candidates);
+};
+
+const matchesOpportunitySearchTerm = (opportunity: ExtendedOpportunity, searchTerm: string): boolean => {
+  const trimmedSearch = String(searchTerm || '').trim();
+  if (!trimmedSearch) return true;
+
+  const normalizedSearchDigits = normalizeDigits(trimmedSearch);
+  if (normalizedSearchDigits.length >= 7) {
+    const searchPhoneCandidates = new Set<string>([
+      normalizedSearchDigits,
+      ...buildPhoneSearchCandidates(normalizedSearchDigits),
+      ...buildPhoneSearchCandidates(normalizedSearchDigits).map((candidate) =>
+        candidate.startsWith('254') ? `+${candidate}` : candidate
+      ),
+    ]);
+
+    const opportunityPhoneCandidates = getOpportunityPhoneCandidates(opportunity);
+    for (const searchCandidate of searchPhoneCandidates) {
+      const searchDigits = normalizeDigits(searchCandidate);
+      if (!searchDigits) continue;
+
+      for (const phoneCandidate of opportunityPhoneCandidates) {
+        const phoneDigits = normalizeDigits(phoneCandidate);
+        if (!phoneDigits) continue;
+
+        if (phoneDigits.includes(searchDigits) || searchDigits.includes(phoneDigits)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  const haystack = getOpportunitySearchText(opportunity);
+  const normalizedTerms = trimmedSearch
+    .toLowerCase()
+    .split(/\s+/)
+    .map((term) => term.trim())
+    .filter(Boolean);
+
+  if (normalizedTerms.length === 0) return false;
+  return normalizedTerms.every((term) => haystack.includes(term));
+};
+
+const SEARCH_FALLBACK_PAGE_LIMIT = 100;
+const SEARCH_FALLBACK_MAX_PAGES = 60;
+
+const buildFilteredStatsFromOpportunities = (opportunities: ExtendedOpportunity[]): FilteredStats => {
+  const byStatus: Record<string, number> = {};
+  const bySource: Record<string, number> = {};
+  const byType: Record<string, number> = {};
+  const byTier: Record<string, number> = {};
+  let scoreTotal = 0;
+  let scoreCount = 0;
+  let assignedCount = 0;
+
+  opportunities.forEach((rawOpportunity) => {
+    const opportunity = normalizeBoardOpportunity(rawOpportunity);
+    const statusKey = opportunity.status || 'new';
+    const sourceKey = String(opportunity.source || 'unknown').toLowerCase();
+    const typeKey = String(opportunity.opportunityType || opportunity.type || 'unknown').toUpperCase();
+    const tierKey = String(opportunity.leadScore?.tier || 'unknown').toLowerCase();
+
+    byStatus[statusKey] = (byStatus[statusKey] || 0) + 1;
+    bySource[sourceKey] = (bySource[sourceKey] || 0) + 1;
+    byType[typeKey] = (byType[typeKey] || 0) + 1;
+    byTier[tierKey] = (byTier[tierKey] || 0) + 1;
+
+    const scoreValue = Number(opportunity.leadScore?.totalScore);
+    if (Number.isFinite(scoreValue)) {
+      scoreTotal += scoreValue;
+      scoreCount += 1;
+    }
+
+    if (opportunity.assignedTo) {
+      assignedCount += 1;
+    }
+  });
+
+  return {
+    total: opportunities.length,
+    byStatus,
+    bySource,
+    byType,
+    byTier,
+    averageScore: scoreCount > 0 ? Number((scoreTotal / scoreCount).toFixed(2)) : 0,
+    assignedCount,
+  };
+};
+
 function useDebounce<T extends (...args: any[]) => any>(
     callback: T, 
     delay: number
@@ -1596,6 +1729,7 @@ export default function OpportunitiesContent() {
       const initialResponse = await fetchListResponse(params);
 
       let response = initialResponse;
+      let filteredStatsOverride: FilteredStats | null = null;
 
       // Guard against endpoints that may return only the newest slice without
       // full pagination metadata for some users/roles.
@@ -1661,6 +1795,81 @@ export default function OpportunitiesContent() {
           }
         }
       }
+
+      const activeLookupSearchTerm = String(params.search || params.customerPhone || '').trim();
+      const responseHasSearchMatches = activeLookupSearchTerm
+        ? response.data.some((rawOpportunity) => {
+            const opportunity = normalizeBoardOpportunity(rawOpportunity as ExtendedOpportunity);
+            return matchesOpportunitySearchTerm(opportunity, activeLookupSearchTerm);
+          })
+        : response.data.length > 0;
+
+      // Some environments fail to match numeric queries reliably on backend.
+      // Fallback: scan paginated data locally and match normalized name/phone variants.
+      if (activeLookupSearchTerm && !responseHasSearchMatches) {
+        const matchedById = new Map<string, ExtendedOpportunity>();
+        let scanPage = 1;
+        let resolvedTotalPages: number | null =
+          Number(response.pagination?.totalPages) > 0 ? Number(response.pagination?.totalPages) : null;
+
+        while (scanPage <= SEARCH_FALLBACK_MAX_PAGES) {
+          const scanParams: FilterParams = {
+            ...params,
+            search: undefined,
+            customerPhone: undefined,
+            page: scanPage,
+            limit: SEARCH_FALLBACK_PAGE_LIMIT,
+          };
+
+          const scanResponse = await fetchListResponse(scanParams);
+          const scanRows = Array.isArray(scanResponse.data) ? scanResponse.data : [];
+
+          if (scanRows.length === 0) {
+            break;
+          }
+
+          scanRows.forEach((rawOpportunity) => {
+            const opportunity = normalizeBoardOpportunity(rawOpportunity as ExtendedOpportunity);
+            if (matchesOpportunitySearchTerm(opportunity, activeLookupSearchTerm)) {
+              const key = String(opportunity._id || opportunity.id || '').trim();
+              if (!key) return;
+              if (!matchedById.has(key)) {
+                matchedById.set(key, opportunity);
+              }
+            }
+          });
+
+          const scanTotalPages = Number(scanResponse.pagination?.totalPages);
+          if (Number.isFinite(scanTotalPages) && scanTotalPages > 0) {
+            resolvedTotalPages = scanTotalPages;
+          }
+
+          const reachedKnownLastPage =
+            typeof resolvedTotalPages === 'number' && resolvedTotalPages > 0 && scanPage >= resolvedTotalPages;
+          const reachedEndByPageSize = scanRows.length < SEARCH_FALLBACK_PAGE_LIMIT;
+
+          if (reachedKnownLastPage || reachedEndByPageSize) {
+            break;
+          }
+
+          scanPage += 1;
+        }
+
+        if (matchedById.size > 0) {
+          const matchedRows = Array.from(matchedById.values());
+          response = {
+            ...response,
+            data: matchedRows,
+            pagination: {
+              total: matchedRows.length,
+              page: 1,
+              limit: Math.max(1, matchedRows.length),
+              totalPages: 1,
+            },
+          };
+          filteredStatsOverride = buildFilteredStatsFromOpportunities(matchedRows);
+        }
+      }
       
       if (!isLatestRequest()) {
         return;
@@ -1694,7 +1903,8 @@ export default function OpportunitiesContent() {
       if (!isLatestRequest()) {
         return;
       }
-      setFilteredStats(filteredStatsResponse);
+      const resolvedFilteredStats = filteredStatsOverride || filteredStatsResponse;
+      setFilteredStats(resolvedFilteredStats);
       
       // Cache the response (unless forceRefresh)
       if (!forceRefresh) {
@@ -1702,7 +1912,7 @@ export default function OpportunitiesContent() {
           data: response.data,
           pagination: response.pagination,
           stats: response.stats,
-          filteredStats: filteredStatsResponse,
+          filteredStats: resolvedFilteredStats,
         });
       }
       
