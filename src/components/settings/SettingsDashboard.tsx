@@ -475,7 +475,7 @@ export default function SettingsDashboard() {
       description: 'Build versioned forms with runtime rendering and submission APIs',
       category: 'automation',
       featured: true,
-      visible: canAccessBlueprints,
+      visible: true,
     },
     {
       id: 'permissions',

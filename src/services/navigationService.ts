@@ -35,8 +35,13 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         label: 'Post Checklists',
         permission: 'jobs.read',
       },
+      {
+        href: '/settings/webforms',
+        label: 'Web Forms Builder',
+      },
     ],
   },
+  { href: '/settings/webforms', label: 'Web Forms', icon: 'FileText' },
   { href: '/manychat', label: 'ManyChat', icon: 'MessageSquare', permission: 'manychat.access' },
   { href: '/tickets', label: 'Tickets', icon: 'Ticket' },
   { href: '/employee', label: 'Employee Portal', icon: 'Briefcase' },
@@ -85,6 +90,7 @@ export class NavigationService {
     return ALL_NAV_ITEMS.filter(item => {
       if (item.href === '/dashboard') return true;
       if (item.href === '/tickets' || item.href === '/contacts' || item.href === '/feedback') return true;
+      if (item.href === '/settings/webforms') return true;
       // if (item.href === '/my-profile') return true;
       
       if (item.permission) {
