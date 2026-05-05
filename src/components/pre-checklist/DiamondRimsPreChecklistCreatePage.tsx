@@ -1315,18 +1315,46 @@ export default function DiamondRimsPreChecklistCreatePage({
         : '';
     const fallbackUploadedImages = extractUploadedImageUrls([
       checklist?.uploadedImages,
+      (checklist as any)?.images,
+      (checklist as any)?.attachments,
+      (checklist as any)?.media,
+      Array.isArray((checklist as any)?.files)
+        ? (checklist as any).files.map((file: any) => file?.path || file?.url || file?.src || file?.thumbnailPath || '')
+        : [],
       compatibilityData.uploadedImages,
       compatibilityData.images,
       compatibilityData.attachments,
+      compatibilityData.media,
+      compatibilityData.photos,
+      compatibilityData.gallery,
     ]);
+    const pricingSnapshotItemsTotal = Array.isArray(checklist?.pricingSnapshot?.items)
+      ? checklist.pricingSnapshot.items.reduce((sum: number, item: any) => {
+          const itemTotal =
+            parseFlexibleNumberValue(item?.total) ??
+            ((parseFlexibleNumberValue(item?.quantity) ?? 0) * (parseFlexibleNumberValue(item?.unitPrice) ?? 0));
+          return sum + (Number.isFinite(itemTotal) ? itemTotal : 0);
+        }, 0)
+      : null;
     const resolvedAgreedAmountTotal =
       parseFlexibleNumberValue(checklist?.agreedAmount?.total) ??
+      parseFlexibleNumberValue((checklist as any)?.agreedAmount) ??
       parseFlexibleNumberValue(compatibilityData.agreedAmount?.total) ??
+      parseFlexibleNumberValue(compatibilityData.agreedAmount) ??
       parseFlexibleNumberValue((checklist as any)?.agreedAmountTotal) ??
       parseFlexibleNumberValue((checklist as any)?.totalAmount) ??
       parseFlexibleNumberValue((checklist as any)?.amount) ??
       parseFlexibleNumberValue(checklist?.pricingSnapshot?.total) ??
+      parseFlexibleNumberValue(checklist?.pricingSnapshot?.subtotal) ??
+      (pricingSnapshotItemsTotal && pricingSnapshotItemsTotal > 0 ? pricingSnapshotItemsTotal : null) ??
       parseFlexibleNumberValue(compatibilityData.pricingSnapshot?.total) ??
+      parseFlexibleNumberValue(compatibilityData.pricingSnapshot?.subtotal) ??
+      parseFlexibleNumberValue(compatibilityData.totals?.total) ??
+      parseFlexibleNumberValue(compatibilityData.totals?.subtotal) ??
+      parseFlexibleNumberValue(compatibilityData.payment?.total) ??
+      parseFlexibleNumberValue(compatibilityData.payment?.amount) ??
+      parseFlexibleNumberValue(compatibilityData.clientCharge?.total) ??
+      parseFlexibleNumberValue(compatibilityData.clientCharge?.amount) ??
       0;
 
     return {
@@ -1843,6 +1871,22 @@ export default function DiamondRimsPreChecklistCreatePage({
     }));
   };
 
+  const blobToBase64 = useCallback((blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = typeof reader.result === 'string' ? reader.result : '';
+        if (!result) {
+          reject(new Error('Failed to convert PDF to base64'));
+          return;
+        }
+        resolve(result.replace(/^data:application\/pdf;base64,/i, ''));
+      };
+      reader.onerror = () => reject(new Error('Failed to convert PDF to base64'));
+      reader.readAsDataURL(blob);
+    });
+  }, []);
+
   const loadCustomerServiceUsers = async () => {
     try {
       setLoadingUsers(true);
@@ -1909,8 +1953,26 @@ export default function DiamondRimsPreChecklistCreatePage({
         'Kind regards,',
         'Diamond Rimz Team',
       ].join('\n');
+      const sanitizedClientName = clientName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+      const sanitizedVehicle = vehicleLabel.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+      const pdfFilename = `SERVICE-INTAKE-${sanitizedClientName || 'CLIENT'}-${sanitizedVehicle || 'VEHICLE'}.pdf`;
 
       setSendingClientEmail(true);
+
+      let pdfBase64 = '';
+      try {
+        const pdfBlob = await pdf(
+          <DiamondRimsPDF
+            formData={formData}
+            opportunity={opportunity}
+            vehicle={vehicle}
+            workOrder={workOrder}
+          />
+        ).toBlob();
+        pdfBase64 = await blobToBase64(pdfBlob);
+      } catch (pdfError) {
+        console.error('Failed to generate local checklist PDF for email attachment:', pdfError);
+      }
 
       const response = await preChecklistService.sendChecklistCopyEmail(resolvedChecklistId, {
         email: formData.clientEmail.trim(),
@@ -1919,6 +1981,13 @@ export default function DiamondRimsPreChecklistCreatePage({
         message: emailMessage,
         includePdf: true,
         includeSecureLink: false,
+        ...(pdfBase64
+          ? {
+              pdfBase64,
+              pdfFilename,
+              pdfMimeType: 'application/pdf',
+            }
+          : {}),
       });
 
       if (!response.success) {
