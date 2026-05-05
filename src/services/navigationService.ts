@@ -6,7 +6,7 @@ export interface NavItem {
   icon?: any;
   permission?: string;
   roles?: string[];
-  children?: NavItem[]; // Add this line
+  children?: NavItem[];
 }
 
 export const ALL_NAV_ITEMS: NavItem[] = [
@@ -41,8 +41,24 @@ export const ALL_NAV_ITEMS: NavItem[] = [
       },
     ],
   },
-  { href: '/settings/webforms', label: 'Web Forms', icon: 'FileText' },
-  { href: '/manychat', label: 'ManyChat', icon: 'MessageSquare', permission: 'manychat.access' },
+  {
+    href: '/manychat',
+    label: 'ManyChat',
+    icon: 'MessageSquare',
+    permission: 'manychat.access',
+    children: [
+      {
+        href: '/settings/webforms',
+        label: 'Web Forms',
+        permission: 'webforms.read',
+      },
+      {
+        href: '/manychat/contacts',
+        label: 'Contacts',
+        permission: 'manychat.access',
+      },
+    ],
+  },
   { href: '/tickets', label: 'Tickets', icon: 'Ticket' },
   { href: '/employee', label: 'Employee Portal', icon: 'Briefcase' },
   { href: '/contacts', label: 'Contacts', icon: 'Users', permission: 'contacts.read' },
@@ -90,7 +106,13 @@ export class NavigationService {
     return ALL_NAV_ITEMS.filter(item => {
       if (item.href === '/dashboard') return true;
       if (item.href === '/tickets' || item.href === '/contacts' || item.href === '/feedback') return true;
-      if (item.href === '/settings/webforms') return true;
+      if (item.href === '/manychat') {
+        return this.userHasPermission(user, 'manychat.access')
+          || this.userHasPermission(user, 'webforms.read')
+          || this.userHasPermission(user, 'webforms.manage')
+          || this.userHasPermission(user, 'forms.read')
+          || this.userHasPermission(user, 'forms.manage');
+      }
       // if (item.href === '/my-profile') return true;
       
       if (item.permission) {
@@ -113,17 +135,46 @@ export class NavigationService {
     );
 
     if (!user || effectivePermissions.length === 0) return false;
+
+    const normalizedPermission = String(permission || '').toLowerCase();
+    const normalizedPermissions = new Set(
+      effectivePermissions.map((entry) => String(entry || '').toLowerCase()),
+    );
+
+    const aliasMap: Record<string, string> = {
+      'webforms.read': 'forms.read',
+      'webforms.manage': 'forms.manage',
+      'forms.read': 'webforms.read',
+      'forms.manage': 'webforms.manage',
+    };
+
+    if (normalizedPermissions.has(normalizedPermission)) {
+      return true;
+    }
+
+    const aliasPermission = aliasMap[normalizedPermission];
+    if (aliasPermission && normalizedPermissions.has(aliasPermission)) {
+      return true;
+    }
     
     if (effectivePermissions.includes(permission)) {
       return true;
     }
     
-    const parts = permission.split('.');
+    const parts = normalizedPermission.split('.');
     if (parts.length >= 2) {
       const module = parts[0];
       const wildcardPermission = `${module}.*`;
       
-      if (effectivePermissions.includes(wildcardPermission)) {
+      if (normalizedPermissions.has(wildcardPermission)) {
+        return true;
+      }
+
+      if (module === 'webforms' && normalizedPermissions.has('forms.*')) {
+        return true;
+      }
+
+      if (module === 'forms' && normalizedPermissions.has('webforms.*')) {
         return true;
       }
     }

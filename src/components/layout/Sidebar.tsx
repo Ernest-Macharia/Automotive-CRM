@@ -29,24 +29,50 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const prefetchedRoutesRef = useRef<Set<string>>(new Set());
   const ensureWebFormsNavItem = useCallback((items: any[]): any[] => {
     const list = Array.isArray(items) ? [...items] : [];
+    const webFormsChild = {
+      href: '/settings/webforms',
+      label: 'Web Forms',
+      permission: 'webforms.read',
+    };
+
+    const manyChatIndex = list.findIndex((item) => item?.href === '/manychat');
+    if (manyChatIndex >= 0) {
+      const manyChatItem = list[manyChatIndex] || {};
+      const existingChildren = Array.isArray(manyChatItem.children) ? [...manyChatItem.children] : [];
+      const hasWebFormsChild = existingChildren.some((child: any) => child?.href === '/settings/webforms');
+
+      if (!hasWebFormsChild) {
+        existingChildren.unshift(webFormsChild);
+      }
+
+      list[manyChatIndex] = {
+        ...manyChatItem,
+        children: existingChildren,
+      };
+
+      return list;
+    }
+
     const hasWebForms = list.some((item) => item?.href === '/settings/webforms');
     if (hasWebForms) {
       return list;
     }
 
-    const webFormsItem = {
-      href: '/settings/webforms',
-      label: 'Web Forms',
-      icon: 'FileText',
-    };
-
     const settingsIndex = list.findIndex((item) => item?.href === '/settings');
     if (settingsIndex >= 0) {
-      list.splice(settingsIndex, 0, webFormsItem);
+      list.splice(settingsIndex, 0, {
+        href: '/settings/webforms',
+        label: 'Web Forms',
+        icon: 'FileText',
+      });
       return list;
     }
 
-    return [...list, webFormsItem];
+    return [...list, {
+      href: '/settings/webforms',
+      label: 'Web Forms',
+      icon: 'FileText',
+    }];
   }, []);
   
   const { user, isLoading: userLoading } = useCurrentUser();
@@ -330,7 +356,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         <ul className="space-y-1">
           {navItems.map((item) => {
             const Icon = getIconComponent(item.icon);
-            const allowedChildren = item.href === '/orders/work-orders' && Array.isArray(item.children)
+            const allowedChildren = Array.isArray(item.children)
               ? item.children.filter((child: any) => !child?.permission || NavigationService.userHasPermission(user, child.permission))
               : [];
             const hasActiveChild = allowedChildren.some((child: any) => isRouteActive(child.href));
