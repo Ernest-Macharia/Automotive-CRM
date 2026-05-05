@@ -46,7 +46,6 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
       href: '/settings/webforms',
       label: 'Web Forms',
       icon: 'FileText',
-      permission: 'webforms.read',
     };
 
     const existingWebFormsIndex = list.findIndex((item) => item?.href === '/settings/webforms');
@@ -60,7 +59,13 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
       return list;
     }
 
-    return [...list, webFormsItem];
+    const dashboardIndex = list.findIndex((item) => item?.href === '/dashboard');
+    if (dashboardIndex >= 0) {
+      list.splice(dashboardIndex + 1, 0, webFormsItem);
+      return list;
+    }
+
+    return [webFormsItem, ...list];
   }, []);
   
   const { user, isLoading: userLoading } = useCurrentUser();
