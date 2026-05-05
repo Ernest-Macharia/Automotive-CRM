@@ -27,6 +27,27 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const fetchedOrganizationIdRef = useRef<string | null>(null);
   const prefetchedRoutesRef = useRef<Set<string>>(new Set());
+  const ensureWebFormsNavItem = useCallback((items: any[]): any[] => {
+    const list = Array.isArray(items) ? [...items] : [];
+    const hasWebForms = list.some((item) => item?.href === '/settings/webforms');
+    if (hasWebForms) {
+      return list;
+    }
+
+    const webFormsItem = {
+      href: '/settings/webforms',
+      label: 'Web Forms',
+      icon: 'FileText',
+    };
+
+    const settingsIndex = list.findIndex((item) => item?.href === '/settings');
+    if (settingsIndex >= 0) {
+      list.splice(settingsIndex, 0, webFormsItem);
+      return list;
+    }
+
+    return [...list, webFormsItem];
+  }, []);
   
   const { user, isLoading: userLoading } = useCurrentUser();
   const prefetchRoute = useCallback((href: string) => {
@@ -52,7 +73,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   useEffect(() => {
     if (user) {
       const filteredItems = NavigationService.getNavItemsForUser(user);
-      setNavItems(filteredItems);
+      setNavItems(ensureWebFormsNavItem(filteredItems));
 
       const organizationId = (user as any).organizationId || 
                             (user as any).organization?._id || 
@@ -89,7 +110,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
         fetchOrganization(organizationId);
       }
     }
-  }, [user]);
+  }, [ensureWebFormsNavItem, user]);
 
   useEffect(() => {
     if (navItems.length === 0) return;

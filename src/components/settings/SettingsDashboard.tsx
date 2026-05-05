@@ -618,6 +618,13 @@ export default function SettingsDashboard() {
           color: 'border-blue-200 text-blue-700 hover:bg-blue-50',
           visible: true,
         },
+        {
+          id: 'open-webforms',
+          label: 'Web Forms',
+          icon: FileText,
+          color: 'border-cyan-200 text-cyan-700 hover:bg-cyan-50',
+          visible: true,
+        },
       ].filter((item) => item.visible !== false),
     [canAccessOrganizations, canAccessUsers, canAccessWorkflows],
   );
@@ -700,6 +707,9 @@ export default function SettingsDashboard() {
         break;
       case 'view-analytics':
         router.push('/settings/analytics');
+        break;
+      case 'open-webforms':
+        router.push('/settings/webforms');
         break;
     }
   };
