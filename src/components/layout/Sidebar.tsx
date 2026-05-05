@@ -36,19 +36,23 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
 
           return {
             ...item,
-            children: item.children.filter((child: any) => child?.href !== '/settings/webforms'),
+            children: item.children.filter(
+              (child: any) => child?.href !== '/settings/webforms' && child?.href !== '/webforms'
+            ),
           };
         })
       : [];
 
     const list = [...normalizedList];
     const webFormsItem = {
-      href: '/settings/webforms',
+      href: '/webforms',
       label: 'Web Forms',
       icon: 'FileText',
     };
 
-    const existingWebFormsIndex = list.findIndex((item) => item?.href === '/settings/webforms');
+    const existingWebFormsIndex = list.findIndex(
+      (item) => item?.href === '/settings/webforms' || item?.href === '/webforms'
+    );
     if (existingWebFormsIndex >= 0) {
       list.splice(existingWebFormsIndex, 1);
     }
