@@ -69,16 +69,26 @@ export default function ConnectionStatus({
   const handleReconnect = async () => {
     try {
       setLoading(true);
-      // This would typically open a modal to enter new token
+      const result = await manychatService.reconnect();
+      setStatus(result);
+      onStatusChange?.(result);
+
+      if (result.connected) {
+        showToast('ManyChat reconnected successfully', 'success');
+        await checkStatus();
+        return;
+      }
+
       if (onReconnect) {
         onReconnect();
       } else {
-        await checkStatus();
-        showToast('Connection status refreshed', 'success');
+        showToast(result.error || 'Unable to reconnect automatically', 'info');
       }
     } catch (error) {
       console.error('Error reconnecting:', error);
       showToast('Failed to reconnect', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
