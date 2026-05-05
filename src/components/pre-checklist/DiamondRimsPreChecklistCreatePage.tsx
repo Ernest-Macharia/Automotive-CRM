@@ -298,6 +298,7 @@ export default function DiamondRimsPreChecklistCreatePage({
   const [existingChecklist, setExistingChecklist] = useState<any>(null);
   const [autoPopulated, setAutoPopulated] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [sendingClientEmail, setSendingClientEmail] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
   const [draftSaved, setDraftSaved] = useState(false);
@@ -1760,6 +1761,10 @@ export default function DiamondRimsPreChecklistCreatePage({
   };
 
   const sendForClientApproval = async () => {
+    if (sendingClientEmail) {
+      return;
+    }
+
     try {
       if (!formData.clientEmail || !formData.clientEmail.includes('@')) {
         showToast('Please enter a valid email address', 'error');
@@ -1797,6 +1802,8 @@ export default function DiamondRimsPreChecklistCreatePage({
         'Diamond Rimz Team',
       ].join('\n');
 
+      setSendingClientEmail(true);
+
       const response = await preChecklistService.sendChecklistCopyEmail(resolvedChecklistId, {
         email: formData.clientEmail.trim(),
         clientName,
@@ -1816,9 +1823,11 @@ export default function DiamondRimsPreChecklistCreatePage({
         showToast('Checklist email sent successfully', 'success');
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending approval email:', error);
-      showToast('Error sending approval email', 'error');
+      showToast(error?.message || 'Error sending approval email', 'error');
+    } finally {
+      setSendingClientEmail(false);
     }
   };
 
@@ -5652,14 +5661,19 @@ export default function DiamondRimsPreChecklistCreatePage({
                               type="button"
                               onClick={sendForClientApproval}
                               disabled={
+                                sendingClientEmail ||
                                 !formData.inspectorSignature ||
                                 !formData.clientEmail ||
                                 !(checklistId || existingChecklist?._id || existingChecklist?.id)
                               }
                               className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
-                              <Mail className="h-4 w-4" />
-                              Send Email
+                              {sendingClientEmail ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Mail className="h-4 w-4" />
+                              )}
+                              {sendingClientEmail ? 'Sending...' : 'Send Email'}
                             </button>
                           </div>
                         </div>

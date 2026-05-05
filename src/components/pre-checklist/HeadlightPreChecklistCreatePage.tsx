@@ -240,6 +240,7 @@ export default function HeadlightPreChecklistCreatePage({
   const [existingChecklist, setExistingChecklist] = useState<any>(null);
   const [autoPopulated, setAutoPopulated] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [sendingClientEmail, setSendingClientEmail] = useState(false);
   const [draftSaved, setDraftSaved] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showCustomerEdit, setShowCustomerEdit] = useState(false);
@@ -1221,6 +1222,10 @@ export default function HeadlightPreChecklistCreatePage({
   };
 
   const sendForClientApproval = async () => {
+    if (sendingClientEmail) {
+      return;
+    }
+
     try {
       if (!formData.customerDetails.email || !formData.customerDetails.email.includes('@')) {
         showToast('Please enter a valid email address', 'error');
@@ -1239,6 +1244,8 @@ export default function HeadlightPreChecklistCreatePage({
         formData.carDetails.licensePlate ||
         `${formData.carDetails.carMake || ''} ${formData.carDetails.carModel || ''}`.trim() ||
         'your vehicle';
+
+      setSendingClientEmail(true);
 
       const response = await preChecklistService.sendChecklistCopyEmail(checklistId, {
         email: formData.customerDetails.email.trim(),
@@ -1270,9 +1277,11 @@ export default function HeadlightPreChecklistCreatePage({
         showToast('Checklist email sent successfully!', 'success');
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending approval email:', error);
-      showToast('Error sending approval email', 'error');
+      showToast(error?.message || 'Error sending approval email', 'error');
+    } finally {
+      setSendingClientEmail(false);
     }
   };
 
@@ -4477,13 +4486,14 @@ export default function HeadlightPreChecklistCreatePage({
                                 type="button"
                                 onClick={sendForClientApproval}
                                 disabled={
+                                  sendingClientEmail ||
                                   !formData.inspectorSignature ||
                                   !formData.customerDetails.email ||
                                   !checklistId
                                 }
                                 className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50"
                               >
-                                Send Email
+                                {sendingClientEmail ? 'Sending...' : 'Send Email'}
                               </button>
                             </div>
                           </div>
