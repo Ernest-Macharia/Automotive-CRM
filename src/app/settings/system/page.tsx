@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import SettingsLayoutWrapper from '@/components/settings/SettingsLayoutWrapper';
-import { Building2, Users, Shield, Bell, Workflow, Layers } from 'lucide-react';
+import { Building2, Users, Shield, Bell, Workflow, Layers, FileText } from 'lucide-react';
 
 const cards = [
   {
@@ -41,6 +41,12 @@ const cards = [
     description: 'Define reusable business process templates.',
     href: '/settings/blueprints',
     icon: Layers,
+  },
+  {
+    title: 'Web Forms',
+    description: 'Build and publish versioned forms, templates, and submission workflows.',
+    href: '/settings/webforms',
+    icon: FileText,
   },
 ];
 
@@ -83,4 +89,3 @@ export default function SystemSettingsRoute() {
     </ProtectedRoute>
   );
 }
-

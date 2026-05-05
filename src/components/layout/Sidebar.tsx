@@ -359,8 +359,10 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
             const allowedChildren = Array.isArray(item.children)
               ? item.children.filter((child: any) => !child?.permission || NavigationService.userHasPermission(user, child.permission))
               : [];
+            const hasChildren = allowedChildren.length > 0;
             const hasActiveChild = allowedChildren.some((child: any) => isRouteActive(child.href));
             const active = isRouteActive(item.href) || hasActiveChild;
+            const shouldShowChildren = hasChildren && (active || item.href === '/manychat');
             
             return (
               <li key={item.href}>
@@ -381,12 +383,20 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                     <Icon className={`w-4 h-4 flex-shrink-0 ${active ? 'text-blue-500 dark:text-blue-300' : 'text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300'}`} />
                     <span className="truncate">{item.label}</span>
                   </div>
-                  <Icons.ChevronRight className={`w-3 h-3 flex-shrink-0 transition-transform ${
-                    active ? 'translate-x-0 opacity-100 text-blue-500 dark:text-blue-300' : '-translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-60 text-gray-400 dark:text-gray-500'
-                  }`} />
+                  {hasChildren ? (
+                    <Icons.ChevronRight className={`w-3 h-3 flex-shrink-0 transition-transform ${
+                      shouldShowChildren
+                        ? 'rotate-90 opacity-80 text-blue-500 dark:text-blue-300'
+                        : 'opacity-60 text-gray-400 dark:text-gray-500'
+                    }`} />
+                  ) : (
+                    <Icons.ChevronRight className={`w-3 h-3 flex-shrink-0 transition-transform ${
+                      active ? 'translate-x-0 opacity-100 text-blue-500 dark:text-blue-300' : '-translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-60 text-gray-400 dark:text-gray-500'
+                    }`} />
+                  )}
                 </Link>
 
-                {allowedChildren.length > 0 && active && (
+                {shouldShowChildren && (
                   <ul className="mt-1 ml-7 space-y-1">
                     {allowedChildren.map((child: any) => {
                       const childActive = isRouteActive(child.href);
