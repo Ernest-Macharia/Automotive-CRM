@@ -134,7 +134,15 @@ export class NavigationService {
       ]),
     );
 
-    if (!user || effectivePermissions.length === 0) return false;
+    if (!user) return false;
+
+    const rawRole = String(user.roleName || user.role?.name || user.role || '').toLowerCase();
+    const normalizedRole = rawRole.replace(/[\s_]+/g, '');
+    if (normalizedRole === 'admin' || normalizedRole === 'superadmin' || normalizedRole === 'superadministrator') {
+      return true;
+    }
+
+    if (effectivePermissions.length === 0) return false;
 
     const normalizedPermission = String(permission || '').toLowerCase();
     const normalizedPermissions = new Set(
