@@ -28,51 +28,39 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
   const fetchedOrganizationIdRef = useRef<string | null>(null);
   const prefetchedRoutesRef = useRef<Set<string>>(new Set());
   const ensureWebFormsNavItem = useCallback((items: any[]): any[] => {
-    const list = Array.isArray(items) ? [...items] : [];
-    const webFormsChild = {
-      href: '/settings/webforms',
-      label: 'Web Forms',
-      permission: 'webforms.read',
-    };
+    const normalizedList = Array.isArray(items)
+      ? items.map((item: any) => {
+          if (!Array.isArray(item?.children)) {
+            return item;
+          }
 
-    const manyChatIndex = list.findIndex((item) => item?.href === '/manychat');
-    if (manyChatIndex >= 0) {
-      const manyChatItem = list[manyChatIndex] || {};
-      const existingChildren = Array.isArray(manyChatItem.children) ? [...manyChatItem.children] : [];
-      const hasWebFormsChild = existingChildren.some((child: any) => child?.href === '/settings/webforms');
+          return {
+            ...item,
+            children: item.children.filter((child: any) => child?.href !== '/settings/webforms'),
+          };
+        })
+      : [];
 
-      if (!hasWebFormsChild) {
-        existingChildren.unshift(webFormsChild);
-      }
-
-      list[manyChatIndex] = {
-        ...manyChatItem,
-        children: existingChildren,
-      };
-
-      return list;
-    }
-
-    const hasWebForms = list.some((item) => item?.href === '/settings/webforms');
-    if (hasWebForms) {
-      return list;
-    }
-
-    const settingsIndex = list.findIndex((item) => item?.href === '/settings');
-    if (settingsIndex >= 0) {
-      list.splice(settingsIndex, 0, {
-        href: '/settings/webforms',
-        label: 'Web Forms',
-        icon: 'FileText',
-      });
-      return list;
-    }
-
-    return [...list, {
+    const list = [...normalizedList];
+    const webFormsItem = {
       href: '/settings/webforms',
       label: 'Web Forms',
       icon: 'FileText',
-    }];
+      permission: 'webforms.read',
+    };
+
+    const existingWebFormsIndex = list.findIndex((item) => item?.href === '/settings/webforms');
+    if (existingWebFormsIndex >= 0) {
+      list.splice(existingWebFormsIndex, 1);
+    }
+
+    const manyChatIndex = list.findIndex((item) => item?.href === '/manychat');
+    if (manyChatIndex >= 0) {
+      list.splice(manyChatIndex + 1, 0, webFormsItem);
+      return list;
+    }
+
+    return [...list, webFormsItem];
   }, []);
   
   const { user, isLoading: userLoading } = useCurrentUser();
