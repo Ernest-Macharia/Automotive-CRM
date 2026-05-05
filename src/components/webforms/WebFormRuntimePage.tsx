@@ -2,9 +2,31 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { webFormsService, WebFormCondition, WebFormFieldDefinition, WebFormRuntimeResponse } from '@/services/webFormsService';
+import {
+  getWebFormErrorDetails,
+  getWebFormErrorMessage,
+  webFormsService,
+  WebFormCondition,
+  WebFormFieldDefinition,
+  WebFormRuntimeResponse,
+} from '@/services/webFormsService';
+import RuntimeFormRenderer, {
+  RuntimeLayoutSection,
+} from '@/components/webforms/runtime/RuntimeFormRenderer';
 
-type RuntimeValue = string | number | boolean | string[] | null;
+type RuntimeValue = string | number | boolean | string[] | Record<string, any>[] | null;
+
+interface VisibleFieldEntry {
+  field: WebFormFieldDefinition;
+  identity: string;
+}
+
+const normalizeFieldType = (rawType: string | undefined): string => {
+  const type = String(rawType || 'text').toLowerCase();
+  if (type === 'long_text') return 'textarea';
+  if (type === 'multiselect') return 'multi-select';
+  return type;
+};
 
 const getPathValue = (obj: Record<string, any>, path: string): any => {
   if (!path) return undefined;
@@ -35,7 +57,9 @@ const evaluateOperator = (left: any, operator: string, right: any): boolean => {
     case 'not_equals':
       return left !== right;
     case 'contains':
-      return Array.isArray(left) ? left.includes(right) : String(left || '').includes(String(right || ''));
+      return Array.isArray(left)
+        ? left.includes(right)
+        : String(left || '').includes(String(right || ''));
     case 'in':
       return Array.isArray(right) ? right.includes(left) : false;
     case 'not_in':
@@ -93,20 +117,17 @@ const evaluateConditionSet = (
 const getFieldIdentity = (field: WebFormFieldDefinition, index: number): string =>
   String(field.key || field.name || `field_${index}`).trim();
 
-const getFieldOptions = (field: WebFormFieldDefinition): Array<{ label: string; value: string }> => {
-  const base = Array.isArray(field.options) ? field.options : [];
-  return base
-    .map((option) => ({
-      label: String((option as any)?.label ?? (option as any)?.value ?? '').trim(),
-      value: String((option as any)?.value ?? (option as any)?.label ?? '').trim(),
-    }))
-    .filter((option) => option.value);
-};
-
 const getDefaultValue = (field: WebFormFieldDefinition): RuntimeValue => {
   if (field.defaultValue !== undefined) return field.defaultValue as RuntimeValue;
-  if (field.type === 'checkbox') return false;
-  if (field.type === 'checkbox-group' || field.type === 'multi-select') return [];
+  const fieldType = normalizeFieldType(field.type);
+  if (fieldType === 'checkbox') return false;
+  if (
+    ['checkbox-group', 'multi-select', 'parts_repeater', 'labor_repeater', 'inspection_checklist', 'photo_capture_block'].includes(
+      fieldType
+    )
+  ) {
+    return [];
+  }
   return '';
 };
 
@@ -116,6 +137,7 @@ const validateField = (
   isRequired: boolean
 ): string | null => {
   const label = field.label || field.key || 'Field';
+  const fieldType = normalizeFieldType(field.type);
   const normalized = typeof value === 'string' ? value.trim() : value;
 
   if (isRequired) {
@@ -148,12 +170,16 @@ const validateField = (
     }
   }
 
-  if (field.type === 'email' && typeof normalized === 'string' && normalized) {
+  if (fieldType === 'email' && typeof normalized === 'string' && normalized) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(normalized)) return `${label} must be a valid email`;
   }
 
-  if (field.type === 'number' && normalized !== '' && normalized !== null) {
+  if (
+    ['number', 'currency', 'percentage', 'rating', 'odometer'].includes(fieldType) &&
+    normalized !== '' &&
+    normalized !== null
+  ) {
     const num = Number(normalized);
     if (!Number.isFinite(num)) return `${label} must be a number`;
     if (rules.min !== undefined && num < Number(rules.min)) return `${label} must be at least ${rules.min}`;
@@ -163,11 +189,72 @@ const validateField = (
   return null;
 };
 
+const buildLayoutSections = (
+  layout: Record<string, any> | undefined,
+  visibleEntries: VisibleFieldEntry[]
+): RuntimeLayoutSection[] => {
+  const rawSections = Array.isArray((layout as any)?.sections) ? (layout as any).sections : [];
+  const byKey = new Map<string, VisibleFieldEntry>();
+  visibleEntries.forEach((entry) => {
+    byKey.set(entry.identity, entry);
+    if (entry.field.key) byKey.set(String(entry.field.key).trim(), entry);
+    if (entry.field.name) byKey.set(String(entry.field.name).trim(), entry);
+  });
+
+  const usedIdentities = new Set<string>();
+  const sections: RuntimeLayoutSection[] = [];
+
+  rawSections.forEach((rawSection: any, index: number) => {
+    const keyList = Array.isArray(rawSection?.fields)
+      ? rawSection.fields
+      : Array.isArray(rawSection?.fieldKeys)
+      ? rawSection.fieldKeys
+      : [];
+    const entries = keyList
+      .map((rawKey: any) => byKey.get(String(rawKey || '').trim()))
+      .filter((item: VisibleFieldEntry | undefined): item is VisibleFieldEntry => Boolean(item));
+
+    if (entries.length === 0) return;
+
+    entries.forEach((entry) => usedIdentities.add(entry.identity));
+    sections.push({
+      id: String(rawSection?.id || rawSection?.key || `section_${index + 1}`),
+      title: rawSection?.title ? String(rawSection.title) : undefined,
+      description: rawSection?.description ? String(rawSection.description) : undefined,
+      columns: Number(rawSection?.columns || rawSection?.columnCount || 1),
+      fields: entries.map((entry) => ({ field: entry.field, identity: entry.identity })),
+    });
+  });
+
+  const remaining = visibleEntries.filter((entry) => !usedIdentities.has(entry.identity));
+  if (remaining.length > 0) {
+    sections.push({
+      id: 'remaining_fields',
+      title: sections.length > 0 ? 'Additional Details' : undefined,
+      fields: remaining.map((entry) => ({ field: entry.field, identity: entry.identity })),
+      columns: 1,
+    });
+  }
+
+  if (sections.length === 0) {
+    return [
+      {
+        id: 'default',
+        fields: visibleEntries.map((entry) => ({ field: entry.field, identity: entry.identity })),
+        columns: 1,
+      },
+    ];
+  }
+
+  return sections;
+};
+
 export default function WebFormRuntimePage({ formKey }: { formKey: string }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [submissionCorrelationId, setSubmissionCorrelationId] = useState<string>('');
   const [form, setForm] = useState<WebFormRuntimeResponse | null>(null);
   const [values, setValues] = useState<Record<string, RuntimeValue>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -189,7 +276,7 @@ export default function WebFormRuntimePage({ formKey }: { formKey: string }) {
         setValues(nextValues);
       } catch (runtimeError: any) {
         console.error('Failed to load runtime form:', runtimeError);
-        setError(runtimeError?.message || 'Unable to load form');
+        setError(getWebFormErrorMessage(runtimeError, 'Unable to load form'));
       } finally {
         setLoading(false);
       }
@@ -205,13 +292,30 @@ export default function WebFormRuntimePage({ formKey }: { formKey: string }) {
     return { primaryColor, submitLabel };
   }, [form]);
 
-  const visibleFields = useMemo(() => {
-    const source = Array.isArray(form?.fields) ? form?.fields : [];
-    return source.filter((field) => evaluateConditionSet(field.visibleWhen, values));
+  const visibleFieldEntries = useMemo(() => {
+    const source = Array.isArray(form?.fields) ? form.fields : [];
+    return source
+      .map((field, index) => ({ field, identity: getFieldIdentity(field, index) }))
+      .filter((entry) => evaluateConditionSet(entry.field.visibleWhen, values));
   }, [form?.fields, values]);
 
-  const onFieldChange = (field: WebFormFieldDefinition, index: number, nextValue: RuntimeValue) => {
-    const identity = getFieldIdentity(field, index);
+  const visibleFieldIdentitySet = useMemo(
+    () => new Set(visibleFieldEntries.map((entry) => entry.identity)),
+    [visibleFieldEntries]
+  );
+
+  const layoutSections = useMemo(
+    () => buildLayoutSections(form?.layout, visibleFieldEntries),
+    [form?.layout, visibleFieldEntries]
+  );
+
+  const isFieldRequired = useMemo(
+    () => (field: WebFormFieldDefinition) =>
+      Boolean(field.required) || evaluateConditionSet(field.requiredWhen, values),
+    [values]
+  );
+
+  const onFieldChange = (field: WebFormFieldDefinition, identity: string, nextValue: RuntimeValue) => {
     setValues((prev) => ({ ...prev, [identity]: nextValue }));
     setFieldErrors((prev) => {
       const next = { ...prev };
@@ -220,15 +324,54 @@ export default function WebFormRuntimePage({ formKey }: { formKey: string }) {
     });
   };
 
+  const applyServerFieldErrors = (submitError: any) => {
+    const details = getWebFormErrorDetails(submitError);
+    if (!details || typeof details !== 'object') return;
+
+    const rawFieldErrors =
+      details.errors && typeof details.errors === 'object'
+        ? details.errors
+        : details.fieldErrors && typeof details.fieldErrors === 'object'
+        ? details.fieldErrors
+        : null;
+
+    if (!rawFieldErrors) return;
+
+    const mappedErrors: Record<string, string> = {};
+    const visibleByAlias = new Map<string, string>();
+
+    visibleFieldEntries.forEach((entry) => {
+      visibleByAlias.set(entry.identity, entry.identity);
+      if (entry.field.key) visibleByAlias.set(String(entry.field.key).trim(), entry.identity);
+      if (entry.field.name) visibleByAlias.set(String(entry.field.name).trim(), entry.identity);
+    });
+
+    Object.entries(rawFieldErrors).forEach(([rawKey, rawValue]) => {
+      const targetKey = visibleByAlias.get(String(rawKey).trim());
+      if (!targetKey) return;
+      const message =
+        typeof rawValue === 'string'
+          ? rawValue
+          : Array.isArray(rawValue)
+          ? rawValue.map((item) => String(item)).join(', ')
+          : String((rawValue as any)?.message || rawValue || '');
+      if (!message) return;
+      mappedErrors[targetKey] = message;
+    });
+
+    if (Object.keys(mappedErrors).length > 0) {
+      setFieldErrors((prev) => ({ ...prev, ...mappedErrors }));
+    }
+  };
+
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!form) return;
 
     const nextErrors: Record<string, string> = {};
 
-    visibleFields.forEach((field, index) => {
-      const identity = getFieldIdentity(field, index);
-      const required = Boolean(field.required) || evaluateConditionSet(field.requiredWhen, values);
+    visibleFieldEntries.forEach(({ field, identity }) => {
+      const required = isFieldRequired(field);
       const validationError = validateField(field, values[identity], required);
       if (validationError) {
         nextErrors[identity] = validationError;
@@ -246,32 +389,54 @@ export default function WebFormRuntimePage({ formKey }: { formKey: string }) {
     }
 
     const targetPayload: Record<string, any> = {};
-    visibleFields.forEach((field, index) => {
-      const identity = getFieldIdentity(field, index);
+    visibleFieldEntries.forEach(({ field, identity }) => {
       const fieldValue = values[identity];
       if (field.targetField) {
         setPathValue(targetPayload, field.targetField, fieldValue);
       }
     });
 
+    const generatedCorrelationId = `wf_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+
     try {
       setSubmitting(true);
       setError(null);
-      await webFormsService.submitRuntimeForm(formKey, {
+      setFieldErrors((prev) => {
+        const next: Record<string, string> = {};
+        Object.entries(prev).forEach(([key, value]) => {
+          if (!visibleFieldIdentitySet.has(key)) return;
+          next[key] = value;
+        });
+        return next;
+      });
+
+      const response = await webFormsService.submitRuntimeForm(formKey, {
         values,
         targetPayload,
-        correlationId: `wf_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
+        correlationId: generatedCorrelationId,
         metadata: {
           publicKey: form.publicKey,
           formKey: form.formKey,
           versionNumber: form.versionNumber,
         },
       });
+
+      const backendMessage = String(response?.message || '').trim();
       const policySuccessMessage = String((form.policy as any)?.successMessage || '').trim();
-      setSuccessMessage(policySuccessMessage || 'Thank you. Your response has been submitted.');
+      const resolvedCorrelationId = String(
+        response?.correlationId ||
+          response?.submission?.correlationId ||
+          generatedCorrelationId
+      ).trim();
+
+      setSubmissionCorrelationId(resolvedCorrelationId);
+      setSuccessMessage(
+        backendMessage || policySuccessMessage || 'Thank you. Your response has been submitted.'
+      );
     } catch (submitError: any) {
       console.error('Failed to submit runtime form:', submitError);
-      setError(submitError?.message || 'Failed to submit form');
+      applyServerFieldErrors(submitError);
+      setError(getWebFormErrorMessage(submitError, 'Failed to submit form'));
     } finally {
       setSubmitting(false);
     }
@@ -304,6 +469,11 @@ export default function WebFormRuntimePage({ formKey }: { formKey: string }) {
         <div className="max-w-xl bg-white rounded-2xl border border-emerald-200 p-8 text-center">
           <h1 className="text-2xl font-semibold text-emerald-700">Submission Received</h1>
           <p className="text-gray-700 mt-3">{successMessage}</p>
+          {submissionCorrelationId && (
+            <p className="text-xs text-gray-500 mt-3">
+              Correlation ID: <span className="font-mono">{submissionCorrelationId}</span>
+            </p>
+          )}
         </div>
       </div>
     );
@@ -323,7 +493,11 @@ export default function WebFormRuntimePage({ formKey }: { formKey: string }) {
           {form.description && <p className="text-gray-600 mt-2">{form.description}</p>}
         </div>
 
-        {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700 text-sm">{error}</div>}
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700 text-sm">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="hidden" aria-hidden>
@@ -338,142 +512,13 @@ export default function WebFormRuntimePage({ formKey }: { formKey: string }) {
             />
           </div>
 
-          {visibleFields.map((field, index) => {
-            const identity = getFieldIdentity(field, index);
-            const required = Boolean(field.required) || evaluateConditionSet(field.requiredWhen, values);
-            const value = values[identity];
-            const options = getFieldOptions(field);
-            const sharedInputClass =
-              'mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500';
-
-            return (
-              <div key={identity} className="space-y-1">
-                <label className="text-sm font-medium text-gray-800 block" htmlFor={identity}>
-                  {field.label || identity}
-                  {required && <span className="text-red-500 ml-1">*</span>}
-                </label>
-
-                {field.helpText && <p className="text-xs text-gray-500">{field.helpText}</p>}
-
-                {['text', 'email', 'phone', 'number', 'date', 'time', 'datetime', 'url'].includes(field.type) && (
-                  <input
-                    id={identity}
-                    name={identity}
-                    type={
-                      field.type === 'phone'
-                        ? 'tel'
-                        : field.type === 'datetime'
-                        ? 'datetime-local'
-                        : field.type
-                    }
-                    value={String(value ?? '')}
-                    placeholder={field.placeholder || ''}
-                    onChange={(event) => onFieldChange(field, index, event.target.value)}
-                    className={sharedInputClass}
-                  />
-                )}
-
-                {field.type === 'textarea' && (
-                  <textarea
-                    id={identity}
-                    name={identity}
-                    rows={4}
-                    value={String(value ?? '')}
-                    placeholder={field.placeholder || ''}
-                    onChange={(event) => onFieldChange(field, index, event.target.value)}
-                    className={sharedInputClass}
-                  />
-                )}
-
-                {(field.type === 'select' || field.type === 'multi-select') && (
-                  <select
-                    id={identity}
-                    name={identity}
-                    multiple={field.type === 'multi-select'}
-                    value={
-                      field.type === 'multi-select'
-                        ? (Array.isArray(value) ? value.map((item) => String(item)) : [])
-                        : String(value ?? '')
-                    }
-                    onChange={(event) => {
-                      if (field.type === 'multi-select') {
-                        const selected = Array.from(event.target.selectedOptions).map((option) => option.value);
-                        onFieldChange(field, index, selected);
-                      } else {
-                        onFieldChange(field, index, event.target.value);
-                      }
-                    }}
-                    className={sharedInputClass}
-                  >
-                    {field.type === 'select' && <option value="">Select...</option>}
-                    {options.map((option) => (
-                      <option key={`${identity}-${option.value}`} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                )}
-
-                {field.type === 'radio' && (
-                  <div className="space-y-2 mt-1">
-                    {options.map((option) => (
-                      <label key={`${identity}-${option.value}`} className="flex items-center gap-2 text-sm text-gray-700">
-                        <input
-                          type="radio"
-                          name={identity}
-                          value={option.value}
-                          checked={String(value ?? '') === option.value}
-                          onChange={(event) => onFieldChange(field, index, event.target.value)}
-                        />
-                        {option.label}
-                      </label>
-                    ))}
-                  </div>
-                )}
-
-                {field.type === 'checkbox' && (
-                  <label className="flex items-center gap-2 text-sm text-gray-700 mt-1">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(value)}
-                      onChange={(event) => onFieldChange(field, index, event.target.checked)}
-                    />
-                    {field.placeholder || 'Yes'}
-                  </label>
-                )}
-
-                {field.type === 'checkbox-group' && (
-                  <div className="space-y-2 mt-1">
-                    {options.map((option) => {
-                      const checked = Array.isArray(value) ? value.includes(option.value) : false;
-                      return (
-                        <label key={`${identity}-${option.value}`} className="flex items-center gap-2 text-sm text-gray-700">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(event) => {
-                              const current = Array.isArray(value) ? [...value] : [];
-                              if (event.target.checked) {
-                                if (!current.includes(option.value)) current.push(option.value);
-                              } else {
-                                const next = current.filter((item) => item !== option.value);
-                                onFieldChange(field, index, next);
-                                return;
-                              }
-                              onFieldChange(field, index, current);
-                            }}
-                          />
-                          {option.label}
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {fieldErrors[identity] && <p className="text-xs text-red-600">{fieldErrors[identity]}</p>}
-              </div>
-            );
-          })}
+          <RuntimeFormRenderer
+            sections={layoutSections}
+            values={values}
+            fieldErrors={fieldErrors}
+            isFieldRequired={(field) => isFieldRequired(field)}
+            onFieldChange={onFieldChange}
+          />
 
           <div className="pt-2">
             <button
