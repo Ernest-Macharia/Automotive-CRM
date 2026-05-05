@@ -9,58 +9,43 @@ import {
   ExternalLink,
   GitBranch,
   Loader2,
-  Plus,
   RefreshCw,
   Save,
   Send,
-  Trash2,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
-import { WebFormDefinition, WebFormFieldDefinition, webFormsService } from '@/services/webFormsService';
+import {
+  getWebFormErrorMessage,
+  WebFormDefinition,
+  WebFormFieldDefinition,
+  webFormsService,
+} from '@/services/webFormsService';
+import FieldListEditor from '@/components/settings/webforms/FieldListEditor';
+import VersionTimeline from '@/components/settings/webforms/VersionTimeline';
+import WebformBuilderShell from '@/components/settings/webforms/WebformBuilderShell';
+import { BuilderEditableField } from '@/components/settings/webforms/types';
 
 type BuilderTab =
+  | 'structure'
   | 'fields'
-  | 'rules'
   | 'mappings'
-  | 'layout'
   | 'theme'
-  | 'policy'
-  | 'assignment'
-  | 'spamProtection';
-
-interface EditableField extends WebFormFieldDefinition {
-  _advancedJson: string;
-}
-
-const FIELD_TYPE_OPTIONS = [
-  'text',
-  'textarea',
-  'email',
-  'phone',
-  'number',
-  'date',
-  'datetime',
-  'time',
-  'select',
-  'multi-select',
-  'radio',
-  'checkbox',
-  'checkbox-group',
-  'url',
-  'file',
-  'signature',
-  'vin',
-];
+  | 'policies'
+  | 'versions';
 
 const BUILDER_TABS: Array<{ id: BuilderTab; label: string }> = [
+  { id: 'structure', label: 'Structure' },
   { id: 'fields', label: 'Fields' },
-  { id: 'rules', label: 'Rules' },
   { id: 'mappings', label: 'Mappings' },
-  { id: 'layout', label: 'Layout' },
   { id: 'theme', label: 'Theme' },
-  { id: 'policy', label: 'Policy' },
-  { id: 'assignment', label: 'Assignment' },
-  { id: 'spamProtection', label: 'Spam Protection' },
+  { id: 'policies', label: 'Policies' },
+  { id: 'versions', label: 'Versions' },
+];
+
+const TARGET_MODULE_OPTIONS = [
+  { value: 'submissions', label: 'Submissions Only' },
+  { value: 'opportunities', label: 'Create Opportunity' },
+  { value: 'contacts', label: 'Create Contact' },
 ];
 
 const slugify = (value: string): string =>
@@ -70,20 +55,15 @@ const slugify = (value: string): string =>
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
 
-const prettyJson = (value: any, fallback: string) => {
-  try {
-    return JSON.stringify(value ?? JSON.parse(fallback), null, 2);
-  } catch {
-    return fallback;
-  }
-};
-
-const parseJson = (value: string, fallback: any) => {
+const parseJsonSafe = (value: string, fallback: any) => {
   if (!value.trim()) return fallback;
   return JSON.parse(value);
 };
 
-const toEditableField = (field: WebFormFieldDefinition, index: number): EditableField => {
+const toEditableField = (
+  field: WebFormFieldDefinition,
+  index: number
+): BuilderEditableField => {
   const advanced = {
     options: field.options ?? [],
     validation: field.validation ?? {},
@@ -102,19 +82,34 @@ const toEditableField = (field: WebFormFieldDefinition, index: number): Editable
   };
 };
 
-const fromEditableField = (field: EditableField): WebFormFieldDefinition => {
-  const parsedAdvanced = parseJson(field._advancedJson || '{}', {});
+const fromEditableField = (field: BuilderEditableField): WebFormFieldDefinition => {
+  const parsedAdvanced = parseJsonSafe(field._advancedJson || '{}', {});
   const { _advancedJson, ...rest } = field;
   return {
     ...rest,
     options: Array.isArray(parsedAdvanced?.options) ? parsedAdvanced.options : [],
-    validation: parsedAdvanced?.validation && typeof parsedAdvanced.validation === 'object' ? parsedAdvanced.validation : {},
+    validation:
+      parsedAdvanced?.validation && typeof parsedAdvanced.validation === 'object'
+        ? parsedAdvanced.validation
+        : {},
     visibleWhen: parsedAdvanced?.visibleWhen ?? null,
     requiredWhen: parsedAdvanced?.requiredWhen ?? null,
-    layout: parsedAdvanced?.layout && typeof parsedAdvanced.layout === 'object' ? parsedAdvanced.layout : {},
-    theme: parsedAdvanced?.theme && typeof parsedAdvanced.theme === 'object' ? parsedAdvanced.theme : {},
-    policy: parsedAdvanced?.policy && typeof parsedAdvanced.policy === 'object' ? parsedAdvanced.policy : {},
-    metadata: parsedAdvanced?.metadata && typeof parsedAdvanced.metadata === 'object' ? parsedAdvanced.metadata : {},
+    layout:
+      parsedAdvanced?.layout && typeof parsedAdvanced.layout === 'object'
+        ? parsedAdvanced.layout
+        : {},
+    theme:
+      parsedAdvanced?.theme && typeof parsedAdvanced.theme === 'object'
+        ? parsedAdvanced.theme
+        : {},
+    policy:
+      parsedAdvanced?.policy && typeof parsedAdvanced.policy === 'object'
+        ? parsedAdvanced.policy
+        : {},
+    metadata:
+      parsedAdvanced?.metadata && typeof parsedAdvanced.metadata === 'object'
+        ? parsedAdvanced.metadata
+        : {},
   };
 };
 
@@ -127,7 +122,7 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
   const [publishing, setPublishing] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [creatingVersion, setCreatingVersion] = useState(false);
-  const [activeTab, setActiveTab] = useState<BuilderTab>('fields');
+  const [activeTab, setActiveTab] = useState<BuilderTab>('structure');
   const [form, setForm] = useState<WebFormDefinition | null>(null);
   const [versions, setVersions] = useState<WebFormDefinition[]>([]);
   const [metadata, setMetadata] = useState({
@@ -137,9 +132,9 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
     formKey: '',
     publicKey: '',
   });
-  const [fields, setFields] = useState<EditableField[]>([]);
-  const [sections, setSections] = useState<Record<BuilderTab, string>>({
-    fields: '[]',
+  const [targetModule, setTargetModule] = useState('submissions');
+  const [fields, setFields] = useState<BuilderEditableField[]>([]);
+  const [sections, setSections] = useState({
     rules: '[]',
     mappings: '{}',
     layout: '{}',
@@ -150,6 +145,22 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
   });
 
   const isDraft = (form?.state || 'draft') === 'draft';
+  const currentVersionId = String(form?._id || form?.id || form?.versionId || '').trim();
+
+  const existingDraftVersion = useMemo(() => {
+    return versions.find((version) => {
+      const versionId = String(version._id || version.id || version.versionId || '').trim();
+      return version.state === 'draft' && versionId && versionId !== currentVersionId;
+    });
+  }, [versions, currentVersionId]);
+
+  const runtimeUrl = useMemo(() => {
+    if (!metadata.publicKey) return '';
+    if (typeof window !== 'undefined') {
+      return `${window.location.origin}/forms/${encodeURIComponent(metadata.publicKey)}`;
+    }
+    return `/forms/${encodeURIComponent(metadata.publicKey)}`;
+  }, [metadata.publicKey]);
 
   const loadFormData = useCallback(async () => {
     try {
@@ -158,6 +169,11 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
         webFormsService.getFormById(id),
         webFormsService.getFormVersions(id).catch(() => []),
       ]);
+
+      const mappings =
+        fetchedForm.mappings && typeof fetchedForm.mappings === 'object'
+          ? fetchedForm.mappings
+          : {};
 
       setForm(fetchedForm);
       setVersions(fetchedVersions);
@@ -168,15 +184,17 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
         formKey: String(fetchedForm.formKey || '').trim(),
         publicKey: String(fetchedForm.publicKey || '').trim(),
       });
+      setTargetModule(
+        String((mappings as any).targetModule || (fetchedForm as any).targetModule || 'submissions')
+      );
       setFields(
         (Array.isArray(fetchedForm.fields) ? fetchedForm.fields : []).map((field, index) =>
           toEditableField(field, index)
         )
       );
       setSections({
-        fields: JSON.stringify(fetchedForm.fields || [], null, 2),
         rules: JSON.stringify(fetchedForm.rules || [], null, 2),
-        mappings: JSON.stringify(fetchedForm.mappings || {}, null, 2),
+        mappings: JSON.stringify(mappings, null, 2),
         layout: JSON.stringify(fetchedForm.layout || {}, null, 2),
         theme: JSON.stringify(fetchedForm.theme || {}, null, 2),
         policy: JSON.stringify(fetchedForm.policy || {}, null, 2),
@@ -185,7 +203,7 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
       });
     } catch (error) {
       console.error('Failed to load form:', error);
-      showToast('Failed to load form builder data', 'error');
+      showToast(getWebFormErrorMessage(error, 'Failed to load form builder data'), 'error');
     } finally {
       setLoading(false);
     }
@@ -194,30 +212,6 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
   useEffect(() => {
     loadFormData();
   }, [loadFormData]);
-
-  useEffect(() => {
-    setSections((prev) => ({
-      ...prev,
-      fields: prettyJson(
-        fields.map((field) => {
-          try {
-            return fromEditableField(field);
-          } catch {
-            return field;
-          }
-        }),
-        prev.fields
-      ),
-    }));
-  }, [fields]);
-
-  const runtimeUrl = useMemo(() => {
-    if (!metadata.publicKey) return '';
-    if (typeof window !== 'undefined') {
-      return `${window.location.origin}/forms/${encodeURIComponent(metadata.publicKey)}`;
-    }
-    return `/forms/${encodeURIComponent(metadata.publicKey)}`;
-  }, [metadata.publicKey]);
 
   const addField = () => {
     const nextIndex = fields.length + 1;
@@ -252,7 +246,7 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
     ]);
   };
 
-  const updateField = (index: number, patch: Partial<EditableField>) => {
+  const updateField = (index: number, patch: Partial<BuilderEditableField>) => {
     setFields((prev) => prev.map((field, idx) => (idx === index ? { ...field, ...patch } : field)));
   };
 
@@ -262,6 +256,9 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
 
   const buildUpdatePayload = () => {
     const parsedFields = fields.map((field) => fromEditableField(field));
+    const parsedMappings = parseJsonSafe(sections.mappings, {});
+    const normalizedMappings =
+      parsedMappings && typeof parsedMappings === 'object' ? parsedMappings : {};
 
     return {
       title: metadata.title.trim(),
@@ -270,21 +267,27 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
       formKey: metadata.formKey.trim() || slugify(metadata.title || metadata.name),
       publicKey: metadata.publicKey.trim() || slugify(metadata.title || metadata.name),
       fields: parsedFields,
-      rules: parseJson(sections.rules, []),
-      mappings: parseJson(sections.mappings, {}),
-      layout: parseJson(sections.layout, {}),
-      theme: parseJson(sections.theme, {}),
-      policy: parseJson(sections.policy, {}),
-      assignment: parseJson(sections.assignment, {}),
-      spamProtection: parseJson(sections.spamProtection, {}),
+      rules: parseJsonSafe(sections.rules, []),
+      mappings: {
+        ...normalizedMappings,
+        targetModule,
+      },
+      layout: parseJsonSafe(sections.layout, {}),
+      theme: parseJsonSafe(sections.theme, {}),
+      policy: parseJsonSafe(sections.policy, {}),
+      assignment: parseJsonSafe(sections.assignment, {}),
+      spamProtection: parseJsonSafe(sections.spamProtection, {}),
     };
   };
 
-  const saveDraft = async () => {
-    if (!form) return;
+  const saveDraft = async (): Promise<boolean> => {
+    if (!form) return false;
     if (!isDraft) {
-      showToast('Published/archived versions are immutable. Create a new draft version first.', 'warning');
-      return;
+      showToast(
+        'Published/archived versions are immutable. Create a new draft version first.',
+        'warning'
+      );
+      return false;
     }
 
     try {
@@ -294,9 +297,14 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
       setForm(updated);
       showToast('Draft saved', 'success');
       await loadFormData();
+      return true;
     } catch (error: any) {
       console.error('Failed to save draft:', error);
-      showToast(error?.message || 'Failed to save draft', 'error');
+      const message = error instanceof SyntaxError
+        ? 'Invalid JSON in one of the sections. Fix formatting and try again.'
+        : getWebFormErrorMessage(error, 'Failed to save draft');
+      showToast(message, 'error');
+      return false;
     } finally {
       setSaving(false);
     }
@@ -311,14 +319,16 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
 
     try {
       setPublishing(true);
-      await saveDraft();
+      const saved = await saveDraft();
+      if (!saved) return;
+
       const published = await webFormsService.publishForm(form._id);
       setForm(published);
       showToast('Form published', 'success');
       await loadFormData();
     } catch (error: any) {
       console.error('Failed to publish form:', error);
-      showToast(error?.message || 'Failed to publish form', 'error');
+      showToast(getWebFormErrorMessage(error, 'Failed to publish form'), 'error');
     } finally {
       setPublishing(false);
     }
@@ -334,7 +344,7 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
       await loadFormData();
     } catch (error: any) {
       console.error('Failed to archive form:', error);
-      showToast(error?.message || 'Failed to archive form', 'error');
+      showToast(getWebFormErrorMessage(error, 'Failed to archive form'), 'error');
     } finally {
       setArchiving(false);
     }
@@ -342,6 +352,20 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
 
   const createNextDraft = async () => {
     if (!form) return;
+    if (existingDraftVersion) {
+      const existingDraftId = String(
+        existingDraftVersion._id ||
+          existingDraftVersion.id ||
+          existingDraftVersion.versionId ||
+          ''
+      ).trim();
+      if (existingDraftId) {
+        showToast('A draft version already exists. Opening that draft.', 'warning');
+        router.push(`/settings/webforms/${existingDraftId}`);
+        return;
+      }
+    }
+
     try {
       setCreatingVersion(true);
       const next = await webFormsService.createNextVersion(form._id);
@@ -349,7 +373,7 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
       router.push(`/settings/webforms/${next._id}`);
     } catch (error: any) {
       console.error('Failed to create draft version:', error);
-      showToast(error?.message || 'Failed to create draft version', 'error');
+      showToast(getWebFormErrorMessage(error, 'Failed to create draft version'), 'error');
     } finally {
       setCreatingVersion(false);
     }
@@ -374,94 +398,129 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
     );
   }
 
+  const builderActions = (
+    <>
+      <button
+        type="button"
+        onClick={loadFormData}
+        className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 inline-flex items-center gap-2"
+      >
+        <RefreshCw className="h-4 w-4" />
+        Reload
+      </button>
+      {runtimeUrl && (
+        <Link
+          href={runtimeUrl}
+          target="_blank"
+          className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 inline-flex items-center gap-2"
+        >
+          <ExternalLink className="h-4 w-4" />
+          Runtime
+        </Link>
+      )}
+      {!isDraft &&
+        (existingDraftVersion ? (
+          <Link
+            href={`/settings/webforms/${String(
+              existingDraftVersion._id ||
+                existingDraftVersion.id ||
+                existingDraftVersion.versionId ||
+                ''
+            ).trim()}`}
+            className="px-3 py-2 border border-indigo-300 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 inline-flex items-center gap-2"
+          >
+            <GitBranch className="h-4 w-4" />
+            Open Draft
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={createNextDraft}
+            disabled={creatingVersion}
+            className="px-3 py-2 border border-indigo-300 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 inline-flex items-center gap-2 disabled:opacity-60"
+          >
+            {creatingVersion ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <GitBranch className="h-4 w-4" />
+            )}
+            Create Draft Version
+          </button>
+        ))}
+      {isDraft && (
+        <>
+          <button
+            type="button"
+            onClick={saveDraft}
+            disabled={saving}
+            className="px-3 py-2 border border-blue-300 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 inline-flex items-center gap-2 disabled:opacity-60"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Save Draft
+          </button>
+          <button
+            type="button"
+            onClick={publish}
+            disabled={publishing}
+            className="px-3 py-2 border border-emerald-300 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 inline-flex items-center gap-2 disabled:opacity-60"
+          >
+            {publishing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            Publish
+          </button>
+        </>
+      )}
+      {form.state !== 'archived' && (
+        <button
+          type="button"
+          onClick={archive}
+          disabled={archiving}
+          className="px-3 py-2 border border-amber-300 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 inline-flex items-center gap-2 disabled:opacity-60"
+        >
+          {archiving ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Archive className="h-4 w-4" />
+          )}
+          Archive
+        </button>
+      )}
+    </>
+  );
+
   return (
     <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-      <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">
-              {metadata.title || metadata.name || form.formKey || 'Untitled Form'}
-            </h2>
-            <p className="text-sm text-gray-600 mt-1">
-              Public key: <span className="font-mono">{metadata.publicKey || '-'}</span> | Form key:{' '}
-              <span className="font-mono">{metadata.formKey || '-'}</span> | Version v{form.versionNumber || 1}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={loadFormData}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 inline-flex items-center gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Reload
-            </button>
-            {runtimeUrl && (
-              <Link
-                href={runtimeUrl}
-                target="_blank"
-                className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 inline-flex items-center gap-2"
-              >
-                <ExternalLink className="h-4 w-4" />
-                Runtime
-              </Link>
-            )}
-            {!isDraft && (
-              <button
-                type="button"
-                onClick={createNextDraft}
-                disabled={creatingVersion}
-                className="px-3 py-2 border border-indigo-300 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 inline-flex items-center gap-2 disabled:opacity-60"
-              >
-                {creatingVersion ? <Loader2 className="h-4 w-4 animate-spin" /> : <GitBranch className="h-4 w-4" />}
-                New Draft Version
-              </button>
-            )}
-            {isDraft && (
-              <>
-                <button
-                  type="button"
-                  onClick={saveDraft}
-                  disabled={saving}
-                  className="px-3 py-2 border border-blue-300 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 inline-flex items-center gap-2 disabled:opacity-60"
-                >
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  Save Draft
-                </button>
-                <button
-                  type="button"
-                  onClick={publish}
-                  disabled={publishing}
-                  className="px-3 py-2 border border-emerald-300 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 inline-flex items-center gap-2 disabled:opacity-60"
-                >
-                  {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Publish
-                </button>
-              </>
-            )}
-            {form.state !== 'archived' && (
-              <button
-                type="button"
-                onClick={archive}
-                disabled={archiving}
-                className="px-3 py-2 border border-amber-300 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 inline-flex items-center gap-2 disabled:opacity-60"
-              >
-                {archiving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
-                Archive
-              </button>
-            )}
-          </div>
+      <WebformBuilderShell
+        title={metadata.title || metadata.name || form.formKey || 'Untitled Form'}
+        subtitle={`Public key: ${metadata.publicKey || '-'} | Form key: ${
+          metadata.formKey || '-'
+        } | Version v${form.versionNumber || 1} (${form.state || 'draft'})`}
+        tabs={BUILDER_TABS}
+        activeTab={activeTab}
+        onTabChange={(tabId) => setActiveTab(tabId as BuilderTab)}
+        actions={builderActions}
+      />
+
+      {!isDraft && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <AlertCircle className="h-4 w-4 mt-0.5" />
+          <p>
+            This version is <strong>{form.state}</strong> and immutable. Create a draft version
+            before editing.
+          </p>
         </div>
+      )}
 
-        {!isDraft && (
-          <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            <AlertCircle className="h-4 w-4 mt-0.5" />
-            <p>
-              This version is <strong>{form.state}</strong> and immutable. Create a new draft version to make changes.
-            </p>
-          </div>
-        )}
+      {existingDraftVersion && !isDraft && (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-800">
+          A draft already exists for this form. Open it from the action bar to continue editing.
+        </div>
+      )}
 
+      <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <label className="text-sm text-gray-700">
             Title
@@ -486,7 +545,9 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
             <input
               value={metadata.formKey}
               disabled={!isDraft}
-              onChange={(event) => setMetadata((prev) => ({ ...prev, formKey: event.target.value }))}
+              onChange={(event) =>
+                setMetadata((prev) => ({ ...prev, formKey: event.target.value }))
+              }
               className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 disabled:bg-gray-100"
             />
           </label>
@@ -495,7 +556,9 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
             <input
               value={metadata.publicKey}
               disabled={!isDraft}
-              onChange={(event) => setMetadata((prev) => ({ ...prev, publicKey: event.target.value }))}
+              onChange={(event) =>
+                setMetadata((prev) => ({ ...prev, publicKey: event.target.value }))
+              }
               className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 disabled:bg-gray-100"
             />
           </label>
@@ -506,7 +569,9 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
             rows={3}
             value={metadata.description}
             disabled={!isDraft}
-            onChange={(event) => setMetadata((prev) => ({ ...prev, description: event.target.value }))}
+            onChange={(event) =>
+              setMetadata((prev) => ({ ...prev, description: event.target.value }))
+            }
             className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 disabled:bg-gray-100"
           />
         </label>
@@ -517,248 +582,152 @@ export default function WebFormBuilderPage({ id }: { id: string }) {
         )}
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-2xl p-4">
-        <div className="flex flex-wrap gap-2">
-          {BUILDER_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-                activeTab === tab.id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {activeTab === 'fields' && (
+      {activeTab === 'structure' && (
         <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">Fields</h3>
-            {isDraft && (
-              <button
-                type="button"
-                onClick={addField}
-                className="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 inline-flex items-center gap-2"
-              >
-                <Plus className="h-4 w-4" />
-                Add Field
-              </button>
-            )}
+          <h3 className="text-lg font-semibold text-gray-900">Structure</h3>
+          <p className="text-sm text-gray-600">
+            Top-level <code>rules</code> are stored and returned by the backend, and can guide UI,
+            but backend execution is metadata-only for now.
+          </p>
+          <label className="text-sm text-gray-700 block">
+            Rules JSON
+            <textarea
+              rows={8}
+              value={sections.rules}
+              disabled={!isDraft}
+              onChange={(event) =>
+                setSections((prev) => ({ ...prev, rules: event.target.value }))
+              }
+              className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 font-mono text-xs disabled:bg-gray-100"
+            />
+          </label>
+          <label className="text-sm text-gray-700 block">
+            Layout JSON
+            <textarea
+              rows={10}
+              value={sections.layout}
+              disabled={!isDraft}
+              onChange={(event) =>
+                setSections((prev) => ({ ...prev, layout: event.target.value }))
+              }
+              className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 font-mono text-xs disabled:bg-gray-100"
+            />
+          </label>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <label className="text-sm text-gray-700 block">
+              Assignment JSON
+              <textarea
+                rows={8}
+                value={sections.assignment}
+                disabled={!isDraft}
+                onChange={(event) =>
+                  setSections((prev) => ({ ...prev, assignment: event.target.value }))
+                }
+                className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 font-mono text-xs disabled:bg-gray-100"
+              />
+            </label>
+            <label className="text-sm text-gray-700 block">
+              Spam Protection JSON
+              <textarea
+                rows={8}
+                value={sections.spamProtection}
+                disabled={!isDraft}
+                onChange={(event) =>
+                  setSections((prev) => ({ ...prev, spamProtection: event.target.value }))
+                }
+                className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 font-mono text-xs disabled:bg-gray-100"
+              />
+            </label>
           </div>
-
-          {fields.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-gray-500">
-              No fields yet. Add your first field to start building this form.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {fields.map((field, index) => (
-                <div key={`${field.key || field.name || 'field'}-${index}`} className="border border-gray-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-gray-900">
-                      Field {index + 1}: {field.label || field.key || 'Untitled'}
-                    </h4>
-                    {isDraft && (
-                      <button
-                        type="button"
-                        onClick={() => removeField(index)}
-                        className="px-2 py-1 rounded-md text-red-600 hover:bg-red-50 inline-flex items-center gap-1"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Remove
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <label className="text-sm text-gray-700">
-                      Label
-                      <input
-                        value={field.label || ''}
-                        disabled={!isDraft}
-                        onChange={(event) => updateField(index, { label: event.target.value })}
-                        className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 disabled:bg-gray-100"
-                      />
-                    </label>
-                    <label className="text-sm text-gray-700">
-                      Field Key
-                      <input
-                        value={field.key || ''}
-                        disabled={!isDraft}
-                        onChange={(event) => updateField(index, { key: event.target.value, name: event.target.value })}
-                        className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 disabled:bg-gray-100"
-                      />
-                    </label>
-                    <label className="text-sm text-gray-700">
-                      Type
-                      <select
-                        value={field.type || 'text'}
-                        disabled={!isDraft}
-                        onChange={(event) => updateField(index, { type: event.target.value })}
-                        className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 disabled:bg-gray-100"
-                      >
-                        {FIELD_TYPE_OPTIONS.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="text-sm text-gray-700">
-                      Target Field Path
-                      <input
-                        value={field.targetField || ''}
-                        disabled={!isDraft}
-                        onChange={(event) => updateField(index, { targetField: event.target.value })}
-                        placeholder="customer.name"
-                        className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 disabled:bg-gray-100"
-                      />
-                    </label>
-                    <label className="text-sm text-gray-700">
-                      Placeholder
-                      <input
-                        value={field.placeholder || ''}
-                        disabled={!isDraft}
-                        onChange={(event) => updateField(index, { placeholder: event.target.value })}
-                        className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 disabled:bg-gray-100"
-                      />
-                    </label>
-                    <label className="text-sm text-gray-700">
-                      Default Value
-                      <input
-                        value={field.defaultValue ?? ''}
-                        disabled={!isDraft}
-                        onChange={(event) => updateField(index, { defaultValue: event.target.value })}
-                        className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 disabled:bg-gray-100"
-                      />
-                    </label>
-                    <label className="text-sm text-gray-700">
-                      Sensitivity Class
-                      <select
-                        value={field.sensitivityClass || 'public'}
-                        disabled={!isDraft}
-                        onChange={(event) =>
-                          updateField(index, {
-                            sensitivityClass: event.target.value as EditableField['sensitivityClass'],
-                          })
-                        }
-                        className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 disabled:bg-gray-100"
-                      >
-                        <option value="public">public</option>
-                        <option value="internal">internal</option>
-                        <option value="sensitive">sensitive</option>
-                        <option value="restricted">restricted</option>
-                      </select>
-                    </label>
-                    <label className="text-sm text-gray-700 flex items-center gap-2 mt-6">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(field.required)}
-                        disabled={!isDraft}
-                        onChange={(event) => updateField(index, { required: event.target.checked })}
-                      />
-                      Required by default
-                    </label>
-                  </div>
-
-                  <label className="text-sm text-gray-700 block mt-3">
-                    Help Text
-                    <textarea
-                      rows={2}
-                      value={field.helpText || ''}
-                      disabled={!isDraft}
-                      onChange={(event) => updateField(index, { helpText: event.target.value })}
-                      className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 disabled:bg-gray-100"
-                    />
-                  </label>
-
-                  <label className="text-sm text-gray-700 block mt-3">
-                    Advanced JSON (options, validation, visibleWhen, requiredWhen, layout, theme, policy, metadata)
-                    <textarea
-                      rows={10}
-                      value={field._advancedJson}
-                      disabled={!isDraft}
-                      onChange={(event) => updateField(index, { _advancedJson: event.target.value })}
-                      className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 font-mono text-xs disabled:bg-gray-100"
-                    />
-                  </label>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
-      {activeTab !== 'fields' && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
-          <h3 className="text-lg font-semibold text-gray-900 capitalize">{activeTab}</h3>
+      {activeTab === 'fields' && (
+        <FieldListEditor
+          fields={fields}
+          isDraft={isDraft}
+          onAdd={addField}
+          onUpdate={updateField}
+          onRemove={removeField}
+        />
+      )}
+
+      {activeTab === 'mappings' && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+          <h3 className="text-lg font-semibold text-gray-900">Mappings</h3>
           <p className="text-sm text-gray-600">
-            This section maps directly to backend <code>{activeTab}</code> object.
+            Use <code>targetField</code> for exact write paths like{' '}
+            <code>customer.name</code> or <code>vehicle.vin</code>. Choose target module for
+            record creation flow.
+          </p>
+          <label className="text-sm text-gray-700 block max-w-md">
+            Target Module
+            <select
+              value={targetModule}
+              disabled={!isDraft}
+              onChange={(event) => setTargetModule(event.target.value)}
+              className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 disabled:bg-gray-100"
+            >
+              {TARGET_MODULE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="text-sm text-gray-700 block">
+            Mappings JSON
+            <textarea
+              rows={16}
+              value={sections.mappings}
+              disabled={!isDraft}
+              onChange={(event) =>
+                setSections((prev) => ({ ...prev, mappings: event.target.value }))
+              }
+              className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 font-mono text-xs disabled:bg-gray-100"
+            />
+          </label>
+        </div>
+      )}
+
+      {activeTab === 'theme' && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+          <h3 className="text-lg font-semibold text-gray-900">Theme</h3>
+          <p className="text-sm text-gray-600">
+            Keep theme lightweight: colors, labels, and simple presentation metadata.
           </p>
           <textarea
             rows={18}
-            value={sections[activeTab]}
+            value={sections.theme}
+            disabled={!isDraft}
+            onChange={(event) => setSections((prev) => ({ ...prev, theme: event.target.value }))}
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 font-mono text-xs disabled:bg-gray-100"
+          />
+        </div>
+      )}
+
+      {activeTab === 'policies' && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+          <h3 className="text-lg font-semibold text-gray-900">Policies</h3>
+          <p className="text-sm text-gray-600">
+            Configure submission policy behavior and renderer metadata.
+          </p>
+          <textarea
+            rows={18}
+            value={sections.policy}
             disabled={!isDraft}
             onChange={(event) =>
-              setSections((prev) => ({
-                ...prev,
-                [activeTab]: event.target.value,
-              }))
+              setSections((prev) => ({ ...prev, policy: event.target.value }))
             }
             className="w-full px-3 py-2 rounded-lg border border-gray-300 font-mono text-xs disabled:bg-gray-100"
           />
         </div>
       )}
 
-      <div className="bg-white border border-gray-200 rounded-2xl p-5">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">Version History</h3>
-        {versions.length === 0 ? (
-          <p className="text-sm text-gray-500">No version history returned yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="text-left px-3 py-2 text-xs uppercase tracking-wide text-gray-500">Version</th>
-                  <th className="text-left px-3 py-2 text-xs uppercase tracking-wide text-gray-500">State</th>
-                  <th className="text-left px-3 py-2 text-xs uppercase tracking-wide text-gray-500">Updated</th>
-                  <th className="text-left px-3 py-2 text-xs uppercase tracking-wide text-gray-500">Open</th>
-                </tr>
-              </thead>
-              <tbody>
-                {versions.map((version, index) => {
-                  const versionId = String(version._id || version.id || version.versionId || '').trim();
-                  return (
-                    <tr key={`${versionId || 'version'}-${index}`} className="border-t border-gray-100">
-                      <td className="px-3 py-2 text-sm text-gray-800">v{version.versionNumber || index + 1}</td>
-                      <td className="px-3 py-2 text-sm text-gray-800">{version.state || 'draft'}</td>
-                      <td className="px-3 py-2 text-sm text-gray-800">
-                        {new Date(String(version.updatedAt || version.createdAt || Date.now())).toLocaleString()}
-                      </td>
-                      <td className="px-3 py-2 text-sm text-gray-800">
-                        {versionId ? (
-                          <Link
-                            href={`/settings/webforms/${versionId}`}
-                            className="text-blue-600 hover:text-blue-700 underline"
-                          >
-                            Open
-                          </Link>
-                        ) : (
-                          '-'
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {activeTab === 'versions' && (
+        <VersionTimeline versions={versions} currentVersionId={currentVersionId} />
+      )}
     </div>
   );
 }

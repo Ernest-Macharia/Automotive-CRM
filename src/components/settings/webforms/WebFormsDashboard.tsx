@@ -13,9 +13,17 @@ import {
   Archive,
   Send,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
-import { WebFormDefinition, webFormsService } from '@/services/webFormsService';
+import TemplatePicker from '@/components/settings/webforms/TemplatePicker';
+import {
+  getWebFormErrorMessage,
+  WebFormDefinition,
+  WebFormTemplateDetail,
+  WebFormTemplateSummary,
+  webFormsService,
+} from '@/services/webFormsService';
 
 const toSlug = (value: string): string =>
   value
@@ -47,6 +55,11 @@ export default function WebFormsDashboard() {
   const [forms, setForms] = useState<WebFormDefinition[]>([]);
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
+  const [creatingFromTemplate, setCreatingFromTemplate] = useState(false);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templates, setTemplates] = useState<WebFormTemplateSummary[]>([]);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<WebFormTemplateDetail | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createFormData, setCreateFormData] = useState({
     title: '',
@@ -54,6 +67,15 @@ export default function WebFormsDashboard() {
     description: '',
     formKey: '',
     publicKey: '',
+  });
+  const [createFromTemplateData, setCreateFromTemplateData] = useState({
+    name: '',
+    description: '',
+    formKey: '',
+    publicKey: '',
+    publish: false,
+    primaryColor: '',
+    headerText: '',
   });
 
   const loadForms = useCallback(async (silent = false) => {
@@ -73,16 +95,31 @@ export default function WebFormsDashboard() {
       setForms(sorted);
     } catch (error) {
       console.error('Failed to load web forms:', error);
-      showToast('Failed to load forms', 'error');
+      showToast(getWebFormErrorMessage(error, 'Failed to load forms'), 'error');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, [showToast]);
 
+  const loadTemplates = useCallback(async () => {
+    try {
+      setTemplatesLoading(true);
+      const list = await webFormsService.getTemplates();
+      setTemplates(list);
+    } catch (error) {
+      console.error('Failed to load webform templates:', error);
+      showToast(getWebFormErrorMessage(error, 'Failed to load templates'), 'error');
+      setTemplates([]);
+    } finally {
+      setTemplatesLoading(false);
+    }
+  }, [showToast]);
+
   useEffect(() => {
     loadForms();
-  }, [loadForms]);
+    loadTemplates();
+  }, [loadForms, loadTemplates]);
 
   const filteredForms = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -145,9 +182,81 @@ export default function WebFormsDashboard() {
       router.push(`/settings/webforms/${created._id}`);
     } catch (error: any) {
       console.error('Failed to create form:', error);
-      showToast(error?.message || 'Failed to create form', 'error');
+      showToast(getWebFormErrorMessage(error, 'Failed to create form'), 'error');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const openTemplateFlow = async (template: WebFormTemplateSummary) => {
+    try {
+      setCreatingFromTemplate(true);
+      const details = await webFormsService.getTemplateByKey(template.templateKey);
+      const seedName = details.title || details.name || template.templateKey;
+      const slug = toSlug(seedName);
+      setSelectedTemplate(details);
+      setCreateFromTemplateData({
+        name: seedName,
+        description: details.description || '',
+        formKey: slug,
+        publicKey: slug,
+        publish: false,
+        primaryColor: String((details.theme as any)?.primaryColor || ''),
+        headerText: String((details.theme as any)?.headerText || ''),
+      });
+      setShowTemplateModal(true);
+    } catch (error) {
+      console.error('Failed to load template details:', error);
+      showToast(getWebFormErrorMessage(error, 'Failed to open template'), 'error');
+    } finally {
+      setCreatingFromTemplate(false);
+    }
+  };
+
+  const createFromTemplate = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedTemplate) return;
+
+    const normalizedName = createFromTemplateData.name.trim();
+    if (!normalizedName) {
+      showToast('Form name is required', 'warning');
+      return;
+    }
+
+    try {
+      setCreatingFromTemplate(true);
+      const created = await webFormsService.createFromTemplate(selectedTemplate.templateKey, {
+        name: normalizedName,
+        description: createFromTemplateData.description.trim() || undefined,
+        formKey: createFromTemplateData.formKey.trim() || toSlug(normalizedName),
+        publicKey: createFromTemplateData.publicKey.trim() || toSlug(normalizedName),
+        publish: createFromTemplateData.publish,
+        theme: {
+          ...(selectedTemplate.theme || {}),
+          ...(createFromTemplateData.primaryColor.trim()
+            ? { primaryColor: createFromTemplateData.primaryColor.trim() }
+            : {}),
+          ...(createFromTemplateData.headerText.trim()
+            ? { headerText: createFromTemplateData.headerText.trim() }
+            : {}),
+        },
+      });
+
+      showToast(
+        createFromTemplateData.publish
+          ? 'Template created and published'
+          : 'Template draft created',
+        'success'
+      );
+      setShowTemplateModal(false);
+      setSelectedTemplate(null);
+      await loadForms(true);
+      router.push(`/settings/webforms/${created._id}`);
+    } catch (error) {
+      console.error('Failed to create from template:', error);
+      showToast(getWebFormErrorMessage(error, 'Failed to create from template'), 'error');
+    } finally {
+      setCreatingFromTemplate(false);
     }
   };
 
@@ -158,7 +267,7 @@ export default function WebFormsDashboard() {
       await loadForms(true);
     } catch (error: any) {
       console.error('Failed to publish form:', error);
-      showToast(error?.message || 'Failed to publish form', 'error');
+      showToast(getWebFormErrorMessage(error, 'Failed to publish form'), 'error');
     }
   };
 
@@ -169,18 +278,33 @@ export default function WebFormsDashboard() {
       await loadForms(true);
     } catch (error: any) {
       console.error('Failed to archive form:', error);
-      showToast(error?.message || 'Failed to archive form', 'error');
+      showToast(getWebFormErrorMessage(error, 'Failed to archive form'), 'error');
     }
   };
 
   const createNextVersion = async (form: WebFormDefinition) => {
     try {
+      const versions = await webFormsService.getFormVersions(form._id);
+      const existingDraft = versions.find((version) => {
+        const versionId = String(version._id || version.id || version.versionId || '').trim();
+        return version.state === 'draft' && versionId && versionId !== form._id;
+      });
+
+      if (existingDraft) {
+        const draftId = String(existingDraft._id || existingDraft.id || existingDraft.versionId || '').trim();
+        if (draftId) {
+          showToast('A draft version already exists. Opening that draft.', 'warning');
+          router.push(`/settings/webforms/${draftId}`);
+          return;
+        }
+      }
+
       const next = await webFormsService.createNextVersion(form._id);
       showToast('New draft version created', 'success');
       router.push(`/settings/webforms/${next._id}`);
     } catch (error: any) {
       console.error('Failed to create next version:', error);
-      showToast(error?.message || 'Failed to create next draft version', 'error');
+      showToast(getWebFormErrorMessage(error, 'Failed to create next draft version'), 'error');
     }
   };
 
@@ -206,6 +330,17 @@ export default function WebFormsDashboard() {
             </button>
             <button
               type="button"
+              onClick={() => {
+                setSelectedTemplate(null);
+                setShowTemplateModal(true);
+              }}
+              className="px-3 py-2 border border-blue-300 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 inline-flex items-center gap-2"
+            >
+              <Sparkles className="h-4 w-4" />
+              Use Template
+            </button>
+            <button
+              type="button"
               onClick={() => setShowCreateModal(true)}
               className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center gap-2"
             >
@@ -225,6 +360,13 @@ export default function WebFormsDashboard() {
           />
         </div>
       </div>
+
+      <TemplatePicker
+        templates={templates}
+        loading={templatesLoading}
+        onRefresh={loadTemplates}
+        onUseTemplate={openTemplateFlow}
+      />
 
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         {loading ? (
@@ -423,6 +565,178 @@ export default function WebFormsDashboard() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {showTemplateModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl bg-white rounded-2xl border border-gray-200 shadow-xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {selectedTemplate ? 'Create Form From Template' : 'Choose a Template'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTemplateModal(false);
+                  setSelectedTemplate(null);
+                }}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                Close
+              </button>
+            </div>
+
+            {!selectedTemplate ? (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  Pick a starter template to begin your draft faster.
+                </p>
+                {templatesLoading ? (
+                  <div className="py-8 text-center text-gray-500">
+                    <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-blue-600" />
+                    Loading templates...
+                  </div>
+                ) : templates.length === 0 ? (
+                  <div className="py-8 text-center text-gray-500">
+                    No templates available.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 max-h-[420px] overflow-y-auto pr-1">
+                    {templates.map((template) => (
+                      <button
+                        key={template.templateKey}
+                        type="button"
+                        onClick={() => openTemplateFlow(template)}
+                        disabled={creatingFromTemplate}
+                        className="text-left border border-gray-200 rounded-xl p-4 hover:border-blue-300 hover:bg-blue-50/30 disabled:opacity-60"
+                      >
+                        <p className="font-medium text-gray-900">
+                          {template.title || template.name || template.templateKey}
+                        </p>
+                        <p className="text-xs text-gray-500 font-mono mt-1">
+                          {template.templateKey}
+                        </p>
+                        <p className="text-sm text-gray-600 mt-2">
+                          {template.description || 'Automotive-ready starter template.'}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <form onSubmit={createFromTemplate} className="space-y-4">
+                <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3">
+                  <p className="text-sm text-blue-900 font-medium">
+                    Template: {selectedTemplate.title || selectedTemplate.name}
+                  </p>
+                  <p className="text-xs text-blue-700 font-mono mt-1">
+                    {selectedTemplate.templateKey}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label className="text-sm text-gray-700">
+                    Form Name
+                    <input
+                      required
+                      value={createFromTemplateData.name}
+                      onChange={(event) =>
+                        setCreateFromTemplateData((prev) => ({ ...prev, name: event.target.value }))
+                      }
+                      className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300"
+                    />
+                  </label>
+                  <label className="text-sm text-gray-700">
+                    Form Key
+                    <input
+                      value={createFromTemplateData.formKey}
+                      onChange={(event) =>
+                        setCreateFromTemplateData((prev) => ({ ...prev, formKey: event.target.value }))
+                      }
+                      className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300"
+                    />
+                  </label>
+                  <label className="text-sm text-gray-700">
+                    Public Key
+                    <input
+                      value={createFromTemplateData.publicKey}
+                      onChange={(event) =>
+                        setCreateFromTemplateData((prev) => ({ ...prev, publicKey: event.target.value }))
+                      }
+                      className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300"
+                    />
+                  </label>
+                  <label className="text-sm text-gray-700">
+                    Primary Color
+                    <input
+                      value={createFromTemplateData.primaryColor}
+                      onChange={(event) =>
+                        setCreateFromTemplateData((prev) => ({ ...prev, primaryColor: event.target.value }))
+                      }
+                      placeholder="#0f766e"
+                      className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300"
+                    />
+                  </label>
+                </div>
+
+                <label className="text-sm text-gray-700 block">
+                  Header Text
+                  <input
+                    value={createFromTemplateData.headerText}
+                    onChange={(event) =>
+                      setCreateFromTemplateData((prev) => ({ ...prev, headerText: event.target.value }))
+                    }
+                    className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300"
+                  />
+                </label>
+
+                <label className="text-sm text-gray-700 block">
+                  Description
+                  <textarea
+                    rows={3}
+                    value={createFromTemplateData.description}
+                    onChange={(event) =>
+                      setCreateFromTemplateData((prev) => ({ ...prev, description: event.target.value }))
+                    }
+                    className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300"
+                  />
+                </label>
+
+                <label className="text-sm text-gray-700 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={createFromTemplateData.publish}
+                    onChange={(event) =>
+                      setCreateFromTemplateData((prev) => ({ ...prev, publish: event.target.checked }))
+                    }
+                  />
+                  Publish immediately after creation
+                </label>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTemplate(null);
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creatingFromTemplate}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 inline-flex items-center gap-2"
+                  >
+                    {creatingFromTemplate && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Create From Template
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
         </div>
       )}
     </div>
