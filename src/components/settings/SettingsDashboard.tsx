@@ -402,10 +402,10 @@ export default function SettingsDashboard() {
   };
 
   const categories = [
-    { id: 'all', label: 'All Settings', icon: Grid, count: 19 },
-    { id: 'featured', label: 'Most Used', icon: Sparkles, count: 6 },
+    { id: 'all', label: 'All Settings', icon: Grid, count: 20 },
+    { id: 'featured', label: 'Most Used', icon: Sparkles, count: 7 },
     { id: 'administration', label: 'Administration', icon: Users, count: 7 },
-    { id: 'automation', label: 'Automation', icon: Workflow, count: 4 },
+    { id: 'automation', label: 'Automation', icon: Workflow, count: 5 },
     { id: 'security', label: 'Security', icon: ShieldCheck, count: 4 },
     { id: 'customization', label: 'Customization', icon: Palette, count: 2 },
     { id: 'communication', label: 'Communication', icon: Bell, count: 2 },
@@ -461,6 +461,18 @@ export default function SettingsDashboard() {
       gradient: 'from-blue-500 to-indigo-500',
       badge: blueprintsCount,
       description: 'Design and configure process templates',
+      category: 'automation',
+      featured: true,
+      visible: canAccessBlueprints,
+    },
+    {
+      id: 'webforms',
+      label: 'Web Forms',
+      icon: FileText,
+      href: '/settings/webforms',
+      color: 'text-cyan-600',
+      gradient: 'from-cyan-500 to-blue-500',
+      description: 'Build versioned forms with runtime rendering and submission APIs',
       category: 'automation',
       featured: true,
       visible: canAccessBlueprints,
