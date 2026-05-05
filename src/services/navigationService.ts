@@ -48,16 +48,17 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     permission: 'manychat.access',
     children: [
       {
-        href: '/settings/webforms',
-        label: 'Web Forms',
-        permission: 'webforms.read',
-      },
-      {
         href: '/manychat/contacts',
         label: 'Contacts',
         permission: 'manychat.access',
       },
     ],
+  },
+  {
+    href: '/settings/webforms',
+    label: 'Web Forms',
+    icon: 'FileText',
+    permission: 'webforms.read',
   },
   { href: '/tickets', label: 'Tickets', icon: 'Ticket' },
   { href: '/employee', label: 'Employee Portal', icon: 'Briefcase' },
@@ -107,8 +108,10 @@ export class NavigationService {
       if (item.href === '/dashboard') return true;
       if (item.href === '/tickets' || item.href === '/contacts' || item.href === '/feedback') return true;
       if (item.href === '/manychat') {
-        return this.userHasPermission(user, 'manychat.access')
-          || this.userHasPermission(user, 'webforms.read')
+        return this.userHasPermission(user, 'manychat.access');
+      }
+      if (item.href === '/settings/webforms') {
+        return this.userHasPermission(user, 'webforms.read')
           || this.userHasPermission(user, 'webforms.manage')
           || this.userHasPermission(user, 'forms.read')
           || this.userHasPermission(user, 'forms.manage');
