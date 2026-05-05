@@ -55,6 +55,7 @@ interface MenuItem {
   gradient: string;
   badge?: number | string;
   description?: string;
+  searchKeywords?: string[];
   category: string;
   featured: boolean;
   visible?: boolean;
@@ -158,29 +159,68 @@ export default function SettingsDashboard() {
   }, [authUser]);
 
   const effectivePermissions = useMemo(
-    () =>
-      Array.from(
+    () => {
+      const collected = Array.from(
         new Set([
           ...(Array.isArray(authUser?.permissions) ? authUser.permissions : []),
+          ...(Array.isArray(authUser?.allPermissions) ? authUser.allPermissions : []),
           ...(Array.isArray(authUser?.rolePermissions) ? authUser.rolePermissions : []),
           ...(Array.isArray(authUser?.additionalPermissions) ? authUser.additionalPermissions : []),
           ...(Array.isArray(authUser?.directPermissions) ? authUser.directPermissions : []),
         ]),
-      ),
+      );
+
+      return collected
+        .map((permission) => String(permission || '').trim())
+        .filter(Boolean);
+    },
     [authUser],
   );
 
   const hasPermission = (permission: string): boolean => {
-    if (effectivePermissions.includes('*') || effectivePermissions.includes('system.*')) {
+    const normalizedPermission = String(permission || '').toLowerCase();
+    const normalizedPermissions = new Set(
+      effectivePermissions.map((entry) => String(entry || '').toLowerCase()),
+    );
+
+    if (normalizedPermissions.has('*') || normalizedPermissions.has('system.*')) {
       return true;
     }
 
-    if (effectivePermissions.includes(permission)) {
+    if (normalizedPermissions.has(normalizedPermission)) {
       return true;
     }
 
-    const [moduleName] = permission.split('.');
-    return Boolean(moduleName && effectivePermissions.includes(`${moduleName}.*`));
+    const permissionAliases: Record<string, string> = {
+      'webforms.read': 'forms.read',
+      'webforms.manage': 'forms.manage',
+      'forms.read': 'webforms.read',
+      'forms.manage': 'webforms.manage',
+    };
+
+    const aliasPermission = permissionAliases[normalizedPermission];
+    if (aliasPermission && normalizedPermissions.has(aliasPermission)) {
+      return true;
+    }
+
+    const [moduleName] = normalizedPermission.split('.');
+    if (!moduleName) {
+      return false;
+    }
+
+    if (normalizedPermissions.has(`${moduleName}.*`)) {
+      return true;
+    }
+
+    if (moduleName === 'webforms' && normalizedPermissions.has('forms.*')) {
+      return true;
+    }
+
+    if (moduleName === 'forms' && normalizedPermissions.has('webforms.*')) {
+      return true;
+    }
+
+    return false;
   };
 
   const hasAnyPermission = (permissions: string[]): boolean =>
@@ -205,6 +245,9 @@ export default function SettingsDashboard() {
   const canAccessProfiles =
     hasAnyPermission(['profiles.view.all', 'profile.view.all', 'profile.update.organization', 'profiles.update.hr']) ||
     ['superadmin', 'admin', 'management', 'hr_manager', 'hr_officer', 'hr_recruiter'].includes(normalizedRole);
+  const canAccessWebforms =
+    hasAnyPermission(['webforms.read', 'webforms.manage', 'forms.read', 'forms.manage']) ||
+    ['superadmin', 'admin', 'management'].includes(normalizedRole);
 
   // Load data with timeout and error handling
   const loadDataWithTimeout = async <T,>(
@@ -473,9 +516,10 @@ export default function SettingsDashboard() {
       color: 'text-cyan-600',
       gradient: 'from-cyan-500 to-blue-500',
       description: 'Build versioned forms with runtime rendering and submission APIs',
+      searchKeywords: ['webforms', 'forms', 'form builder', 'web forms', 'templates', 'runtime'],
       category: 'automation',
       featured: true,
-      visible: true,
+      visible: canAccessWebforms,
     },
     {
       id: 'permissions',
@@ -560,6 +604,7 @@ export default function SettingsDashboard() {
     canAccessBlueprints,
     canAccessPermissions,
     canAccessProfiles,
+    canAccessWebforms,
   ]);
 
   const featuredItems = useMemo(
@@ -575,7 +620,8 @@ export default function SettingsDashboard() {
 
       const matchesSearch = !searchQuery || 
         item.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.description?.toLowerCase().includes(searchQuery.toLowerCase());
+        item.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.searchKeywords?.some((keyword) => keyword.toLowerCase().includes(searchQuery.toLowerCase()));
       
       const matchesCategory = activeCategory === 'all' 
         ? true
@@ -623,10 +669,10 @@ export default function SettingsDashboard() {
           label: 'Web Forms',
           icon: FileText,
           color: 'border-cyan-200 text-cyan-700 hover:bg-cyan-50',
-          visible: true,
+          visible: canAccessWebforms,
         },
       ].filter((item) => item.visible !== false),
-    [canAccessOrganizations, canAccessUsers, canAccessWorkflows],
+    [canAccessOrganizations, canAccessUsers, canAccessWorkflows, canAccessWebforms],
   );
 
   const statsCards = useMemo(
