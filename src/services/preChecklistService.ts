@@ -619,6 +619,10 @@ const normalizeObjectId = (value: unknown): string => {
   return invalidTokens.has(candidate) ? '' : candidate;
 };
 
+const isValidEmailAddress = (value: string): boolean => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+};
+
 const normalizeOptionalEmail = (value: unknown): string | undefined => {
   if (typeof value !== 'string') {
     return undefined;
@@ -629,7 +633,7 @@ const normalizeOptionalEmail = (value: unknown): string | undefined => {
     return undefined;
   }
 
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) ? trimmed : undefined;
+  return isValidEmailAddress(trimmed) ? trimmed : undefined;
 };
 
 const sanitizePreChecklistPayload = <T extends Record<string, any>>(payload: T): T => {
@@ -1358,21 +1362,41 @@ class PreChecklistService {
     subject?: string,
     clientName?: string
   ): Promise<{ success: boolean; message: string }> {
+    const normalizedChecklistId = String(id || '').trim();
+    if (!normalizedChecklistId) {
+      throw new Error('Checklist ID is required to send an approval email');
+    }
+
+    const normalizedEmail = String(email || '').trim();
+    if (!isValidEmailAddress(normalizedEmail)) {
+      throw new Error('Please provide a valid client email address');
+    }
+
+    const normalizedMessage = String(message || '').trim();
+    const normalizedSubject = String(subject || '').trim();
+    const resolvedClientName = String(clientName || 'Client').trim() || 'Client';
+
     const approvalEndpoints = [
-      `/prechecklists/${id}/request-email-approval`,
-      `/prechecklists/${id}/send-approval-email`,
-      `/prechecklists/${id}/email/request-approval`,
+      `/prechecklists/${normalizedChecklistId}/request-email-approval`,
+      `/prechecklist/${normalizedChecklistId}/request-email-approval`,
+      `/prechecklists/${normalizedChecklistId}/email/request-approval`,
     ];
 
-    const resolvedClientName = String(clientName || 'Client').trim() || 'Client';
     const payload = {
-      email,
-      clientEmail: email,
-      recipientEmail: email,
+      email: normalizedEmail,
+      clientEmail: normalizedEmail,
+      recipientEmail: normalizedEmail,
+      to: normalizedEmail,
       clientName: resolvedClientName,
       customerName: resolvedClientName,
-      message,
-      subject,
+      ...(normalizedMessage
+        ? {
+            message: normalizedMessage,
+            body: normalizedMessage,
+            text: normalizedMessage,
+          }
+        : {}),
+      ...(normalizedSubject ? { subject: normalizedSubject } : {}),
     };
 
     let lastError: any = null;
@@ -1398,12 +1422,16 @@ class PreChecklistService {
         if (statusCode === 401 || statusCode === 403) {
           throw error;
         }
-        continue;
+        if (statusCode === 404 || statusCode === 405) {
+          continue;
+        }
+
+        throw new Error(parseApiErrorMessage(error, 'Failed to request checklist email approval'));
       }
     }
 
     console.error(`Error requesting email approval for pre-checklist ${id}:`, lastError);
-    throw lastError || new Error('Failed to request checklist email approval');
+    throw new Error(parseApiErrorMessage(lastError, 'Failed to request checklist email approval'));
   }
 
   /**
@@ -1414,22 +1442,32 @@ class PreChecklistService {
     id: string,
     options: SendChecklistEmailOptions
   ): Promise<{ success: boolean; message: string; endpoint?: string; fallbackUsed?: boolean }> {
-    const normalizedMessage = options.message || '';
-    const normalizedSubject = options.subject || 'Service Intake Form';
+    const normalizedChecklistId = String(id || '').trim();
+    if (!normalizedChecklistId) {
+      throw new Error('Checklist ID is required to send checklist email');
+    }
+
+    const normalizedEmail = String(options.email || '').trim();
+    if (!isValidEmailAddress(normalizedEmail)) {
+      throw new Error('Please provide a valid client email address');
+    }
+
+    const normalizedMessage = String(options.message || '').trim();
+    const normalizedSubject = String(options.subject || 'Service Intake Form').trim();
     const normalizedPdfBase64 =
       typeof options.pdfBase64 === 'string'
         ? options.pdfBase64.replace(/^data:application\/pdf;base64,/i, '').trim()
         : '';
     const resolvedPdfFilename =
-      options.pdfFilename || `SERVICE-INTAKE-${String(id || '').slice(-8) || 'CHECKLIST'}.pdf`;
+      options.pdfFilename || `SERVICE-INTAKE-${normalizedChecklistId.slice(-8) || 'CHECKLIST'}.pdf`;
     const resolvedPdfMimeType = options.pdfMimeType || 'application/pdf';
     const resolvedClientName = String(options.clientName || 'Client').trim() || 'Client';
 
     const basePayload = {
-      email: options.email,
-      clientEmail: options.email,
-      recipientEmail: options.email,
-      to: options.email,
+      email: normalizedEmail,
+      clientEmail: normalizedEmail,
+      recipientEmail: normalizedEmail,
+      to: normalizedEmail,
       clientName: resolvedClientName,
       customerName: resolvedClientName,
       message: normalizedMessage,
@@ -1440,16 +1478,30 @@ class PreChecklistService {
       includeSecureLink: options.includeSecureLink ?? true,
     };
 
-    const endpoints = [
-      `/prechecklists/${id}/send-email`,
-      `/prechecklists/${id}/send-pdf-email`,
-      `/prechecklists/${id}/send-signed-copy`,
-      `/prechecklists/${id}/send-client-email`,
-      `/prechecklists/${id}/send-client-copy`,
-      `/prechecklists/${id}/email/send`,
-      `/prechecklists/${id}/email/send-copy`,
-      `/prechecklists/${id}/email/send-client`,
-    ];
+    try {
+      const approvalResult = await this.requestEmailApproval(
+        normalizedChecklistId,
+        normalizedEmail,
+        normalizedMessage,
+        normalizedSubject,
+        resolvedClientName
+      );
+
+      return {
+        success: approvalResult.success,
+        message: approvalResult.message || 'Checklist email approval requested successfully',
+        endpoint: `/prechecklists/${normalizedChecklistId}/request-email-approval`,
+      };
+    } catch (approvalError: any) {
+      const approvalStatusCode = parseErrorStatusCode(approvalError);
+      if (approvalStatusCode === 401 || approvalStatusCode === 403) {
+        throw approvalError;
+      }
+
+      if (approvalStatusCode !== 404 && approvalStatusCode !== 405) {
+        throw new Error(parseApiErrorMessage(approvalError, 'Failed to request checklist email approval'));
+      }
+    }
 
     const attachmentPayload = normalizedPdfBase64
       ? {
@@ -1479,69 +1531,48 @@ class PreChecklistService {
       ...attachmentPayload,
     };
 
-    const tryEmailSend = async (): Promise<{ success: boolean; message: string; endpoint?: string } | null> => {
-      let lastAttemptError: any = null;
+    const directSendEndpoints = [
+      `/prechecklists/${normalizedChecklistId}/send-email`,
+      ...(normalizedPdfBase64 ? [`/prechecklists/${normalizedChecklistId}/send-pdf-email`] : []),
+      `/prechecklists/${normalizedChecklistId}/email/send`,
+      `/prechecklist/${normalizedChecklistId}/send-email`,
+    ];
 
-      for (const endpoint of endpoints) {
-        try {
-          const response = await extendedApiClient.post<typeof payload, any>(endpoint, payload);
-          const normalizedSuccess =
-            typeof response?.success === 'boolean' ? response.success : true;
-          const normalizedMessage =
-            response?.message || 'Checklist email sent successfully';
+    let lastDirectSendError: any = null;
+    for (const endpoint of directSendEndpoints) {
+      try {
+        const response = await extendedApiClient.post<typeof payload, any>(endpoint, payload);
+        const normalizedSuccess = typeof response?.success === 'boolean' ? response.success : true;
+        const normalizedResponseMessage = response?.message || 'Checklist email sent successfully';
 
-          if (!normalizedSuccess) {
-            lastAttemptError = new Error(normalizedMessage || 'Checklist email endpoint returned unsuccessful response');
-            continue;
-          }
-
-          return {
-            success: true,
-            message: normalizedMessage,
-            endpoint,
-          };
-        } catch (error: any) {
-          lastAttemptError = error;
-          const statusCode = parseErrorStatusCode(error);
-          if (statusCode === 401 || statusCode === 403) {
-            throw error;
-          }
+        if (!normalizedSuccess) {
+          lastDirectSendError = new Error(normalizedResponseMessage || 'Checklist email endpoint returned unsuccessful response');
           continue;
         }
-      }
 
-      if (lastAttemptError) {
-        console.warn(`Checklist copy email direct endpoints failed for ${id}:`, lastAttemptError);
-      }
-      return null;
-    };
+        return {
+          success: true,
+          message: normalizedResponseMessage,
+          endpoint,
+          fallbackUsed: true,
+        };
+      } catch (error: any) {
+        lastDirectSendError = error;
+        const statusCode = parseErrorStatusCode(error);
+        if (statusCode === 401 || statusCode === 403) {
+          throw error;
+        }
 
-    const directResult = await tryEmailSend();
-    if (directResult) {
-      return directResult;
+        if (statusCode === 404 || statusCode === 405) {
+          continue;
+        }
+
+        throw new Error(parseApiErrorMessage(error, 'Failed to send checklist email'));
+      }
     }
 
-    try {
-      const approvalFallback = await this.requestEmailApproval(
-        id,
-        options.email,
-        normalizedMessage,
-        normalizedSubject,
-        resolvedClientName
-      );
-
-      return {
-        success: approvalFallback.success,
-        message:
-          approvalFallback.message || 'Checklist email sent using approval flow fallback',
-        endpoint: `/prechecklists/${id}/request-email-approval`,
-        fallbackUsed: true,
-      };
-    } catch (fallbackError: any) {
-      const statusCode = parseErrorStatusCode(fallbackError);
-      if (statusCode === 401 || statusCode === 403) {
-        throw fallbackError;
-      }
+    if (lastDirectSendError) {
+      console.warn(`Checklist copy email direct endpoints failed for ${normalizedChecklistId}:`, lastDirectSendError);
     }
 
     const unavailableError = new Error(
