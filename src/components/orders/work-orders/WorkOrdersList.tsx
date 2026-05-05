@@ -6,7 +6,7 @@ import {
   Wrench, Plus, Search, Filter, RefreshCw, MoreVertical,
   Eye, AlertTriangle, Clock, CheckCircle, Loader2,
   Users, DollarSign, ChevronLeft, ChevronRight,
-  LayoutDashboard, TrendingUp, Receipt, ClipboardCheck, ClipboardList, Upload
+  LayoutDashboard, TrendingUp, Receipt, ClipboardCheck, ClipboardList, Upload, FileText
 } from 'lucide-react';
 import { workOrderService } from '@/services/workOrderService';
 import { useToast } from '@/contexts/ToastContext';
@@ -549,8 +549,8 @@ export default function WorkOrdersList() {
   );
 
   const StageStatsSkeleton = () => (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-      {[1, 2, 3, 4].map((i) => (
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+      {[1, 2, 3, 4, 5].map((i) => (
         <div key={i} className="bg-white border border-gray-200 rounded-xl p-3 animate-pulse">
           <div className="flex items-center justify-between">
             <div className="space-y-2">
@@ -679,6 +679,13 @@ export default function WorkOrdersList() {
               <Plus className="h-5 w-5" />
               <span className="hidden sm:inline">New Order</span>
             </Link>
+            <Link
+              href="/settings/webforms"
+              className="px-4 py-2 bg-white/15 text-white border border-white/30 font-semibold rounded-xl hover:bg-white/25 flex items-center gap-2 transition-colors"
+            >
+              <FileText className="h-5 w-5" />
+              <span className="hidden sm:inline">Web Forms</span>
+            </Link>
           </div>
         </div>
       </div>
@@ -758,7 +765,7 @@ export default function WorkOrdersList() {
 
         {/* Stage Distribution */}
         {stageStats ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
             <Link
               href="/pre-checklist"
               className="block bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-3 hover:shadow-md hover:-translate-y-0.5 transition"
@@ -809,6 +816,19 @@ export default function WorkOrdersList() {
                   <p className="text-lg font-bold text-amber-900">{stageStats.invoice || 0}</p>
                 </div>
                 <Receipt className="h-5 w-5 text-amber-600" />
+              </div>
+            </Link>
+            <Link
+              href="/settings/webforms"
+              className="block bg-gradient-to-br from-cyan-50 to-cyan-100 border border-cyan-200 rounded-xl p-3 hover:shadow-md hover:-translate-y-0.5 transition"
+              aria-label="Open web forms builder"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-cyan-700 font-medium">Web Forms</p>
+                  <p className="text-lg font-bold text-cyan-900">Builder</p>
+                </div>
+                <FileText className="h-5 w-5 text-cyan-600" />
               </div>
             </Link>
           </div>
