@@ -36,7 +36,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         permission: 'jobs.read',
       },
       {
-        href: '/settings/webforms',
+        href: '/webforms',
         label: 'Web Forms Builder',
       },
     ],
@@ -55,7 +55,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     ],
   },
   {
-    href: '/settings/webforms',
+    href: '/webforms',
     label: 'Web Forms',
     icon: 'FileText',
   },
@@ -109,7 +109,7 @@ export class NavigationService {
       if (item.href === '/manychat') {
         return this.userHasPermission(user, 'manychat.access');
       }
-      if (item.href === '/settings/webforms') {
+      if (item.href === '/settings/webforms' || item.href === '/webforms') {
         return true;
       }
       // if (item.href === '/my-profile') return true;
