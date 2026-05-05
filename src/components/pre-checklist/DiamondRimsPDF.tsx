@@ -364,6 +364,26 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
       return Number.isFinite(parsed) ? parsed : null;
     }
 
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      const numericCandidates = [
+        record.total,
+        record.amount,
+        record.value,
+        record.number,
+        record.$numberDecimal,
+        record.$numberInt,
+        record.$numberLong,
+      ];
+
+      for (const candidate of numericCandidates) {
+        const parsed = parseFlexibleNumber(candidate);
+        if (parsed !== null) {
+          return parsed;
+        }
+      }
+    }
+
     return null;
   };
 
@@ -390,6 +410,18 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
   };
 
   const apiBaseUrl = String(process.env.NEXT_PUBLIC_API_URL || API_BASE_URL || '').replace(/\/+$/, '');
+  const parseJsonLike = (value: string): unknown => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
+
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return null;
+    }
+  };
+
   const normalizeMediaSource = (value: unknown): string | null => {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim();
@@ -408,10 +440,61 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
     return null;
   };
 
+  const collectMediaCandidates = (value: unknown, depth = 0): string[] => {
+    if (depth > 4 || value === null || value === undefined) return [];
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return [];
+      const parsed = parseJsonLike(trimmed);
+      if (parsed !== null) {
+        return collectMediaCandidates(parsed, depth + 1);
+      }
+      return [trimmed];
+    }
+
+    if (Array.isArray(value)) {
+      return value.flatMap((entry) => collectMediaCandidates(entry, depth + 1));
+    }
+
+    if (typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      const directKeys = [
+        'path',
+        'url',
+        'src',
+        'image',
+        'imageUrl',
+        'fileUrl',
+        'thumbnailPath',
+        'thumbnailUrl',
+        'dataUrl',
+        'value',
+      ];
+      const nestedKeys = ['file', 'files', 'media', 'uploadedImages', 'images', 'attachments', 'items'];
+
+      return [
+        ...directKeys.flatMap((key) => collectMediaCandidates(record[key], depth + 1)),
+        ...nestedKeys.flatMap((key) => collectMediaCandidates(record[key], depth + 1)),
+      ];
+    }
+
+    return [];
+  };
+
+  const normalizeMediaSources = (value: unknown): string[] => {
+    return Array.from(
+      new Set(
+        collectMediaCandidates(value)
+          .map((candidate) => normalizeMediaSource(candidate))
+          .filter((candidate): candidate is string => Boolean(candidate))
+      )
+    );
+  };
+
   const normalizeImageSource = (value: unknown): string | null => {
-    const normalized = normalizeMediaSource(value);
-    if (!normalized || normalized.startsWith('data:video/')) return null;
-    return normalized;
+    const normalized = normalizeMediaSources(value).find((candidate) => !candidate.startsWith('data:video/'));
+    return normalized || null;
   };
 
   // Get delivery mode label
@@ -432,15 +515,18 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
   };
 
   const parseAdditionalInfo = (value: unknown): Record<string, any> => {
-    if (typeof value !== 'string') return {};
-    const trimmed = value.trim();
-    if (!trimmed || !trimmed.startsWith('{')) return {};
-    try {
-      const parsed = JSON.parse(trimmed);
-      return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch {
-      return {};
+    if (!value) return {};
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      return value as Record<string, any>;
     }
+
+    if (typeof value !== 'string') return {};
+    const parsed = parseJsonLike(value);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, any>;
+    }
+
+    return {};
   };
 
   const additionalInfo = parseAdditionalInfo((formData as any).additionalInformation);
@@ -448,8 +534,15 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
     parseFlexibleNumber(formData.agreedAmount?.total),
     parseFlexibleNumber((additionalInfo as any)?.agreedAmount?.total),
     parseFlexibleNumber(formData.pricingSnapshot?.total),
+    parseFlexibleNumber(formData.pricingSnapshot?.subtotal),
     parseFlexibleNumber((additionalInfo as any)?.pricingSnapshot?.total),
+    parseFlexibleNumber((additionalInfo as any)?.pricingSnapshot?.subtotal),
     parseFlexibleNumber((formData as any)?.totalAmount),
+    parseFlexibleNumber((formData as any)?.agreedAmountTotal),
+    parseFlexibleNumber((formData as any)?.amount),
+    parseFlexibleNumber((additionalInfo as any)?.totalAmount),
+    parseFlexibleNumber((additionalInfo as any)?.agreedAmountTotal),
+    parseFlexibleNumber((additionalInfo as any)?.amount),
   ].filter((value): value is number => value !== null);
 
   const agreedAmountTotal =
@@ -457,14 +550,21 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
     amountCandidates[0] ??
     0;
 
-  const mediaEntries = Array.isArray(formData.files)
-    ? formData.files
+  const rawFiles = [
+    ...(Array.isArray(formData.files) ? formData.files : []),
+    ...(Array.isArray((additionalInfo as any)?.files) ? (additionalInfo as any).files : []),
+  ];
+
+  const mediaEntries = Array.isArray(rawFiles)
+    ? rawFiles
         .map((file: any, index: number) => {
-          const src = normalizeMediaSource(file?.path || file?.url || '');
-          const thumbnailSrc = normalizeImageSource(file?.thumbnailPath || '');
+          const src = normalizeMediaSources(file).find((candidate) => !candidate.startsWith('data:video/')) ||
+            normalizeMediaSources(file).find(Boolean) ||
+            null;
+          const thumbnailSrc = normalizeImageSource(file?.thumbnailPath || file?.thumbnail || file?.preview);
           const mimeType = stringifyValue(file?.mimeType || file?.fileType).toLowerCase();
           const filename = stringifyValue(file?.originalName || file?.filename || '');
-          const sourceHint = stringifyValue(file?.path || file?.url || '').toLowerCase();
+          const sourceHint = stringifyValue(file?.path || file?.url || file?.src || '').toLowerCase();
           const isVideo =
             mimeType.includes('video') ||
             /\.(mp4|mov|avi|webm|mkv|m4v|3gp|ogv|ogg)(\?|#|$)/i.test(filename.toLowerCase()) ||
@@ -568,7 +668,10 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
   const uploadedImageSources = Array.from(
     new Set(
       [
-        ...(Array.isArray(formData.uploadedImages) ? formData.uploadedImages : []),
+        ...normalizeMediaSources(formData.uploadedImages),
+        ...normalizeMediaSources((additionalInfo as any)?.uploadedImages),
+        ...normalizeMediaSources((additionalInfo as any)?.images),
+        ...normalizeMediaSources((additionalInfo as any)?.attachments),
         ...mediaEntries
           .filter((entry) => !entry.isVideo)
           .map((entry) => entry.src),

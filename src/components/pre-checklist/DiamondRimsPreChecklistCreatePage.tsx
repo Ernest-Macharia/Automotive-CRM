@@ -255,12 +255,16 @@ function getFieldIdentifiers(name: string) {
 }
 
 function parseJsonObject(value: unknown): Record<string, any> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, any>;
+  }
+
   if (typeof value !== 'string') {
     return {};
   }
 
   const trimmed = value.trim();
-  if (!trimmed || !trimmed.startsWith('{')) {
+  if (!trimmed || (!trimmed.startsWith('{') && !trimmed.startsWith('['))) {
     return {};
   }
 
@@ -270,6 +274,92 @@ function parseJsonObject(value: unknown): Record<string, any> {
   } catch {
     return {};
   }
+}
+
+function parseFlexibleNumberValue(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const normalized = trimmed
+      .replace(/,/g, '')
+      .replace(/[^0-9.-]/g, '');
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const candidates = [
+      record.total,
+      record.amount,
+      record.value,
+      record.number,
+      record.$numberDecimal,
+      record.$numberInt,
+      record.$numberLong,
+    ];
+
+    for (const candidate of candidates) {
+      const parsed = parseFlexibleNumberValue(candidate);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
+  }
+
+  return null;
+}
+
+function collectImageStringCandidates(value: unknown, depth = 0): string[] {
+  if (depth > 4 || value === null || value === undefined) return [];
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    if ((trimmed.startsWith('[') || trimmed.startsWith('{'))) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return collectImageStringCandidates(parsed, depth + 1);
+      } catch {
+        return [trimmed];
+      }
+    }
+
+    return [trimmed];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => collectImageStringCandidates(entry, depth + 1));
+  }
+
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const directKeys = ['path', 'url', 'src', 'image', 'imageUrl', 'fileUrl', 'dataUrl', 'value'];
+    const nestedKeys = ['files', 'uploadedImages', 'images', 'attachments', 'media', 'items'];
+
+    return [
+      ...directKeys.flatMap((key) => collectImageStringCandidates(record[key], depth + 1)),
+      ...nestedKeys.flatMap((key) => collectImageStringCandidates(record[key], depth + 1)),
+    ];
+  }
+
+  return [];
+}
+
+function extractUploadedImageUrls(value: unknown): string[] {
+  return Array.from(
+    new Set(
+      collectImageStringCandidates(value)
+        .map((entry) => entry.trim())
+        .filter((entry) => Boolean(entry))
+    )
+  );
 }
 
 export default function DiamondRimsPreChecklistCreatePage({ 
@@ -1223,6 +1313,21 @@ export default function DiamondRimsPreChecklistCreatePage({
       typeof compatibilityData.additionalRemarks === 'string'
         ? compatibilityData.additionalRemarks
         : '';
+    const fallbackUploadedImages = extractUploadedImageUrls([
+      checklist?.uploadedImages,
+      compatibilityData.uploadedImages,
+      compatibilityData.images,
+      compatibilityData.attachments,
+    ]);
+    const resolvedAgreedAmountTotal =
+      parseFlexibleNumberValue(checklist?.agreedAmount?.total) ??
+      parseFlexibleNumberValue(compatibilityData.agreedAmount?.total) ??
+      parseFlexibleNumberValue((checklist as any)?.agreedAmountTotal) ??
+      parseFlexibleNumberValue((checklist as any)?.totalAmount) ??
+      parseFlexibleNumberValue((checklist as any)?.amount) ??
+      parseFlexibleNumberValue(checklist?.pricingSnapshot?.total) ??
+      parseFlexibleNumberValue(compatibilityData.pricingSnapshot?.total) ??
+      0;
 
     return {
       checklistType: checklist?.checklistType || 'diamond_rims',
@@ -1249,7 +1354,7 @@ export default function DiamondRimsPreChecklistCreatePage({
             total: 0
           },
       agreedAmount: {
-        total: checklist?.agreedAmount?.total ?? compatibilityData.agreedAmount?.total ?? 0,
+        total: resolvedAgreedAmountTotal,
         breakdown: checklist?.agreedAmount?.breakdown || compatibilityData.agreedAmount?.breakdown || ''
       },
 
@@ -1389,7 +1494,10 @@ export default function DiamondRimsPreChecklistCreatePage({
         notes: checklist?.declaredValuable?.notes || fallbackDeclaredValuable.notes || ''
       },
 
-      additionalInformation: additionalRemarks || checklist?.additionalInformation || '',
+      additionalInformation:
+        additionalRemarks ||
+        (typeof checklist?.additionalInformation === 'string' ? checklist.additionalInformation : '') ||
+        '',
       mustKnowAccepted: checklist?.mustKnowAccepted ?? !!compatibilityData.mustKnowAccepted,
 
       clientUpdate: {
@@ -1416,7 +1524,7 @@ export default function DiamondRimsPreChecklistCreatePage({
       clientSignature: checklist?.clientSignature || '',
       inspectorSignature: checklist?.inspectorSignature || '',
       files: Array.isArray(checklist?.files) ? checklist.files : [],
-      uploadedImages: Array.isArray(checklist?.uploadedImages) ? checklist.uploadedImages : [],
+      uploadedImages: fallbackUploadedImages,
       clientSigningMethod: checklist?.clientSigningMethod || '',
       clientEmail: checklist?.clientEmail || ''
     };
