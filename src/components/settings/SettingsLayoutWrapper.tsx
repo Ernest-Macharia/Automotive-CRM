@@ -39,6 +39,7 @@ const pageIcons: Record<string, any> = {
   appearance: Palette,
   integrations: Network,
   notifications: Bell,
+  webforms: FileText,
   analytics: BarChart,
   database: Database,
   security: ShieldCheck,

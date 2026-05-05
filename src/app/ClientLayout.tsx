@@ -32,9 +32,13 @@ export default function ClientLayout({
           '/auth/register',
           '/auth/forgot-password',
           '/unauthorized',
+          '/forms',
         ];
+        const publicPathPrefixes = ['/forms/'];
 
-        const isPublicPath = publicPaths.includes(pathname);
+        const isPublicPath =
+          publicPaths.includes(pathname) ||
+          publicPathPrefixes.some((prefix) => pathname.startsWith(prefix));
         const isAuthenticated = authService.isAuthenticated();
 
         if (!isAuthenticated && !isPublicPath) {
@@ -84,6 +88,7 @@ export default function ClientLayout({
   }, [isMobile]);
 
   const isAuthPage = pathname?.startsWith('/auth');
+  const isPublicStandalonePage = pathname?.startsWith('/forms/');
 
   /* ---------------------------
      LOADING STATE (AUTH)
@@ -101,7 +106,7 @@ export default function ClientLayout({
   /* ---------------------------
      AUTH PAGES (NO SIDEBAR)
   ----------------------------*/
-  if (isAuthPage) {
+  if (isAuthPage || isPublicStandalonePage) {
     return <div className="min-h-screen">{children}</div>;
   }
 
