@@ -348,10 +348,28 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
     }
   };
 
+  const parseFlexibleNumber = (value: unknown): number | null => {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null;
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      const normalized = trimmed
+        .replace(/,/g, '')
+        .replace(/[^0-9.-]/g, '');
+      if (!normalized) return null;
+      const parsed = Number(normalized);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    return null;
+  };
+
   // Helper function to format KSH amounts
   const formatKES = (amount: unknown, currencyCode?: unknown) => {
-    const parsedAmount = typeof amount === 'number' ? amount : Number(amount);
-    const safeAmount = Number.isFinite(parsedAmount) ? parsedAmount : 0;
+    const safeAmount = parseFlexibleNumber(amount) ?? 0;
     const normalizedCurrency = String(currencyCode || '').trim().toUpperCase();
     const currencyLabel = normalizedCurrency === 'KES' || normalizedCurrency === 'KSH' ? 'KSH' : 'KSH';
 
@@ -379,6 +397,8 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
     if (trimmed.startsWith('data:image/') || trimmed.startsWith('data:video/')) return trimmed;
     if (/^https?:\/\//i.test(trimmed)) return trimmed;
     if (trimmed.startsWith('/')) {
+      if (trimmed.startsWith('/_api_proxy/')) return trimmed;
+      if (apiBaseUrl && trimmed.startsWith(`${apiBaseUrl}/`)) return trimmed;
       if (apiBaseUrl) return `${apiBaseUrl}${trimmed}`;
       return trimmed;
     }
@@ -411,17 +431,30 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
     return '';
   };
 
-  const toPositiveNumber = (value: unknown): number | null => {
-    const candidate = typeof value === 'number' ? value : Number(value);
-    if (!Number.isFinite(candidate) || candidate <= 0) {
-      return null;
+  const parseAdditionalInfo = (value: unknown): Record<string, any> => {
+    if (typeof value !== 'string') return {};
+    const trimmed = value.trim();
+    if (!trimmed || !trimmed.startsWith('{')) return {};
+    try {
+      const parsed = JSON.parse(trimmed);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
     }
-    return candidate;
   };
 
+  const additionalInfo = parseAdditionalInfo((formData as any).additionalInformation);
+  const amountCandidates = [
+    parseFlexibleNumber(formData.agreedAmount?.total),
+    parseFlexibleNumber((additionalInfo as any)?.agreedAmount?.total),
+    parseFlexibleNumber(formData.pricingSnapshot?.total),
+    parseFlexibleNumber((additionalInfo as any)?.pricingSnapshot?.total),
+    parseFlexibleNumber((formData as any)?.totalAmount),
+  ].filter((value): value is number => value !== null);
+
   const agreedAmountTotal =
-    toPositiveNumber(formData.agreedAmount?.total) ??
-    toPositiveNumber(formData.pricingSnapshot?.total) ??
+    amountCandidates.find((value) => value > 0) ??
+    amountCandidates[0] ??
     0;
 
   const mediaEntries = Array.isArray(formData.files)
