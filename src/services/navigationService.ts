@@ -58,7 +58,6 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     href: '/settings/webforms',
     label: 'Web Forms',
     icon: 'FileText',
-    permission: 'webforms.read',
   },
   { href: '/tickets', label: 'Tickets', icon: 'Ticket' },
   { href: '/employee', label: 'Employee Portal', icon: 'Briefcase' },
@@ -111,10 +110,7 @@ export class NavigationService {
         return this.userHasPermission(user, 'manychat.access');
       }
       if (item.href === '/settings/webforms') {
-        return this.userHasPermission(user, 'webforms.read')
-          || this.userHasPermission(user, 'webforms.manage')
-          || this.userHasPermission(user, 'forms.read')
-          || this.userHasPermission(user, 'forms.manage');
+        return true;
       }
       // if (item.href === '/my-profile') return true;
       
