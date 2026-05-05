@@ -34,6 +34,20 @@ const nextConfig = {
       fullUrl: true,
     }
   },
+  async redirects() {
+    return [
+      {
+        source: '/webforms',
+        destination: '/settings/webforms',
+        permanent: false,
+      },
+      {
+        source: '/webforms/:path*',
+        destination: '/settings/webforms/:path*',
+        permanent: false,
+      },
+    ];
+  },
   async rewrites() {
     if (!apiProxyRewrite) {
       return [];

@@ -45,7 +45,7 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
 
     const list = [...normalizedList];
     const webFormsItem = {
-      href: '/webforms',
+      href: '/settings/webforms',
       label: 'Web Forms',
       icon: 'FileText',
     };
@@ -55,12 +55,6 @@ export function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
     );
     if (existingWebFormsIndex >= 0) {
       list.splice(existingWebFormsIndex, 1);
-    }
-
-    const manyChatIndex = list.findIndex((item) => item?.href === '/manychat');
-    if (manyChatIndex >= 0) {
-      list.splice(manyChatIndex + 1, 0, webFormsItem);
-      return list;
     }
 
     const dashboardIndex = list.findIndex((item) => item?.href === '/dashboard');

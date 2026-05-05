@@ -36,7 +36,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         permission: 'jobs.read',
       },
       {
-        href: '/webforms',
+        href: '/settings/webforms',
         label: 'Web Forms Builder',
       },
     ],
@@ -55,7 +55,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     ],
   },
   {
-    href: '/webforms',
+    href: '/settings/webforms',
     label: 'Web Forms',
     icon: 'FileText',
   },
