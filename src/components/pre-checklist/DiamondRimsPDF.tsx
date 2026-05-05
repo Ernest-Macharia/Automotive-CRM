@@ -348,7 +348,11 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
     }
   };
 
-  const parseFlexibleNumber = (value: unknown): number | null => {
+  const parseFlexibleNumber = (value: unknown, depth = 0): number | null => {
+    if (depth > 6 || value === null || value === undefined) {
+      return null;
+    }
+
     if (typeof value === 'number') {
       return Number.isFinite(value) ? value : null;
     }
@@ -356,12 +360,37 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
     if (typeof value === 'string') {
       const trimmed = value.trim();
       if (!trimmed) return null;
+      let parsedJson: unknown = null;
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          parsedJson = JSON.parse(trimmed);
+        } catch {
+          parsedJson = null;
+        }
+      }
+      if (parsedJson !== null) {
+        const parsedFromJson = parseFlexibleNumber(parsedJson, depth + 1);
+        if (parsedFromJson !== null) {
+          return parsedFromJson;
+        }
+      }
       const normalized = trimmed
         .replace(/,/g, '')
-        .replace(/[^0-9.-]/g, '');
+        .replace(/[^0-9.-]/g, '')
+        .trim();
       if (!normalized) return null;
       const parsed = Number(normalized);
       return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    if (Array.isArray(value)) {
+      for (const candidate of value) {
+        const parsed = parseFlexibleNumber(candidate, depth + 1);
+        if (parsed !== null) {
+          return parsed;
+        }
+      }
+      return null;
     }
 
     if (value && typeof value === 'object') {
@@ -371,13 +400,27 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
         record.amount,
         record.value,
         record.number,
+        record.subtotal,
+        record.grandTotal,
+        record.finalAmount,
+        record.agreedAmountTotal,
+        record.totalAmount,
+        record.price,
+        record.cost,
         record.$numberDecimal,
         record.$numberInt,
         record.$numberLong,
       ];
 
       for (const candidate of numericCandidates) {
-        const parsed = parseFlexibleNumber(candidate);
+        const parsed = parseFlexibleNumber(candidate, depth + 1);
+        if (parsed !== null) {
+          return parsed;
+        }
+      }
+
+      for (const candidate of Object.values(record)) {
+        const parsed = parseFlexibleNumber(candidate, depth + 1);
         if (parsed !== null) {
           return parsed;
         }
@@ -463,15 +506,38 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
         'path',
         'url',
         'src',
+        'uri',
+        'href',
+        'location',
         'image',
         'imageUrl',
         'fileUrl',
+        'publicUrl',
+        'secureUrl',
+        'signedUrl',
+        'storageUrl',
+        'downloadUrl',
+        'cdnUrl',
         'thumbnailPath',
         'thumbnailUrl',
+        'thumbnail',
+        'preview',
         'dataUrl',
         'value',
       ];
-      const nestedKeys = ['file', 'files', 'media', 'uploadedImages', 'images', 'attachments', 'items'];
+      const nestedKeys = [
+        'file',
+        'files',
+        'media',
+        'uploadedImages',
+        'images',
+        'attachments',
+        'photos',
+        'gallery',
+        'documents',
+        'evidence',
+        'items',
+      ];
 
       return [
         ...directKeys.flatMap((key) => collectMediaCandidates(record[key], depth + 1)),
@@ -530,16 +596,35 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
   };
 
   const additionalInfo = parseAdditionalInfo((formData as any).additionalInformation);
+  const pricingItemsTotal = Array.isArray(formData.pricingSnapshot?.items)
+    ? formData.pricingSnapshot.items.reduce((sum, item) => {
+        const itemTotal =
+          parseFlexibleNumber((item as any)?.total) ??
+          ((parseFlexibleNumber((item as any)?.quantity) ?? 0) * (parseFlexibleNumber((item as any)?.unitPrice) ?? 0));
+        return sum + (Number.isFinite(itemTotal) ? itemTotal : 0);
+      }, 0)
+    : 0;
   const amountCandidates = [
     parseFlexibleNumber(formData.agreedAmount?.total),
+    parseFlexibleNumber((formData as any)?.agreedAmount),
     parseFlexibleNumber((additionalInfo as any)?.agreedAmount?.total),
+    parseFlexibleNumber((additionalInfo as any)?.agreedAmount),
     parseFlexibleNumber(formData.pricingSnapshot?.total),
     parseFlexibleNumber(formData.pricingSnapshot?.subtotal),
+    pricingItemsTotal > 0 ? pricingItemsTotal : null,
     parseFlexibleNumber((additionalInfo as any)?.pricingSnapshot?.total),
     parseFlexibleNumber((additionalInfo as any)?.pricingSnapshot?.subtotal),
+    parseFlexibleNumber((additionalInfo as any)?.totals?.total),
+    parseFlexibleNumber((additionalInfo as any)?.totals?.subtotal),
+    parseFlexibleNumber((additionalInfo as any)?.payment?.total),
+    parseFlexibleNumber((additionalInfo as any)?.payment?.amount),
+    parseFlexibleNumber((additionalInfo as any)?.clientCharge?.total),
+    parseFlexibleNumber((additionalInfo as any)?.clientCharge?.amount),
     parseFlexibleNumber((formData as any)?.totalAmount),
     parseFlexibleNumber((formData as any)?.agreedAmountTotal),
     parseFlexibleNumber((formData as any)?.amount),
+    parseFlexibleNumber((formData as any)?.servicePrice),
+    parseFlexibleNumber((formData as any)?.productPrice),
     parseFlexibleNumber((additionalInfo as any)?.totalAmount),
     parseFlexibleNumber((additionalInfo as any)?.agreedAmountTotal),
     parseFlexibleNumber((additionalInfo as any)?.amount),
@@ -552,7 +637,13 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
 
   const rawFiles = [
     ...(Array.isArray(formData.files) ? formData.files : []),
+    ...(Array.isArray((formData as any)?.attachments) ? (formData as any).attachments : []),
+    ...(Array.isArray((formData as any)?.media) ? (formData as any).media : []),
     ...(Array.isArray((additionalInfo as any)?.files) ? (additionalInfo as any).files : []),
+    ...(Array.isArray((additionalInfo as any)?.attachments) ? (additionalInfo as any).attachments : []),
+    ...(Array.isArray((additionalInfo as any)?.media) ? (additionalInfo as any).media : []),
+    ...(Array.isArray((additionalInfo as any)?.photos) ? (additionalInfo as any).photos : []),
+    ...(Array.isArray((additionalInfo as any)?.gallery) ? (additionalInfo as any).gallery : []),
   ];
 
   const mediaEntries = Array.isArray(rawFiles)
@@ -669,9 +760,19 @@ const DiamondRimsPDF: React.FC<DiamondRimsPDFProps> = ({
     new Set(
       [
         ...normalizeMediaSources(formData.uploadedImages),
+        ...normalizeMediaSources((formData as any)?.images),
+        ...normalizeMediaSources((formData as any)?.attachments),
+        ...normalizeMediaSources((formData as any)?.media),
+        ...normalizeMediaSources((formData as any)?.photos),
+        ...normalizeMediaSources((formData as any)?.gallery),
         ...normalizeMediaSources((additionalInfo as any)?.uploadedImages),
         ...normalizeMediaSources((additionalInfo as any)?.images),
         ...normalizeMediaSources((additionalInfo as any)?.attachments),
+        ...normalizeMediaSources((additionalInfo as any)?.media),
+        ...normalizeMediaSources((additionalInfo as any)?.photos),
+        ...normalizeMediaSources((additionalInfo as any)?.gallery),
+        ...normalizeMediaSources((additionalInfo as any)?.documents),
+        ...normalizeMediaSources((additionalInfo as any)?.evidence),
         ...mediaEntries
           .filter((entry) => !entry.isVideo)
           .map((entry) => entry.src),

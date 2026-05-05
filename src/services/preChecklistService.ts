@@ -1478,31 +1478,6 @@ class PreChecklistService {
       includeSecureLink: options.includeSecureLink ?? true,
     };
 
-    try {
-      const approvalResult = await this.requestEmailApproval(
-        normalizedChecklistId,
-        normalizedEmail,
-        normalizedMessage,
-        normalizedSubject,
-        resolvedClientName
-      );
-
-      return {
-        success: approvalResult.success,
-        message: approvalResult.message || 'Checklist email approval requested successfully',
-        endpoint: `/prechecklists/${normalizedChecklistId}/request-email-approval`,
-      };
-    } catch (approvalError: any) {
-      const approvalStatusCode = parseErrorStatusCode(approvalError);
-      if (approvalStatusCode === 401 || approvalStatusCode === 403) {
-        throw approvalError;
-      }
-
-      if (approvalStatusCode !== 404 && approvalStatusCode !== 405) {
-        throw new Error(parseApiErrorMessage(approvalError, 'Failed to request checklist email approval'));
-      }
-    }
-
     const attachmentPayload = normalizedPdfBase64
       ? {
           pdfBase64: normalizedPdfBase64,
@@ -1534,6 +1509,11 @@ class PreChecklistService {
     const directSendEndpoints = [
       `/prechecklists/${normalizedChecklistId}/send-email`,
       ...(normalizedPdfBase64 ? [`/prechecklists/${normalizedChecklistId}/send-pdf-email`] : []),
+      `/prechecklists/${normalizedChecklistId}/send-client-email`,
+      `/prechecklists/${normalizedChecklistId}/send-client-copy`,
+      `/prechecklists/${normalizedChecklistId}/send-signed-copy`,
+      `/prechecklists/${normalizedChecklistId}/email/send-client`,
+      `/prechecklists/${normalizedChecklistId}/email/send-copy`,
       `/prechecklists/${normalizedChecklistId}/email/send`,
       `/prechecklist/${normalizedChecklistId}/send-email`,
     ];
@@ -1554,7 +1534,7 @@ class PreChecklistService {
           success: true,
           message: normalizedResponseMessage,
           endpoint,
-          fallbackUsed: true,
+          fallbackUsed: false,
         };
       } catch (error: any) {
         lastDirectSendError = error;
@@ -1573,6 +1553,32 @@ class PreChecklistService {
 
     if (lastDirectSendError) {
       console.warn(`Checklist copy email direct endpoints failed for ${normalizedChecklistId}:`, lastDirectSendError);
+    }
+
+    try {
+      const approvalResult = await this.requestEmailApproval(
+        normalizedChecklistId,
+        normalizedEmail,
+        normalizedMessage,
+        normalizedSubject,
+        resolvedClientName
+      );
+
+      return {
+        success: approvalResult.success,
+        message: approvalResult.message || 'Checklist email approval requested successfully',
+        endpoint: `/prechecklists/${normalizedChecklistId}/request-email-approval`,
+        fallbackUsed: true,
+      };
+    } catch (approvalError: any) {
+      const approvalStatusCode = parseErrorStatusCode(approvalError);
+      if (approvalStatusCode === 401 || approvalStatusCode === 403) {
+        throw approvalError;
+      }
+
+      if (approvalStatusCode !== 404 && approvalStatusCode !== 405) {
+        throw new Error(parseApiErrorMessage(approvalError, 'Failed to request checklist email approval'));
+      }
     }
 
     const unavailableError = new Error(
