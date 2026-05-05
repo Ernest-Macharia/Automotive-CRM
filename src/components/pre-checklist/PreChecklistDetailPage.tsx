@@ -289,22 +289,53 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
 
   const enrichChecklistMediaForPdf = useCallback(async (entry: PreChecklist): Promise<PreChecklist> => {
     const cloned = { ...entry } as PreChecklist & { uploadedImages?: string[]; files?: ChecklistFile[] };
-    const sourceFiles = Array.isArray(cloned.files) ? [...cloned.files] : [];
+    const inferMediaKind = (file: any): 'image' | 'video' | 'unknown' => {
+      const mime = String(file?.mimeType || file?.fileType || '').toLowerCase();
+      const filename = String(file?.originalName || file?.filename || '').toLowerCase();
+      const pathHint = String(file?.path || file?.url || '').toLowerCase();
+      const combined = `${mime} ${filename} ${pathHint}`;
+
+      if (combined.includes('image') || /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|#|$)/i.test(combined)) {
+        return 'image';
+      }
+
+      if (combined.includes('video') || /\.(mp4|mov|avi|webm|mkv|m4v|3gp|ogv|ogg)(\?|#|$)/i.test(combined)) {
+        return 'video';
+      }
+
+      return 'unknown';
+    };
+
+    let sourceFiles = Array.isArray(cloned.files) ? [...cloned.files] : [];
+
+    if (sourceFiles.length === 0 && entry?._id) {
+      try {
+        sourceFiles = await preChecklistService.getFiles(entry._id);
+        cloned.files = sourceFiles;
+      } catch (error) {
+        console.warn(`Unable to fetch checklist files for PDF hydration (${entry._id})`, error);
+      }
+    }
+
     if (sourceFiles.length === 0) {
       return cloned;
     }
 
     const imageFiles = sourceFiles
-      .filter((file) => String(file?.mimeType || file?.fileType || '').toLowerCase().includes('image'))
+      .filter((file) => inferMediaKind(file) === 'image')
       .slice(0, 8);
     const videoFiles = sourceFiles
-      .filter((file) => String(file?.mimeType || file?.fileType || '').toLowerCase().includes('video'))
+      .filter((file) => inferMediaKind(file) === 'video')
       .slice(0, 4);
+    const unknownFiles = sourceFiles
+      .filter((file) => inferMediaKind(file) === 'unknown')
+      .slice(0, Math.max(0, 8 - imageFiles.length));
+    const imageCandidates = [...imageFiles, ...unknownFiles].slice(0, 8);
 
     const fileDataById = new Map<string, { imageDataUrl?: string; thumbnailDataUrl?: string }>();
 
     await Promise.all(
-      imageFiles.map(async (file) => {
+      imageCandidates.map(async (file) => {
         const fileId = String(file?._id || (file as any)?.id || '').trim();
         if (!fileId) return;
         try {
@@ -350,7 +381,7 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     });
 
     const hydratedUploadedImages = cloned.files
-      .filter((file) => String(file?.mimeType || file?.fileType || '').toLowerCase().includes('image'))
+      .filter((file) => inferMediaKind(file) === 'image' || String((file as any)?.path || '').startsWith('data:image/'))
       .map((file) => String((file as any).path || (file as any).url || '').trim())
       .filter((item) => item.startsWith('data:image/'));
 

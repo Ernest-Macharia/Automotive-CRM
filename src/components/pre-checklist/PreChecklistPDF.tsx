@@ -351,6 +351,8 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
     if (trimmed.startsWith('data:image/') || trimmed.startsWith('data:video/')) return trimmed;
     if (/^https?:\/\//i.test(trimmed)) return trimmed;
     if (trimmed.startsWith('/')) {
+      if (trimmed.startsWith('/_api_proxy/')) return trimmed;
+      if (apiBaseUrl && trimmed.startsWith(`${apiBaseUrl}/`)) return trimmed;
       if (apiBaseUrl) return `${apiBaseUrl}${trimmed}`;
       return trimmed;
     }
@@ -378,7 +380,30 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
     }
   };
 
+  const parseFlexibleNumber = (value: unknown): number | null => {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null;
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      const normalized = trimmed
+        .replace(/,/g, '')
+        .replace(/[^0-9.-]/g, '');
+      if (!normalized) return null;
+      const parsed = Number(normalized);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  };
+
   const additionalInfo = parseAdditionalInfo(formData.additionalInformation);
+  const resolvedProductPrice =
+    parseFlexibleNumber(formData.productPrice) ??
+    parseFlexibleNumber((additionalInfo as any)?.productPrice);
+  const resolvedServicePrice =
+    parseFlexibleNumber(formData.servicePrice) ??
+    parseFlexibleNumber((additionalInfo as any)?.servicePrice);
   const customerDetails = formData.customerDetails || {};
   const carDetails = formData.carDetails || {};
   const installationDetails = formData.installationDetails || additionalInfo.installationDetails || {};
@@ -541,11 +566,19 @@ const PreChecklistPDF: React.FC<PreChecklistPDFProps> = ({
           <View style={styles.row}>
             <View style={styles.col}>
               <Text style={styles.label}>PRODUCT PRICE (KES)</Text>
-              <Text style={styles.value}>{formData.productPrice ? `KES ${formData.productPrice.toLocaleString()}` : 'â€”'}</Text>
+              <Text style={styles.value}>
+                {resolvedProductPrice !== null
+                  ? `KES ${resolvedProductPrice.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+                  : 'â€”'}
+              </Text>
             </View>
             <View style={styles.col}>
               <Text style={styles.label}>SERVICE PRICE (KES)</Text>
-              <Text style={styles.value}>{formData.servicePrice ? `KES ${formData.servicePrice.toLocaleString()}` : 'â€”'}</Text>
+              <Text style={styles.value}>
+                {resolvedServicePrice !== null
+                  ? `KES ${resolvedServicePrice.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+                  : 'â€”'}
+              </Text>
             </View>
           </View>
           <View style={styles.row}>
