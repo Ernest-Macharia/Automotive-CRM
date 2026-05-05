@@ -430,19 +430,6 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     ).toBlob();
   }, [enrichChecklistMediaForPdf, getChecklistVariant]);
 
-  const blobToBase64 = useCallback((blob: Blob): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = typeof reader.result === 'string' ? reader.result : '';
-        const normalized = result.includes(',') ? result.split(',')[1] : result;
-        resolve(normalized);
-      };
-      reader.onerror = () => reject(new Error('Failed to serialize PDF attachment'));
-      reader.readAsDataURL(blob);
-    });
-  }, []);
-
   const downloadChecklistPdf = useCallback((blob: Blob, filename: string) => {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -461,12 +448,25 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
     filename: string,
     pdfDownloaded: boolean
   ) => {
+    const normalizedRecipient = isValidEmail(recipient) ? recipient : '';
     const attachmentInstruction = pdfDownloaded
       ? `\n\nThe PDF file (${filename}) has been downloaded on this device. Please attach it before sending.`
       : '\n\nPlease attach the checklist PDF before sending.';
-    const mailto = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(`${message}${attachmentInstruction}`)}`;
+    const recipientInstruction = normalizedRecipient
+      ? ''
+      : '\n\nPlease enter the client email address in the "To" field before sending.';
+    const emailBody = `${message}${attachmentInstruction}${recipientInstruction}`;
+
+    const gmailComposeUrl =
+      `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(normalizedRecipient)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
+    const popup = window.open(gmailComposeUrl, '_blank', 'noopener,noreferrer');
+    if (popup) {
+      return;
+    }
+
+    const mailto = `mailto:${encodeURIComponent(normalizedRecipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
     window.location.href = mailto;
-  }, []);
+  }, [isValidEmail]);
 
   const getActionErrorMessage = useCallback((error: unknown, fallback: string): string => {
     const raw = String((error as any)?.message || '').trim();
@@ -638,86 +638,10 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
 
   const handleSendChecklistEmail = async () => {
     if (!checklist) return;
-
-    let recipient = resolveClientEmail(checklist);
-
-    if (!recipient) {
-      const enteredEmail = window
-        .prompt(
-          'No client email found on this checklist/opportunity. Enter a valid email to send.',
-          checklist.customerDetails?.email || ''
-        )
-        ?.trim();
-
-      if (!isValidEmail(enteredEmail)) {
-        showToast('No client email found on this checklist/opportunity. Enter a valid email to send.', 'error');
-        return;
-      }
-
-      recipient = enteredEmail;
-
-      setChecklist((current) =>
-        current
-          ? {
-              ...current,
-              clientEmail: recipient,
-              customerDetails: {
-                ...(current.customerDetails || {}),
-                email: recipient,
-              },
-            }
-          : current
-      );
-    }
+    const recipient = resolveClientEmail(checklist);
 
     try {
       setUpdating(true);
-
-      const customerName = resolveClientName(checklist);
-      const vehicleLabel =
-        checklist.carDetails?.licensePlate ||
-        (typeof checklist.vehicleId === 'object'
-          ? `${checklist.vehicleId?.make || ''} ${checklist.vehicleId?.model || ''}`.trim()
-          : '') ||
-        'Service Intake';
-      const subject = `SERVICE INTAKE FORM - ${customerName} - ${vehicleLabel}`;
-      const message = buildCustomerEmailMessage(checklist);
-      const fileSafeCustomerName = customerName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
-      const fileSafeVehicle = vehicleLabel.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
-      const pdfFilename = `SERVICE-INTAKE-${fileSafeCustomerName || 'CLIENT'}-${fileSafeVehicle || 'VEHICLE'}.pdf`;
-
-      let attachmentBlob: Blob | undefined;
-      let pdfBase64: string | undefined;
-      try {
-        attachmentBlob = await buildChecklistPdfBlob(checklist);
-        pdfBase64 = await blobToBase64(attachmentBlob);
-      } catch (attachmentError) {
-        console.warn('Failed to pre-build local PDF attachment, continuing with server-side email flow:', attachmentError);
-      }
-
-      const response = await preChecklistService.sendChecklistCopyEmail(checklist._id, {
-        email: recipient,
-        clientName: customerName,
-        subject,
-        message,
-        includePdf: true,
-        includeSecureLink: false,
-        pdfBase64,
-        pdfFilename,
-        pdfMimeType: 'application/pdf',
-      });
-
-      if (!response.success) {
-        throw new Error(response.message || 'Checklist email endpoint returned unsuccessful response');
-      }
-
-      if (response.fallbackUsed) {
-        showToast('Checklist email sent using approval flow fallback', 'info');
-      } else {
-        showToast('Checklist email sent to client', 'success');
-      }
-    } catch (error) {
-      console.error('Error sending checklist email through backend, opening local email fallback:', error);
 
       const customerName = resolveClientName(checklist);
       const vehicleLabel =
@@ -738,16 +662,19 @@ export default function PreChecklistDetailPage({ id }: PreChecklistDetailPagePro
         downloadChecklistPdf(fallbackBlob, pdfFilename);
         pdfDownloaded = true;
       } catch (downloadError) {
-        console.error('Failed to build fallback checklist PDF for email draft:', downloadError);
+        console.error('Failed to build checklist PDF for Gmail attachment:', downloadError);
       }
 
       openClientEmailDraft(recipient, subject, message, pdfFilename, pdfDownloaded);
       showToast(
-        pdfDownloaded
-          ? 'Email draft opened and PDF downloaded. Attach the PDF before sending.'
-          : 'Email draft opened, but the PDF could not be generated locally. Attach the checklist PDF before sending.',
-        pdfDownloaded ? 'info' : 'warning'
+        recipient
+          ? 'Gmail compose opened. Review and send to client.'
+          : 'Gmail compose opened. Enter client email, attach PDF, then send.',
+        recipient ? 'success' : 'info'
       );
+    } catch (error) {
+      console.error('Error opening checklist email draft:', error);
+      showToast('Failed to open Gmail compose. Please try again.', 'error');
     } finally {
       setUpdating(false);
     }
