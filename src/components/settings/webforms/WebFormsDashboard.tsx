@@ -46,6 +46,9 @@ const getFormStateBadge = (state?: string): string => {
   }
 };
 
+const modalFieldClassName =
+  'mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 caret-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500';
+
 export default function WebFormsDashboard() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -489,26 +492,26 @@ export default function WebFormsDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label className="text-sm text-gray-700">
                 Title
-                <input
-                  required
-                  value={createFormData.title}
-                  onChange={(event) =>
-                    setCreateFormData((prev) => ({ ...prev, title: event.target.value }))
-                  }
-                  className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300"
-                />
-              </label>
-              <label className="text-sm text-gray-700">
-                Internal Name
-                <input
-                  value={createFormData.name}
-                  onChange={(event) =>
-                    setCreateFormData((prev) => ({ ...prev, name: event.target.value }))
-                  }
-                  className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300"
-                />
-              </label>
-            </div>
+                  <input
+                    required
+                    value={createFormData.title}
+                    onChange={(event) =>
+                      setCreateFormData((prev) => ({ ...prev, title: event.target.value }))
+                    }
+                    className={modalFieldClassName}
+                  />
+                </label>
+                <label className="text-sm text-gray-700">
+                  Internal Name
+                  <input
+                    value={createFormData.name}
+                    onChange={(event) =>
+                      setCreateFormData((prev) => ({ ...prev, name: event.target.value }))
+                    }
+                    className={modalFieldClassName}
+                  />
+                </label>
+              </div>
 
             <label className="text-sm text-gray-700 block">
               Description
@@ -518,7 +521,7 @@ export default function WebFormsDashboard() {
                 onChange={(event) =>
                   setCreateFormData((prev) => ({ ...prev, description: event.target.value }))
                 }
-                className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300"
+                className={modalFieldClassName}
               />
             </label>
 
@@ -530,7 +533,7 @@ export default function WebFormsDashboard() {
                   onChange={(event) =>
                     setCreateFormData((prev) => ({ ...prev, formKey: event.target.value }))
                   }
-                  className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300"
+                  className={modalFieldClassName}
                   placeholder="service-intake"
                 />
               </label>
@@ -541,7 +544,7 @@ export default function WebFormsDashboard() {
                   onChange={(event) =>
                     setCreateFormData((prev) => ({ ...prev, publicKey: event.target.value }))
                   }
-                  className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300"
+                  className={modalFieldClassName}
                   placeholder="service-intake-public"
                 />
               </label>
@@ -645,7 +648,7 @@ export default function WebFormsDashboard() {
                       onChange={(event) =>
                         setCreateFromTemplateData((prev) => ({ ...prev, name: event.target.value }))
                       }
-                      className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300"
+                      className={modalFieldClassName}
                     />
                   </label>
                   <label className="text-sm text-gray-700">
@@ -655,7 +658,7 @@ export default function WebFormsDashboard() {
                       onChange={(event) =>
                         setCreateFromTemplateData((prev) => ({ ...prev, formKey: event.target.value }))
                       }
-                      className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300"
+                      className={modalFieldClassName}
                     />
                   </label>
                   <label className="text-sm text-gray-700">
@@ -665,7 +668,7 @@ export default function WebFormsDashboard() {
                       onChange={(event) =>
                         setCreateFromTemplateData((prev) => ({ ...prev, publicKey: event.target.value }))
                       }
-                      className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300"
+                      className={modalFieldClassName}
                     />
                   </label>
                   <label className="text-sm text-gray-700">
@@ -676,7 +679,7 @@ export default function WebFormsDashboard() {
                         setCreateFromTemplateData((prev) => ({ ...prev, primaryColor: event.target.value }))
                       }
                       placeholder="#0f766e"
-                      className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300"
+                      className={modalFieldClassName}
                     />
                   </label>
                 </div>
@@ -688,7 +691,7 @@ export default function WebFormsDashboard() {
                     onChange={(event) =>
                       setCreateFromTemplateData((prev) => ({ ...prev, headerText: event.target.value }))
                     }
-                    className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300"
+                    className={modalFieldClassName}
                   />
                 </label>
 
@@ -700,7 +703,7 @@ export default function WebFormsDashboard() {
                     onChange={(event) =>
                       setCreateFromTemplateData((prev) => ({ ...prev, description: event.target.value }))
                     }
-                    className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300"
+                    className={modalFieldClassName}
                   />
                 </label>
 
